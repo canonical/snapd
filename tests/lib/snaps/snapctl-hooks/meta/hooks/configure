@@ -2,8 +2,8 @@
 
 test_nonexisting() {
 	echo "Getting a configuration value that shouldn't be there"
-	if snapctl get non-existing; then
-		echo "Expected getting a non-existing value to be an error"
+	if [ "$(snapctl get non-existing 2>&1)" != "" ]; then
+		echo "Expected getting a non-existing value to be empty"
 		exit 1
 	fi
 }
@@ -18,25 +18,13 @@ test_snapctl_set_foo() {
 
 test_snapctl_get_foo() {
 	echo "Getting foo"
-	if ! output=$(snapctl get foo); then
+	if ! output="$(snapctl get foo)"; then
 		echo "Expected snapctl get to be able to retrieve value just set"
 		exit 1
 	fi
 
 	expected_output="bar"
-	if "$output" -ne "$expected_output"; then
-		echo "Expected output to be '$expected_output', but it was '$output'"
-		exit 1
-	fi
-
-	echo "Getting foo with full document"
-	if ! output=$(snapctl get -d foo); then
-		echo "Expected snapctl get to be able to retrieve value just set"
-		exit 1
-	fi
-
-	expected_output='{\n"foo": "bar"\n}'
-	if "$output" -ne "$expected_output"; then
+	if [ "$output" != "$expected_output" ]; then
 		echo "Expected output to be '$expected_output', but it was '$output'"
 		exit 1
 	fi
@@ -49,18 +37,18 @@ test_exit_one() {
 
 command=$(snapctl get command)
 case $command in
-	'')
+	"")
 		;;
-	'"test-nonexisting"')
+	"test-nonexisting")
 		test_nonexisting
 		;;
-	'"test-snapctl-set-foo"')
+	"test-snapctl-set-foo")
 		test_snapctl_set_foo
 		;;
-	'"test-snapctl-get-foo"')
+	"test-snapctl-get-foo")
 		test_snapctl_get_foo
 		;;
-	'"test-exit-one"')
+	"test-exit-one")
 		test_exit_one
 		;;
 	*)

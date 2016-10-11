@@ -17,21 +17,18 @@
  *
  */
 
-package boot_test
+package snapstate_test
 
 // test the boot releated code
 
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -40,11 +37,12 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-func TestBoot(t *testing.T) { TestingT(t) }
-
 type bootedSuite struct {
 	bootloader *boottest.MockBootloader
-	overlord   *overlord.Overlord
+
+	state       *state.State
+	snapmgr     *snapstate.SnapManager
+	fakeBackend *fakeSnappyBackend
 }
 
 var _ = Suite(&bootedSuite{})
@@ -62,12 +60,17 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 	partition.ForceBootloader(bs.bootloader)
 
-	ovld, err := overlord.New()
+	bs.fakeBackend = &fakeSnappyBackend{}
+	bs.state = state.New(nil)
+	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
-	bs.overlord = ovld
+	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
+
+	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
+	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 }
@@ -77,10 +80,14 @@ var osSI2 = &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
 var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
 var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
 
-func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
-	st.Lock()
-	defer st.Unlock()
+func (bs *bootedSuite) settle() {
+	for i := 0; i < 50; i++ {
+		bs.snapmgr.Ensure()
+		bs.snapmgr.Wait()
+	}
+}
 
+func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", osSI1)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", osSI2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
@@ -101,16 +108,26 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
-	st := bs.overlord.State()
+func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
-	err := boot.UpdateRevisions(bs.overlord)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
+	st.Unlock()
+	bs.settle()
 	st.Lock()
-	defer st.Unlock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
@@ -125,16 +142,26 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
-	st := bs.overlord.State()
+func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_1.snap"
-	err := boot.UpdateRevisions(bs.overlord)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
+	st.Unlock()
+	bs.settle()
 	st.Lock()
-	defer st.Unlock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// canonical-pc-linux "current" got reverted but core did not
 	var snapst snapstate.SnapState
@@ -149,28 +176,35 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
-	st := bs.overlord.State()
+func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_99.snap"
-	err := boot.UpdateRevisions(bs.overlord)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
-	st := bs.overlord.State()
+func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsEarly(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "core_99.snap"
-	err := boot.UpdateRevisions(bs.overlord)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
-	st := bs.overlord.State()
-
+func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
+	st := bs.state
 	st.Lock()
+	defer st.Unlock()
+
 	// put core into the state but add no files on disk
 	// will break in the tasks
 	snapstate.Set(st, "core", &snapstate.SnapState{
@@ -179,21 +213,31 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
 		Current:  snap.R(2),
 	})
-	st.Unlock()
+	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
 
 	bs.bootloader.BootVars["snap_kernel"] = "core_1.snap"
-	err := boot.UpdateRevisions(bs.overlord)
-	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
+	err := snapstate.UpdateBootRevisions(st)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	bs.settle()
+	st.Lock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "core" \(1\) available to the system \(fail\).*`)
 }
 
 func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {
-	name, revno, err := boot.NameAndRevnoFromSnap("foo_2.snap")
+	name, revno, err := snapstate.NameAndRevnoFromSnap("foo_2.snap")
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 	c.Assert(revno, Equals, snap.R(2))
 }
 
 func (bs *bootedSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
-	_, _, err := boot.NameAndRevnoFromSnap("invalid")
+	_, _, err := snapstate.NameAndRevnoFromSnap("invalid")
 	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
 }

@@ -761,6 +761,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
@@ -3962,4 +3963,88 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"discard-conns",
 		})
 	}
+}
+
+func taskWithKind(ts *state.TaskSet, kind string) *state.Task {
+	for _, task := range ts.Tasks() {
+		if task.Kind() == kind {
+			return task
+		}
+	}
+	return nil
+}
+
+var gadgetYaml = `
+defaults:
+    some-snap-id:
+        key: value
+
+volumes:
+    volume-id:
+        bootloader: grub
+`
+
+func (s *snapmgrTestSuite) prepareGadget(c *C) {
+	gadgetSideInfo := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	gadgetInfo := snaptest.MockSnap(c, "name: the-gadget\nversion: 1.0", gadgetSideInfo)
+
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&gadgetInfo.SideInfo},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+}
+
+func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c)
+
+	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}, snapPath, "edge", 0)
+	c.Assert(err, IsNil)
+
+	var m map[string]interface{}
+	runHook := taskWithKind(ts, "run-hook")
+	c.Assert(runHook.Kind(), Equals, "run-hook")
+	err = runHook.Get("hook-context", &m)
+	c.Assert(err, IsNil)
+	c.Assert(m["patch"], DeepEquals, map[string]interface{}{"key": "value"})
+}
+
+func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c)
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}, snapPath, "edge", 0)
+	c.Assert(err, IsNil)
+
+	var m map[string]interface{}
+	runHook := taskWithKind(ts, "run-hook")
+	c.Assert(runHook.Kind(), Equals, "run-hook")
+	err = runHook.Get("hook-context", &m)
+	c.Assert(err, Equals, state.ErrNoState)
 }

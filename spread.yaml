@@ -15,6 +15,7 @@ environment:
     SUDO_USER: ""
     SUDO_UID: ""
     TRUST_TEST_KEYS: "true"
+    MANAGED_DEVICE: "false"
 
 backends:
     linode:
@@ -62,6 +63,7 @@ backends:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
+            MANAGED_DEVICE: "true"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
@@ -113,7 +115,7 @@ prepare: |
         if [ ! -f $GOPATH/bin/snapbuild ]; then
             mkdir -p $GOPATH/bin
             snap install --devmode --edge classic
-            classic "sudo apt update && apt install -y git golang-go"
+            classic "sudo apt update && apt install -y git golang-go build-essential"
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi

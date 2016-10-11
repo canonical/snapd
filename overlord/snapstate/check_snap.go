@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -101,6 +100,9 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 		if err == state.ErrNoState {
 			return nil
 		}
+		if err != nil {
+			return err
+		}
 		if core.Name() != s.Name() {
 			return fmt.Errorf("cannot install core snap %q when core snap %q is already present", s.Name(), core.Name())
 		}
@@ -114,8 +116,11 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 		}
 
 		currentGadget, err := GadgetInfo(st)
+		// FIXME: check from the model assertion that its the
+		//        right gadget
+		//
 		// in firstboot we have no gadget yet - that is ok
-		if err == state.ErrNoState && !firstboot.HasRun() {
+		if err == state.ErrNoState {
 			return nil
 		}
 		if err != nil {

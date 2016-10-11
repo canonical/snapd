@@ -202,7 +202,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	var defaults map[string]interface{}
 
-	if ss.SideInfo != nil && ss.SideInfo.SnapID != "" {
+	if !snapst.HasCurrent() && ss.SideInfo != nil && ss.SideInfo.SnapID != "" {
 		gadget, err := GadgetInfo(s)
 		if err != nil && err != state.ErrNoState {
 			return nil, err

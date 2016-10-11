@@ -31,26 +31,33 @@ type getCommand struct {
 	baseCommand
 
 	Positional struct {
-		Keys []string `positional-arg-name:"<keys>" description:"keys of interest within the configuration" required:"1"`
+		Keys []string `positional-arg-name:"<keys>" description:"option keys" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
 
 	Document bool `short:"d" description:"always return document, even with single key"`
+	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("Get snap configuration")
+var shortGetHelp = i18n.G("Prints configuration options")
 var longGetHelp = i18n.G(`
-The get command retrieves the configuration parameters requested, for example:
+The get command prints configuration options for the current snap.
 
-    $ snapctl get foo
-    bar
+    $ snapctl get username
+    frank
 
-Or:
+If multiple option names are provided, a document is returned:
 
-    $ snapctl get foo baz
+    $ snapctl get username password
     {
-        "baz": "qux",
-        "foo": "bar"
-    }`)
+        "username": "frank",
+        "password": "..."
+    }
+
+Nested values may be retrieved via a dotted path:
+
+    $ snapctl get author.name
+    frank
+`)
 
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() command { return &getCommand{} })
@@ -62,6 +69,10 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot get without a context")
 	}
 
+	if c.Typed && c.Document {
+		return fmt.Errorf("cannot use -d and -t together")
+	}
+
 	patch := make(map[string]interface{})
 	context.Lock()
 	transaction := configstate.ContextTransaction(context)
@@ -69,16 +80,31 @@ func (c *getCommand) Execute(args []string) error {
 
 	for _, key := range c.Positional.Keys {
 		var value interface{}
-		if err := transaction.Get(c.context().SnapName(), key, &value); err != nil {
+		err := transaction.Get(c.context().SnapName(), key, &value)
+		if err == nil {
+			patch[key] = value
+		} else if configstate.IsNoOption(err) {
+			if !c.Typed {
+				value = ""
+			}
+		} else {
 			return err
 		}
-
-		patch[key] = value
 	}
 
 	var confToPrint interface{} = patch
 	if !c.Document && len(c.Positional.Keys) == 1 {
 		confToPrint = patch[c.Positional.Keys[0]]
+	}
+
+	if c.Typed && confToPrint == nil {
+		c.printf("null\n")
+		return nil
+	}
+
+	if s, ok := confToPrint.(string); ok && !c.Typed {
+		c.printf("%s\n", s)
+		return nil
 	}
 
 	var bytes []byte
@@ -90,7 +116,7 @@ func (c *getCommand) Execute(args []string) error {
 		}
 	}
 
-	c.printf("%s", string(bytes))
+	c.printf("%s\n", string(bytes))
 
 	return nil
 }

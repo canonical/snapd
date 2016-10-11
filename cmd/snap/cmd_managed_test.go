@@ -17,8 +17,30 @@
  *
  */
 
-package boot
+package main_test
 
-var (
-	ImportAssertionsFromSeed = importAssertionsFromSeed
+import (
+	"fmt"
+	"net/http"
+
+	. "gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
+
+func (s *SnapSuite) TestManaged(c *C) {
+	for _, managed := range []bool{true, false} {
+		s.stdout.Truncate(0)
+
+		s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-info")
+
+			fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {"managed":%v}}`, managed)
+		})
+
+		_, err := snap.Parser().ParseArgs([]string{"managed"})
+		c.Assert(err, IsNil)
+		c.Check(s.Stdout(), Equals, fmt.Sprintf("%v\n", managed))
+	}
+}

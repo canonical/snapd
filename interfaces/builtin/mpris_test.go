@@ -344,7 +344,7 @@ func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *MprisInterfaceSuite) TestAutoConnect(c *C) {
+func (s *MprisInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	iface := &builtin.MprisInterface{}
-	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.LegacyAutoConnect(), Equals, false)
 }

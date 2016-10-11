@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,23 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-package main_test
+package osutil
 
 import (
-	"gopkg.in/check.v1"
-
-	snap "github.com/snapcore/snapd/cmd/snap"
+	"bufio"
+	"os"
+	"strings"
 )
 
-func (s *SnapSuite) TestBootedErrorsOnExtra(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"booted", "extra-arg"})
-	c.Assert(err, check.ErrorMatches, `too many arguments for command`)
-}
+var mountInfoPath = "/proc/self/mountinfo"
 
-func (s *SnapSuite) TestBootedSkippedOnClassic(c *check.C) {
-	rest, err := snap.Parser().ParseArgs([]string{"booted"})
-	c.Assert(err, check.IsNil)
-	c.Check(rest, check.DeepEquals, []string{})
-	c.Assert(s.Stdout(), check.Equals, "Ignoring 'booted' on classic")
+// FIXME: this needs a test
+func IsMounted(baseDir string) (bool, error) {
+	f, err := os.Open(mountInfoPath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		l := strings.Fields(scanner.Text())
+		if len(l) == 0 {
+			continue
+		}
+		mountPoint := l[4]
+		if baseDir == mountPoint {
+			return true, nil
+		}
+	}
+
+	return false, scanner.Err()
 }

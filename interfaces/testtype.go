@@ -28,11 +28,8 @@ import (
 type TestInterface struct {
 	// InterfaceName is the name of this interface
 	InterfaceName string
-	// AutoConnectFlag indicates whether plugs and slots should be implicitly
-	// auto-connected.
-	AutoConnectFlag bool
-	// confirm given pairs to auto-connect.
-	AutoConnectPairHook func(*Plug, *Slot) bool
+	// AutoConnectCallback is the callback invoked inside AutoConnect
+	AutoConnectCallback func(*Plug, *Slot) bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
 	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
@@ -115,19 +112,16 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 	return nil, nil
 }
 
-// AutoConnect returns whether plugs and slots should be implicitly
-// auto-connected when an unambiguous connection candidate is available in
-// the OS snap.
-func (t *TestInterface) AutoConnect() bool {
-	return t.AutoConnectFlag
+func (t *TestInterface) LegacyAutoConnect() bool {
+	panic("no test should depend on this anymore")
 }
 
-// AutoConnectPair returns whether plug and slot should be implicitly
+// AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
-func (t *TestInterface) AutoConnectPair(plug *Plug, slot *Slot) bool {
-	if t.AutoConnectPairHook != nil {
-		return t.AutoConnectPairHook(plug, slot)
+func (t *TestInterface) AutoConnect(plug *Plug, slot *Slot) bool {
+	if t.AutoConnectCallback != nil {
+		return t.AutoConnectCallback(plug, slot)
 	}
 	return true
 }

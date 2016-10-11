@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,28 +22,34 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/i18n"
+
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdInternalFirstBoot struct{}
+var shortIsManagedHelp = i18n.G("Prints whether system is managed")
+var longIsManagedHelp = i18n.G(`
+The managed command will print true or false informing whether
+snapd has registered users.
+`)
+
+type cmdIsManaged struct{}
 
 func init() {
-	cmd := addCommand("firstboot",
-		"internal",
-		"internal", func() flags.Commander {
-			return &cmdInternalFirstBoot{}
-		}, nil, nil)
+	cmd := addCommand("managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} }, nil, nil)
 	cmd.hidden = true
 }
 
-// WARNING: do not remove this command, older systems may still have
-//          a systemd snapd.firstboot.service job in /etc/systemd/system
-//          that we did not cleanup. so we need this dummy command or
-//          those units will start failing.
-func (x *cmdInternalFirstBoot) Execute(args []string) error {
+func (cmd cmdIsManaged) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	fmt.Fprintf(Stderr, "firstboot command is deprecated")
+
+	sysinfo, err := Client().SysInfo()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "%v\n", sysinfo.Managed)
 	return nil
 }

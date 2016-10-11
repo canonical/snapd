@@ -38,6 +38,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
+
+	// important so that the testkeys get imported
+	_ "github.com/snapcore/snapd/overlord/assertstate"
 )
 
 var (
@@ -207,6 +210,25 @@ func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addi
 
 }
 
+func installCloudConfig(gadgetDir string) error {
+	var err error
+
+	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud")
+	if err := os.MkdirAll(cloudDir, 0755); err != nil {
+		return err
+	}
+
+	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
+	if osutil.FileExists(cloudConfig) {
+		dst := filepath.Join(cloudDir, "cloud.cfg")
+		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
+	} else {
+		dst := filepath.Join(cloudDir, "cloud-init.disabled")
+		err = osutil.AtomicWriteFile(dst, nil, 0644, 0)
+	}
+	return err
+}
+
 const defaultCore = "core"
 
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -359,6 +381,11 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	}
 
 	if err := setBootvars(downloadedSnapsInfo); err != nil {
+		return err
+	}
+
+	// and the cloud-init things
+	if err := installCloudConfig(opts.GadgetUnpackDir); err != nil {
 		return err
 	}
 

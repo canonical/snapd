@@ -136,10 +136,10 @@ func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *MirInterface) AutoConnect() bool {
+func (iface *MirInterface) LegacyAutoConnect() bool {
 	return true
 }
 
-func (iface *MirInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *MirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

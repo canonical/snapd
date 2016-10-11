@@ -118,22 +118,44 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"snapd-control": true,
 	}
 
+	// these simply auto-connect, anything else doesn't
+	autoconnect := map[string]bool{
+		"browser-support":        true,
+		"gsettings":              true,
+		"mir":                    true,
+		"network":                true,
+		"network-bind":           true,
+		"opengl":                 true,
+		"optical-drive":          true,
+		"pulseaudio":             true,
+		"screen-inhibit-control": true,
+		"unity7":                 true,
+		"upower-observe":         true,
+		"x11":                    true,
+	}
+
 	for _, iface := range all {
 		if snowflakes[iface.Name()] {
 			continue
 		}
-		expected := iface.AutoConnect()
+		expected := autoconnect[iface.Name()]
+		comm := Commentf(iface.Name())
+
+		// cross-check with past behavior
+		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
+
+		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
 		if expected {
-			c.Check(err, IsNil, Commentf(iface.Name()))
+			c.Check(err, IsNil, comm)
 		} else {
-			c.Check(err, NotNil, Commentf(iface.Name()))
+			c.Check(err, NotNil, comm)
 		}
 	}
 }
 
-func (s *baseDeclSuite) TestAutoConnectPair(c *C) {
+func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	all := builtin.Interfaces()
 
 	// these have more complex or in flux policies and have their
@@ -148,12 +170,12 @@ func (s *baseDeclSuite) TestAutoConnectPair(c *C) {
 		if snowflakes[iface.Name()] {
 			continue
 		}
-		c.Check(iface.AutoConnectPair(nil, nil), Equals, true)
+		c.Check(iface.AutoConnect(nil, nil), Equals, true)
 	}
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
-	// home will be controlled by AutoConnectPair(plug, slot) until
+func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
+	// home will be controlled by AutoConnect(plug, slot) until
 	// we have on-classic support in decls
 	// to stop it from working on non-classic
 	cand := s.connectCand(c, "home", "", "")
@@ -161,14 +183,14 @@ func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectSnapdControl(c *C) {
+func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
 	// snapd-control is auto-connect until we have snap declaration editing
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	// content will also depend for now AutoConnect(plug, slot)
 	// random snaps cannot connect with content
 	cand := s.connectCand(c, "content", "", "")
@@ -176,7 +198,7 @@ func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)

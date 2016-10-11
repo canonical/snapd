@@ -2,6 +2,9 @@ summary: Ensure that a ubuntu-core refresh works
 
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 
+debug: |
+    cat /proc/cmdline
+
 execute: |
     . "$TESTSLIB/boot.sh"
     . "$TESTSLIB/names.sh"
@@ -48,9 +51,9 @@ execute: |
 
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Waiting for boot-ok to finish"
-        while ! systemctl status snapd.boot-ok|grep SUCCESS; do
+        while [ $(bootenv snap_mode) != "" ]; do
             echo "Show debug info"
-            systemctl status snapd.boot-ok || true
+            bootenv snap_mode
             sleep 1
         done
 
