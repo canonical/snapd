@@ -3,7 +3,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -20,6 +20,26 @@
     "root_dir": "/"
   },
   {
+    "fs_type": "hugetlbfs",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/dev/hugepages",
+    "mount_src": "hugetlbfs",
+    "opt_fields": [
+      "master:renumbered/2"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "mqueue",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/dev/mqueue",
+    "mount_src": "mqueue",
+    "opt_fields": [
+      "master:renumbered/3"
+    ],
+    "root_dir": "/"
+  },
+  {
     "fs_type": "devpts",
     "mount_opts": "rw,relatime",
     "mount_point": "/dev/ptmx",
@@ -29,20 +49,20 @@
   },
   {
     "fs_type": "devpts",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/dev/pts",
-    "mount_src": "devpts",
-    "opt_fields": [],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "devpts",
     "mount_opts": "rw,nosuid,noexec,relatime",
     "mount_point": "/dev/pts",
     "mount_src": "devpts",
     "opt_fields": [
-      "master:renumbered/2"
+      "master:renumbered/4"
     ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "devpts",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/dev/pts",
+    "mount_src": "devpts",
+    "opt_fields": [],
     "root_dir": "/"
   },
   {
@@ -51,7 +71,7 @@
     "mount_point": "/dev/shm",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/3"
+      "master:renumbered/5"
     ],
     "root_dir": "/"
   },
@@ -59,9 +79,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/etc",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/etc"
   },
@@ -69,7 +89,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/etc/alternatives",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -79,9 +99,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/home",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/home"
   },
@@ -89,9 +109,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/lib/modules",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/lib/modules"
   },
@@ -99,9 +119,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/media",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/media"
   },
@@ -111,7 +131,7 @@
     "mount_point": "/proc",
     "mount_src": "proc",
     "opt_fields": [
-      "master:renumbered/5"
+      "master:renumbered/7"
     ],
     "root_dir": "/"
   },
@@ -121,7 +141,7 @@
     "mount_point": "/proc/sys/fs/binfmt_misc",
     "mount_src": "systemd-1",
     "opt_fields": [
-      "master:renumbered/6"
+      "master:renumbered/8"
     ],
     "root_dir": "/"
   },
@@ -129,9 +149,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/root",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/root"
   },
@@ -177,9 +197,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/snap",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/snap"
   },
@@ -187,7 +207,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/snap/snapd-hacker-toolbelt/NUMBER",
-    "mount_src": "/dev/loop1",
+    "mount_src": "/dev/remapped-loop1",
     "opt_fields": [
       "master:renumbered/12"
     ],
@@ -197,7 +217,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/snap/ubuntu-core/NUMBER",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -209,7 +229,7 @@
     "mount_point": "/sys",
     "mount_src": "sysfs",
     "opt_fields": [
-      "master:renumbered/7"
+      "master:renumbered/13"
     ],
     "root_dir": "/"
   },
@@ -219,7 +239,157 @@
     "mount_point": "/sys/fs/cgroup",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/8"
+      "master:renumbered/14"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/blkio",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/15"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/cpu,cpuacct",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/16"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/cpuset",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/17"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/devices",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/18"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/freezer",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/19"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/hugetlb",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/20"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/memory",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/21"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/net_cls,net_prio",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/22"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/perf_event",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/23"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/pids",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/24"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/cgroup/systemd",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/25"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "fusectl",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/sys/fs/fuse/connections",
+    "mount_src": "fusectl",
+    "opt_fields": [
+      "master:renumbered/26"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "pstore",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/fs/pstore",
+    "mount_src": "pstore",
+    "opt_fields": [
+      "master:renumbered/27"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "debugfs",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/sys/kernel/debug",
+    "mount_src": "debugfs",
+    "opt_fields": [
+      "master:renumbered/28"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "securityfs",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/sys/kernel/security",
+    "mount_src": "securityfs",
+    "opt_fields": [
+      "master:renumbered/29"
     ],
     "root_dir": "/"
   },
@@ -227,9 +397,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/tmp",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/tmp"
   },
@@ -237,7 +407,7 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/tmp",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [],
     "root_dir": "/tmp/snap.0_snap.snapd-hacker-toolbelt.busybox_XXXXXX/tmp"
   },
@@ -245,7 +415,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/tmp/snap.rootfs_XXXXXX",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -262,12 +432,32 @@
     "root_dir": "/"
   },
   {
+    "fs_type": "hugetlbfs",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/dev/hugepages",
+    "mount_src": "hugetlbfs",
+    "opt_fields": [
+      "master:renumbered/2"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "mqueue",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/dev/mqueue",
+    "mount_src": "mqueue",
+    "opt_fields": [
+      "master:renumbered/3"
+    ],
+    "root_dir": "/"
+  },
+  {
     "fs_type": "devpts",
     "mount_opts": "rw,nosuid,noexec,relatime",
     "mount_point": "/tmp/snap.rootfs_XXXXXX/dev/pts",
     "mount_src": "devpts",
     "opt_fields": [
-      "master:renumbered/2"
+      "master:renumbered/4"
     ],
     "root_dir": "/"
   },
@@ -277,7 +467,7 @@
     "mount_point": "/tmp/snap.rootfs_XXXXXX/dev/shm",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/3"
+      "master:renumbered/5"
     ],
     "root_dir": "/"
   },
@@ -285,9 +475,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/tmp/snap.rootfs_XXXXXX/etc",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/etc"
   },
@@ -295,9 +485,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/tmp/snap.rootfs_XXXXXX/home",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/home"
   },
@@ -307,7 +497,7 @@
     "mount_point": "/tmp/snap.rootfs_XXXXXX/proc",
     "mount_src": "proc",
     "opt_fields": [
-      "master:renumbered/5"
+      "master:renumbered/7"
     ],
     "root_dir": "/"
   },
@@ -317,7 +507,7 @@
     "mount_point": "/tmp/snap.rootfs_XXXXXX/proc/sys/fs/binfmt_misc",
     "mount_src": "systemd-1",
     "opt_fields": [
-      "master:renumbered/6"
+      "master:renumbered/8"
     ],
     "root_dir": "/"
   },
@@ -325,9 +515,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/tmp/snap.rootfs_XXXXXX/root",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/root"
   },
@@ -337,7 +527,7 @@
     "mount_point": "/tmp/snap.rootfs_XXXXXX/sys",
     "mount_src": "sysfs",
     "opt_fields": [
-      "master:renumbered/7"
+      "master:renumbered/13"
     ],
     "root_dir": "/"
   },
@@ -347,7 +537,157 @@
     "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/8"
+      "master:renumbered/14"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/blkio",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/15"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/cpu,cpuacct",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/16"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/cpuset",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/17"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/devices",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/18"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/freezer",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/19"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/hugetlb",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/20"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/memory",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/21"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/net_cls,net_prio",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/22"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/perf_event",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/23"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/pids",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/24"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "cgroup",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/cgroup/systemd",
+    "mount_src": "cgroup",
+    "opt_fields": [
+      "master:renumbered/25"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "fusectl",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/fuse/connections",
+    "mount_src": "fusectl",
+    "opt_fields": [
+      "master:renumbered/26"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "pstore",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/fs/pstore",
+    "mount_src": "pstore",
+    "opt_fields": [
+      "master:renumbered/27"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "debugfs",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/kernel/debug",
+    "mount_src": "debugfs",
+    "opt_fields": [
+      "master:renumbered/28"
+    ],
+    "root_dir": "/"
+  },
+  {
+    "fs_type": "securityfs",
+    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
+    "mount_point": "/tmp/snap.rootfs_XXXXXX/sys/kernel/security",
+    "mount_src": "securityfs",
+    "opt_fields": [
+      "master:renumbered/29"
     ],
     "root_dir": "/"
   },
@@ -355,9 +695,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/usr/src",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/usr/src"
   },
@@ -373,7 +713,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/apparmor",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -383,7 +723,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/classic",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -393,7 +733,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/cloud",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -403,7 +743,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/console-conf",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -413,7 +753,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/dbus",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -423,7 +763,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/dhcp",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -433,7 +773,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/extrausers",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -443,7 +783,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/initramfs-tools",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -453,7 +793,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/initscripts",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -463,7 +803,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/insserv",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -473,7 +813,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/logrotate",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -483,7 +823,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/machines",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -493,7 +833,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/misc",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -503,7 +843,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/pam",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -513,7 +853,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/python",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -523,7 +863,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/resolvconf",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -533,9 +873,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/var/lib/snapd",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/var/lib/snapd"
   },
@@ -543,9 +883,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/var/lib/snapd/hostfs",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/"
   },
@@ -553,7 +893,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/sudo",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -563,7 +903,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/systemd",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -573,7 +913,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/ubuntu-fan",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -583,7 +923,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/ucf",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -593,7 +933,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/update-rc.d",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -603,7 +943,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/urandom",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -613,7 +953,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/vim",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -623,7 +963,7 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/waagent",
-    "mount_src": "/dev/loop0",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
       "master:renumbered/0"
     ],
@@ -633,9 +973,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/var/log",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/var/log"
   },
@@ -643,9 +983,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/var/snap",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/var/snap"
   },
@@ -653,9 +993,9 @@
     "fs_type": "ext4",
     "mount_opts": "rw,noatime",
     "mount_point": "/var/tmp",
-    "mount_src": "/dev/sda",
+    "mount_src": "/dev/BLOCK",
     "opt_fields": [
-      "master:renumbered/4"
+      "master:renumbered/6"
     ],
     "root_dir": "/var/tmp"
   }
