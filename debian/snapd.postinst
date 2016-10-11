@@ -13,7 +13,6 @@ case "$1" in
         fi
         # start required services
         if [ -d /run/systemd/system ]; then
-            systemctl start snapd.boot-ok.service
             systemctl start snapd.refresh.timer
             systemctl start snapd.refresh.service
             systemctl start snapd.autoimport.service

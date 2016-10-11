@@ -4,9 +4,7 @@
 set -e
 
 if [ "$1" = "remove" -o "$1" = "upgrade" ]; then
-    echo "prerm called with $1"
     if [ -d /run/systemd/system ]; then
-        systemctl stop snapd.boot-ok.service
         systemctl stop snapd.refresh.timer
         systemctl stop snapd.refresh.service
         systemctl stop snapd.autoimport.service
