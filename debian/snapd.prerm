@@ -1,14 +1,8 @@
 #! /bin/sh
-# prerm script for snapd
 
 set -e
 
-if [ "$1" = "remove" -o "$1" = "upgrade" ]; then
-    if [ -d /run/systemd/system ]; then
-        systemctl stop snapd.refresh.timer
-        systemctl stop snapd.refresh.service
-        systemctl stop snapd.autoimport.service
-        systemctl stop snapd.socket
-        systemctl stop snapd.service
-    fi
+if [ -d /run/systemd/system ]; then
+    systemctl stop snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
+    systemctl disable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
 fi
