@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type collectAttrHandler struct {}
+type collectAttrHandler struct{}
 
 func (h *collectAttrHandler) Before() error {
 	return nil
@@ -42,7 +42,7 @@ func (h *collectAttrHandler) Error(err error) error {
 }
 
 // SetupHooks sets hooks of InterfaceManager up
-func SetupHooks(hookMgr *hookstate.HookManager) {
+func setupHooks(hookMgr *hookstate.HookManager) {
 	generator := func(context *hookstate.Context) hookstate.Handler {
 		return &collectAttrHandler{}
 	}
