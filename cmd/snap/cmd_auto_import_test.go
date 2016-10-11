@@ -115,3 +115,43 @@ func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestAutoImportCandidatesHappy(c *C) {
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, nil, 0644)
+	c.Assert(err, IsNil)
+
+	mountPoint := filepath.Dir(fakeAssertsFn)
+	mockMountInfoFmtWithLoop := `
+24 0 8:18 / %[1]s rw,relatime - ext3 /dev/meep2 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s rw,relatime opt:1 - ext4 /dev/meep3 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s rw,relatime opt:1 opt:2 - ext2 /dev/meep1 rw,errors=remount-ro,data=ordered
+`
+
+	content := fmt.Sprintf(mockMountInfoFmtWithLoop, mountPoint)
+	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+
+	l, err := snap.AutoImportCandidates()
+	c.Check(err, IsNil)
+	c.Check(l, HasLen, 3)
+}
+
+func (s *SnapSuite) TestAutoImportCandidatesMissingSep(c *C) {
+	mockMountInfo := `
+24 0 8:18 / /mount/point rw,relatime invalid line missing the minus
+`
+	snap.MockMountInfoPath(makeMockMountInfo(c, mockMountInfo))
+
+	_, err := snap.AutoImportCandidates()
+	c.Check(err, ErrorMatches, `cannot parse line ".*": no separator '-' found`)
+}
+
+func (s *SnapSuite) TestAutoImportCandidatesTooShort(c *C) {
+	mockMountInfo := `
+too short
+`
+	snap.MockMountInfoPath(makeMockMountInfo(c, mockMountInfo))
+
+	_, err := snap.AutoImportCandidates()
+	c.Check(err, ErrorMatches, `cannot parse line ".*": too short`)
+}
