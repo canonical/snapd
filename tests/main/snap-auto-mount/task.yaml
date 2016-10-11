@@ -7,12 +7,15 @@ prepare: |
     snap install --devmode --edge dmsetup
 
     echo "Ensure the developer1.account is not already added"
-    snap known account-key | grep -v "account-id: testrootorg"
-    
+    output=$(snap known account | grep "account-id: developer1" | wc -l)
+    if [ "$output" != "0" ]; then
+        echo "developer1.account assertion already part of the system"
+        exit 1
+    fi
     echo "Create a ramdisk with the developer1.account assertion"
     mkfs.ext4 /dev/ram0
     mount /dev/ram0 /mnt
-    cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
+    cp $TESTSLIB/assertions/developer1.account /mnt/auto-import.assert
     umount /mnt
 
     echo "Create new block device to trigger auto-import mount"
@@ -23,4 +26,4 @@ restore: |
 
 execute: |
     echo "The auto-mount magic has given us the assertion"
-    snap known account-key | grep "account-id: testrootorg"
+    snap known account | grep "account-id: developer1"
