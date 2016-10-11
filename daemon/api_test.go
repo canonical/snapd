@@ -3780,103 +3780,6 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
-	s.daemon(c)
-	storeUserInfo = func(user string) (*store.User, error) {
-		c.Check(user, check.Equals, "popper@lse.ac.uk")
-		return &store.User{
-			Username:         "karl",
-			OpenIDIdentifier: "xxyyzz",
-		}, nil
-	}
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-	}()
-
-	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
-}
-
-func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
-	return func(username string) (*user.User, error) {
-		cur, err := user.Current()
-		cur.Username = username
-		cur.HomeDir = userHomeDir
-		return cur, err
-	}
-}
-
-func (s *apiSuite) TestPostCreateUser(c *check.C) {
-	d := s.daemon(c)
-
-	storeUserInfo = func(user string) (*store.User, error) {
-		c.Check(user, check.Equals, "popper@lse.ac.uk")
-		return &store.User{
-			Username:         "karl",
-			SSHKeys:          []string{"ssh1", "ssh2"},
-			OpenIDIdentifier: "xxyyzz",
-		}, nil
-	}
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "karl")
-		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
-		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
-		c.Check(opts.Sudoer, check.Equals, false)
-		return nil
-	}
-	userHomeDir := c.MkDir()
-	userLookup = mkUserLookup(userHomeDir)
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() {
-		osutilAddUser = osutil.AddUser
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-		userLookup = user.Lookup
-	}()
-
-	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	expected := &userResponseData{
-		Username: "karl",
-		SSHKeys:  []string{"ssh1", "ssh2"},
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-
-	// user was setup in state
-	state := d.overlord.State()
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
-	c.Check(user.Username, check.Equals, "karl")
-	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
-	c.Check(user.Macaroon, check.NotNil)
-	// auth saved to user home dir
-	outfile := filepath.Join(userHomeDir, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
-}
-
 func (s *apiSuite) TestBuySnap(c *check.C) {
 	s.buyResult = &store.BuyResult{State: "Complete"}
 	s.err = nil
@@ -4017,8 +3920,108 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
+type postCreateUserSuite struct {
+	apiSuite
+
+	mockUserHome string
+}
+
+func (s *postCreateUserSuite) SetUpTest(c *check.C) {
+	s.apiSuite.SetUpTest(c)
+
 	s.daemon(c)
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	s.mockUserHome = c.MkDir()
+	userLookup = mkUserLookup(s.mockUserHome)
+}
+
+func (s *postCreateUserSuite) TearDownTest(c *check.C) {
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+	userLookup = user.Lookup
+	osutilAddUser = osutil.AddUser
+	storeUserInfo = store.UserInfo
+}
+
+func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
+	return func(username string) (*user.User, error) {
+		cur, err := user.Current()
+		cur.Username = username
+		cur.HomeDir = userHomeDir
+		return cur, err
+	}
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username:         "karl",
+			OpenIDIdentifier: "xxyyzz",
+		}, nil
+	}
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username:         "karl",
+			SSHKeys:          []string{"ssh1", "ssh2"},
+			OpenIDIdentifier: "xxyyzz",
+		}, nil
+	}
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
+		c.Check(opts.Sudoer, check.Equals, false)
+		return nil
+	}
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &userResponseData{
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// user was setup in state
+	state := s.d.overlord.State()
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "karl")
+	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Macaroon, check.NotNil)
+	// auth saved to user home dir
+	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
+	c.Check(err, check.IsNil)
+	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+}
+
+func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	st := s.d.overlord.State()
 	email := "foo@example.com"
 
@@ -4028,11 +4031,10 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
-func (s *apiSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
+func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
 	// this must be done very early
 	restorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	s.daemon(c)
 	st := s.d.overlord.State()
 
 	// create fake brand signature
@@ -4087,7 +4089,7 @@ func (s *apiSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfac
 	return restorer
 }
 
-func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
+func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			"authority-id": "my-brand",
@@ -4119,7 +4121,7 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 // FIXME: These tests all look similar, with small deltas. Would be
 // nice to transform them into a table that is just the deltas, and
 // run on a loop.
-func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			"authority-id": "my-brand",
@@ -4145,15 +4147,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		return nil
 	}
 
-	userLookup = mkUserLookup(c.MkDir())
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
 	defer func() {
 		osutilAddUser = osutil.AddUser
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-		userLookup = user.Lookup
 	}()
 
 	// do it!
@@ -4179,7 +4174,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	c.Check(users, check.HasLen, 1)
 }
 
-func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user
@@ -4218,16 +4213,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		return nil
 	}
-
-	userLookup = mkUserLookup(c.MkDir())
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
 	defer func() {
 		osutilAddUser = osutil.AddUser
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-		userLookup = user.Lookup
 	}()
 
 	// do it!
@@ -4255,7 +4242,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	c.Check(users, check.HasLen, 1)
 }
 
-func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user
@@ -4278,13 +4265,6 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *chec
 	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
 	st.Unlock()
 	c.Check(err, check.IsNil)
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-	}()
 
 	// do it!
 	buf := bytes.NewBufferString(`{"known":true}`)
@@ -4297,7 +4277,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *chec
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
 }
 
-func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user
@@ -4321,9 +4301,6 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, "guy")
@@ -4332,13 +4309,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		return nil
 	}
-
-	userLookup = mkUserLookup(c.MkDir())
-
 	defer func() {
 		osutilAddUser = osutil.AddUser
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-		userLookup = user.Lookup
 	}()
 
 	// do it!
@@ -4358,14 +4330,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestUsersEmpty(c *check.C) {
-	s.daemon(c)
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() { userLookup = user.Lookup }()
-
+func (s *postCreateUserSuite) TestUsersEmpty(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
 
@@ -4377,14 +4342,7 @@ func (s *apiSuite) TestUsersEmpty(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestUsersHasUser(c *check.C) {
-	s.daemon(c)
-
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() { userLookup = user.Lookup }()
-
+func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
@@ -4404,9 +4362,7 @@ func (s *apiSuite) TestUsersHasUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestSysinfoIsManaged(c *check.C) {
-	s.daemon(c)
-
+func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
