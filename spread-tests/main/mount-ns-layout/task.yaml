@@ -1,0 +1,13 @@
+summary: This task ensures that the mount namespace has a given layout
+prepare: |
+    snap install snapd-hacker-toolbelt
+execute: |
+    snapd-hacker-toolbelt.busybox true
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | ./process.py > observed.json
+    cmp observed.json expected.json
+debug: |
+    diff -u observed.json expected.json
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -f observed.json
