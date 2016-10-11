@@ -180,6 +180,8 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+    # Build fakedevicesvc.
+    go get ./tests/lib/fakedevicesvc
 
 suites:
     tests/main/:
