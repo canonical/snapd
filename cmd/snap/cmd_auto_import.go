@@ -54,22 +54,19 @@ func autoImportCandidates() ([]string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		l := strings.Fields(scanner.Text())
-		if len(l) == 0 {
-			continue
-		}
-		if len(l) < 7 {
-			return nil, fmt.Errorf("cannot parse line %q: too short", scanner.Text())
-		}
 
-		// see proc.txt:3.5 /proc/<pid>/mountinfo - the field (7)
-		// can have variable length, so we need to find the "-"
-		// separator
-		var i int
-		for i = 6; i < len(l)-1 && l[i] != "-"; i++ {
-			// nothing
+		// Per proc.txt:3.5, /proc/<pid>/mountinfo looks like
+		//
+		//  36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+		//  (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
+		//
+		// and (7) has zero or more elements, find the "-" separator.
+		i := 6
+		for i < len(l) && l[i] != "-" {
+			i++
 		}
-		if i == len(l)-1 {
-			return nil, fmt.Errorf("cannot parse line %q: no separator '-' found", scanner.Text())
+		if i+2 >= len(l) {
+			continue
 		}
 
 		mountSrc := l[i+2]
