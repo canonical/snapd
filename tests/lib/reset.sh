@@ -49,6 +49,7 @@ reset_all_snap() {
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
+    rm -rf /var/lib/snapd/*
     $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
     rm -rf /root/.snap
     systemctl start snapd.service snapd.socket
