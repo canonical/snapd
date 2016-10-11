@@ -6,16 +6,16 @@ prepare: |
     echo "Install dmsetup"
     snap install --devmode --edge dmsetup
 
-    echo "Ensure the developer1.account is not already added"
-    output=$(snap known account | grep "account-id: developer1" | wc -l)
+    echo "Ensure the testrootorg-store.account-key is not already added"
+    output=$(snap known account-key | grep "name: test-store"|wc -l)
     if [ "$output" != "0" ]; then
-        echo "developer1.account assertion already part of the system"
-        exit 1
+            echo " testrootorg-store.account-key is already added"
+            exit 1
     fi
-    echo "Create a ramdisk with the developer1.account assertion"
-    mkfs.ext4 /dev/ram0
+    echo "Create a ramdisk with the testrootorg-store.account-key assertion"
+    mkfs.vfat /dev/ram0
     mount /dev/ram0 /mnt
-    cp $TESTSLIB/assertions/developer1.account /mnt/auto-import.assert
+    cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
     umount /mnt
 
     echo "Create new block device to trigger auto-import mount"
@@ -24,6 +24,10 @@ prepare: |
 restore: |
     dmsetup -v --noudevsync --noudevrules  remove dm-ram0 
 
+debug: |
+    tail -n 20 /var/log/syslog
+
 execute: |
     echo "The auto-mount magic has given us the assertion"
-    snap known account | grep "account-id: developer1"
+    snap known account-key | grep "name: test-store"
+
