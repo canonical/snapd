@@ -1737,7 +1737,7 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 	st.Lock()
 	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
-	if err != nil {
+	if err != nil && err != asserts.ErrNotFound {
 		return BadRequest("cannot find system-user assertion: %s", err)
 	}
 
