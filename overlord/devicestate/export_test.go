@@ -74,11 +74,13 @@ func (m *DeviceManager) EnsureSeedYaml() error {
 	return m.ensureSeedYaml()
 }
 
+var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+
 func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
-	old := PopulateStateFromSeed
-	PopulateStateFromSeed = f
+	old := populateStateFromSeed
+	populateStateFromSeed = f
 	return func() {
-		PopulateStateFromSeed = old
+		populateStateFromSeed = old
 	}
 }
 

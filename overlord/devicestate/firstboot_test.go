@@ -107,7 +107,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeed(st)
+	_, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -188,7 +188,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeed(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
 
 	// the last task of the last taskset must be mark-seeded
@@ -355,7 +355,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeed(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	chg := st.NewChange("run-it", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
