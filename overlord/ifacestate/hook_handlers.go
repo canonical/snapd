@@ -43,10 +43,14 @@ func (h *collectAttrHandler) Error(err error) error {
 
 // SetupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
-	generator := func(context *hookstate.Context) hookstate.Handler {
+	prepPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return &collectAttrHandler{}
 	}
 
-	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), generator)
-	hookMgr.Register(regexp.MustCompile("^prepare-slot-[a-zA-Z0-9_\\-]+$"), generator)
+	prepSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return &collectAttrHandler{}
+	}
+
+	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), prepPlugGenerator)
+	hookMgr.Register(regexp.MustCompile("^prepare-slot-[a-zA-Z0-9_\\-]+$"), prepSlotGenerator)
 }
