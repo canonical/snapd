@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -184,7 +185,7 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-var PopulateStateFromSeed = PopulateStateFromSeedImpl
+var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSnaps makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
@@ -216,7 +217,13 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := PopulateStateFromSeed(m.state)
+	coreInfo, err := snapstate.CoreInfo(m.state)
+	if err == nil && coreInfo.Name() == "ubuntu-core" {
+		// already seeded... recover
+		return m.alreadyFirstbooted()
+	}
+
+	tsAll, err := populateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}
@@ -231,6 +238,52 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
+	return nil
+}
+
+// alreadyFirstbooted recovers already first booted devices with the old method appropriately
+func (m *DeviceManager) alreadyFirstbooted() error {
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+	// recover key-id
+	if device.Brand != "" && device.Model != "" {
+		serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+			"brand-id": device.Brand,
+			"model":    device.Model,
+		})
+		if err != nil && err != asserts.ErrNotFound {
+			return err
+		}
+
+		if len(serials) == 1 {
+			// we can recover the key id from the assertion
+			serial := serials[0].(*asserts.Serial)
+			keyID := serial.DeviceKey().ID()
+			device.KeyID = keyID
+			device.Serial = serial.Serial()
+			err := auth.SetDevice(m.state, device)
+			if err != nil {
+				return err
+			}
+			// best effort to cleanup abandoned keys
+			pat := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "*")
+			keyFns, err := filepath.Glob(pat)
+			if err != nil {
+				panic(fmt.Sprintf("invalid glob for device keys: %v", err))
+			}
+			for _, keyFn := range keyFns {
+				if filepath.Base(keyFn) == keyID {
+					continue
+				}
+				os.Remove(keyFn)
+			}
+		}
+
+	}
+
+	m.state.Set("seeded", true)
 	return nil
 }
 
@@ -352,7 +405,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	auth.SetDevice(st, device)
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -651,11 +707,17 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
+	if err != nil && err != asserts.ErrNotFound {
+		return err
+	}
 
 	if len(serials) == 1 {
 		// means we saved the assertion but didn't get to the end of the task
 		device.Serial = serials[0].(*asserts.Serial).Serial()
-		auth.SetDevice(st, device)
+		err := auth.SetDevice(st, device)
+		if err != nil {
+			return err
+		}
 		t.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -703,8 +765,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.Serial = serial.Serial()
-	auth.SetDevice(st, device)
-
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
