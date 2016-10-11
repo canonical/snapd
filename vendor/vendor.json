@@ -57,6 +57,12 @@
 			"revisionTime": "2016-09-28T20:18:58Z"
 		},
 		{
+			"checksumSHA1": "CEj9efal05UefJa0E6s1Uskv5XU=",
+			"path": "github.com/juju/utils/clock",
+			"revision": "28c01ec2ad930d41fe5acd9969b96284eb61660b",
+			"revisionTime": "2016-10-03T23:32:26Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
