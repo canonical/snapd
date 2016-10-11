@@ -3,6 +3,9 @@ summary: Check that `snap auto-import` works as expected
 systems: [ubuntu-core-16-64,ubuntu-core-16-arm-32,ubuntu-core-16-arm-64]
 
 prepare: |
+    echo "Install dmsetup"
+    snap install --devmode --edge dmsetup
+
     echo "Ensure the developer1.account is not already added"
     snap known account-key | grep -v "account-id: testrootorg"
     
