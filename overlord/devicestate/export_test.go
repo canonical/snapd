@@ -74,11 +74,11 @@ func (m *DeviceManager) EnsureSeedYaml() error {
 	return m.ensureSeedYaml()
 }
 
-func MockBootPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
-	old := bootPopulateStateFromSeed
-	bootPopulateStateFromSeed = f
+func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
+	old := PopulateStateFromSeed
+	PopulateStateFromSeed = f
 	return func() {
-		bootPopulateStateFromSeed = old
+		PopulateStateFromSeed = old
 	}
 }
 
@@ -89,3 +89,5 @@ func (m *DeviceManager) EnsureBootOk() error {
 func (m *DeviceManager) SetBootOkRan(b bool) {
 	m.bootOkRan = b
 }
+
+var ImportAssertionsFromSeed = importAssertionsFromSeed
