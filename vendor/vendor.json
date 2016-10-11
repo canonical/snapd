@@ -45,6 +45,18 @@
 			"revisionTime": "2016-02-27T09:34:14Z"
 		},
 		{
+			"checksumSHA1": "KIX/3RadQkfl4ZxCmOQ01vAGLEI=",
+			"path": "github.com/juju/errors",
+			"revision": "6f54ff6318409d31ff16261533ce2c8381a4fd5d",
+			"revisionTime": "2016-08-09T03:08:48Z"
+		},
+		{
+			"checksumSHA1": "d07JV658VlrMB5R9hVwCFD8EoLw=",
+			"path": "github.com/juju/retry",
+			"revision": "1998d01ba1c3eeb4a4728c4a50660025b2fe7c8f",
+			"revisionTime": "2016-09-28T20:18:58Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
