@@ -3,7 +3,7 @@ import sys
 import json
 import re
 
-_boring_fs = set(['cgroup', 'fusectl', 'debugfs', 'pstore', 'securityfs', 'mqueue', 'hugetlbfs'])
+_boring_fs = set([])
 
 def line2mountinfo(lines, boring_fs=_boring_fs):
     seen = {}
@@ -16,6 +16,10 @@ def line2mountinfo(lines, boring_fs=_boring_fs):
         root_dir = re.sub('_\w{6}', '_XXXXXX', parts[3])
         mount_point = re.sub('/\d+$', '/NUMBER', parts[4])
         mount_point = re.sub('_\w{6}', '_XXXXXX', mount_point)
+        if mount_point == "/snap/core/NUMBER":
+            # Skip the core snap for now, ideally this would be better handled
+            # but depending on test ordering there are two possible outcomes.
+            continue
         mount_opts = parts[5]
         opt_fields = []
         i = 6
@@ -35,13 +39,12 @@ def line2mountinfo(lines, boring_fs=_boring_fs):
             'mount_opts': mount_opts,
             'opt_fields': opt_fields,
             'fs_type': fs_type,
-            'mount_src': mount_src,
         }
 
 
 def main():
     entries = list(line2mountinfo(sorted(sys.stdin)))
-    entries.sort(key=lambda obj: obj['mount_point'])
+    entries.sort(key=lambda obj: tuple(sorted(obj.items())))
     json.dump(entries, sys.stdout, sort_keys=True,
               indent=2, separators=(',', ': '))
     sys.stdout.write('\n')
