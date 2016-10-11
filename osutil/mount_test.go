@@ -37,13 +37,24 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 	restore := osutil.MockMountInfoPath(mockMountInfoFn)
 	defer restore()
 
+	// note the different optinal fields
 	content := []byte(`
 44 24 7:1 / /snap/ubuntu-core/855 rw,relatime shared:27 - squashfs /dev/loop1 ro
+44 24 7:1 / /snap/something/123 rw,relatime - squashfs /dev/loop2 ro
+44 24 7:1 / /snap/random/456 rw,relatime opt:1 shared:27 - squashfs /dev/loop1 ro
 `)
 	err := ioutil.WriteFile(mockMountInfoFn, content, 0644)
 	c.Assert(err, IsNil)
 
 	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	c.Check(err, IsNil)
+	c.Check(mounted, Equals, true)
+
+	mounted, err = osutil.IsMounted("/snap/something/123")
+	c.Check(err, IsNil)
+	c.Check(mounted, Equals, true)
+
+	mounted, err = osutil.IsMounted("/snap/random/456")
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
