@@ -17,7 +17,7 @@
  *
  */
 
-package boot_test
+package devicestate_test
 
 import (
 	"fmt"
@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -38,15 +37,13 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/boot"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func Test(t *testing.T) { TestingT(t) }
 
 type FirstBootTestSuite struct {
 	systemctl   *testutil.MockCmd
@@ -110,7 +107,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := boot.PopulateStateFromSeed(st)
+	_, err := devicestate.PopulateStateFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -191,7 +188,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := boot.PopulateStateFromSeed(st)
+	tsAll, err := devicestate.PopulateStateFromSeed(st)
 	c.Assert(err, IsNil)
 
 	// the last task of the last taskset must be mark-seeded
@@ -358,7 +355,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := boot.PopulateStateFromSeed(st)
+	tsAll, err := devicestate.PopulateStateFromSeed(st)
 	chg := st.NewChange("run-it", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -453,7 +450,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err = boot.ImportAssertionsFromSeed(st)
+	err = devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, IsNil)
 
 	// verify that the model was added
@@ -491,7 +488,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err := boot.ImportAssertionsFromSeed(st)
+	err := devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
 }
 
@@ -513,7 +510,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err = boot.ImportAssertionsFromSeed(st)
+	err = devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
 }
 
@@ -534,6 +531,6 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err := boot.ImportAssertionsFromSeed(st)
+	err := devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "need a model assertion")
 }
