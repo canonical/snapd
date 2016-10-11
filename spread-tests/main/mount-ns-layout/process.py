@@ -39,7 +39,6 @@ def line2mountinfo(lines, boring_fs=_boring_fs):
             'mount_opts': mount_opts,
             'opt_fields': opt_fields,
             'fs_type': fs_type,
-            'mount_src': mount_src,
         }
 
 
