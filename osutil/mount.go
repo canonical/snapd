@@ -20,13 +20,13 @@ package osutil
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 )
 
 var mountInfoPath = "/proc/self/mountinfo"
 
-// FIXME: this needs a test
 func IsMounted(baseDir string) (bool, error) {
 	f, err := os.Open(mountInfoPath)
 	if err != nil {
@@ -39,6 +39,9 @@ func IsMounted(baseDir string) (bool, error) {
 		l := strings.Fields(scanner.Text())
 		if len(l) == 0 {
 			continue
+		}
+		if len(l) < 7 {
+			return false, fmt.Errorf("unexpected mountinfo line: %q", scanner.Text())
 		}
 		mountPoint := l[4]
 		if baseDir == mountPoint {
