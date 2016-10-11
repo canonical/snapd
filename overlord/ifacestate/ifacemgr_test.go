@@ -80,8 +80,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	assertstate.ReplaceDB(state, s.db)
 	s.state.Unlock()
 
-	s.privateMgr = nil
 	s.privateHookMgr = nil
+	s.privateMgr = nil
 	s.extraIfaces = nil
 	s.secBackend = &interfaces.TestSecurityBackend{}
 	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
@@ -101,7 +101,7 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state, s.extraIfaces)
+		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces)
 		c.Assert(err, IsNil)
 		s.privateMgr = mgr
 	}
@@ -115,6 +115,15 @@ func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
 		s.privateHookMgr = mgr
 	}
 	return s.privateHookMgr
+}
+
+func (s *interfaceManagerSuite) settle(c *C) {
+	for i := 0; i < 50; i++ {
+		s.hookManager(c).Ensure()
+		s.manager(c).Ensure()
+		s.hookManager(c).Wait()
+		s.manager(c).Wait()
+	}
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
@@ -172,14 +181,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	hookMgr := s.hookManager(c)
-	mgr := s.manager(c)
-	ifacestate.SetupHooks(hookMgr)
-
-	hookMgr.Ensure()
-	hookMgr.Wait()
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -199,7 +201,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	repo := mgr.Repository()
+	repo := s.manager(c).Repository()
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, HasLen, 1)
@@ -218,7 +220,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "otherplug", "producer", "slot")
 	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Check(ts.Tasks()[2].Kind(), Equals, "connect")
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
@@ -227,15 +231,13 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	c.Check(change.Err(), ErrorMatches, `(?s).*cannot connect consumer:otherplug \("test2" interface\) to producer:slot \("test" interface\).*`)
-	task := change.Tasks()[0]
+	task := change.Tasks()[2]
 	c.Check(task.Kind(), Equals, "connect")
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
@@ -259,9 +261,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -279,7 +279,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
 	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
@@ -288,9 +288,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -321,7 +319,7 @@ slots:
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
@@ -330,9 +328,7 @@ slots:
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -359,6 +355,8 @@ slots:
 	s.mockSnapDecl(c, "producer", "one-publisher", nil)
 	s.mockSnap(c, producerYaml)
 
+	mgr := s.manager(c)
+
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
@@ -372,9 +370,7 @@ slots:
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1191,10 +1187,6 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	mgr := s.manager(c)
-	hookMgr := s.hookManager(c)
-	ifacestate.SetupHooks(hookMgr)
-
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
@@ -1210,11 +1202,7 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	hookMgr.Ensure()
-	hookMgr.Wait()
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1238,10 +1226,6 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	hookMgr := s.hookManager(c)
-	mgr := s.manager(c)
-	ifacestate.SetupHooks(hookMgr)
-
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
@@ -1255,12 +1239,7 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	hookMgr.Ensure()
-	hookMgr.Wait()
-
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()

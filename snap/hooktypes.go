@@ -26,8 +26,7 @@ import (
 var supportedHooks = []*HookType{
 	newHookType(regexp.MustCompile("^prepare-device$")),
 	newHookType(regexp.MustCompile("^configure$")),
-	newHookType(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$")),
-	newHookType(regexp.MustCompile("^prepare-slot--[a-zA-Z0-9_\\-]+$")),
+	newHookType(regexp.MustCompile("^prepare-(?:plug|slot)-[a-zA-Z0-9_\\-]+$")),
 }
 
 // HookType represents a pattern of supported hook names.
