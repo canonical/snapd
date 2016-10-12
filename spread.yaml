@@ -31,6 +31,11 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
+            # FIXME restore of ubuntu-core does not properly reset
+            # boot variables and key snaps to their pristine state.
+            - ubuntu-core-16-64-fixme:
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
     qemu:
         systems:
             - ubuntu-16.04-64:
@@ -191,7 +196,7 @@ prepare: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-
+        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -209,6 +214,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
+        systems: [-ubuntu-core-16-64-fixme]
         restore:
             apt-get purge -y snapd || true
         restore-each: |
