@@ -83,7 +83,7 @@ setup_reflash_magic() {
         apt_install_local ${SPREAD_PATH}/../snapd_*.deb
         apt-get clean
 
-        snap install --edge core
+        snap install --beta core
 
         # install ubuntu-image
         snap install --devmode --edge ubuntu-image
