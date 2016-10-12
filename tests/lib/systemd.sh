@@ -9,7 +9,9 @@ systemd_create_and_start_unit() {
 
 # Use like systemd_stop_and_destroy_unit(fakestore)
 systemd_stop_and_destroy_unit() {
-    systemctl stop $1
+    if systemctl status "$1"; then
+        systemctl stop "$1"
+    fi
     rm -f /run/systemd/system/$1.service
     systemctl daemon-reload
 }

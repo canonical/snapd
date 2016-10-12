@@ -83,3 +83,5 @@ func MockMountInfoPath(newMountInfoPath string) (restore func()) {
 		mountInfoPath = mountInfoPathOrig
 	}
 }
+
+var AutoImportCandidates = autoImportCandidates
