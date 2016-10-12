@@ -57,6 +57,32 @@ func autoImportCandidates() ([]string, error) {
 		if len(l) == 0 {
 			continue
 		}
+		if len(l) < 7 {
+			return nil, fmt.Errorf("cannot parse line %q: too short", scanner.Text())
+		}
+
+		// see proc.txt:3.5 /proc/<pid>/mountinfo - the field (7)
+		// can have variable length, so we need to find the "-"
+		// separator
+		var i int
+		for i = 6; i < len(l)-1 && l[i] != "-"; i++ {
+			// nothing
+		}
+		if i == len(l)-1 {
+			return nil, fmt.Errorf("cannot parse line %q: no separator '-' found", scanner.Text())
+		}
+
+		mountSrc := l[i+2]
+
+		// skip everything that is not a device (cgroups, debugfs etc)
+		if !strings.HasPrefix(mountSrc, "/dev/") {
+			continue
+		}
+		// skip all loop devices (snaps)
+		if strings.HasPrefix(mountSrc, "/dev/loop") {
+			continue
+		}
+
 		mountPoint := l[4]
 		cand := filepath.Join(mountPoint, autoImportsName)
 		if osutil.FileExists(cand) {
