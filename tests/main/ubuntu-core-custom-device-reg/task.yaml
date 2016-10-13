@@ -16,6 +16,7 @@ prepare: |
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
     mksquashfs squashfs-root pc_x1.snap -comp xz
+    rm -rf squashfs-root
     # XXX these should not have been deleted
     cp /var/lib/snapd/snaps/*.snap /var/lib/snapd/seed/snaps
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
@@ -49,6 +50,7 @@ restore: |
     rm /var/lib/snapd/seed/assertions/developer1-pc.model
     rm /var/lib/snapd/seed/assertions/testrootorg-store.account-key
     cp model.bak /var/lib/snapd/seed/assertions/model
+    rm -f *.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
