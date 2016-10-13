@@ -155,10 +155,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Snap:        info,
+		Name:        "net",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"ipv6-aware": true},
+		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
 	})
 }
 
@@ -179,10 +180,11 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Snap:        info,
+		Name:        "net",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"attr": 2},
+		StringAttrs: map[string]interface{}{"attr": "2"},
 	})
 }
 
@@ -326,10 +328,11 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Snap:        info,
+		Name:        "network-client",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"ipv6-aware": true},
+		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
 	})
 }
 
@@ -481,10 +484,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Snap:        info,
+		Name:        "net",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"ipv6-aware": true},
+		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
 	})
 }
 
@@ -505,10 +509,11 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "net",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Snap:        info,
+		Name:        "net",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"attr": 2},
+		StringAttrs: map[string]interface{}{"attr": "2"},
 	})
 }
 
@@ -613,10 +618,11 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:      info,
-		Name:      "network-client",
-		Interface: "network-client",
-		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Snap:        info,
+		Name:        "network-client",
+		Interface:   "network-client",
+		Attrs:       map[string]interface{}{"ipv6-aware": true},
+		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
 	})
 }
 

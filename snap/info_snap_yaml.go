@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -47,20 +48,6 @@ type snapYaml struct {
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
-}
-
-type plugYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
-}
-
-type slotYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
 }
 
 type appYaml struct {
@@ -189,16 +176,17 @@ func setEnvironmentFromSnapYaml(y snapYaml, snap *Info) {
 
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Plugs {
-		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
+		iface, label, attrs, strattrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
 			return err
 		}
 		snap.Plugs[name] = &PlugInfo{
-			Snap:      snap,
-			Name:      name,
-			Interface: iface,
-			Attrs:     attrs,
-			Label:     label,
+			Snap:        snap,
+			Name:        name,
+			Interface:   iface,
+			Attrs:       attrs,
+			StringAttrs: strattrs,
+			Label:       label,
 		}
 		if len(y.Apps) > 0 {
 			snap.Plugs[name].Apps = make(map[string]*AppInfo)
@@ -213,16 +201,17 @@ func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 
 func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Slots {
-		iface, label, attrs, err := convertToSlotOrPlugData("slot", name, data)
+		iface, label, attrs, strattrs, err := convertToSlotOrPlugData("slot", name, data)
 		if err != nil {
 			return err
 		}
 		snap.Slots[name] = &SlotInfo{
-			Snap:      snap,
-			Name:      name,
-			Interface: iface,
-			Attrs:     attrs,
-			Label:     label,
+			Snap:        snap,
+			Name:        name,
+			Interface:   iface,
+			Attrs:       attrs,
+			StringAttrs: strattrs,
+			Label:       label,
 		}
 		if len(y.Apps) > 0 {
 			snap.Slots[name].Apps = make(map[string]*AppInfo)
@@ -369,24 +358,24 @@ func bindUnboundSlots(slotNames []string, snap *Info) error {
 	return nil
 }
 
-func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {
+func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, strattrs map[string]interface{}, err error) {
 	iface = name
 	switch data.(type) {
 	case string:
-		return data.(string), "", nil, nil
+		return data.(string), "", nil, nil, nil
 	case nil:
-		return name, "", nil, nil
+		return name, "", nil, nil, nil
 	case map[interface{}]interface{}:
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
 				err := fmt.Errorf("%s %q has attribute that is not a string (found %T)",
 					plugOrSlot, name, keyData)
-				return "", "", nil, err
+				return "", "", nil, nil, err
 			}
 			if strings.HasPrefix(key, "$") {
 				err := fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key)
-				return "", "", nil, err
+				return "", "", nil, nil, err
 			}
 			switch key {
 			case "interface":
@@ -394,7 +383,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if !ok {
 					err := fmt.Errorf("interface name on %s %q is not a string (found %T)",
 						plugOrSlot, name, valueData)
-					return "", "", nil, err
+					return "", "", nil, nil, err
 				}
 				iface = value
 			case "label":
@@ -402,19 +391,65 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if !ok {
 					err := fmt.Errorf("label of %s %q is not a string (found %T)",
 						plugOrSlot, name, valueData)
-					return "", "", nil, err
+					return "", "", nil, nil, err
 				}
 				label = value
 			default:
 				if attrs == nil {
 					attrs = make(map[string]interface{})
+					strattrs = make(map[string]interface{})
+				}
+				strval, err := validateAttr(valueData)
+				if err != nil {
+					return "", "", nil, nil, fmt.Errorf("attribute of %s %q: %v", plugOrSlot, name, err)
 				}
 				attrs[key] = valueData
+				strattrs[key] = strval
 			}
 		}
-		return iface, label, attrs, nil
+		return iface, label, attrs, strattrs, nil
 	default:
 		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
-		return "", "", nil, err
+		return "", "", nil, nil, err
+	}
+}
+
+// validateAttr validates an attribute value and returns a version of it with scalars canonically turned into strings.
+func validateAttr(v interface{}) (interface{}, error) {
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case bool:
+		return strconv.FormatBool(x), nil
+	case int:
+		return strconv.Itoa(x), nil
+	case int64:
+		return strconv.FormatInt(x, 10), nil
+	case []interface{}:
+		sl := make([]interface{}, len(x))
+		for i, el := range x {
+			s, err := validateAttr(el)
+			if err != nil {
+				return nil, err
+			}
+			sl[i] = s
+		}
+		return sl, nil
+	case map[interface{}]interface{}:
+		sm := make(map[string]interface{}, len(x))
+		for k, item := range x {
+			kStr, ok := k.(string)
+			if !ok {
+				return nil, fmt.Errorf("not a string key in attribute map: %v", k)
+			}
+			s, err := validateAttr(item)
+			if err != nil {
+				return nil, err
+			}
+			sm[kStr] = s
+		}
+		return sm, nil
+	default:
+		return nil, fmt.Errorf("invalid attribute scalar: %v", v)
 	}
 }

@@ -260,23 +260,25 @@ var _ PlaceInfo = (*Info)(nil)
 type PlugInfo struct {
 	Snap *Info
 
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+	Name        string
+	Interface   string
+	Attrs       map[string]interface{}
+	StringAttrs map[string]interface{}
+	Label       string
+	Apps        map[string]*AppInfo
+	Hooks       map[string]*HookInfo
 }
 
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
 
-	Name      string
-	Interface string
-	Attrs     map[string]interface{}
-	Label     string
-	Apps      map[string]*AppInfo
+	Name        string
+	Interface   string
+	Attrs       map[string]interface{}
+	StringAttrs map[string]interface{}
+	Label       string
+	Apps        map[string]*AppInfo
 }
 
 // AppInfo provides information about a app.
