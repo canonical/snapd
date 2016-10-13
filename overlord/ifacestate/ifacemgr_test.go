@@ -236,7 +236,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Err(), ErrorMatches, `(?s).*cannot connect consumer:otherplug \("test2" interface\) to producer:slot \("test" interface\).*`)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:otherplug to producer:slot \(cannot connect mismatched plug interface \"test2\" to slot interface \"test\"\)`)
 	task := change.Tasks()[2]
 	c.Check(task.Kind(), Equals, "connect")
 	c.Check(task.Status(), Equals, state.ErrorStatus)
@@ -266,7 +266,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Err(), ErrorMatches, `(?s).*Connect consumer:plug to producer:whatslot \(snap "producer" has no slot named "whatslot".*`)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:plug to producer:whatslot \(snap "producer" has no "whatslot" slot\)`)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 }
 
@@ -294,7 +294,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Err(), ErrorMatches, `(?s).*snap "consumer" has no plug named "whatplug".*`)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:whatplug to producer:slot \(snap "consumer" has no "whatplug" plug\).*`)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 }
 
