@@ -285,7 +285,7 @@ struct sc_mount_config {
  **/
 static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 {
-	char scratch_dir[PATH_MAX] = "/tmp/snap.rootfs_XXXXXX";
+	char scratch_dir[] = "/tmp/snap.rootfs_XXXXXX";
 	char src[PATH_MAX];
 	char dst[PATH_MAX];
 	if (mkdtemp(scratch_dir) == NULL) {
