@@ -24,11 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -752,12 +754,19 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
 
+	// ad-hoc don't-clean-up-seed
+	if strings.HasPrefix(ss.SnapPath, dirs.SnapSeedDir) {
+		return nil
+	}
+
 	// cleanup the downloaded snap after it got installed
 	// in backend.SetupSnap.
 	//
 	// Note that we always remove the file because the
 	// way sideloading works currently is to always create
 	// a temporary file (see daemon/api.go:sideloadSnap()
+	//
+	// XXX: WRT "always", see adhockery above.
 	if err := os.Remove(ss.SnapPath); err != nil {
 		logger.Noticef("Failed to cleanup %q: %s", err)
 	}
