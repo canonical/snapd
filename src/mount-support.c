@@ -267,7 +267,7 @@ struct sc_mount_config {
  * (end of quote).
  *
  * The main idea is to setup a mount namespace that has a root filesystem with
- * vfsmounts and peer groups that, depending on the location, either isolated
+ * vfsmounts and peer groups that, depending on the location, either isolate
  * or share with the rest of the system.
  *
  * The vast majority of the filesystem is shared in one direction. Events from
