@@ -324,7 +324,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// scratch directory. This puts the initial content into the scratch space
 	// and serves as a foundation for all subsequent operations below.
 	//
-	// The mount is recursive because it can either be applied the root
+	// The mount is recursive because it can either be applied to the root
 	// filesystem of a core system (aka all-snap) or the core snap on a classic
 	// system. In the former case we need recursive bind mounts to accurately
 	// replicate the state of the root filesystem into the scratch directory.
