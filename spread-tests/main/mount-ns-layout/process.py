@@ -100,14 +100,14 @@ def main():
     entries = parse_mountinfo(sys.stdin)
     # Get rid of the core snap as it is not certain that we'll see one and we want determinism
     entries = [entry for entry in entries if not re.match("/snap/core/\d+", entry.mount_point)]
-    # Sort by just the mount point,
-    entries.sort(key=lambda entry: (entry.mount_point))
     # Fix random directories and nondeterministic revisions
     fix_initial_nondeterminism(entries)
-    # Make entries nicely deterministic, by sorting them by mount location
-    entries.sort(key=lambda entry: (entry.mount_point, entry.mount_src, entry.root_dir))
+    # Sort by just the mount point,
+    entries.sort(key=lambda entry: (entry.mount_point))
     # Fix remainder of the non-determinism
     fix_remaining_nondeterminism(entries)
+    # Make entries nicely deterministic, by sorting them by mount location
+    entries.sort(key=lambda entry: (entry.mount_point, entry.mount_src, entry.root_dir))
     # Export everyrging
     json.dump([entry.as_json() for entry in entries],
               sys.stdout, sort_keys=True, indent=2, separators=(',', ': '))
