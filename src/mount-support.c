@@ -241,10 +241,15 @@ static void sc_setup_mount_profiles(const char *security_tag)
 	}
 }
 
+struct sc_mount {
+	const char *path;
+	bool is_bidirectional;
+};
+
 struct sc_mount_config {
 	const char *rootfs_dir;
-	const char **bidirectional_mounts;
-	const char **unidirectional_mounts;
+	// The struct is terminated with an entry with NULL path.
+	const struct sc_mount *mounts;
 	bool on_classic;
 };
 
@@ -345,33 +350,29 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		    scratch_dir);
 	}
 	// Bind mount certain directories from the host filesystem to the scratch
-	// directory. Mount events will propagate in both into and out of the
-	// peer group. This way the running application can alter any global state
-	// visible on the host and in other snaps.
-	for (const char **path = config->bidirectional_mounts; *path != NULL;
-	     path++) {
-		must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, *path);
-		debug("performing operation: mount --rbind %s %s", *path, dst);
-		if (mount(*path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
+	// directory. By default mount events will propagate in both into and out
+	// of the peer group. This way the running application can alter any global
+	// state visible on the host and in other snaps. This can be restricted by
+	// disabling the "is_bidirectional" flag as can be seen below.
+	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
+	     mnt++) {
+		must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, mnt->path);
+		debug("performing operation: mount --rbind %s %s", mnt->path,
+		      dst);
+		if (mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
 			die("cannot perform operation: mount --rbind %s %s",
-			    *path, dst);
+			    mnt->path, dst);
 		}
-	}
-	// Bind mount certain directories from the host filesystem to the scratch directory.
-	// Mount events will only propagate inwards to the namespace. This way the running
-	// application cannot alter any global state apart from that of its own snap.
-	for (const char **path = config->unidirectional_mounts; *path != NULL;
-	     path++) {
-		must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, *path);
-		debug("performing operation: mount --rbind %s %s", *path, dst);
-		if (mount(*path, dst, NULL, MS_REC | MS_BIND, NULL) != 0) {
-			die("cannot perform operation: mount --rbind %s %s",
-			    *path, dst);
-		}
-		debug("performing operation: mount --make-rslave %s", dst);
-		if (mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL) != 0) {
-			die("cannot perform operation: mount --make-rslave %s",
-			    dst);
+		if (!mnt->is_bidirectional) {
+			// Mount events will only propagate inwards to the namespace. This
+			// way the running application cannot alter any global state apart
+			// from that of its own snap.
+			debug("performing operation: mount --make-rslave %s",
+			      dst);
+			if (mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL) !=
+			    0) {
+				die("cannot perform operation: mount --make-rslave %s", dst);
+			}
 		}
 	}
 	// Since we mounted /etc from the host filesystem to the scratch directory,
@@ -562,35 +563,31 @@ void sc_populate_mount_ns(const char *security_tag)
 	// Remeber if we are on classic, some things behave differently there.
 	bool on_classic = is_running_on_classic_distribution();
 	if (on_classic) {
-		const char *bidirectional_mounts[] = {
+		const struct sc_mount mounts[] = {
+			{"/dev"},	// because it contains devices on host OS
+			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
+			{"/home"},	// to support /home/*/snap and home interface
+			{"/root"},	// because that is $HOME for services
+			{"/proc"},	// fundamental filesystem
+			{"/sys"},	// fundamental filesystem
+			{"/tmp"},	// to get writable tmp
+			{"/var/snap"},	// to get access to global snap data
+			{"/var/lib/snapd"},	// to get access to snapd state and seccomp profiles
+			{"/var/tmp"},	// to get access to the other temporary directory
+			{"/run"},	// to get /run with sockets and what not
+			{"/lib/modules"},	// access to the modules of the running kernel
+			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
+			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			"/run/media",	// access to the users removable devices
+			{"/run/media", true},	// access to the users removable devices
 #else
-			"/media",	// access to the users removable devices
+			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
-			NULL,
-		};
-		const char *unidirectional_mounts[] = {
-			"/dev",	// because it contains devices on host OS
-			"/etc",	// because that's where /etc/resolv.conf lives, perhaps a bad idea
-			"/home",	// to support /home/*/snap and home interface
-			"/root",	// because that is $HOME for services
-			"/proc",	// fundamental filesystem
-			"/sys",	// fundamental filesystem
-			"/tmp",	// to get writable tmp
-			"/var/snap",	// to get access to global snap data
-			"/var/lib/snapd",	// to get access to snapd state and seccomp profiles
-			"/var/tmp",	// to get access to the other temporary directory
-			"/run",	// to get /run with sockets and what not
-			"/lib/modules",	// access to the modules of the running kernel
-			"/usr/src",	// FIXME: move to SecurityMounts in system-trace interface
-			"/var/log",	// FIXME: move to SecurityMounts in log-observe interface
-			NULL,
+			{},
 		};
 		struct sc_mount_config classic_config = {
 			.rootfs_dir = sc_get_outer_core_mount_point(),
-			.bidirectional_mounts = bidirectional_mounts,
-			.unidirectional_mounts = unidirectional_mounts,
+			.mounts = mounts,
 			.on_classic = true,
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
@@ -600,15 +597,13 @@ void sc_populate_mount_ns(const char *security_tag)
 		// needed because everything is already OK. We still keep the
 		// bidirectional /media mount point so that snaps designed for mounting
 		// filesystems can use that space for whatever they need.
-		const char *bidirectional_mounts[] = {
-			"/media",	// access to the users removable devices
-			NULL,
+		const struct sc_mount mounts[] = {
+			{"/media", true},
+			{},
 		};
-		const char *unidirectional_mounts[] = { NULL, };
 		struct sc_mount_config all_snap_config = {
 			.rootfs_dir = "/",
-			.bidirectional_mounts = bidirectional_mounts,
-			.unidirectional_mounts = unidirectional_mounts,
+			.mounts = mounts,
 		};
 		sc_bootstrap_mount_namespace(&all_snap_config);
 	}
