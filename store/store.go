@@ -25,17 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/juju/retry"
-	"github.com/juju/utils/clock"
-	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 	"io"
 	"io/ioutil"
 	"net"
@@ -49,6 +38,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/juju/retry"
+	"github.com/juju/utils/clock"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -183,7 +184,7 @@ func httpStatusErrToError(httpErr httpErrorResponse, msg string) error {
 		return fmt.Errorf(tpl, msg, httpErr.StatusCode, httpErr.Method, httpErr.URL, httpErr.Oops)
 	}
 
-	return nil
+	return fmt.Errorf(tpl, msg, httpErr.StatusCode, httpErr.Method, httpErr.URL)
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -566,8 +567,11 @@ type httpErrorResponse struct {
 	Oops       string
 }
 
-func NewHttpErrorResponse(resp *http.Response) *httpErrorResponse {
-	return &httpErrorResponse{StatusCode: resp.StatusCode, URL: resp.Request.URL, Method: resp.Request.Method}
+func newHttpErrorResponse(resp *http.Response) *httpErrorResponse {
+	return &httpErrorResponse{
+		StatusCode: resp.StatusCode,
+		URL: resp.Request.URL,
+		Method: resp.Request.Method}
 }
 
 func (r httpErrorResponse) Error() string {
@@ -1143,7 +1147,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			s.extractSuggestedCurrency(resp)
 			return nil
 		} else {
-			return *NewHttpErrorResponse(resp)
+			return *newHttpErrorResponse(resp)
 		}
 	})
 
@@ -1631,7 +1635,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			}
 			// we want to deserialize and collect the error above, but at the same time
 			// retry the request if the http status falls into proper category.
-			return *NewHttpErrorResponse(resp)
+			return *newHttpErrorResponse(resp)
 		}
 	})
 
