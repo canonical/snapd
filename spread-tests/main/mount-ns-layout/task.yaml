@@ -5,9 +5,20 @@ execute: |
     snapd-hacker-toolbelt.busybox true
     nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
         cat /proc/self/mountinfo | ./process.py > observed.json
-    cmp observed.json expected.json
+    if [ -e /snap/core/current ]; then
+        cmp observed.json expected.core.json
+    else
+        cmp observed.json expected.ubuntu-core.json
+    fi
 debug: |
-    diff -u observed.json expected.json
+    if [ -e /snap/core/current ]; then
+        diff -u observed.json expected.core.json || :
+    else
+        diff -u observed.json expected.ubuntu-core.json || :
+    fi
+    apt-get install pastebinit
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | pastebinit
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -f observed.json
