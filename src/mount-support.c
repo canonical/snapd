@@ -278,9 +278,10 @@ struct sc_mount_config {
  * security or stability issues.
  *
  * Selected directories (today just /media) can be shared in both directions.
- * This allows snaps with sufficient privileges to create additional mount
- * points that are visible by the rest of the system (both the main mount
- * namespace and namespaces of individual snaps).
+ * This allows snaps with sufficient privileges to either create, through the
+ * mount system call, additional mount points that are visible by the rest of
+ * the system (both the main mount namespace and namespaces of individual
+ * snaps) or remove them, through the unmount system call.
  **/
 static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 {
