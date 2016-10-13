@@ -578,6 +578,10 @@ func (r httpErrorResponse) Error() string {
 	return fmt.Sprintf("HTTP request failed: '%v', method: %s, status: %d", r.URL, r.Method, r.StatusCode)
 }
 
+func (r httpErrorResponse) Fatal() bool {
+	return r.StatusCode != http.StatusInternalServerError && r.StatusCode != http.StatusServiceUnavailable
+}
+
 func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
 	var err error
 	for refreshed := true; refreshed; {
@@ -633,9 +637,7 @@ func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *aut
 
 func isFatal(err error) bool {
 	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
-		if httpStatusErr.StatusCode == http.StatusInternalServerError || httpStatusErr.StatusCode == http.StatusServiceUnavailable {
-			return false
-		}
+		return httpStatusErr.Fatal()
 	} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 		return false
 	} else if err == io.ErrUnexpectedEOF {
