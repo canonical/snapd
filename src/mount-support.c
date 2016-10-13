@@ -387,12 +387,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			      etc_alternatives);
 		must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
 			      etc_alternatives);
-		// NOTE: MS_SLAVE so that the started process cannot maliciously mount
-		// anything into those places and affect the system on the outside.
-		debug("performing operation: mount --bind -o slave %s %s", src,
-		      dst);
-		if (mount(src, dst, NULL, MS_BIND | MS_SLAVE, NULL) != 0) {
-			die("cannot perform operation: mount --bind -o slave %s %s", src, dst);
+		debug("performing operation: mount --bind %s %s", src, dst);
+		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
+			die("cannot perform operation: mount --bind %s %s", src,
+			    dst);
+		}
+		if (mount("none", dst, NULL, MS_SLAVE, NULL) != 0) {
+			die("cannot perform operation: mount --make-rslave %s",
+			    dst);
 		}
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
