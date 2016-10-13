@@ -278,7 +278,7 @@ func run() error {
 				return nil
 			}
 			if e.Type == flags.ErrUnknownCommand {
-				return fmt.Errorf(i18n.G(fmt.Sprintf(`unknown command %q, see "snap --help"`, os.Args[1])))
+				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
 			}
 		}
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
