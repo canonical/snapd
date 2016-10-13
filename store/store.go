@@ -679,8 +679,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 		return nil, err
 	}
 
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == http.StatusUnauthorized {
+	if wwwAuth := resp.Header.Get("WWW-Authenticate"); resp.StatusCode == http.StatusUnauthorized {
 		refreshed := false
 		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 			// refresh user
