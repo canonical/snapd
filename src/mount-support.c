@@ -392,8 +392,9 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot perform operation: mount --bind %s %s", src,
 			    dst);
 		}
+		debug("performing operation: mount --make-slave %s", dst);
 		if (mount("none", dst, NULL, MS_SLAVE, NULL) != 0) {
-			die("cannot perform operation: mount --make-rslave %s",
+			die("cannot perform operation: mount --make-slave %s",
 			    dst);
 		}
 	}
