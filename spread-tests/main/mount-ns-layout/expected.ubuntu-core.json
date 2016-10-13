@@ -217,9 +217,9 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/snap/ubuntu-core/NUMBER",
-    "mount_src": "/dev/remapped-loop2",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
-      "master:renumbered/15"
+      "master:renumbered/0"
     ],
     "root_dir": "/"
   },
@@ -229,7 +229,7 @@
     "mount_point": "/sys",
     "mount_src": "sysfs",
     "opt_fields": [
-      "master:renumbered/16"
+      "master:renumbered/15"
     ],
     "root_dir": "/"
   },
@@ -239,7 +239,7 @@
     "mount_point": "/sys/fs/cgroup",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/17"
+      "master:renumbered/16"
     ],
     "root_dir": "/"
   },
@@ -249,7 +249,7 @@
     "mount_point": "/sys/fs/cgroup/blkio",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/18"
+      "master:renumbered/17"
     ],
     "root_dir": "/"
   },
@@ -259,7 +259,7 @@
     "mount_point": "/sys/fs/cgroup/cpu,cpuacct",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/19"
+      "master:renumbered/18"
     ],
     "root_dir": "/"
   },
@@ -269,7 +269,7 @@
     "mount_point": "/sys/fs/cgroup/cpuset",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/20"
+      "master:renumbered/19"
     ],
     "root_dir": "/"
   },
@@ -279,7 +279,7 @@
     "mount_point": "/sys/fs/cgroup/devices",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/21"
+      "master:renumbered/20"
     ],
     "root_dir": "/"
   },
@@ -289,7 +289,7 @@
     "mount_point": "/sys/fs/cgroup/freezer",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/22"
+      "master:renumbered/21"
     ],
     "root_dir": "/"
   },
@@ -299,7 +299,7 @@
     "mount_point": "/sys/fs/cgroup/hugetlb",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/23"
+      "master:renumbered/22"
     ],
     "root_dir": "/"
   },
@@ -309,7 +309,7 @@
     "mount_point": "/sys/fs/cgroup/memory",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/24"
+      "master:renumbered/23"
     ],
     "root_dir": "/"
   },
@@ -319,7 +319,7 @@
     "mount_point": "/sys/fs/cgroup/net_cls,net_prio",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/25"
+      "master:renumbered/24"
     ],
     "root_dir": "/"
   },
@@ -329,7 +329,7 @@
     "mount_point": "/sys/fs/cgroup/perf_event",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/26"
+      "master:renumbered/25"
     ],
     "root_dir": "/"
   },
@@ -339,7 +339,7 @@
     "mount_point": "/sys/fs/cgroup/pids",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/27"
+      "master:renumbered/26"
     ],
     "root_dir": "/"
   },
@@ -349,7 +349,7 @@
     "mount_point": "/sys/fs/cgroup/systemd",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/28"
+      "master:renumbered/27"
     ],
     "root_dir": "/"
   },
@@ -359,7 +359,7 @@
     "mount_point": "/sys/fs/fuse/connections",
     "mount_src": "fusectl",
     "opt_fields": [
-      "master:renumbered/29"
+      "master:renumbered/28"
     ],
     "root_dir": "/"
   },
@@ -369,7 +369,7 @@
     "mount_point": "/sys/fs/pstore",
     "mount_src": "pstore",
     "opt_fields": [
-      "master:renumbered/30"
+      "master:renumbered/29"
     ],
     "root_dir": "/"
   },
@@ -379,7 +379,7 @@
     "mount_point": "/sys/kernel/debug",
     "mount_src": "debugfs",
     "opt_fields": [
-      "master:renumbered/31"
+      "master:renumbered/30"
     ],
     "root_dir": "/"
   },
@@ -389,7 +389,7 @@
     "mount_point": "/sys/kernel/security",
     "mount_src": "securityfs",
     "opt_fields": [
-      "master:renumbered/32"
+      "master:renumbered/31"
     ],
     "root_dir": "/"
   },
@@ -448,6 +448,16 @@
       "master:renumbered/0"
     ],
     "root_dir": "/var/lib/classic"
+  },
+  {
+    "fs_type": "squashfs",
+    "mount_opts": "rw,relatime",
+    "mount_point": "/var/lib/cloud",
+    "mount_src": "/dev/remapped-loop0",
+    "opt_fields": [
+      "master:renumbered/0"
+    ],
+    "root_dir": "/var/lib/cloud"
   },
   {
     "fs_type": "squashfs",
@@ -718,16 +728,6 @@
   {
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/snap/core/NUMBER",
-    "mount_src": "/dev/remapped-loop0",
-    "opt_fields": [
-      "master:renumbered/0"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "squashfs",
-    "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/snapd/hostfs/snap/snapd-hacker-toolbelt/NUMBER",
     "mount_src": "/dev/remapped-loop1",
     "opt_fields": [
@@ -739,9 +739,9 @@
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/snapd/hostfs/snap/ubuntu-core/NUMBER",
-    "mount_src": "/dev/remapped-loop2",
+    "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
-      "master:renumbered/15"
+      "master:renumbered/0"
     ],
     "root_dir": "/"
   },
@@ -751,7 +751,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys",
     "mount_src": "sysfs",
     "opt_fields": [
-      "master:renumbered/16"
+      "master:renumbered/15"
     ],
     "root_dir": "/"
   },
@@ -761,7 +761,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup",
     "mount_src": "tmpfs",
     "opt_fields": [
-      "master:renumbered/17"
+      "master:renumbered/16"
     ],
     "root_dir": "/"
   },
@@ -771,7 +771,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/blkio",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/18"
+      "master:renumbered/17"
     ],
     "root_dir": "/"
   },
@@ -781,7 +781,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/cpu,cpuacct",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/19"
+      "master:renumbered/18"
     ],
     "root_dir": "/"
   },
@@ -791,7 +791,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/cpuset",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/20"
+      "master:renumbered/19"
     ],
     "root_dir": "/"
   },
@@ -801,7 +801,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/devices",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/21"
+      "master:renumbered/20"
     ],
     "root_dir": "/"
   },
@@ -811,7 +811,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/freezer",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/22"
+      "master:renumbered/21"
     ],
     "root_dir": "/"
   },
@@ -821,7 +821,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/hugetlb",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/23"
+      "master:renumbered/22"
     ],
     "root_dir": "/"
   },
@@ -831,7 +831,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/memory",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/24"
+      "master:renumbered/23"
     ],
     "root_dir": "/"
   },
@@ -841,7 +841,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/net_cls,net_prio",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/25"
+      "master:renumbered/24"
     ],
     "root_dir": "/"
   },
@@ -851,7 +851,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/perf_event",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/26"
+      "master:renumbered/25"
     ],
     "root_dir": "/"
   },
@@ -861,7 +861,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/pids",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/27"
+      "master:renumbered/26"
     ],
     "root_dir": "/"
   },
@@ -871,7 +871,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/cgroup/systemd",
     "mount_src": "cgroup",
     "opt_fields": [
-      "master:renumbered/28"
+      "master:renumbered/27"
     ],
     "root_dir": "/"
   },
@@ -881,7 +881,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/fuse/connections",
     "mount_src": "fusectl",
     "opt_fields": [
-      "master:renumbered/29"
+      "master:renumbered/28"
     ],
     "root_dir": "/"
   },
@@ -891,7 +891,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/fs/pstore",
     "mount_src": "pstore",
     "opt_fields": [
-      "master:renumbered/30"
+      "master:renumbered/29"
     ],
     "root_dir": "/"
   },
@@ -901,7 +901,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/kernel/debug",
     "mount_src": "debugfs",
     "opt_fields": [
-      "master:renumbered/31"
+      "master:renumbered/30"
     ],
     "root_dir": "/"
   },
@@ -911,7 +911,7 @@
     "mount_point": "/var/lib/snapd/hostfs/sys/kernel/security",
     "mount_src": "securityfs",
     "opt_fields": [
-      "master:renumbered/32"
+      "master:renumbered/31"
     ],
     "root_dir": "/"
   },
