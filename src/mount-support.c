@@ -320,7 +320,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		die("cannot perform operation: mount --make-unbindable %s",
 		    scratch_dir);
 	}
-	// Recursively bind mount desired root filesystem directory over of the
+	// Recursively bind mount desired root filesystem directory over the
 	// scratch directory. This puts the initial content into the scratch space
 	// and serves as a foundation for all subsequent operations below.
 	//
