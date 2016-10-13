@@ -406,7 +406,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		die("cannot perform operation: mount --rbind -o slave %s %s",
 		    SNAP_MOUNT_DIR, dst);
 	}
-	debug("performing operation: mount --make-rslave slave %s", dst);
+	debug("performing operation: mount --make-rslave %s", dst);
 	if (mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL) < 0) {
 		die("cannot perform operation: mount --make-rslave %s", dst);
 	}
