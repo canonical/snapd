@@ -632,7 +632,7 @@ func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *aut
 }
 
 func isFatal(err error) bool {
-	if httpStatusErr, ok := err.(httpErrorResponse); ok {
+	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
 		if httpStatusErr.StatusCode == http.StatusInternalServerError || httpStatusErr.StatusCode == http.StatusServiceUnavailable {
 			return false
 		}
@@ -1146,7 +1146,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			s.extractSuggestedCurrency(resp)
 			return nil
 		} else {
-			return *newHttpErrorResponse(resp)
+			return newHttpErrorResponse(resp)
 		}
 	})
 
@@ -1154,8 +1154,8 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	if httpStatusErr, ok := err.(httpErrorResponse); ok {
-		return nil, httpStatusErrToError(httpStatusErr, "query the store for updates")
+	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
+		return nil, httpStatusErrToError(*httpStatusErr, "query the store for updates")
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
@@ -1634,7 +1634,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			}
 			// we want to deserialize and collect the error above, but at the same time
 			// retry the request if the http status falls into proper category.
-			return *newHttpErrorResponse(resp)
+			return newHttpErrorResponse(resp)
 		}
 	})
 
