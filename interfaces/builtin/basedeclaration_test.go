@@ -317,7 +317,7 @@ plugs:
 		"network-control":       true,
 		"kernel-module-control": true,
 		"system-observe":        true,
-		"hardware-bserve":       true,
+		"hardware-observe":       true,
 	}
 	for _, iface := range all {
 		if !plugged[iface.Name()] {
