@@ -95,7 +95,10 @@
     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
     # all of the constructed rootfs is a rslave
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/,
-    # bidirectional mounts
+    # bidirectional mounts (for both classic and core)
+    # NOTE: this doesn't capture the MERGED_USR configuration option so that
+    # when a distro with merged /usr and / that uses apparmor shows up it
+    # should be handled here.
     mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
     # unidirectional mounts (only for classic system)
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
