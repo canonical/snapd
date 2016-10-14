@@ -778,17 +778,6 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// IsLivePatchSnap checks special Name/Developer combinations to see
-// if this particular snap's connections should be automatically connected even
-// if the interfaces are not autoconnect and the snap is not an OS snap.
-// FIXME: remove once we have assertions that provide this feature
-func IsLivePatchSnap(snap *snap.Info) bool {
-	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
-		return true
-	}
-	return false
-}
-
 // AutoConnectCandidates finds and returns viable auto-connection candidates
 // for a given plug.
 func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
