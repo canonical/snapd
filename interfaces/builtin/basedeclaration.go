@@ -27,7 +27,11 @@ import (
 
 // The headers of the builtin base-declaration describing the default
 // interface policies for all snaps. The base declaration focuses on the slot
-// side for almost all interfaces.
+// side for almost all interfaces. Importantly, items are not merged between
+// the slots and plugs or between the base declaration and snap declaration
+// for a particular type of rule. This means that if you specify an
+// installation rule for both slots and plugs in the base declaration, only
+// the plugs side is used (plugs is preferred over slots).
 //
 // The interfaces listed in the base declaration can be broadly categorized
 // into:
@@ -50,6 +54,7 @@ import (
 //       allow-installation:
 //         slot-snap-type:
 //           - core                     # implicit slot
+//       allow-auto-connection: true    # allow auto-connect
 //
 //     manual-connected-provided-slot:
 //       allow-installation:
@@ -80,7 +85,7 @@ import (
 //           - gadget
 //       deny-auto-connection: true
 //
-// So called super-privileged slot inmplementations should also be disallowed
+// So called super-privileged slot implementations should also be disallowed
 // installation on a system and a snap declaration is required to override the
 // base declaration to allow installation. Eg:
 //
@@ -91,15 +96,14 @@ import (
 //       deny-auto-connection: true
 //
 // Like super-privileged slot implementation, super-privileged plugs should
-// also be disalled installation on a system and a snap declaration is required
-// to override the base declaration to allow installation. Eg:
+// also be disallowed installation on a system and a snap declaration is
+// required to override the base declaration to allow installation. Eg:
 //
 //   plugs:
 //     manual-connected-super-privileged-plug:
 //       allow-installation: false
-//       deny-connection: true
 //       deny-auto-connection: true
-//
+//   (remember this overrides slot side rules)
 //
 // TODO: when on-classic is implemented
 //
@@ -138,16 +142,16 @@ revision: 0
 plugs:
   docker-support:
     allow-installation: false
-    deny-connection: true
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation: false
-    deny-connection: true
+    deny-auto-connection: true
   lxd-support:
     allow-installation: false
-    deny-connection: true
+    deny-auto-connection: true
   snapd-control:
     allow-installation: false
-    deny-connection: true
+    deny-auto-connection: true
 slots:
   bluetooth-control:
     allow-installation:
@@ -176,13 +180,13 @@ slots:
         - core
     deny-auto-connection: true
   content:
-    allow-auto-connection:
-      plug-publisher-id:
-        - $SLOT_PUBLISHER_ID
     allow-installation:
       slot-snap-type:
         - app
         - gadget
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
   cups-control:
     allow-installation:
       slot-snap-type:
@@ -301,7 +305,10 @@ slots:
         - core
     deny-auto-connection: true
   network-manager:
-    deny-connection: true
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
     deny-auto-connection: true
   network-observe:
     allow-installation:
@@ -332,7 +339,10 @@ slots:
         - core
     deny-auto-connection: true
   pulseaudio:
-    deny-connection: true
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
   removable-media:
     allow-installation:
       slot-snap-type:
