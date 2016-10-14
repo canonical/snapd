@@ -199,15 +199,42 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 }
 
 func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
+	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
+	c.Check(err, IsNil)
 
-	// TODO: have the real snap-decl allow things and not the base-decl
-	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", "")
+	// allow auto-connect to particular snap id
+	plugsSlots := `
+slots:
+  docker-support:
+    allow-auto-connection:
+      plug-snap-id:
+        - J60k4JY0HppjwOjW8dZdYc8obXKxujRu
+`
+
+	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = lxdDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+}
+
+// FIXME: this should fail but doesn't
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportNoMatch(c *C) {
+	cand := s.connectCand(c, "lxd-support", "", "")
+	// don't allow auto-connect to non-matching snap id
+	plugsSlots := `
+slots:
+  docker-support:
+    allow-auto-connection:
+      plug-snap-id:
+        - nonmatchingnonmatchingnonmatchin
+`
+
+	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }
 
 // describe installation rules for slots succinctly for cross-checking,
