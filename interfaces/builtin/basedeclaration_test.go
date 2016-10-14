@@ -184,10 +184,10 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
-	// snapd-control is auto-connect until we have snap declaration editing
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
-	c.Check(err, IsNil)
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
@@ -202,15 +202,13 @@ func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
 	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
-	c.Check(err, IsNil)
+	c.Check(err, NotNil)
 
 	// allow auto-connect to particular snap id
 	plugsSlots := `
-slots:
-  docker-support:
-    allow-auto-connection:
-      plug-snap-id:
-        - J60k4JY0HppjwOjW8dZdYc8obXKxujRu
+plugs:
+  lxd-support:
+    allow-auto-connection: true
 `
 
 	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
@@ -219,22 +217,20 @@ slots:
 	c.Check(err, IsNil)
 }
 
-// FIXME: this should fail but doesn't
 func (s *baseDeclSuite) TestAutoConnectionLxdSupportNoMatch(c *C) {
 	cand := s.connectCand(c, "lxd-support", "", "")
 	// don't allow auto-connect to non-matching snap id
 	plugsSlots := `
-slots:
-  docker-support:
-    allow-auto-connection:
-      plug-snap-id:
-        - nonmatchingnonmatchingnonmatchin
+plugs:
+  lxd-support:
+    allow-auto-connection: false
 `
 
 	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = lxdDecl
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"lxd\" snap")
 }
 
 // describe installation rules for slots succinctly for cross-checking,
@@ -255,8 +251,6 @@ var (
 		"location-control": unconstrained,
 		"location-observe": unconstrained,
 		"modem-manager":    unconstrained,
-		"network-manager":  unconstrained,
-		"pulseaudio":       unconstrained,
 		"udisks2":          unconstrained,
 		// other
 		"bool-file":       []string{"core", "gadget"},
@@ -268,7 +262,9 @@ var (
 		"lxd-support":     []string{"core"},
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
+		"network-manager": []string{"app", "core"},
 		"ppp":             []string{"core"},
+		"pulseaudio":      []string{"app", "core"},
 		"serial-port":     []string{"core", "gadget"},
 		// snowflakes
 		"docker": nil,
