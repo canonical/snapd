@@ -651,6 +651,8 @@ func isFatal(err error) bool {
 func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
 	var lastError error
 
+	// 3 pₙ₊₁ ≥ 5 pₙ, prime numbers for the backoff delay; make sure the length matches the number of attempts declared below
+	var backoffs = []int{113, 191, 331, 557, 929, 1487}
 	err := retry.Call(retry.CallArgs{
 		Func: func() error {
 			req, err := s.newRequest(reqOptions, user)
@@ -659,9 +661,18 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 			}
 			return s.doStoreRequest(client, req, user, dataDecodeFunc)
 		},
-		Attempts:     6,
-		Delay:        time.Millisecond,
-		BackoffFunc:  retry.DoubleDelay,
+		Attempts: 6,
+		Delay:    time.Millisecond,
+		BackoffFunc: func(delay time.Duration, attempt int) time.Duration {
+			var d int
+			if attempt <= len(backoffs) {
+				d = backoffs[attempt-1]
+			} else {
+				// this should never be needed if backoffs length and Attempts number are properly kept in sync.
+				d = backoffs[len(backoffs)-1] * attempt
+			}
+			return time.Duration(d) * time.Millisecond
+		},
 		MaxDuration:  MaxRetryDuration,
 		Clock:        clock.WallClock,
 		IsFatalError: isFatal,
