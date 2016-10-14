@@ -170,6 +170,28 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 
 }
 
+const exampleUnsupportedFormat = "type: test-only\n" +
+	"format: 77\n" +
+	"authority-id: auth-id2\n" +
+	"primary-key: abc\n" +
+	"revision: 5\n" +
+	"header1: value1\n" +
+	"header2: value2\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+	"AXNpZw==\n"
+
+func (as *assertsSuite) TestDecodeUnsupportedFormat(c *C) {
+	a, err := asserts.Decode([]byte(exampleUnsupportedFormat))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	c.Check(a.AuthorityID(), Equals, "auth-id2")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
+	c.Check(a.Header("primary-key"), Equals, "abc")
+	c.Check(a.Revision(), Equals, 5)
+	c.Check(a.Format(), Equals, 77)
+	c.Check(a.SupportedFormat(), Equals, false)
+}
+
 func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
@@ -551,22 +573,22 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
-		"format":       "77",
+		"format":       "1",
 		"revision":     "11",
 	}
 
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
 
 	c.Check(a.Revision(), Equals, 11)
-	c.Check(a.Format(), Equals, 77)
-	c.Check(a.SupportedFormat(), Equals, false)
+	c.Check(a.Format(), Equals, 1)
+	c.Check(a.SupportedFormat(), Equals, true)
 
 	a1, err := asserts.Decode(asserts.Encode(a))
 	c.Assert(err, IsNil)
 
 	c.Check(a1.Revision(), Equals, 11)
-	c.Check(a1.Format(), Equals, 77)
-	c.Check(a1.SupportedFormat(), Equals, false)
+	c.Check(a1.Format(), Equals, 1)
+	c.Check(a1.SupportedFormat(), Equals, true)
 }
 
 func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
