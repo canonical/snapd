@@ -352,7 +352,7 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: false
+    deny-auto-connection: true
   system-observe:
     allow-installation:
       slot-snap-type:
