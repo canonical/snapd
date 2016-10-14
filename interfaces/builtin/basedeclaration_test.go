@@ -209,7 +209,7 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
 	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
@@ -227,7 +227,7 @@ plugs:
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionLxdSupportNoMatch(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverrideRevoke(c *C) {
 	cand := s.connectCand(c, "lxd-support", "", "")
 	plugsSlots := `
 plugs:
@@ -242,7 +242,7 @@ plugs:
 	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
 }
 
-func (s *baseDeclSuite) TestAutoConnectionKernelModuleControl(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionKernelModuleControlOverride(c *C) {
 	cand := s.connectCand(c, "kernel-module-control", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
@@ -260,7 +260,7 @@ plugs:
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionDockerSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionDockerSupportOverride(c *C) {
 	cand := s.connectCand(c, "docker-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
