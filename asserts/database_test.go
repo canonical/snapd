@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/base64"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -280,6 +281,29 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	c.Assert(err, ErrorMatches, "failed signature verification: .*")
 }
 
+func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
+	trustedKey := testPrivKey0
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "0",
+		"format":       "77",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
+	c.Check(err, ErrorMatches, "assertion format is too new")
+}
+
 type signAddFindSuite struct {
 	signingDB    *asserts.Database
 	signingKeyID string
@@ -483,6 +507,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 
 	err = safs.db.Add(a1)
 	c.Check(err, ErrorMatches, "revision 0 is older than current revision 1")
+	c.Check(asserts.IsKeptCurrent(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestAddNoAuthorityNoPrimaryKey(c *C) {
@@ -505,6 +530,50 @@ func (safs *signAddFindSuite) TestAddNoAuthorityButPrimaryKey(c *C) {
 
 	err = safs.db.Add(a)
 	c.Assert(err, ErrorMatches, `cannot check no-authority assertion type "test-only-no-authority-pk"`)
+}
+
+func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
+	const unsupported = "type: test-only\n" +
+		"format: 77\n" +
+		"authority-id: canonical\n" +
+		"primary-key: a\n" +
+		"payload: unsupported\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"format":       "77",
+		"payload":      "unsupported",
+	}
+	aUnsupp, err := asserts.Decode([]byte(unsupported))
+	c.Assert(err, IsNil)
+	c.Assert(aUnsupp.SupportedFormat(), Equals, false)
+
+	err = safs.db.Add(aUnsupp)
+	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
+	c.Check(err.(*asserts.UnsupportedFormatError).KeptCurrent, Equals, false)
+	c.Check(err, ErrorMatches, "assertion format is too new")
+	c.Check(asserts.IsKeptCurrent(err), Equals, false)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"format":       "1",
+		"payload":      "supported",
+	}
+	aSupp, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(aSupp)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(aUnsupp)
+	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
+	c.Check(err.(*asserts.UnsupportedFormatError).KeptCurrent, Equals, true)
+	c.Check(err, ErrorMatches, `assertion format is too new \(kept current revision\)`)
+	c.Check(asserts.IsKeptCurrent(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
@@ -765,5 +834,26 @@ func (res *revisionErrorSuite) TestErrorText(c *C) {
 
 	for _, test := range tests {
 		c.Check(test.err, ErrorMatches, test.expected)
+	}
+}
+
+type isKeptCurrentSuite struct{}
+
+func (s *isKeptCurrentSuite) TestIsKeptCurrent(c *C) {
+	tests := []struct {
+		err         error
+		keptCurrent bool
+	}{
+		{&asserts.UnsupportedFormatError{}, false},
+		{&asserts.UnsupportedFormatError{KeptCurrent: true}, true},
+		{&asserts.RevisionError{Used: 1, Current: 1}, true},
+		{&asserts.RevisionError{Used: 1, Current: 5}, true},
+		{&asserts.RevisionError{Used: 3, Current: 1}, false},
+		{errors.New("other error"), false},
+		{asserts.ErrNotFound, false},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.IsKeptCurrent(t.err), Equals, t.keptCurrent, Commentf("%v", t.err))
 	}
 }

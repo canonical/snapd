@@ -101,6 +101,14 @@ func init() {
 	maxSupportedFormat[SnapDeclarationType.Name] = 0
 }
 
+func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
+	prev := maxSupportedFormat[assertType.Name]
+	maxSupportedFormat[assertType.Name] = maxFormat
+	return func() {
+		maxSupportedFormat[assertType.Name] = prev
+	}
+}
+
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
 	return typeRegistry[name]
