@@ -63,8 +63,9 @@ const (
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
-	MaxRetryDuration       = time.Duration(30) * time.Second
 )
+
+var MaxRetryDuration = time.Duration(30) * time.Second
 
 // UserAgent to send
 // xxx: this should actually be set per client request, and include the client user agent
