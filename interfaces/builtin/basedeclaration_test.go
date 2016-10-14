@@ -258,8 +258,8 @@ plugs:
     allow-auto-connection: true
 `
 
-	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = lxdDecl
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
@@ -277,8 +277,8 @@ plugs:
     allow-auto-connection: true
 `
 
-	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = lxdDecl
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
