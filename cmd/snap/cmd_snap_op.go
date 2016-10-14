@@ -130,7 +130,11 @@ The install command installs the named snap in the system.
 `)
 
 var longRemoveHelp = i18n.G(`
-The remove command removes the named snap from the system, including its data.
+The remove command removes the named snap from the system.
+
+By default all the snap revisions are removed, including their data and the common
+data directory. When a --revision option is passed only the specified revision is
+removed.
 `)
 
 var longRefreshHelp = i18n.G(`
