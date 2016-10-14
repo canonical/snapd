@@ -130,10 +130,7 @@ The install command installs the named snap in the system.
 `)
 
 var longRemoveHelp = i18n.G(`
-The remove command removes the named snap from the system.
-
-The snap's data is currently not removed; use purge for that. This behaviour
-will change before 16.04 is final.
+The remove command removes the named snap from the system, including its data.
 `)
 
 var longRefreshHelp = i18n.G(`
