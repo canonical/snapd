@@ -6,15 +6,15 @@ execute: |
     nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
         cat /proc/self/mountinfo | ./process.py > observed.json
     if [ -e /snap/core/current ]; then
-        cmp observed.json expected.core.json
+        cmp observed.json expected.classic.core.json
     else
-        cmp observed.json expected.ubuntu-core.json
+        cmp observed.json expected.classic.ubuntu-core.json
     fi
 debug: |
     if [ -e /snap/core/current ]; then
-        diff -u observed.json expected.core.json || :
+        diff -u observed.json expected.classic.core.json || :
     else
-        diff -u observed.json expected.ubuntu-core.json || :
+        diff -u observed.json expected.classic.ubuntu-core.json || :
     fi
     apt-get install pastebinit
     nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \

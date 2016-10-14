@@ -3,7 +3,6 @@ import sys
 import json
 import re
 
-
 class mountinfo_entry:
 
     def __init__(self, fs_type, mount_id, mount_opts, mount_point, mount_src, opt_fields, root_dir):
