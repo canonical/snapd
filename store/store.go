@@ -39,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	jujuerrors "github.com/juju/errors"
 	"github.com/juju/retry"
 	"github.com/juju/utils/clock"
 	"github.com/snapcore/snapd/arch"
@@ -626,6 +627,9 @@ func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *aut
 		}
 
 		if !refreshed {
+			if resp.StatusCode == http.StatusUnauthorized {
+				return newHttpErrorResponse(resp)
+			}
 			err = dataDecodeFunc(resp)
 			if err != nil {
 				return err
@@ -682,7 +686,15 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		},
 	})
 
+	// NotifyFunc is not called if the request fails with Fatal error on first attempt; in such
+	// case the custom lastError value declared above is not available.
+	// Also, retry.LastError(err) doesn't help as it doesn't preserve the type information
+	// for the cause. Therefore we need to get the cause from juju error directly, otherwise it's impossible
+	// to check the type of the error (such as httpErrorResponse) later.
 	if lastError == nil {
+		if jerr, ok := err.(*jujuerrors.Err); ok {
+			return jerr.Cause()
+		}
 		lastError = err
 	}
 
