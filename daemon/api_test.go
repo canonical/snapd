@@ -3780,75 +3780,136 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestBuySnap(c *check.C) {
-	s.buyResult = &store.BuyResult{State: "Complete"}
-	s.err = nil
+const validBuyInput = `{
+		  "snap-id": "the-snap-id-1234abcd",
+		  "snap-name": "the snap name",
+		  "price": 1.23,
+		  "currency": "EUR"
+		}`
 
-	buf := bytes.NewBufferString(`{
-	  "snap-id": "the-snap-id-1234abcd",
-	  "snap-name": "the snap name",
-	  "price": 1.23,
-	  "currency": "EUR"
-	}`)
-	req, err := http.NewRequest("POST", "/v2/buy", buf)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	rsp := postBuy(buyCmd, req, user).(*resp)
-
-	expected := &store.BuyResult{
-		State: "Complete",
-	}
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-
-	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:   "the-snap-id-1234abcd",
-		SnapName: "the snap name",
-		Price:    1.23,
-		Currency: "EUR",
-	})
-	c.Check(s.user, check.Equals, user)
+var validBuyOptions = &store.BuyOptions{
+	SnapID:   "the-snap-id-1234abcd",
+	SnapName: "the snap name",
+	Price:    1.23,
+	Currency: "EUR",
 }
 
-func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
-	s.buyResult = nil
-	s.err = fmt.Errorf("Missing parameter")
+var buyTests = []struct {
+	input                string
+	result               *store.BuyResult
+	err                  error
+	expectedStatus       int
+	expectedResult       interface{}
+	expectedResponseType ResponseType
+	expectedBuyOptions   *store.BuyOptions
+}{
+	{
+		// Success
+		input: validBuyInput,
+		result: &store.BuyResult{
+			State: "Complete",
+		},
+		expectedStatus: http.StatusOK,
+		expectedResult: &store.BuyResult{
+			State: "Complete",
+		},
+		expectedResponseType: ResponseTypeSync,
+		expectedBuyOptions:   validBuyOptions,
+	},
+	{
+		// Fail with internal error
+		input: `{
+		  "snap-id": "the-snap-id-1234abcd",
+		  "price": 1.23,
+		  "currency": "EUR"
+		}`,
+		err:                  fmt.Errorf("internal error banana"),
+		expectedStatus:       http.StatusInternalServerError,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "internal error banana",
+		},
+		expectedBuyOptions: &store.BuyOptions{
+			SnapID:   "the-snap-id-1234abcd",
+			Price:    1.23,
+			Currency: "EUR",
+		},
+	},
+	{
+		// Fail with unauthenticated error
+		input:                validBuyInput,
+		err:                  store.ErrUnauthenticated,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "you need to log in first",
+			Kind:    "login-required",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with TOS not accepted
+		input:                validBuyInput,
+		err:                  store.ErrTOSNotAccepted,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    "terms-not-accepted",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with no payment methods
+		input:                validBuyInput,
+		err:                  store.ErrNoPaymentMethods,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "no payment methods",
+			Kind:    "no-payment-methods",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with payment declined
+		input:                validBuyInput,
+		err:                  store.ErrPaymentDeclined,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "payment declined",
+			Kind:    "payment-declined",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+}
 
-	// snap name missing
-	buf := bytes.NewBufferString(`{
-	  "snap-id": "the-snap-id-1234abcd",
-	  "price": 1.23,
-	  "currency": "EUR"
-	}`)
-	req, err := http.NewRequest("POST", "/v2/buy", buf)
-	c.Assert(err, check.IsNil)
+func (s *apiSuite) TestBuySnap(c *check.C) {
+	for _, test := range buyTests {
+		s.buyResult = test.result
+		s.err = test.err
 
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
+		buf := bytes.NewBufferString(test.input)
+		req, err := http.NewRequest("POST", "/v2/buy", buf)
+		c.Assert(err, check.IsNil)
 
-	rsp := postBuy(buyCmd, req, user).(*resp)
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
 
-	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "Missing parameter")
+		rsp := postBuy(buyCmd, req, user).(*resp)
 
-	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:   "the-snap-id-1234abcd",
-		Price:    1.23,
-		Currency: "EUR",
-	})
-	c.Check(s.user, check.Equals, user)
+		c.Check(rsp.Status, check.Equals, test.expectedStatus)
+		c.Check(rsp.Type, check.Equals, test.expectedResponseType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.expectedResult)
+		c.Check(rsp.Result, check.DeepEquals, test.expectedResult)
+
+		c.Check(s.buyOptions, check.DeepEquals, test.expectedBuyOptions)
+		c.Check(s.user, check.Equals, user)
+	}
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {
