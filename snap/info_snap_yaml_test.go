@@ -155,11 +155,37 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:        info,
-		Name:        "net",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"ipv6-aware": true},
-		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalStandalonePlugWithListAndMap(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    iface:
+        interface: complex
+        l: [1,2,3]
+        m:
+          a: A
+          b: B
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Assert(info.Plugs["iface"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "iface",
+		Interface: "complex",
+		Attrs: map[string]interface{}{
+			"l": []interface{}{1, 2, 3},
+			"m": map[string]interface{}{"a": "A", "b": "B"},
+		},
 	})
 }
 
@@ -180,11 +206,10 @@ plugs:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
-		Snap:        info,
-		Name:        "net",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"attr": 2},
-		StringAttrs: map[string]interface{}{"attr": "2"},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"attr": 2},
 	})
 }
 
@@ -328,11 +353,10 @@ plugs:
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
-		Snap:        info,
-		Name:        "network-client",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"ipv6-aware": true},
-		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
 	})
 }
 
@@ -413,6 +437,32 @@ plugs:
 	c.Assert(err, ErrorMatches, `plug "serial" uses reserved attribute "\$baud-rate"`)
 }
 
+func (s *YamlSuite) TestUnmarshalInvalidPlugAttribute(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    serial:
+        interface: serial-port
+        foo: null
+`))
+	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid attribute scalar:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    serial:
+        interface: serial-port
+        bar:
+          baz:
+          - 1: A
+`))
+	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key in attribute map: 1`)
+}
+
 // Tests focusing on slots
 
 func (s *YamlSuite) TestUnmarshalStandaloneImplicitSlot(c *C) {
@@ -484,11 +534,36 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:        info,
-		Name:        "net",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"ipv6-aware": true},
-		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalStandaloneSlotWithListAndMap(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    iface:
+        interface: complex
+        l: [1,2]
+        m:
+          a: "A"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Assert(info.Slots["iface"], DeepEquals, &snap.SlotInfo{
+		Snap:      info,
+		Name:      "iface",
+		Interface: "complex",
+		Attrs: map[string]interface{}{
+			"l": []interface{}{1, 2},
+			"m": map[string]interface{}{"a": "A"},
+		},
 	})
 }
 
@@ -509,11 +584,10 @@ slots:
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
-		Snap:        info,
-		Name:        "net",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"attr": 2},
-		StringAttrs: map[string]interface{}{"attr": "2"},
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"attr": 2},
 	})
 }
 
@@ -618,11 +692,10 @@ slots:
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
-		Snap:        info,
-		Name:        "network-client",
-		Interface:   "network-client",
-		Attrs:       map[string]interface{}{"ipv6-aware": true},
-		StringAttrs: map[string]interface{}{"ipv6-aware": "true"},
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
 	})
 }
 
@@ -702,6 +775,18 @@ slots:
         $baud-rate: [9600]
 `))
 	c.Assert(err, ErrorMatches, `slot "serial" uses reserved attribute "\$baud-rate"`)
+}
+
+func (s *YamlSuite) TestUnmarshalInvalidSlotAttribute(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    serial:
+        interface: serial-port
+        foo: null
+`))
+	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid attribute scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
