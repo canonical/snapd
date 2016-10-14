@@ -702,6 +702,10 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, err
 	}
 
+	if formatnum > assertType.MaxSupportedFormat() {
+		return nil, fmt.Errorf("cannot sign %q assertion with format %d higher than max supported format %d", assertType.Name, formatnum, assertType.MaxSupportedFormat())
+	}
+
 	revision, err := checkRevision(finalHeaders)
 	if err != nil {
 		return nil, err

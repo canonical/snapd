@@ -291,13 +291,20 @@ func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
-	headers := map[string]interface{}{
-		"authority-id": "canonical",
-		"primary-key":  "0",
-		"format":       "77",
-	}
-	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
-	c.Assert(err, IsNil)
+	var a asserts.Assertion
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.TestOnlyType, 77)
+		defer restore()
+		var err error
+
+		headers := map[string]interface{}{
+			"authority-id": "canonical",
+			"primary-key":  "0",
+			"format":       "77",
+		}
+		a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
+		c.Assert(err, IsNil)
+	})()
 
 	err = db.Check(a)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
@@ -470,6 +477,17 @@ func (safs *signAddFindSuite) TestSignAssemblerError(c *C) {
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `cannot assemble assertion test-only: "count" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignUnsupportedFormat(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"format":       "77",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `cannot sign "test-only" assertion with format 77 higher than max supported format 1`)
 	c.Check(a1, IsNil)
 }
 
