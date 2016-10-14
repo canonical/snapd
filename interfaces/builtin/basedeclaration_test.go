@@ -80,6 +80,21 @@ slots:
 	}
 }
 
+func (s *baseDeclSuite) installPlugCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
+	if yaml == "" {
+		yaml = fmt.Sprintf(`name: install-plug-snap
+type: %s
+plugs:
+  %s:
+`, snapType, iface)
+	}
+	snap := snaptest.MockInfo(c, yaml, nil)
+	return &policy.InstallCandidate{
+		Snap:            snap,
+		BaseDeclaration: s.baseDecl,
+	}
+}
+
 const declTempl = `type: snap-declaration
 authority-id: canonical
 series: 16
@@ -412,4 +427,26 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err := ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+}
+
+func (s *baseDeclSuite) TestPlugInstallation(c *C) {
+	all := builtin.Interfaces()
+
+	restricted := map[string]bool{
+		"docker-support":        true,
+		"kernel-module-control": true,
+		"lxd-support":           true,
+		"snapd-control":         true,
+	}
+
+	for _, iface := range all {
+		ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
+		err := ic.Check()
+		comm := Commentf("%s", iface.Name())
+		if restricted[iface.Name()] {
+			c.Check(err, NotNil, comm)
+		} else {
+			c.Check(err, IsNil, comm)
+		}
+	}
 }
