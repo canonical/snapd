@@ -224,12 +224,12 @@ var (
 	slotInstallation = map[string][]string{
 		// unconstrained
 		"bluez":            unconstrained,
-		"docker":           unconstrained, // TODO: we want slots: docker: false
 		"fwupd":            unconstrained,
 		"location-control": unconstrained,
 		"location-observe": unconstrained,
 		"modem-manager":    unconstrained,
 		"network-manager":  unconstrained,
+		"pulseaudio":       unconstrained,
 		"udisks2":          unconstrained,
 		// other
 		"bool-file":       []string{"core", "gadget"},
@@ -242,8 +242,9 @@ var (
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
 		"ppp":             []string{"core"},
-		"pulseaudio":      []string{"core"},
 		"serial-port":     []string{"core", "gadget"},
+		// snowflakes
+		"docker": nil,
 	}
 )
 
@@ -299,4 +300,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			}
 		}
 	}
+
+	// test docker specially
+	ic := s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	err := ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
 }
