@@ -183,11 +183,23 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
+
+	// allow auto-connect to particular snap id
+	plugsSlots := `
+plugs:
+  snapd-control:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
@@ -226,11 +238,49 @@ plugs:
     allow-auto-connection: false
 `
 
-	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	lxdDecl := s.mockSnapDecl(c, "notlxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = lxdDecl
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"lxd\" snap")
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
+}
+
+func (s *baseDeclSuite) TestAutoConnectionKernelModuleControl(c *C) {
+	cand := s.connectCand(c, "kernel-module-control", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kernel-module-control\"")
+
+	// allow auto-connect to particular snap id
+	plugsSlots := `
+plugs:
+  kernel-module-control:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDockerSupport(c *C) {
+	cand := s.connectCand(c, "docker-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"docker-support\"")
+
+	// allow auto-connect to particular snap id
+	plugsSlots := `
+plugs:
+  docker-support:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
 
 // describe installation rules for slots succinctly for cross-checking,
