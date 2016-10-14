@@ -42,6 +42,10 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
+	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -110,6 +114,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	_, ok := a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
 	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
 	c.Check(a.Body(), IsNil)
 	c.Check(a.Header("header1"), IsNil)
 	c.Check(a.HeaderString("header1"), Equals, "")
@@ -132,10 +137,12 @@ func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
 	c.Check(a.Body(), IsNil)
 }
 
 const exampleBodyAndExtraHeaders = "type: test-only\n" +
+	"format: 1\n" +
 	"authority-id: auth-id2\n" +
 	"primary-key: abc\n" +
 	"revision: 5\n" +
@@ -155,6 +162,8 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	c.Check(a.SignKeyID(), Equals, exKeyID)
 	c.Check(a.Header("primary-key"), Equals, "abc")
 	c.Check(a.Revision(), Equals, 5)
+	c.Check(a.Format(), Equals, 1)
+	c.Check(a.SupportedFormat(), Equals, true)
 	c.Check(a.Header("header1"), Equals, "value1")
 	c.Check(a.Header("header2"), Equals, "value2")
 	c.Check(a.Body(), DeepEquals, []byte("THE-BODY"))
@@ -210,6 +219,7 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	keyIDHdr := "sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n"
 	encoded := "type: test-only\n" +
+		"format: 0\n" +
 		"authority-id: auth-id\n" +
 		"primary-key: abc\n" +
 		"revision: 0\n" +
@@ -235,6 +245,8 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
 		{"revision: 0\n", "revision:\n  - 1\n", `assertion: "revision" header is not an integer: \[1\]`},
 		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
+		{"format: 0\n", "format: Z\n", `assertion: "format" header is not an integer: Z`},
+		{"format: 0\n", "format: -10\n", "assertion: format should be positive: -10"},
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
 		{"primary-key: abc\n", "primary-key:\n  - abc\n", `assertion test-only: "primary-key" header must be a string`},
 		{"primary-key: abc\n", "primary-key: a/c\n", `assertion test-only: "primary-key" primary key header cannot contain '/'`},
@@ -535,6 +547,28 @@ func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
 	}
 }
 
+func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+		"format":       "77",
+		"revision":     "11",
+	}
+
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+
+	c.Check(a.Revision(), Equals, 11)
+	c.Check(a.Format(), Equals, 77)
+	c.Check(a.SupportedFormat(), Equals, false)
+
+	a1, err := asserts.Decode(asserts.Encode(a))
+	c.Assert(err, IsNil)
+
+	c.Check(a1.Revision(), Equals, 11)
+	c.Check(a1.Format(), Equals, 77)
+	c.Check(a1.SupportedFormat(), Equals, false)
+}
+
 func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
@@ -595,6 +629,7 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 
 func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	encoded := []byte("type: test-only\n" +
+		"format: 1\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key: abc\n" +
 		"revision: 5\n" +

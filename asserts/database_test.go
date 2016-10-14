@@ -405,6 +405,17 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignBadFormat(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"format":       "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `"format" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestSignHeadersCheck(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
