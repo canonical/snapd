@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -125,6 +126,7 @@ func NewBatch() *Batch {
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
 	if err := b.bs.Put(a.Type(), a); err != nil {
+		// TODO: do we need to ignore UnsupportedFormatError here sometimes? not for the current use cases at least
 		if revErr, ok := err.(*asserts.RevisionError); ok {
 			if revErr.Current >= a.Revision() {
 				// we already got something more recent
@@ -234,17 +236,30 @@ func (e *commitError) Error() string {
 	return fmt.Sprintf("cannot add some assertions to the system database:%s", strings.Join(l, "\n - "))
 }
 
+func clarifyUnsupportedFormat(err error, a asserts.Assertion) (clarifyd error) {
+	if _, ok := err.(*asserts.UnsupportedFormatError); ok {
+		return fmt.Errorf("%v assertion format is too new for this snapd, upgrade snapd/core snap", a.Ref())
+	}
+	return nil
+}
+
 // commit does a best effort of adding all the fetched assertions to the system database.
 func (f *fetcher) commit() error {
 	var errs []error
 	for _, a := range f.fetched {
 		err := f.db.Add(a)
-		if revErr, ok := err.(*asserts.RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// be idempotent
-				// system db has already the same or newer
-				continue
+		clarified := clarifyUnsupportedFormat(err, a)
+		if asserts.IsKeptCurrent(err) {
+			if clarified != nil {
+				// we kept the old one, but log the issue
+				logger.Noticef(clarified.Error())
 			}
+			// be idempotent
+			// system db has already the same or newer
+			continue
+		}
+		if clarified != nil {
+			err = clarified
 		}
 		if err != nil {
 			errs = append(errs, err)

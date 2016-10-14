@@ -105,6 +105,32 @@ func (e *RevisionError) Error() string {
 	return fmt.Sprintf("revision %d is more recent than current revision %d", e.Used, e.Current)
 }
 
+// UnsupportedFormatError indicates an assertion with a format iteration not yet supported by the present version of asserts.
+type UnsupportedFormatError struct {
+	// KeptCurrent marks there was already a current revision of the assertion and it has been kept.
+	KeptCurrent bool
+}
+
+func (e *UnsupportedFormatError) Error() string {
+	postfx := ""
+	if e.KeptCurrent {
+		postfx = " (kept current revision)"
+	}
+	return "assertion format is too new" + postfx
+}
+
+// IsKeptCurrent returns whether the error indicates that an assertion revision
+// was already present and has been kept.
+func IsKeptCurrent(err error) bool {
+	switch x := err.(type) {
+	case *UnsupportedFormatError:
+		return x.KeptCurrent
+	case *RevisionError:
+		return x.Used <= x.Current
+	}
+	return false
+}
+
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
 	// IsTrustedAccount returns whether the account is part of the trusted set.
@@ -262,6 +288,10 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
+	if !assert.SupportedFormat() {
+		return &UnsupportedFormatError{}
+	}
+
 	typ := assert.Type()
 	now := time.Now()
 
@@ -303,6 +333,13 @@ func (db *Database) Add(assert Assertion) error {
 
 	err := db.Check(assert)
 	if err != nil {
+		if _, ok := err.(*UnsupportedFormatError); ok {
+			_, err := ref.Resolve(db.Find)
+			if err != nil && err != ErrNotFound {
+				return err
+			}
+			return &UnsupportedFormatError{KeptCurrent: err == nil}
+		}
 		return err
 	}
 
