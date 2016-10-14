@@ -570,8 +570,8 @@ type httpErrorResponse struct {
 func newHttpErrorResponse(resp *http.Response) *httpErrorResponse {
 	return &httpErrorResponse{
 		StatusCode: resp.StatusCode,
-		URL: resp.Request.URL,
-		Method: resp.Request.Method}
+		URL:        resp.Request.URL,
+		Method:     resp.Request.Method}
 }
 
 func (r httpErrorResponse) Error() string {
@@ -649,13 +649,14 @@ func isFatal(err error) bool {
 // retryRequest does an authenticated request to the store handling a potential macaroon refresh required if needed.
 // It retries the request on certain http errors or unexpected EOFs.
 func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return err
-	}
+	var lastError error
 
-	err = retry.Call(retry.CallArgs{
+	err := retry.Call(retry.CallArgs{
 		Func: func() error {
+			req, err := s.newRequest(reqOptions, user)
+			if err != nil {
+				return err
+			}
 			return s.doStoreRequest(client, req, user, dataDecodeFunc)
 		},
 		Attempts:     6,
@@ -664,9 +665,16 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		MaxDuration:  MaxRetryDuration,
 		Clock:        clock.WallClock,
 		IsFatalError: isFatal,
+		NotifyFunc: func(err error, attempt int) {
+			lastError = err
+		},
 	})
 
-	return err
+	if lastError == nil {
+		lastError = err
+	}
+
+	return lastError
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -1152,12 +1160,12 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
 	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
 		return nil, httpStatusErrToError(*httpStatusErr, "query the store for updates")
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
