@@ -189,7 +189,6 @@ func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
 
-	// allow auto-connect to particular snap id
 	plugsSlots := `
 plugs:
   snapd-control:
@@ -216,7 +215,6 @@ func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 
-	// allow auto-connect to particular snap id
 	plugsSlots := `
 plugs:
   lxd-support:
@@ -231,7 +229,6 @@ plugs:
 
 func (s *baseDeclSuite) TestAutoConnectionLxdSupportNoMatch(c *C) {
 	cand := s.connectCand(c, "lxd-support", "", "")
-	// don't allow auto-connect to non-matching snap id
 	plugsSlots := `
 plugs:
   lxd-support:
@@ -251,7 +248,6 @@ func (s *baseDeclSuite) TestAutoConnectionKernelModuleControl(c *C) {
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kernel-module-control\"")
 
-	// allow auto-connect to particular snap id
 	plugsSlots := `
 plugs:
   kernel-module-control:
@@ -270,7 +266,6 @@ func (s *baseDeclSuite) TestAutoConnectionDockerSupport(c *C) {
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"docker-support\"")
 
-	// allow auto-connect to particular snap id
 	plugsSlots := `
 plugs:
   docker-support:
@@ -281,6 +276,44 @@ plugs:
 	cand.PlugSnapDeclaration = snapDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
+	plugsSlots := `
+plugs:
+  network-bind:
+    allow-auto-connection: true
+  network-control:
+    allow-auto-connection: true
+  kernel-module-control:
+    allow-auto-connection: true
+  system-observe:
+    allow-auto-connection: true
+  hardware-observe:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+
+	all := builtin.Interfaces()
+	// these are a mixture interfaces that the snap plugs
+	plugged := map[string]bool{
+		"network-bind":          true,
+		"network-control":       true,
+		"kernel-module-control": true,
+		"system-observe":        true,
+		"hardware-bserve":       true,
+	}
+	for _, iface := range all {
+		if !plugged[iface.Name()] {
+			continue
+		}
+
+		cand := s.connectCand(c, iface.Name(), "", "")
+		cand.PlugSnapDeclaration = snapDecl
+		err := cand.CheckAutoConnect()
+		c.Check(err, IsNil)
+	}
 }
 
 // describe installation rules for slots succinctly for cross-checking,
