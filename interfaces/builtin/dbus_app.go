@@ -230,8 +230,13 @@ func (iface *DbusAppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
+func (iface *DbusAppInterface) LegacyAutoConnect() bool {
+	return false
+}
+
 // Since we only implement the permanent slot side, this is meaningless but
 // we have to supply the method, so set it to something safe.
-func (iface *DbusAppInterface) AutoConnect() bool {
-	return false
+func (iface *DbusAppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

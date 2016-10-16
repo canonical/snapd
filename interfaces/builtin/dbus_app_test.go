@@ -167,24 +167,6 @@ slots:
 	c.Assert(err, ErrorMatches, "bus must be one of 'session' or 'system'")
 }
 
-func (s *DbusAppInterfaceSuite) TestGetBusNamesMissingName(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-app-snap
-version: 1.0
-slots:
- dbus-app-slot:
-  interface: dbus-app
-  session: null
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "bus attribute is not a list")
-}
-
 func (s *DbusAppInterfaceSuite) TestSanitizeSlotSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-app-snap
 version: 1.0
@@ -271,7 +253,7 @@ func (s *DbusAppInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
 
-func (s *DbusAppInterfaceSuite) TestAutoConnect(c *C) {
+func (s *DbusAppInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	iface := &builtin.DbusAppInterface{}
-	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.LegacyAutoConnect(), Equals, false)
 }
