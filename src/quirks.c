@@ -32,6 +32,32 @@
 #include "user-support.h"
 
 /**
+ * Get the path to the mounted core snap in the execution environment.
+ *
+ * The core snap may be named just "core" (preferred) or "ubuntu-core"
+ * (legacy).  The mount point does not depend on build-time configuration and
+ * does not differ from distribution to distribution.
+ **/
+static const char *sc_get_inner_core_mount_point()
+{
+	const char *core_path = "/snap/core/current/";
+	const char *ubuntu_core_path = "/snap/ubuntu-core/current/";
+	static const char *result = NULL;
+	if (result == NULL) {
+		if (access(core_path, F_OK) == 0) {
+			// Use the "core" snap if available.
+			result = core_path;
+		} else if (access(ubuntu_core_path, F_OK) == 0) {
+			// If not try to fall back to the "ubuntu-core" snap.
+			result = ubuntu_core_path;
+		} else {
+			die("cannot locate the core snap");
+		}
+	}
+	return result;
+}
+
+/**
  * Mount a tmpfs at a given directory.
  *
  * The empty tmpfs is used as a substrate to create additional directories and
@@ -47,6 +73,51 @@ static void sc_quirk_setup_tmpfs(const char *dirname)
 	};
 }
 
+const char *mount_flags_to_string(unsigned flags)
+{
+	static char buf[1000];
+	strcpy(buf, "");
+	if (flags & MS_BIND) {
+		if (flags & MS_REC) {
+			strcat(buf, "rbind,");
+		} else {
+			strcat(buf, "bind,");
+		}
+	}
+	if (flags & MS_PRIVATE) {
+		if (flags & MS_REC) {
+			strcat(buf, "rprivate,");
+		} else {
+			strcat(buf, "private,");
+		}
+	}
+	if (flags & MS_SLAVE) {
+		if (flags & MS_REC) {
+			strcat(buf, "rslave,");
+		} else {
+			strcat(buf, "slave,");
+		}
+	}
+	if (flags & MS_SHARED) {
+		if (flags & MS_REC) {
+			strcat(buf, "rshared,");
+		} else {
+			strcat(buf, "shared,");
+		}
+	}
+	if (flags & MS_MOVE) {
+		strcat(buf, "move,");
+	}
+	if (flags & MS_UNBINDABLE) {
+		strcat(buf, "unbindable,");
+	}
+	size_t len = strlen(buf);
+	if (len > 0 && buf[len - 1] == ',') {
+		buf[len - 1] = 0;
+	}
+	return buf;
+}
+
 /**
  * Create an empty directory and bind mount something there.
  *
@@ -60,11 +131,12 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	flags |= MS_BIND;
 	debug("creating empty directory at %s", dest_dir);
 	mkpath(dest_dir);
-	debug("bind mounting %s -> %s with flags %#x", src_dir, dest_dir,
-	      flags);
+	const char *flags_str = mount_flags_to_string(flags);
+	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
+	      flags_str);
 	if (mount(src_dir, dest_dir, NULL, flags, NULL) != 0) {
-		die("cannot bind mount %s -> %s with flags %#x", src_dir,
-		    dest_dir, flags);
+		die("cannot perform operation: mount %s %s -o %s", src_dir,
+		    dest_dir, flags_str);
 	}
 }
 
@@ -150,25 +222,35 @@ void sc_setup_quirks()
 	if (mkdtemp(snapd_tmp) == 0) {
 		die("cannot create temporary directory for /var/lib/snapd mount point");
 	}
+	debug("performing operation: mount --move %s %s", "/var/lib/snapd",
+	      snapd_tmp);
 	if (mount("/var/lib/snapd", snapd_tmp, NULL, MS_MOVE, NULL)
 	    != 0) {
-		die("cannot move /var/lib/snapd to %s", snapd_tmp);
+		die("cannot perform operation: mount --move %s %s",
+		    "/var/lib/snapd", snapd_tmp);
 	}
 	// now let's make /var/lib the vanilla /var/lib from the core snap
-	sc_quirk_create_writable_mimic("/var/lib",
-				       "/snap/ubuntu-core/current/var/lib",
+	char buf[PATH_MAX];
+	must_snprintf(buf, sizeof buf, "%s/var/lib",
+		      sc_get_inner_core_mount_point());
+	sc_quirk_create_writable_mimic("/var/lib", buf,
 				       MS_RDONLY | MS_REC | MS_SLAVE | MS_NODEV
 				       | MS_NOSUID);
 	// now let's move /var/lib/snapd (that was originally there) back
+	debug("performing operation: umount %s", "/var/lib/snapd");
 	if (umount("/var/lib/snapd") != 0) {
-		die("cannot unmount /var/lib/snapd");
+		die("cannot perform operation: umount %s", "/var/lib/snapd");
 	}
+	debug("performing operation: mount --move %s %s", snapd_tmp,
+	      "/var/lib/snapd");
 	if (mount(snapd_tmp, "/var/lib/snapd", NULL, MS_MOVE, NULL)
 	    != 0) {
-		die("cannot move %s to /var/lib/snapd", snapd_tmp);
+		die("cannot perform operation: mount --move %s %s", snapd_tmp,
+		    "/var/lib/snapd");
 	}
+	debug("performing operation: rmdir %s", snapd_tmp);
 	if (rmdir(snapd_tmp) != 0) {
-		die("cannot remove %s", snapd_tmp);
+		die("cannot perform operation: rmdir %s", snapd_tmp);
 	}
 	// We are now ready to apply any quirks that relate to /var/lib
 	sc_setup_lxd_quirk();

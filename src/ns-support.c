@@ -348,6 +348,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	if (fstatfs(mnt_fd, &buf) < 0) {
 		die("cannot perform fstatfs() on an mount namespace file descriptor");
 	}
+#ifndef NSFS_MAGIC
+// Account for kernel headers old enough to not know about NSFS_MAGIC.
+#define NSFS_MAGIC 0x6e736673
+#endif
 	if (buf.f_type == NSFS_MAGIC) {
 		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
