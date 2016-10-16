@@ -23,7 +23,7 @@ backends:
                 environment:
                     APT_PROXY: "$(HOST: echo $APT_PROXY)"
 
-path: /remote/path/
+path: /home/spread/
 
 exclude:
     - .git

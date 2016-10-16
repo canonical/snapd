@@ -1,0 +1,21 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1630479
+details: |
+    The PATH environment variable needs to make sense for the layout of the
+    core snap. Snap-confine contains code that sets it accordingly but during
+    the introduction of the namespace sharing feature that code would run only
+    when the namespace was initially constructed. Subsequent calls would not
+    see the correct path. 
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap install snapd-hacker-toolbelt
+execute: |
+    echo "We can observe the value of PATH twice"
+    revision=$(readlink /snap/snapd-hacker-toolbelt/current)
+    one="$(snapd-hacker-toolbelt.busybox sh -c 'echo $PATH')"
+    two="$(snapd-hacker-toolbelt.busybox sh -c 'echo $PATH')"
+    echo "We can see that PATH is stable across calls"
+    [ "$one" = "$two" ]
+    echo "We can make sure that it has the right value"
+    [ "$one" = "/snap/snapd-hacker-toolbelt/$revision/bin:/snap/snapd-hacker-toolbelt/$revision/usr/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games" ]
+restore: |
+    snap remove snapd-hacker-toolbelt
