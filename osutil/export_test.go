@@ -36,3 +36,10 @@ func MockSudoersDotD(mockDir string) func() {
 
 	return func() { sudoersDotD = realSudoersD }
 }
+
+func MockMountInfoPath(mockMountInfoPath string) func() {
+	realMountInfoPath := mountInfoPath
+	mountInfoPath = mockMountInfoPath
+
+	return func() { mountInfoPath = realMountInfoPath }
+}

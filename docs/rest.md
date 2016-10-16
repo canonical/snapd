@@ -122,6 +122,7 @@ kind               | value description
 `invalid-auth-data` | the authentication data provided failed to validate (e.g. a malformed email address). The `value` of the error is an object with a key per failed field and a list of the failures on each field.
 `terms-not-accepted` | the user has not accepted the store's terms of service.
 `no-payment-methods` | the user does not have a payment method registered to complete a purchase.
+`payment-declined` | the user's payment method was declined by the payment provider.
 
 ### Timestamps
 

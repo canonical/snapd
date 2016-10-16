@@ -1737,7 +1737,7 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 	st.Lock()
 	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
-	if err != nil {
+	if err != nil && err != asserts.ErrNotFound {
 		return BadRequest("cannot find system-user assertion: %s", err)
 	}
 
@@ -1978,6 +1978,15 @@ func convertBuyError(err error) Response {
 			Result: &errorResult{
 				Message: err.Error(),
 				Kind:    errorKindNoPaymentMethods,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case store.ErrPaymentDeclined:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindPaymentDeclined,
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
