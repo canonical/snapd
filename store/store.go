@@ -23,20 +23,26 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -112,18 +118,25 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	}
 	info.Deltas = deltas
 
+	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
+	for _, url := range d.ScreenshotURLs {
+		screenshots = append(screenshots, snap.ScreenshotInfo{
+			URL: url,
+		})
+	}
+	info.Screenshots = screenshots
+
 	return info
 }
 
 // Config represents the configuration to access the snap store
 type Config struct {
-	SearchURI         *url.URL
-	DetailsURI        *url.URL
-	BulkURI           *url.URL
-	AssertionsURI     *url.URL
-	PurchasesURI      *url.URL
-	CustomersMeURI    *url.URL
-	PaymentMethodsURI *url.URL
+	SearchURI      *url.URL
+	DetailsURI     *url.URL
+	BulkURI        *url.URL
+	AssertionsURI  *url.URL
+	OrdersURI      *url.URL
+	CustomersMeURI *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
@@ -132,18 +145,17 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
-	DeltaFormats []string
+	DeltaFormat  string
 }
 
 // Store represents the ubuntu snap store
 type Store struct {
-	searchURI         *url.URL
-	detailsURI        *url.URL
-	bulkURI           *url.URL
-	assertionsURI     *url.URL
-	purchasesURI      *url.URL
-	customersMeURI    *url.URL
-	paymentMethodsURI *url.URL
+	searchURI      *url.URL
+	detailsURI     *url.URL
+	bulkURI        *url.URL
+	assertionsURI  *url.URL
+	ordersURI      *url.URL
+	customersMeURI *url.URL
 
 	architecture string
 	series       string
@@ -151,7 +163,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
-	deltaFormats []string
+	deltaFormat  string
 	// reused http client
 	client *http.Client
 
@@ -187,6 +199,10 @@ func getStructFields(s interface{}) []string {
 	}
 
 	return fields
+}
+
+func useDeltas() bool {
+	return os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1"
 }
 
 func useStaging() bool {
@@ -278,17 +294,12 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "dev/api/snap-purchases/")
+	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
 	if err != nil {
 		panic(err)
 	}
 
 	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
 	if err != nil {
 		panic(err)
 	}
@@ -303,8 +314,8 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The default delta formats if none are configured.
-var defaultSupportedDeltaFormats = []string{"xdelta"}
+// The default delta format if not configured.
+var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -348,27 +359,26 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
-	deltaFormats := cfg.DeltaFormats
-	if deltaFormats == nil {
-		deltaFormats = defaultSupportedDeltaFormats
+	deltaFormat := cfg.DeltaFormat
+	if deltaFormat == "" {
+		deltaFormat = defaultSupportedDeltaFormat
 	}
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		searchURI:         searchURI,
-		detailsURI:        detailsURI,
-		bulkURI:           cfg.BulkURI,
-		assertionsURI:     cfg.AssertionsURI,
-		purchasesURI:      cfg.PurchasesURI,
-		customersMeURI:    cfg.CustomersMeURI,
-		paymentMethodsURI: cfg.PaymentMethodsURI,
-		series:            series,
-		architecture:      architecture,
-		fallbackStoreID:   cfg.StoreID,
-		detailFields:      fields,
-		client:            newHTTPClient(),
-		authContext:       authContext,
-		deltaFormats:      deltaFormats,
+		searchURI:       searchURI,
+		detailsURI:      detailsURI,
+		bulkURI:         cfg.BulkURI,
+		assertionsURI:   cfg.AssertionsURI,
+		ordersURI:       cfg.OrdersURI,
+		customersMeURI:  cfg.CustomersMeURI,
+		series:          series,
+		architecture:    architecture,
+		fallbackStoreID: cfg.StoreID,
+		detailFields:    fields,
+		client:          newHTTPClient(),
+		authContext:     authContext,
+		deltaFormat:     deltaFormat,
 	}
 }
 
@@ -378,7 +388,7 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	deserializedMacaroon, err := auth.MacaroonDeserialize(macaroon)
 	if err != nil {
 		return "", "", err
 	}
@@ -397,13 +407,18 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
+// hasStoreAuth returns true if given user has store macaroons setup
+func hasStoreAuth(user *auth.UserState) bool {
+	return user != nil && user.StoreMacaroon != ""
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
 	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
 	if err != nil {
 		logger.Debugf("cannot deserialize root macaroon: %v", err)
 		return
@@ -411,14 +426,14 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 
 	for _, d := range user.StoreDischarges {
 		// prepare discharge for request
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
 			return
 		}
 		discharge.Bind(root.Signature())
 
-		serializedDischarge, err := MacaroonSerialize(discharge)
+		serializedDischarge, err := auth.MacaroonSerialize(discharge)
 		if err != nil {
 			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
 			return
@@ -432,7 +447,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 func refreshDischarges(user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			return nil, err
 		}
@@ -613,7 +628,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateDevice(req, device)
 	}
 
-	if user != nil {
+	// only set user authentication if user logged in to the store
+	if hasStoreAuth(user) {
 		authenticateUser(req, user)
 	}
 
@@ -646,167 +662,109 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 	}
 }
 
-// purchase encapsulates the purchase data sent to us from the software center agent.
+// ordersResult encapsulates the order data sent to us from the software center agent.
 //
-// When making a purchase request, the State "InProgress", together with a RedirectTo
-// URL may be received. In-this case, the user must be directed to that webpage in
-// order to complete the purchase (e.g. to enter 3D-secure credentials).
-// Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
-// this should be included in the follow-on requests to the redirect URL.
-//
-// HTTP/1.1 200 OK
-// Content-Type: application/json; charset=utf-8
-//
-// [
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
-//     "refundable_until": "2015-07-15 18:46:21",
-//     "state": "Complete"
-//   },
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
-//     "item_sku": "item-1-sku",
-//     "purchase_id": "1",
-//     "refundable_until": null,
-//     "state": "Complete"
-//   },
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "12jdhg1j2dgj12dgk1jh",
-//     "refundable_until": "2015-07-17 11:33:29",
-//     "state": "Complete"
-//   }
-// ]
-type purchase struct {
-	OpenID          string `json:"open_id"`
+// {
+//   "orders": [
+//     {
+//       "snap_id": "abcd1234efgh5678ijkl9012",
+//       "currency": "USD",
+//       "amount": "2.99",
+//       "state": "Complete",
+//       "refundable_until": null,
+//       "purchase_date": "2016-09-20T15:00:00+00:00"
+//     },
+//     {
+//       "snap_id": "abcd1234efgh5678ijkl9012",
+//       "currency": null,
+//       "amount": null,
+//       "state": "Complete",
+//       "refundable_until": null,
+//       "purchase_date": "2016-09-20T15:00:00+00:00"
+//     }
+//   ]
+// }
+type ordersResult struct {
+	Orders []*order `json:"orders"`
+}
+
+type order struct {
 	SnapID          string `json:"snap_id"`
-	RefundableUntil string `json:"refundable_until"`
+	Currency        string `json:"currency"`
+	Amount          string `json:"amount"`
 	State           string `json:"state"`
-	ItemSKU         string `json:"item_sku,omitempty"`
-	PurchaseID      string `json:"purchase_id,omitempty"`
-	RedirectTo      string `json:"redirect_to,omitempty"`
+	RefundableUntil string `json:"refundable_until"`
+	PurchaseDate    string `json:"purchase_date"`
 }
 
-func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) ([]*purchase, error) {
-	if user == nil {
-		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
-	}
-
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    url,
-		Accept: halJsonContentType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var purchases []*purchase
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&purchases); err != nil {
-			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
-		}
-	case http.StatusUnauthorized:
-		// TODO handle token expiry and refresh
-		return nil, ErrInvalidCredentials
-	default:
-		return nil, respToError(resp, "obtain known purchases from store")
-	}
-
-	return purchases, nil
-}
-
-func setMustBuy(snaps []*snap.Info) {
+// decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
+func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
+	// Mark every non-free snap as must buy until we know better.
+	hasPriced := false
 	for _, info := range snaps {
 		if len(info.Prices) != 0 {
 			info.MustBuy = true
+			hasPriced = true
 		}
 	}
-}
-
-func hasPriced(snaps []*snap.Info) bool {
-	// Search through the list of snaps to see if any are priced
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
-func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth.UserState) error {
-	// Mark every non-free snap as must buy until we know better.
-	setMustBuy(snaps)
 
 	if user == nil {
 		return nil
 	}
 
-	if !hasPriced(snaps) {
+	if !hasPriced {
 		return nil
 	}
 
 	var err error
-	var purchasesURL *url.URL
 
-	if len(snaps) == 1 {
-		// If we only have a single snap, we should only find the purchases for that snap
-		purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
-		if err != nil {
-			return err
-		}
-		q := purchasesURL.Query()
-		q.Set("include_item_purchases", "true")
-		purchasesURL.RawQuery = q.Encode()
-	} else {
-		// Inconsistently, global search implies include_item_purchases.
-		purchasesURL = s.purchasesURI
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    s.ordersURI,
+		Accept: jsonContentType,
 	}
-
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
-	// Group purchases by snap ID.
-	purchasesByID := make(map[string][]*purchase)
-	for _, purchase := range purchases {
-		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+	var result ordersResult
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&result); err != nil {
+			return fmt.Errorf("cannot decode known orders from store: %v", err)
+		}
+	case http.StatusUnauthorized:
+		// TODO handle token expiry and refresh
+		return ErrInvalidCredentials
+	default:
+		return respToError(resp, "obtain known orders from store")
+	}
+
+	// Make a map of the IDs of bought snaps
+	bought := make(map[string]bool)
+	for _, order := range result.Orders {
+		bought[order.SnapID] = true
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
+		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, purchases []*purchase) bool {
+func mustBuy(prices map[string]float64, bought bool) bool {
 	if len(prices) == 0 {
-		// If the snap is free, then it doesn't need purchasing
+		// If the snap is free, then it doesn't need buying
 		return false
 	}
 
-	// Search through all the purchases for a snap to see if there are any
-	// that are for the whole snap, and not an "in-app" purchase.
-	for _, purchase := range purchases {
-		if purchase.ItemSKU == "" {
-			// Purchase is for the whole snap.
-			return false
-		}
-	}
-
-	// The snap is not free, and we couldn't find a purchase for the whole snap.
-	return true
+	return !bought
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -866,9 +824,9 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	info := infoFromRemote(remote)
 
-	err = s.decoratePurchases([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, channel, user)
 	if err != nil {
-		logger.Noticef("cannot get user purchases: %v", err)
+		logger.Noticef("cannot get user orders: %v", err)
 	}
 
 	s.extractSuggestedCurrency(resp)
@@ -961,9 +919,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, "", user)
+	err = s.decorateOrders(snaps, "", user)
 	if err != nil {
-		logger.Noticef("cannot get user purchases: %v", err)
+		logger.Noticef("cannot get user orders: %v", err)
 	}
 
 	s.extractSuggestedCurrency(resp)
@@ -1047,13 +1005,14 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Method:      "POST",
 		URL:         s.bulkURI,
 		Accept:      halJsonContentType,
-		ContentType: "application/json",
+		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+	if useDeltas() {
+		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
 		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+			"X-Ubuntu-Delta-Formats": s.deltaFormat,
 		}
 	}
 
@@ -1109,6 +1068,19 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+
+	if useDeltas() {
+		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+	}
+	if useDeltas() && len(downloadInfo.Deltas) == 1 {
+		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
+		if err == nil {
+			return snapPath, nil
+		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+	}
+
 	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
@@ -1124,7 +1096,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -1135,10 +1107,11 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	return w.Name(), w.Sync()
 }
 
+// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
+var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-	client := &http.Client{}
-
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1148,12 +1121,27 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		Method: "GET",
 		URL:    storeURL,
 	}
-	resp, err := s.doRequest(client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
+	var resp *http.Response
+	for _, n := range downloadBackoffs {
+		// we do *not* want to reuse the client between iterations in
+		// this case as it will have internal state (e.g. cached
+		// connections) that led us to an error (the default client is
+		// documented as not reusing the transport unless the body is
+		// read to EOF and closed, so this is a belt-and-braces thing).
+		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		if err != nil {
+			return err
+		}
+		defer r.Body.Close()
+
+		resp = r
+
+		if r.StatusCode != 500 {
+			break
+		}
+		time.Sleep(time.Duration(n) * time.Millisecond)
+	}
 	if resp.StatusCode != 200 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
@@ -1168,6 +1156,110 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	return err
+}
+
+// downloadDelta downloads the delta for the preferred format, returning the path.
+func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+
+	if len(downloadInfo.Deltas) != 1 {
+		return "", errors.New("store returned more than one download delta")
+	}
+
+	deltaInfo := downloadInfo.Deltas[0]
+
+	if deltaInfo.Format != s.deltaFormat {
+		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+	}
+
+	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
+
+	w, err := os.Create(path.Join(downloadDir, deltaName))
+	if err != nil {
+		return "", err
+	}
+	deltaPath := w.Name()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(w.Name())
+			deltaPath = ""
+		}
+	}()
+
+	url := deltaInfo.AnonDownloadURL
+	if url == "" || hasStoreAuth(user) {
+		url = deltaInfo.DownloadURL
+	}
+
+	err = download(deltaName, url, user, s, w, pbar)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: Check sha3_384
+	return deltaPath, nil
+}
+
+// applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
+var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
+	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
+
+	if !osutil.FileExists(snapPath) {
+		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
+	}
+
+	if deltaInfo.Format != "xdelta" {
+		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+	}
+
+	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
+
+	// Create a temporary file only to get the unique path.
+	tmpfile, err := ioutil.TempFile("", targetSnapName)
+	if err != nil {
+		return "", err
+	}
+	targetSnapPath := tmpfile.Name()
+	if err = tmpfile.Close(); err != nil {
+		return "", err
+	}
+
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
+	cmd := exec.Command("xdelta", xdeltaArgs...)
+
+	if err = cmd.Run(); err != nil {
+		os.Remove(targetSnapPath)
+		return "", err
+	}
+
+	return targetSnapPath, nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+	deltaInfo := &downloadInfo.Deltas[0]
+	workingDir, err := ioutil.TempDir("", name+"-deltas")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(workingDir)
+
+	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
+	return snapPath, nil
 }
 
 type assertionSvcError struct {
@@ -1197,7 +1289,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 
 	if resp.StatusCode != 200 {
 		contentType := resp.Header.Get("Content-Type")
-		if contentType == "application/json" || contentType == "application/problem+json" {
+		if contentType == jsonContentType || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {
@@ -1227,40 +1319,24 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters for store purchases.
+// BuyOptions specifies parameters to buy from the store.
 type BuyOptions struct {
-	// Required
 	SnapID   string  `json:"snap-id"`
 	SnapName string  `json:"snap-name"`
 	Price    float64 `json:"price"`
 	Currency string  `json:"currency"` // ISO 4217 code as string
-
-	// Optional
-	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
-	MethodID  int    `json:"method-id"`  // e.g. a particular credit card or paypal account
 }
 
-// BuyResult holds information required to complete the purchase when state
-// is "InProgress", in which case it requires user interaction to complete.
+// BuyResult holds the state of a buy attempt.
 type BuyResult struct {
-	State      string `json:"state,omitempty"`
-	RedirectTo string `json:"redirect-to,omitempty"`
-	PartnerID  string `json:"partner-id,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
-// purchaseInstruction holds data sent to the store for purchases.
-// X-Device-Id and X-Partner-Id (e.g. "bq") may be sent as headers.
-type purchaseInstruction struct {
-	SnapID    string  `json:"snap_id"`
-	ItemSKU   string  `json:"item_sku,omitempty"`
-	Amount    float64 `json:"amount,omitempty"`
-	Currency  string  `json:"currency,omitempty"`
-	BackendID string  `json:"backend_id,omitempty"`
-	MethodID  int     `json:"method_id,omitempty"`
-}
-
-type buyError struct {
-	ErrorMessage string `json:"error_message"`
+// orderInstruction holds data sent to the store for orders.
+type orderInstruction struct {
+	SnapID   string `json:"snap_id"`
+	Amount   string `json:"amount,omitempty"`
+	Currency string `json:"currency,omitempty"`
 }
 
 type storeError struct {
@@ -1294,8 +1370,8 @@ func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap%s: %s", identifier, message)
 }
 
-// Buy sends a purchase request for the specified snap.
-// Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
+// Buy sends a buy request for the specified snap.
+// Returns the state of the order: Complete, Cancelled.
 func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError(options, "snap ID missing")
@@ -1310,15 +1386,19 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return buyOptionError(options, "currency missing")
 	}
 	if user == nil {
-		return buyOptionError(options, "authentication credentials missing")
+		return nil, ErrUnauthenticated
 	}
 
-	instruction := purchaseInstruction{
-		SnapID:    options.SnapID,
-		Amount:    options.Price,
-		Currency:  options.Currency,
-		BackendID: options.BackendID,
-		MethodID:  options.MethodID,
+	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
+	err := s.ReadyToBuy(user)
+	if err != nil {
+		return nil, err
+	}
+
+	instruction := orderInstruction{
+		SnapID:   options.SnapID,
+		Amount:   fmt.Sprintf("%.2f", options.Price),
+		Currency: options.Currency,
 	}
 
 	jsonData, err := json.Marshal(instruction)
@@ -1328,9 +1408,9 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.purchasesURI,
-		Accept:      halJsonContentType,
-		ContentType: "application/json",
+		URL:         s.ordersURI,
+		Accept:      jsonContentType,
+		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -1341,95 +1421,58 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
-		// user already purchased or purchase successful
-		var purchaseDetails purchase
+		// user already ordered or order successful
+		var orderDetails order
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&purchaseDetails); err != nil {
+		if err := dec.Decode(&orderDetails); err != nil {
 			return nil, err
 		}
 
-		if purchaseDetails.State == "Cancelled" {
+		if orderDetails.State == "Cancelled" {
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
-		redirectTo := ""
-		if purchaseDetails.RedirectTo != "" {
-			redirectTo = fmt.Sprintf("%s://%s%s", s.purchasesURI.Scheme, s.purchasesURI.Host, purchaseDetails.RedirectTo)
-		}
-
 		return &BuyResult{
-			State:      purchaseDetails.State,
-			RedirectTo: redirectTo,
-			PartnerID:  resp.Header.Get("X-Partner-Id"),
+			State: orderDetails.State,
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
-		var errorInfo buyError
+		var errorInfo storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("cannot buy snap %q: bad request: %s", options.SnapName, errorInfo.ErrorMessage)
+		return nil, fmt.Errorf("cannot buy snap %q: bad request: %v", options.SnapName, errorInfo.Error())
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
 		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
+	case http.StatusPaymentRequired:
+		// Payment failed for some reason.
+		return nil, ErrPaymentDeclined
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo buyError
+		var errorInfo storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		details := ""
-		if errorInfo.ErrorMessage != "" {
-			details = ": " + errorInfo.ErrorMessage
-		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap %q%s", options.SnapName, details))
+		return nil, respToError(resp, fmt.Sprintf("buy snap %q: %v", options.SnapName, errorInfo))
 	}
 }
 
-type storePaymentBackend struct {
-	Choices     []*storePaymentMethod `json:"choices"`
-	Description string                `json:"description"`
-	ID          string                `json:"id"`
-	Preferred   bool                  `json:"preferred"`
-}
-
-type storePaymentMethod struct {
-	Currencies          []string `json:"currencies"`
-	Description         string   `json:"description"`
-	ID                  int      `json:"id"`
-	Preferred           bool     `json:"preferred"`
-	RequiresInteraction bool     `json:"requires_interaction"`
-}
-
-type PaymentMethod struct {
-	BackendID           string   `json:"backend-id"`
-	Currencies          []string `json:"currencies"`
-	Description         string   `json:"description"`
-	ID                  int      `json:"id"`
-	Preferred           bool     `json:"preferred"`
-	RequiresInteraction bool     `json:"requires-interaction"`
-}
-
-type PaymentInformation struct {
-	AllowsAutomaticPayment bool             `json:"allows-automatic-payment"`
-	Methods                []*PaymentMethod `json:"methods"`
-}
-
 type storeCustomer struct {
-	LatestTosDate     string `json:"latest_tos_date"`
-	AcceptedTosDate   string `json:"accepted_tos_date"`
-	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	LatestTOSDate     string `json:"latest_tos_date"`
+	AcceptedTOSDate   string `json:"accepted_tos_date"`
+	LatestTOSAccepted bool   `json:"latest_tos_accepted"`
 	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
 
 // ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
 func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if user == nil {
-		return ErrInvalidCredentials
+		return ErrUnauthenticated
 	}
 
 	reqOptions := &requestOptions{
@@ -1450,8 +1493,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		if err := dec.Decode(&customer); err != nil {
 			return err
 		}
-		if !customer.LatestTosAccepted {
-			return ErrTosNotAccepted
+		if !customer.LatestTOSAccepted {
+			return ErrTOSNotAccepted
 		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
@@ -1472,72 +1515,5 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
-	}
-}
-
-// PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
-	if user == nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.paymentMethodsURI,
-		Accept: halJsonContentType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var paymentBackends []*storePaymentBackend
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&paymentBackends); err != nil {
-			return nil, err
-		}
-
-		paymentMethods := &PaymentInformation{
-			AllowsAutomaticPayment: false,
-			Methods:                make([]*PaymentMethod, 0),
-		}
-
-		// Unroll nested structure into a simple list of PaymentMethods
-		for _, backend := range paymentBackends {
-
-			if backend.Preferred {
-				paymentMethods.AllowsAutomaticPayment = true
-			}
-
-			for _, method := range backend.Choices {
-				paymentMethods.Methods = append(paymentMethods.Methods, &PaymentMethod{
-					BackendID:           backend.ID,
-					Currencies:          method.Currencies,
-					Description:         method.Description,
-					ID:                  method.ID,
-					Preferred:           method.Preferred,
-					RequiresInteraction: method.RequiresInteraction,
-				})
-			}
-		}
-
-		return paymentMethods, nil
-	case http.StatusUnauthorized:
-		return nil, ErrInvalidCredentials
-	default:
-		var errorInfo buyError
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		details := ""
-		if errorInfo.ErrorMessage != "" {
-			details = ": " + errorInfo.ErrorMessage
-		}
-		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d%s", resp.StatusCode, details)
 	}
 }

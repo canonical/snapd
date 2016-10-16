@@ -69,6 +69,13 @@ network packet,
 
 /run/udev/data/* r,
 
+# Allow access to configuration files generated on the fly
+# from netplan
+/run/NetworkManager/{,**} r,
+
+# Allow writing dhcp files to a well-known system location
+/run/NetworkManager/dhcp/{,**} w,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -77,6 +84,13 @@ network packet,
 
 # Needed to use resolvconf from core
 /sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
 
@@ -428,6 +442,11 @@ func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error 
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AutoConnect() bool {
+func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

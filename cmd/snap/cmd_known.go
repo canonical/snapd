@@ -25,6 +25,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -34,6 +36,8 @@ type cmdKnown struct {
 		AssertTypeName string   `required:"true"`
 		HeaderFilters  []string `required:"0"`
 	} `positional-args:"true" required:"true"`
+
+	Remote bool `long:"remote"`
 }
 
 var shortKnownHelp = i18n.G("Shows known assertions of the provided type")
@@ -59,6 +63,36 @@ func init() {
 
 var nl = []byte{'\n'}
 
+var storeNew = store.New
+
+func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {
+	var user *auth.UserState
+
+	// FIXME: set auth context
+	var authContext auth.AuthContext
+
+	at := asserts.Type(typeName)
+	if at == nil {
+		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
+	}
+	primaryKeys := make([]string, len(at.PrimaryKey))
+	for i, k := range at.PrimaryKey {
+		pk, ok := headers[k]
+		if !ok {
+			return nil, fmt.Errorf("missing primary header %q to query remote assertion", k)
+		}
+		primaryKeys[i] = pk
+	}
+
+	sto := storeNew(nil, authContext)
+	as, err := sto.Assertion(at, primaryKeys, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return []asserts.Assertion{as}, nil
+}
+
 func (x *cmdKnown) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -74,7 +108,13 @@ func (x *cmdKnown) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := Client().Known(x.KnownOptions.AssertTypeName, headers)
+	var assertions []asserts.Assertion
+	var err error
+	if x.Remote {
+		assertions, err = downloadAssertion(x.KnownOptions.AssertTypeName, headers)
+	} else {
+		assertions, err = Client().Known(x.KnownOptions.AssertTypeName, headers)
+	}
 	if err != nil {
 		return err
 	}

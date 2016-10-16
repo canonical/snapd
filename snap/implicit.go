@@ -42,6 +42,7 @@ var implicitSlots = []string{
 	"network-bind",
 	"network-control",
 	"network-observe",
+	"network-setup-observe",
 	"opengl",
 	"ppp",
 	"process-control",
@@ -49,15 +50,16 @@ var implicitSlots = []string{
 	"snapd-control",
 	"system-observe",
 	"system-trace",
+	"time-control",
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
 	"kernel-module-control",
+	"camera",
 }
 
 var implicitClassicSlots = []string{
 	"browser-support",
-	"camera",
 	"cups-control",
 	"gsettings",
 	"libvirt",

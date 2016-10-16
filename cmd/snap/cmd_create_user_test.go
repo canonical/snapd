@@ -30,49 +30,121 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestCreateUser(c *check.C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0, 1:
+func makeCreateUserChecker(c *check.C, n *int, email string, sudoer, known bool) func(w http.ResponseWriter, r *http.Request) {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		switch *n {
+		case 0:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/create-user")
-			var body map[string]interface{}
+			var gotBody map[string]interface{}
 			dec := json.NewDecoder(r.Body)
-			err := dec.Decode(&body)
+			err := dec.Decode(&gotBody)
 			c.Assert(err, check.IsNil)
-			c.Check(body, check.DeepEquals, map[string]interface{}{
-				"email":  "popper@lse.ac.uk",
-				"sudoer": false,
-			})
-			fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh-key-count": 1}}`)
+
+			wantBody := make(map[string]interface{})
+			if email != "" {
+				wantBody["email"] = "one@email.com"
+			}
+			if sudoer {
+				wantBody["sudoer"] = true
+			}
+			if known {
+				wantBody["known"] = true
+			}
+			c.Check(gotBody, check.DeepEquals, wantBody)
+
+			if email == "" {
+				fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "karl", "ssh-keys": ["a","b"]}]}`)
+			} else {
+				fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh-keys": ["a","b"]}}`)
+			}
 		default:
-			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+			c.Fatalf("got too many requests (now on %d)", *n+1)
 		}
 
-		n++
-	})
+		*n++
+	}
+	return f
+}
 
-	rest, err := snap.Parser().ParseArgs([]string{"create-user", "popper@lse.ac.uk"})
+func (s *SnapSuite) TestCreateUserNoSudoer(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", false, false))
+
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
-	c.Assert(s.Stdout(), check.Equals, `Created user "karl" and imported SSH keys.`+"\n")
+	c.Assert(s.Stdout(), check.Equals, `created user "karl"`+"\n")
 	c.Assert(s.Stderr(), check.Equals, "")
+}
 
-	s.stdout.Reset()
+func (s *SnapSuite) TestCreateUserSudoer(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", true, false))
+
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--sudoer", "one@email.com"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Check(n, check.Equals, 1)
+	c.Assert(s.Stdout(), check.Equals, `created user "karl"`+"\n")
+	c.Assert(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestCreateUserJSON(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", false, false))
 
 	expectedResponse := &client.CreateUserResult{
-		Username:    "karl",
-		SSHKeyCount: 1,
+		Username: "karl",
+		SSHKeys:  []string{"a", "b"},
 	}
 	actualResponse := &client.CreateUserResult{}
 
-	rest, err = snap.Parser().ParseArgs([]string{"create-user", "--json", "popper@lse.ac.uk"})
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--json", "one@email.com"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(n, check.Equals, 2)
+	c.Check(n, check.Equals, 1)
 	json.Unmarshal(s.stdout.Bytes(), actualResponse)
 	c.Assert(actualResponse, check.DeepEquals, expectedResponse)
 	c.Assert(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestCreateUserNoEmailJSON(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "", false, true))
+
+	var expectedResponse = []*client.CreateUserResult{{
+		Username: "karl",
+		SSHKeys:  []string{"a", "b"},
+	}}
+	var actualResponse []*client.CreateUserResult
+
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--json", "--known"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Check(n, check.Equals, 1)
+	json.Unmarshal(s.stdout.Bytes(), &actualResponse)
+	c.Assert(actualResponse, check.DeepEquals, expectedResponse)
+	c.Assert(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestCreateUserKnown(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "one@email.com", false, true))
+
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--known", "one@email.com"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestCreateUserKnownNoEmail(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeCreateUserChecker(c, &n, "", false, true))
+
+	rest, err := snap.Parser().ParseArgs([]string{"create-user", "--known"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Check(n, check.Equals, 1)
 }

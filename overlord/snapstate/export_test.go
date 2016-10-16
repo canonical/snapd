@@ -65,6 +65,10 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 		return errors.New("error out")
 	}
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
+
+	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 }
 
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
@@ -80,9 +84,10 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 }
 
 var (
-	CheckSnap   = checkSnap
-	CanRemove   = canRemove
-	CachedStore = cachedStore
+	CheckSnap            = checkSnap
+	CanRemove            = canRemove
+	CachedStore          = cachedStore
+	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

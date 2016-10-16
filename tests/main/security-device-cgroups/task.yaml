@@ -16,14 +16,14 @@ environment:
     OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
 
 restore: |
-    rm -f test-snapd-tools_1.0_all.snap /etc/udev/rules.d/70-snap.test-snapd-tools.rules
+    rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
     udevadm trigger
 
 execute: |
     echo "Given a snap is installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --dangerous ./test-snapd-tools_1.0_all.snap
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
     echo "Then the device is not assigned to that snap"
     ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"

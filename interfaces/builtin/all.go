@@ -56,6 +56,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
+	NewNetworkSetupObserveInterface(),
 	NewProcessControlInterface(),
 	NewRemovableMediaInterface(),
 	NewScreenInhibitControlInterface(),
@@ -75,6 +76,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewTimeControlInterface(),
 	NewLibvirtInterface(),
 }
 

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -68,3 +69,27 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 		repeatRequestSerial = old
 	}
 }
+
+func (m *DeviceManager) EnsureSeedYaml() error {
+	return m.ensureSeedYaml()
+}
+
+var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+
+func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
+	old := populateStateFromSeed
+	populateStateFromSeed = f
+	return func() {
+		populateStateFromSeed = old
+	}
+}
+
+func (m *DeviceManager) EnsureBootOk() error {
+	return m.ensureBootOk()
+}
+
+func (m *DeviceManager) SetBootOkRan(b bool) {
+	m.bootOkRan = b
+}
+
+var ImportAssertionsFromSeed = importAssertionsFromSeed

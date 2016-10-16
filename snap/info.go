@@ -138,13 +138,17 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
+	// Broken marks if set whether the snap is broken and the reason.
+	Broken string
+
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
-	Broken  string
+
+	Screenshots []ScreenshotInfo
 }
 
 // Name returns the blessed name for the snap.
@@ -230,6 +234,10 @@ type DownloadInfo struct {
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
 
+	// The server can include information about available deltas for a given
+	// snap at a specific revision during refresh. Currently during refresh the
+	// server will provide single matching deltas only, from the clients
+	// revision to the target revision when available, per requested format.
 	Deltas []DeltaInfo `json:"deltas,omitempty"`
 }
 
@@ -297,6 +305,13 @@ type AppInfo struct {
 	Slots map[string]*SlotInfo
 
 	Environment map[string]string
+}
+
+// ScreenshotInfo provides information about a screenshot.
+type ScreenshotInfo struct {
+	URL    string
+	Width  int64
+	Height int64
 }
 
 // HookInfo provides information about a hook.

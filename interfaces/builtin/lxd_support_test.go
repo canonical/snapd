@@ -38,7 +38,7 @@ var _ = Suite(&LxdSupportInterfaceSuite{
 	iface: &builtin.LxdSupportInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "lxd-support",
 			Interface: "lxd-support",
 		},
@@ -141,6 +141,10 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "@unrestricted\n")
 }
 
+func (s *LxdSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
+}
+
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }

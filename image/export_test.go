@@ -24,4 +24,5 @@ var (
 	DecodeModelAssertion = decodeModelAssertion
 	DownloadUnpackGadget = downloadUnpackGadget
 	BootstrapToRootDir   = bootstrapToRootDir
+	InstallCloudConfig   = installCloudConfig
 )

@@ -39,7 +39,7 @@ var _ = Suite(&BrowserSupportInterfaceSuite{
 	iface: &builtin.BrowserSupportInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "browser-support",
 			Interface: "browser-support",
 		},
@@ -174,6 +174,6 @@ func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *BrowserSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+func (s *BrowserSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

@@ -33,8 +33,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -48,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -71,7 +74,6 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
-	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 }
@@ -114,9 +116,9 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 	return s.buyResult, s.err
 }
 
-func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
+func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
 	s.user = user
-	return s.paymentMethods, s.err
+	return s.err
 }
 
 func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
@@ -159,7 +161,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -169,7 +170,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.restoreBackends()
 	snapstateInstall = snapstate.Install
-	snapstateGet = snapstate.Get
+	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstallPath = snapstate.InstallPath
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
@@ -308,7 +309,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -385,6 +386,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
+		"defaultCoreSnapName",
+		"oldDefaultSnapCoreName",
 		"errModeConflict",
 		"errNoJailMode",
 		// snapInstruction vars:
@@ -393,12 +396,15 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdate",
 		"snapstateInstallPath",
 		"snapstateTryPath",
-		"snapstateGet",
+		"snapstateCoreInfo",
 		"snapstateUpdateMany",
+		"snapstateInstallMany",
+		"snapstateRemoveMany",
 		"snapstateRefreshCandidates",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
+		"setupLocalUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -456,6 +462,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"version-id": "1.2",
 		},
 		"on-classic": true,
+		"managed":    false,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -496,7 +503,7 @@ func (s *apiSuite) makeStoreMacaroon() (string, error) {
 		return "", err
 	}
 
-	return store.MacaroonSerialize(m)
+	return auth.MacaroonSerialize(m)
 }
 
 func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
@@ -512,6 +519,9 @@ func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string,
 }
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
 	serializedMacaroon, err := s.makeStoreMacaroon()
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
@@ -527,39 +537,201 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := loginUser(snapCmd, req, nil).(*resp)
+	rsp := loginUser(loginCmd, req, nil).(*resp)
 
-	expected := loginResponseData{
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := userResponseData{
+		ID:    1,
+		Email: "email@.com",
+
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
+	}
+
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := loginUser(loginCmd, req, nil).(*resp)
+
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := userResponseData{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	expectedUser := auth.UserState{
-		ID:         1,
-		Username:   "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
-	}
-	expectedUser.StoreMacaroon = expectedUser.Macaroon
-	expectedUser.StoreDischarges = expectedUser.Discharges
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
 
-	state := snapCmd.d.overlord.State()
+func (s *apiSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
 	state.Lock()
-	user, err := auth.User(state, 1)
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, localUser).(*resp)
+
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(*user, check.DeepEquals, expectedUser)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, localUser).(*resp)
+
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 }
 
 func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -700,7 +872,7 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 
 func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+	req.Header.Set("Authorization", `Macaroon root=""`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -727,30 +899,12 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	state.Lock()
-	user, err := UserFromRequest(state, req)
-	state.Unlock()
-
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser)
-}
-
-func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, expectedUser.Macaroon))
 
 	state.Lock()
 	user, err := UserFromRequest(state, req)
@@ -851,6 +1005,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1015,6 +1170,48 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "GBP")
 }
 
+func (s *apiSuite) TestFindScreenshotted(c *check.C) {
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		Screenshots: []snap.ScreenshotInfo{
+			{
+				URL:    "http://example.com/screenshot.png",
+				Width:  800,
+				Height: 1280,
+			},
+			{
+				URL: "http://example.com/screenshot2.png",
+			},
+		},
+		MustBuy: true,
+		SideInfo: snap.SideInfo{
+			RealName:  "test-screenshot",
+			Developer: "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := searchStore(findCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+
+	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"url": "http://example.com/screenshot2.png",
+		},
+	})
+}
+
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	d := s.daemon(c)
 
@@ -1087,7 +1284,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1276,7 +1473,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1509,8 +1706,8 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
 	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, snapstate.Flags(0))
@@ -1636,7 +1833,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "try-snap")
-	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir))
 	var names []string
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
@@ -1669,7 +1866,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasUbuntuCore bool) string {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1686,12 +1883,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: "local"}, nil
 	}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		if hasUbuntuCore {
-			return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		if hasCoreSnap {
+			return nil, nil
 		}
 		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
@@ -1724,12 +1921,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
-	if !hasUbuntuCore {
+	if !hasCoreSnap {
 		n++
 	}
 	c.Assert(installQueue, check.HasLen, n)
-	if !hasUbuntuCore {
-		c.Check(installQueue[0], check.Equals, "ubuntu-core")
+	if !hasCoreSnap {
+		c.Check(installQueue[0], check.Equals, defaultCoreSnapName)
 	}
 	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
 
@@ -1760,6 +1957,37 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	})
 
 	return chg.Summary()
+}
+
+func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+	s.vars = map[string]string{"name": "test-snap"}
+	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
+	c.Check(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	return body["result"].(map[string]interface{})
+}
+
+func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
+	d := s.daemon(c)
+
+	// Set a config that we'll get in a moment
+	d.overlord.State().Lock()
+	transaction := configstate.NewTransaction(d.overlord.State())
+	transaction.Set("test-snap", "test-key1", "test-value1")
+	transaction.Set("test-snap", "test-key2", "test-value2")
+	transaction.Commit()
+	d.overlord.State().Unlock()
+
+	result := s.runGetConf(c, []string{"test-key1"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *apiSuite) TestSetConf(c *check.C) {
@@ -1804,9 +2032,9 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	// Check that the apply-config hook was run correctly
-	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{[]string{
-		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
+	// Check that the configure hook was run correctly
+	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
+		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
 }
 
@@ -1909,9 +2137,9 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 	restore := release.MockReleaseInfo(releaseInfo)
 	defer restore()
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -1967,9 +2195,9 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	installQueue := []string{}
 	assertstateCalledUserID := 0
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2010,9 +2238,9 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2041,6 +2269,48 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.DevMode))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have ubuntu-core
+		return nil, nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:           "refresh",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+		userID:           17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.IgnoreValidation))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -2151,12 +2421,48 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
-func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
+func (s *apiSuite) TestInstallMany(c *check.C) {
+	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, installs, _, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(installs, check.DeepEquals, inst.Snaps)
+}
+
+func (s *apiSuite) TestRemoveMany(c *check.C) {
+	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, removes, _, err := snapRemoveMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(removes, check.DeepEquals, inst.Snaps)
+}
+
+func (s *apiSuite) TestInstallMissingCoreSnap(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// pretend we do not have a core
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -2188,8 +2494,8 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	c.Check(chg.Tasks(), check.HasLen, 4)
 
 	c.Check(installQueue, check.HasLen, 4)
-	// the two "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the two OS snap install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 	// the two "some-snap" install tasks
@@ -2200,12 +2506,12 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 
 // Installing ubuntu-core when not having ubuntu-core doesn't misbehave and try
 // to install ubuntu-core twice.
-func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
+func (s *apiSuite) TestInstallCoreSnapWhenMissing(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// pretend we do not have a core
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -2217,7 +2523,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
-		Snaps:  []string{"ubuntu-core"},
+		Snaps:  []string{defaultCoreSnapName},
 	}
 
 	st := d.overlord.State()
@@ -2227,16 +2533,16 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(installQueue, check.HasLen, 2)
-	// the only "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the only OS snap install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -2408,7 +2714,11 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -2547,7 +2857,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`)
+- Connect consumer:plug to producer:slot (cannot connect consumer:plug ("test" interface) to producer:slot ("different" interface))`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2597,7 +2907,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "plug" from snap "consumer", no such plug)`)
+- Connect consumer:plug to producer:slot (snap "consumer" has no plug named "plug")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -2645,7 +2955,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug to slot "slot" from snap "producer", no such slot)`)
+- Connect consumer:plug to producer:slot (snap "producer" has no slot named "slot")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2660,7 +2970,11 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -2743,7 +3057,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer", no such plug)`)
+- Disconnect consumer:plug from producer:slot (snap "consumer" has no plug named "plug")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -2791,7 +3105,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug from slot "slot" from snap "producer", no such slot)`)
+- Disconnect consumer:plug from producer:slot (snap "producer" has no slot named "slot")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2839,7 +3153,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`)
+- Disconnect consumer:plug from producer:slot (cannot disconnect consumer:plug from producer:slot, it is not connected)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2951,33 +3265,35 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *apiSuite) TestAssertConflict(c *check.C) {
+func (s *apiSuite) TestAssertStreamOK(c *check.C) {
 	// Setup
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	st := d.overlord.State()
-	// add store key
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
-	acctRev0 := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	acctRev1 := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
-		"account-id": acctRev0.AccountID(),
-		"revision":   "1",
-		"validation": "certified",
-	}, "")
-	assertAdd(st, acctRev1)
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	err := enc.Encode(acct)
+	c.Assert(err, check.IsNil)
+	err = enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
 
-	buf := bytes.NewBuffer(asserts.Encode(acctRev0))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	// Execute
-	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
+	rsp := doAssert(assertsCmd, req, nil).(*resp)
 	// Verify (external)
-	c.Check(rec.Code, check.Equals, 409)
-	c.Check(rec.Body.String(), testutil.Contains, "assert failed: revision 0 is older than current revision 1")
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+		"account-id": acct.AccountID(),
+	})
+	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
@@ -2991,7 +3307,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
-		"cannot decode request body into an assertion")
+		"cannot decode request body into assertions")
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {
@@ -3464,7 +3780,241 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+const validBuyInput = `{
+		  "snap-id": "the-snap-id-1234abcd",
+		  "snap-name": "the snap name",
+		  "price": 1.23,
+		  "currency": "EUR"
+		}`
+
+var validBuyOptions = &store.BuyOptions{
+	SnapID:   "the-snap-id-1234abcd",
+	SnapName: "the snap name",
+	Price:    1.23,
+	Currency: "EUR",
+}
+
+var buyTests = []struct {
+	input                string
+	result               *store.BuyResult
+	err                  error
+	expectedStatus       int
+	expectedResult       interface{}
+	expectedResponseType ResponseType
+	expectedBuyOptions   *store.BuyOptions
+}{
+	{
+		// Success
+		input: validBuyInput,
+		result: &store.BuyResult{
+			State: "Complete",
+		},
+		expectedStatus: http.StatusOK,
+		expectedResult: &store.BuyResult{
+			State: "Complete",
+		},
+		expectedResponseType: ResponseTypeSync,
+		expectedBuyOptions:   validBuyOptions,
+	},
+	{
+		// Fail with internal error
+		input: `{
+		  "snap-id": "the-snap-id-1234abcd",
+		  "price": 1.23,
+		  "currency": "EUR"
+		}`,
+		err:                  fmt.Errorf("internal error banana"),
+		expectedStatus:       http.StatusInternalServerError,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "internal error banana",
+		},
+		expectedBuyOptions: &store.BuyOptions{
+			SnapID:   "the-snap-id-1234abcd",
+			Price:    1.23,
+			Currency: "EUR",
+		},
+	},
+	{
+		// Fail with unauthenticated error
+		input:                validBuyInput,
+		err:                  store.ErrUnauthenticated,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "you need to log in first",
+			Kind:    "login-required",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with TOS not accepted
+		input:                validBuyInput,
+		err:                  store.ErrTOSNotAccepted,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    "terms-not-accepted",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with no payment methods
+		input:                validBuyInput,
+		err:                  store.ErrNoPaymentMethods,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "no payment methods",
+			Kind:    "no-payment-methods",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+	{
+		// Fail with payment declined
+		input:                validBuyInput,
+		err:                  store.ErrPaymentDeclined,
+		expectedStatus:       http.StatusBadRequest,
+		expectedResponseType: ResponseTypeError,
+		expectedResult: &errorResult{
+			Message: "payment declined",
+			Kind:    "payment-declined",
+		},
+		expectedBuyOptions: validBuyOptions,
+	},
+}
+
+func (s *apiSuite) TestBuySnap(c *check.C) {
+	for _, test := range buyTests {
+		s.buyResult = test.result
+		s.err = test.err
+
+		buf := bytes.NewBufferString(test.input)
+		req, err := http.NewRequest("POST", "/v2/buy", buf)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := postBuy(buyCmd, req, user).(*resp)
+
+		c.Check(rsp.Status, check.Equals, test.expectedStatus)
+		c.Check(rsp.Type, check.Equals, test.expectedResponseType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.expectedResult)
+		c.Check(rsp.Result, check.DeepEquals, test.expectedResult)
+
+		c.Check(s.buyOptions, check.DeepEquals, test.expectedBuyOptions)
+		c.Check(s.user, check.Equals, user)
+	}
+}
+
+func (s *apiSuite) TestIsTrue(c *check.C) {
+	form := &multipart.Form{}
+	c.Check(isTrue(form, "foo"), check.Equals, false)
+	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
+		form.Value = map[string][]string{"foo": {f}}
+		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
+	}
+	for _, t := range []string{"true", "1", "True", "t"} {
+		form.Value = map[string][]string{"foo": {t}}
+		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
+}
+
+var readyToBuyTests = []struct {
+	input    error
+	status   int
+	respType interface{}
+	response interface{}
+}{
+	{
+		// Success
+		input:    nil,
+		status:   http.StatusOK,
+		respType: ResponseTypeSync,
+		response: true,
+	},
+	{
+		// Not accepted TOS
+		input:    store.ErrTOSNotAccepted,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    errorKindTermsNotAccepted,
+		},
+	},
+	{
+		// No payment methods
+		input:    store.ErrNoPaymentMethods,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "no payment methods",
+			Kind:    errorKindNoPaymentMethods,
+		},
+	},
+}
+
+func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	for _, test := range readyToBuyTests {
+		s.err = test.input
+
+		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
+		c.Check(rsp.Status, check.Equals, test.status)
+		c.Check(rsp.Type, check.Equals, test.respType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
+		c.Check(rsp.Result, check.DeepEquals, test.response)
+	}
+}
+
+type postCreateUserSuite struct {
+	apiSuite
+
+	mockUserHome string
+}
+
+func (s *postCreateUserSuite) SetUpTest(c *check.C) {
+	s.apiSuite.SetUpTest(c)
+
+	s.daemon(c)
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	s.mockUserHome = c.MkDir()
+	userLookup = mkUserLookup(s.mockUserHome)
+}
+
+func (s *postCreateUserSuite) TearDownTest(c *check.C) {
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+	userLookup = user.Lookup
+	osutilAddUser = osutil.AddUser
+	storeUserInfo = store.UserInfo
+}
+
+func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
+	return func(username string) (*user.User, error) {
+		cur, err := user.Current()
+		cur.Username = username
+		cur.HomeDir = userHomeDir
+		return cur, err
+	}
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3472,12 +4022,6 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-	}()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
@@ -3486,10 +4030,10 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot create user for popper@lse.ac.uk: no ssh keys found")
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
-func (s *apiSuite) TestPostCreateUser(c *check.C) {
+func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3506,136 +4050,391 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return nil
 	}
 
-	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
-		return 0, nil
-	}
-	defer func() {
-		osutilAddUser = osutil.AddUser
-		postCreateUserUcrednetGetUID = ucrednetGetUID
-	}()
-
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-}
-
-func (s *apiSuite) TestBuySnap(c *check.C) {
-	s.buyResult = &store.BuyResult{State: "Complete"}
-	s.err = nil
-
-	buf := bytes.NewBufferString(`{
-	  "snap-id": "the-snap-id-1234abcd",
-	  "snap-name": "the snap name",
-	  "price": 1.23,
-	  "currency": "EUR"
-	}`)
-	req, err := http.NewRequest("POST", "/v2/buy", buf)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	rsp := postBuy(buyCmd, req, user).(*resp)
-
-	expected := &store.BuyResult{
-		State: "Complete",
+	expected := &userResponseData{
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:   "the-snap-id-1234abcd",
-		SnapName: "the snap name",
-		Price:    1.23,
-		Currency: "EUR",
-	})
-	c.Check(s.user, check.Equals, user)
-}
-
-func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
-	s.buyResult = nil
-	s.err = fmt.Errorf("Missing parameter")
-
-	// snap name missing
-	buf := bytes.NewBufferString(`{
-	  "snap-id": "the-snap-id-1234abcd",
-	  "price": 1.23,
-	  "currency": "EUR"
-	}`)
-	req, err := http.NewRequest("POST", "/v2/buy", buf)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
+	// user was setup in state
+	state := s.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "karl")
+	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Macaroon, check.NotNil)
+	// auth saved to user home dir
+	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
+	c.Check(err, check.IsNil)
+	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+}
 
-	rsp := postBuy(buyCmd, req, user).(*resp)
+func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
+	st := s.d.overlord.State()
+	email := "foo@example.com"
 
-	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "Missing parameter")
+	username, opts, err := getUserDetailsFromAssertion(st, email)
+	c.Check(username, check.Equals, "")
+	c.Check(opts, check.IsNil)
+	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
+}
 
-	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:   "the-snap-id-1234abcd",
-		Price:    1.23,
-		Currency: "EUR",
+func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
+	// this must be done very early
+	restorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
+
+	st := s.d.overlord.State()
+
+	// create fake brand signature
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	model = model.(*asserts.Model)
+
+	// now add model related stuff to the system
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+	assertAdd(st, brandAcct)
+	assertAdd(st, brandAccKey)
+	assertAdd(st, model)
+
+	for _, suMap := range systemUsers {
+		su, err := brandSigning.Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, check.IsNil)
+		su = su.(*asserts.SystemUser)
+		// now add system-user assertion to the system
+		assertAdd(st, su)
+	}
+	// create fake device
+	st.Lock()
+	err = auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
 	})
-	c.Check(s.user, check.Equals, user)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	return restorer
 }
 
-func (s *apiSuite) TestIsTrue(c *check.C) {
-	form := &multipart.Form{}
-	c.Check(isTrue(form, "foo"), check.Equals, false)
-	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		form.Value = map[string][]string{"foo": []string{f}}
-		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
-	}
-	for _, t := range []string{"true", "1", "True", "t"} {
-		form.Value = map[string][]string{"foo": []string{t}}
-		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
-	}
-}
-
-func (s *apiSuite) TestPaymentMethods(c *check.C) {
-	s.paymentMethods = &store.PaymentInformation{
-		AllowsAutomaticPayment: true,
-		Methods: []*store.PaymentMethod{
-			&store.PaymentMethod{
-				BackendID:           "credit_card",
-				Currencies:          []string{"GBP", "USD"},
-				Description:         "**** **** **** 1234 (exp 20/2020)",
-				ID:                  123,
-				Preferred:           true,
-				RequiresInteraction: false,
-			},
+func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 		},
-	}
-	s.err = nil
+	})
+	defer restorer()
 
-	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
+	// ensure that if we query the details from the assert DB we get
+	// the expected user
+	st := s.d.overlord.State()
+	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
+	c.Check(username, check.Equals, "guy")
+	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
+		Gecos:    "foo@bar.com,Boring Guy",
+		Password: "$6$salt$hash",
+	})
+	c.Check(err, check.IsNil)
+}
+
+// FIXME: These tests all look similar, with small deltas. Would be
+// nice to transform them into a table that is just the deltas, and
+// run on a loop.
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &userResponseData{
+		Username: "guy",
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+		{
+			// bad user (not valid for this model)
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foobar@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"non-of-the-models-i-have"},
+			"name":         "Random Gal",
+			"username":     "gal",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// note that we get a list here instead of a single
+	// userResponseData item
+	expected := []userResponseData{
+		{Username: "guy"},
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
 
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true,"force-managed":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// note that we get a list here instead of a single
+	// userResponseData item
+	expected := []userResponseData{
+		{Username: "guy"},
+	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
-	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *postCreateUserSuite) TestUsersEmpty(c *check.C) {
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{
+		{ID: u.ID, Username: u.Username, Email: u.Email},
+	}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
