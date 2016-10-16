@@ -24,7 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap"
 )
 
 type I2CInterfaceSuite struct {
@@ -58,7 +58,7 @@ func (s *I2CInterfaceSuite) TestName(c *C) {
 func (s *I2CInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.sanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap: &snap.Info{SuggestedName: "some-snap"},
 		Name: "i2c",
 		Interface: "i2c",
