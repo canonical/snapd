@@ -68,6 +68,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  dbus-app:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
   docker:
     deny-auto-connection: true
   docker-support:

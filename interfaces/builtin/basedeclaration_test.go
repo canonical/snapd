@@ -235,6 +235,7 @@ var (
 		"bool-file":       []string{"core", "gadget"},
 		"browser-support": []string{"core"},
 		"content":         []string{"app", "gadget"},
+		"dbus-app":        []string{"app"},
 		"docker-support":  []string{"core"},
 		"gpio":            []string{"core", "gadget"},
 		"hidraw":          []string{"core", "gadget"},
