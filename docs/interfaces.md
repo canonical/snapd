@@ -280,6 +280,7 @@ Example slot yaml:
         interface: dbus-app
         session:
         - org.some.name
+
 ### docker
 
 Can access snaps providing the docker interface which gives privileged access
