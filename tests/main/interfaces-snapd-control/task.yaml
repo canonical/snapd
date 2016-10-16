@@ -23,6 +23,8 @@ restore: |
     rm -f snapd-control-consumer_1.0_all.snap snapd.error
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     CONNECTED_PATTERN=":snapd-control +snapd-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +snapd-control-consumer:snapd-control"
 
@@ -32,7 +34,7 @@ execute: |
     echo "================================================"
 
     echo "When the plug is disconnected"
-    snap disconnect snapd-control-consumer:snapd-control ubuntu-core:snapd-control
+    snap disconnect snapd-control-consumer:snapd-control ${core_name}:snapd-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to control snapd"
@@ -45,7 +47,7 @@ execute: |
     echo "================================================"
 
     echo "When the plug is connected"
-    snap connect snapd-control-consumer:snapd-control ubuntu-core:snapd-control
+    snap connect snapd-control-consumer:snapd-control ${core_name}:snapd-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to control snapd"

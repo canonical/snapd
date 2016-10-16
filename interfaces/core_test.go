@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 func Test(t *testing.T) {
@@ -118,4 +119,29 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	longName[1] = '.'
 	err = ValidateDBusBusName(string(longName))
 	c.Assert(err, ErrorMatches, `bus name is too long \(must be <= 255\)`)
+}
+
+// Plug.Ref works as expected
+func (s *CoreSuite) TestPlugRef(c *C) {
+	plug := &Plug{PlugInfo: &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}}
+	ref := plug.Ref()
+	c.Check(ref.Snap, Equals, "consumer")
+	c.Check(ref.Name, Equals, "plug")
+}
+
+// Slot.Ref works as expected
+func (s *CoreSuite) TestSlotRef(c *C) {
+	slot := &Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}
+	ref := slot.Ref()
+	c.Check(ref.Snap, Equals, "producer")
+	c.Check(ref.Name, Equals, "slot")
+}
+
+// ConnRef.ID works as expected
+func (s *CoreSuite) TestConnRefID(c *C) {
+	conn := &ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
 }

@@ -100,12 +100,10 @@ func NewTextProgress() *TextProgress {
 
 // Start starts showing progress
 func (t *TextProgress) Start(label string, total float64) {
-	// TODO go to New64 once we update the pb package.
-	t.pbar = pb.New(0)
+	t.pbar = pb.New64(0)
 	t.pbar.Total = int64(total)
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
-	t.pbar.NotPrint = true
 	t.pbar.Prefix(label)
 	t.pbar.Start()
 }
@@ -123,7 +121,11 @@ func (t *TextProgress) SetTotal(total float64) {
 // Finished stops displaying the progress
 func (t *TextProgress) Finished() {
 	if t.pbar != nil {
+		// workaround silly pb that always does a fmt.Println() on
+		// finish (unless NotPrint is set)
+		t.pbar.NotPrint = true
 		t.pbar.Finish()
+		t.pbar.NotPrint = false
 	}
 	fmt.Printf("\r\033[K")
 }

@@ -1,7 +1,5 @@
 summary: Ensure network interface works.
 
-systems: [-ubuntu-core-16-64]
-
 details: |
     The network interface allows a snap to access the network as a client.
 
@@ -19,6 +17,7 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
+    . $TESTSLIB/systemd.sh
     echo "Given a snap declaring the network plug is installed"
     snapbuild $TESTSLIB/snaps/$SNAP_NAME .
     snap install --dangerous $SNAP_FILE
@@ -26,14 +25,18 @@ prepare: |
     echo "And a service is listening"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
-    systemd-run --unit $SERVICE_NAME $SERVICE_FILE
+    systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
+
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
 restore: |
-    systemctl stop $SERVICE_NAME
+    . $TESTSLIB/systemd.sh
+    systemd_stop_and_destroy_unit $SERVICE_NAME
     rm -f $SNAP_FILE $SERVICE_FILE
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     :network +$SNAP_NAME"
@@ -47,17 +50,17 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network ubuntu-core:network
+    snap disconnect $SNAP_NAME:network ${core_name}:network
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
-    snap connect $SNAP_NAME:network ubuntu-core:network
+    snap connect $SNAP_NAME:network ${core_name}:network
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:network ubuntu-core:network
+    snap connect $SNAP_NAME:network ${core_name}:network
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access a network service"
@@ -66,7 +69,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:network ubuntu-core:network
+    snap disconnect $SNAP_NAME:network ${core_name}:network
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access a network service"

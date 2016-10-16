@@ -22,6 +22,9 @@ package main
 import (
 	"os/user"
 	"time"
+
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
 var RunMain = run
@@ -64,3 +67,21 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 		userCurrent = userCurrentOrig
 	}
 }
+
+func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+	storeNewOrig := storeNew
+	storeNew = f
+	return func() {
+		storeNew = storeNewOrig
+	}
+}
+
+func MockMountInfoPath(newMountInfoPath string) (restore func()) {
+	mountInfoPathOrig := mountInfoPath
+	mountInfoPath = newMountInfoPath
+	return func() {
+		mountInfoPath = mountInfoPathOrig
+	}
+}
+
+var AutoImportCandidates = autoImportCandidates

@@ -20,28 +20,65 @@
 package ctlcmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate"
 )
 
 type setCommand struct {
 	baseCommand
+
+	Positional struct {
+		ConfValues []string `positional-arg-name:"key=value" required:"1"`
+	} `positional-args:"yes" required:"yes"`
 }
 
-var shortSetHelp = i18n.G("Set snap configuration")
+var shortSetHelp = i18n.G("Changes configuration options")
 var longSetHelp = i18n.G(`
-The set command is currently only a placeholder.`)
+The set command changes the provided configuration options as requested.
+
+    $ snapctl set username=frank password=$PASSWORD
+
+All configuration changes are persisted at once, and only after the hook
+returns successfully.
+
+Nested values may be modified via a dotted path:
+
+    $ snapctl set author.name=frank
+`)
 
 func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
 }
 
 func (s *setCommand) Execute(args []string) error {
-	if s.context() == nil {
+	context := s.context()
+	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	// TODO: Talk to the handler to take care of the set request.
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
+
+	for _, patchValue := range s.Positional.ConfValues {
+		parts := strings.SplitN(patchValue, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), patchValue)
+		}
+		key := parts[0]
+		var value interface{}
+		err := json.Unmarshal([]byte(parts[1]), &value)
+		if err != nil {
+			// Not valid JSON-- just save the string as-is.
+			value = parts[1]
+		}
+
+		transaction.Set(s.context().SnapName(), key, value)
+	}
+
 	return nil
 }

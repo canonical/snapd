@@ -32,6 +32,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -68,6 +69,7 @@ type HookSetup struct {
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
+	Optional bool          `json:"optional,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -85,20 +87,21 @@ func Manager(s *state.State) (*HookManager, error) {
 	return manager, nil
 }
 
-// HookTask returns a task that will run the specified hook.
-func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
-	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
+	task := st.NewTask("run-hook", summary)
+	task.Set("hook-setup", setup)
+
+	// Initial data for Context.Get/Set.
+	if len(contextData) > 0 {
+		task.Set("hook-context", contextData)
+	}
 	return task
 }
 
-// Register requests that a given handler generator be called when a matching
-// hook is run, and the handler be used for the hook.
-//
-// Specifically, if a matching hook is about to be run, the handler's Before()
-// method will be called. After the hook has completed running, either the
-// handler's Done() method or its Error() method will be called, depending on
-// the outcome.
+// Register registers a function to create Handler values whenever hooks
+// matching the provided pattern are run.
 func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
 	m.repository.addHandlerGenerator(pattern, generator)
 }
@@ -132,40 +135,67 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 	return context, nil
 }
 
+func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+	var hooksup HookSetup
+	err := task.Get("hook-setup", &hooksup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
+	}
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
+	if err == state.ErrNoState {
+		return nil, nil, fmt.Errorf("cannot find %q snap", hooksup.Snap)
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
+	}
+
+	return &hooksup, &snapst, nil
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	setup := &HookSetup{}
-	err := task.Get("hook-setup", setup)
+	hooksup, snapst, err := hookSetup(task)
 	task.State().Unlock()
-
 	if err != nil {
-		return fmt.Errorf("cannot extract hook setup from task: %s", err)
+		return err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+	}
+
+	hookExists := info.Hooks[hooksup.Hook] != nil
+	if !hookExists && !hooksup.Optional {
+		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+	}
+
+	context, err := NewContext(task, hooksup, nil)
+	if err != nil {
+		return err
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
 	// possible for regular expressions to overlap, but multiple handlers is an
 	// error (as is no handler).
-	handlers := m.repository.generateHandlers(&Context{task: task, setup: setup})
+	handlers := m.repository.generateHandlers(context)
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
-		return fmt.Errorf("no registered handlers for hook %q", setup.Hook)
+		return fmt.Errorf("internal error: no registered handlers for hook %q", hooksup.Hook)
 	}
 	if handlersCount > 1 {
-		return fmt.Errorf("%d handlers registered for hook %q, expected 1", handlersCount, setup.Hook)
+		return fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
 	}
 
-	handler := handlers[0]
-	context, err := NewContext(task, setup, handler)
-	if err != nil {
-		return err
-	}
+	context.handler = handlers[0]
 
 	contextID := context.ID()
-
 	m.contextsMutex.Lock()
 	m.contexts[contextID] = context
 	m.contextsMutex.Unlock()
@@ -176,29 +206,48 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		m.contextsMutex.Unlock()
 	}()
 
-	// About to run the hook-- notify the handler
-	if err = handler.Before(); err != nil {
+	if err = context.Handler().Before(); err != nil {
 		return err
 	}
 
-	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
-	if err != nil {
-		err = osutil.OutputErr(output, err)
-		if handlerErr := handler.Error(err); handlerErr != nil {
-			return handlerErr
+	if hookExists {
+		output, err := runHook(context, tomb)
+		if err != nil {
+			err = osutil.OutputErr(output, err)
+			if handlerErr := context.Handler().Error(err); handlerErr != nil {
+				return handlerErr
+			}
+
+			return err
 		}
+	}
 
+	if err = context.Handler().Done(); err != nil {
 		return err
 	}
 
-	// Assuming no error occurred, notify the handler that the hook has
-	// finished.
-	if err = handler.Done(); err != nil {
+	context.Lock()
+	defer context.Unlock()
+	if err = context.Done(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), tomb)
+}
+
+var runHook = runHookImpl
+
+// MockRunHook mocks the actual invocation of hooks for tests.
+func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (restore func()) {
+	oldRunHook := runHook
+	runHook = hookInvoke
+	return func() {
+		runHook = oldRunHook
+	}
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {

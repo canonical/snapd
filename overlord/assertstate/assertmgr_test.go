@@ -20,6 +20,7 @@
 package assertstate_test
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"io/ioutil"
@@ -105,8 +106,8 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 	panic("fakeStore.Buy not expected")
 }
 
-func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
-	panic("fakeStore.PaymentMethods not expected")
+func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
+	panic("fakeStore.ReadyToBuy not expected")
 }
 
 func (s *assertMgrSuite) SetUpTest(c *C) {
@@ -163,6 +164,98 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	c.Assert(err, IsNil)
 
 	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchAddStream(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	b := &bytes.Buffer{}
+	enc := asserts.NewEncoder(b)
+	// wrong order is ok
+	err := enc.Encode(s.dev1Acct)
+	c.Assert(err, IsNil)
+	enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
+	})
+
+	// noop
+	err = batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchConsiderPreexisting(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// prereq store key
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+	err = batch.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	b := &bytes.Buffer{}
+	enc := asserts.NewEncoder(b)
+	// wrong order is ok
+	err := enc.Encode(s.dev1Acct)
+	c.Assert(err, IsNil)
+	enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	err = batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+	})
+
+	err = batch.Commit(s.state)
 	c.Assert(err, IsNil)
 
 	db := assertstate.DB(s.state)
@@ -674,4 +767,51 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r1 := assertstest.MockBuiltinBaseDeclaration(nil)
+	defer r1()
+
+	baseDecl, err := assertstate.BaseDeclaration(s.state)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Check(baseDecl, IsNil)
+
+	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  iface: true
+`))
+	defer r2()
+
+	baseDecl, err = assertstate.BaseDeclaration(s.state)
+	c.Assert(err, IsNil)
+	c.Check(baseDecl, NotNil)
+	c.Check(baseDecl.PlugRule("iface"), NotNil)
+}
+
+func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.SnapName(), Equals, "foo")
 }

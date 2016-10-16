@@ -278,7 +278,7 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
-	c.Assert(MountUnitPath("/apps/hello/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello-1.1.mount"))
+	c.Assert(MountUnitPath("/apps/hello/1.1"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello-1.1.mount"))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {

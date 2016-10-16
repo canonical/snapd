@@ -63,6 +63,8 @@ type mgrsSuite struct {
 	udev   *testutil.MockCmd
 	umount *testutil.MockCmd
 
+	snapDiscardNs *testutil.MockCmd
+
 	prevctlCmd func(...string) ([]byte, error)
 
 	storeSigning   *assertstest.StoreStack
@@ -110,6 +112,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
+	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
+	dirs.LibExecDir = ms.snapDiscardNs.BinDir()
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
@@ -123,6 +127,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	ms.o = o
+	st := ms.o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -133,6 +141,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
+	ms.snapDiscardNs.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -181,7 +190,7 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
@@ -223,7 +232,7 @@ apps:
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
@@ -250,7 +259,7 @@ const (
 	fooSnapID = "idididididididididididididididid"
 )
 
-func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
+func (ms *mgrsSuite) prereqSnapAssertions(c *C) *asserts.SnapDeclaration {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      fooSnapID,
@@ -262,6 +271,7 @@ func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	err = ms.storeSigning.Add(snapDecl)
 	c.Assert(err, IsNil)
+	return snapDecl.(*asserts.SnapDeclaration)
 }
 
 func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
@@ -494,6 +504,8 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
 	snapYamlContent := `name: foo
 apps:
  bar:
@@ -512,6 +524,14 @@ apps:
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
 
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
@@ -548,11 +568,57 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/55", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/55")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
+}
+
+func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+slots:
+ network:
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName:    "foo",
+		SnapID:      fooSnapID,
+		Revision:    snap.R(55),
+		DeveloperID: "devdevdevID",
+		Developer:   "devdevdev",
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
+
+	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*installation not allowed by "network" slot rule of interface "network".*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
 
 func (ms *mgrsSuite) TestHappyRefreshControl(c *C) {
@@ -619,7 +685,8 @@ version: @VERSION@
 		Sequence: []*snap.SideInfo{
 			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
 		},
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: "app",
 	})
 
 	develSigning := assertstest.NewSigningDB("devdevdev", develPrivKey)
@@ -930,32 +997,6 @@ func (s *authContextSetupSuite) TearDownTest(c *C) {
 	s.restoreTrusted()
 }
 
-func (s *authContextSetupSuite) TestSerial(c *C) {
-	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Unlock()
-	encSerial, err := s.ac.Serial()
-	st.Lock()
-	c.Check(err, Equals, state.ErrNoState)
-
-	// setup serial in system state
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  s.serial.BrandID(),
-		Model:  s.serial.Model(),
-		Serial: s.serial.Serial(),
-	})
-	err = assertstate.Add(st, s.serial)
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	encSerial, err = s.ac.Serial()
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
-}
-
 func (s *authContextSetupSuite) TestStoreID(c *C) {
 	st := s.o.State()
 	st.Lock()
@@ -981,32 +1022,6 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
-}
-
-func (s *authContextSetupSuite) TestSerialProof(c *C) {
-	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Unlock()
-	_, err := s.ac.SerialProof("NONCE")
-	st.Lock()
-	c.Check(err, Equals, state.ErrNoState)
-
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
-	auth.SetDevice(st, &auth.DeviceState{
-		KeyID: deviceKey.PublicKey().ID(),
-	})
-	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	c.Assert(err, IsNil)
-	err = kpMgr.Put(deviceKey)
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	proof, err := s.ac.SerialProof("NONCE")
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Check(bytes.HasPrefix(proof, []byte("type: serial-proof\n")), Equals, true)
 }
 
 func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {

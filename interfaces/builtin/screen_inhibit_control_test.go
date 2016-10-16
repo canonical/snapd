@@ -37,7 +37,7 @@ var _ = Suite(&ScreenInhibitControlInterfaceSuite{
 	iface: builtin.NewScreenInhibitControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "screen-inhibit-control",
 			Interface: "screen-inhibit-control",
 		},
@@ -89,6 +89,6 @@ func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *ScreenInhibitControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+func (s *ScreenInhibitControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

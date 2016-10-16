@@ -70,7 +70,7 @@ apps:
 var mockHookYaml = []byte(`name: snapname
 version: 1.0
 hooks:
- apply-config:
+ configure:
 `)
 
 var binaryTemplate = `#!/bin/sh
@@ -165,9 +165,9 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	}
 
 	// launch and verify it ran correctly
-	err := snapExecHook("snapname", "42", "apply-config")
+	err := snapExecHook("snapname", "42", "configure")
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/apply-config", dirs.SnapMountDir))
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
 }
 
@@ -254,7 +254,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 	testSnap := snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
-	hookPath := filepath.Join("meta", "hooks", "apply-config")
+	hookPath := filepath.Join("meta", "hooks", "configure")
 	hookPathAndContents := []string{hookPath, fmt.Sprintf(binaryTemplate, canaryFile)}
 	snaptest.PopulateDir(testSnap.MountDir(), [][]string{hookPathAndContents})
 	hookPath = filepath.Join(testSnap.MountDir(), hookPath)
@@ -265,13 +265,13 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 	syscallExec = actuallyExec
 
 	// run it
-	os.Args = []string{"snap-exec", "--hook=apply-config", "snapname"}
+	os.Args = []string{"snap-exec", "--hook=configure", "snapname"}
 	err := run()
 	c.Assert(err, IsNil)
 
 	output, err := ioutil.ReadFile(canaryFile)
 	c.Assert(err, IsNil)
-	c.Assert(string(output), Equals, "apply-config\n\n")
+	c.Assert(string(output), Equals, "configure\n\n")
 }
 
 func actuallyExec(argv0 string, argv []string, env []string) error {

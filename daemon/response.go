@@ -124,6 +124,9 @@ const (
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
 	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
+	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
+	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
+	errorKindPaymentDeclined   = errorKind("payment-declined")
 )
 
 type errorValue interface{}

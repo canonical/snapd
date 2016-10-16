@@ -26,6 +26,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -45,78 +46,114 @@ func (as *authSuite) SetUpTest(c *C) {
 	as.state = state.New(nil)
 }
 
+func (s *authSuite) TestMacaroonSerialize(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+
+	serialized, err := auth.MacaroonSerialize(m)
+	c.Check(err, IsNil)
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, m)
+}
+
+func (s *authSuite) TestMacaroonSerializeDeserializeStoreMacaroon(c *C) {
+	// sample serialized macaroon using store server setup.
+	serialized := `MDAxNmxvY2F0aW9uIGxvY2F0aW9uCjAwMTdpZGVudGlmaWVyIHNvbWUgaWQKMDAwZmNpZCBjYXZlYXQKMDAxOWNpZCAzcmQgcGFydHkgY2F2ZWF0CjAwNTF2aWQgcyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMzCjAwMTJjbCByZW1vdGUuY29tCjAwMmZzaWduYXR1cmUgcm_Gdz75wUCWF9KGXZQEANhwfvBcLNt9xXGfAmxurPMK`
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+
+	// expected json serialization of the above macaroon
+	jsonData := []byte(`{"caveats":[{"cid":"caveat"},{"cid":"3rd party caveat","vid":"cyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMz","cl":"remote.com"}],"location":"location","identifier":"some id","signature":"726fc6773ef9c1409617d2865d940400d8707ef05c2cdb7dc5719f026c6eacf3"}`)
+
+	var expected macaroon.Macaroon
+	err = expected.UnmarshalJSON(jsonData)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, &expected)
+
+	// reserializing the macaroon should give us the same original store serialization
+	reserialized, err := auth.MacaroonSerialize(deserialized)
+	c.Check(err, IsNil)
+	c.Check(reserialized, Equals, serialized)
+}
+
+func (s *authSuite) TestMacaroonDeserializeInvalidData(c *C) {
+	serialized := "invalid-macaroon-data"
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(deserialized, IsNil)
+	c.Check(err, NotNil)
+}
+
 func (as *authSuite) TestNewUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	// check snapd macaroon was generated for the local user
+	var authStateData auth.AuthState
+	as.state.Lock()
+	err = as.state.Get("auth", &authStateData)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(authStateData.MacaroonKey, NotNil)
+	expectedMacaroon, err := macaroon.New(authStateData.MacaroonKey, "1", "snapd")
+	c.Check(err, IsNil)
+	expectedSerializedMacaroon, err := auth.MacaroonSerialize(expectedMacaroon)
+	c.Check(err, IsNil)
 
 	expected := &auth.UserState{
 		ID:              1,
 		Username:        "username",
-		Macaroon:        "macaroon",
-		Discharges:      []string{"discharge"},
+		Email:           "email@test.com",
+		Macaroon:        expectedSerializedMacaroon,
+		Discharges:      nil,
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: []string{"discharge"},
 	}
-	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
-
-	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
 }
 
 func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	user, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
 	as.state.Unlock()
 
-	expected := &auth.UserState{
-		ID:              1,
-		Username:        "username",
-		Macaroon:        "macaroon",
-		Discharges:      []string{"discharge1", "discharge2"},
-		StoreMacaroon:   "macaroon",
-		StoreDischarges: []string{"discharge1", "discharge2"},
-	}
-	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expected)
+	expected := []string{"discharge1", "discharge2"}
+	c.Check(user.StoreDischarges, DeepEquals, expected)
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 1)
 	as.state.Unlock()
 	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
+	c.Check(userFromState.StoreDischarges, DeepEquals, expected)
 }
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
-	firstUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	firstUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	// adding a new one
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "new_username", "new_macaroon", []string{"new_discharge"})
+	user, err := auth.NewUser(as.state, "new_username", "new_email@test.com", "new_macaroon", []string{"new_discharge"})
 	as.state.Unlock()
-	expected := &auth.UserState{
-		ID:              2,
-		Username:        "new_username",
-		Macaroon:        "new_macaroon",
-		Discharges:      []string{"new_discharge"},
-		StoreMacaroon:   "new_macaroon",
-		StoreDischarges: []string{"new_discharge"},
-	}
 	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expected)
+	c.Check(user.ID, Equals, 2)
+	c.Check(user.Username, Equals, "new_username")
+	c.Check(user.Email, Equals, "new_email@test.com")
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 2)
 	as.state.Unlock()
 	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
+	c.Check(userFromState.ID, Equals, 2)
+	c.Check(userFromState.Username, Equals, "new_username")
+	c.Check(userFromState.Email, Equals, "new_email@test.com")
 
 	// first user is still in the state
 	as.state.Lock()
@@ -144,7 +181,7 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 	c.Check(user, IsNil)
 
 	as.state.Lock()
-	_, err = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, err = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -158,16 +195,66 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 
 func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
 	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	user, err := auth.CheckMacaroon(as.state, expectedUser.Macaroon, expectedUser.Discharges)
 	as.state.Unlock()
 
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expectedUser)
+}
+
+func (as *authSuite) TestCheckMacaroonValidUserOldStyle(c *C) {
+	// create a fake store-deserializable macaroon
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+	serializedMacaroon, err := auth.MacaroonSerialize(m)
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", serializedMacaroon, []string{"discharge"})
+	c.Check(err, IsNil)
+	// set user local macaroons with store macaroons
+	expectedUser.Macaroon = expectedUser.StoreMacaroon
+	expectedUser.Discharges = expectedUser.StoreDischarges
+	err = auth.UpdateUser(as.state, expectedUser)
+	c.Check(err, IsNil)
+	as.state.Unlock()
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, expectedUser.Macaroon, expectedUser.Discharges)
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expectedUser)
+}
+
+func (as *authSuite) TestCheckMacaroonInvalidAuthMalformedMacaroon(c *C) {
+	var authStateData auth.AuthState
+	as.state.Lock()
+	// create a new user to ensure there is a MacaroonKey setup
+	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	c.Check(err, IsNil)
+	// get AuthState to get signing MacaroonKey
+	err = as.state.Get("auth", &authStateData)
+	c.Check(err, IsNil)
+	as.state.Unlock()
+
+	// setup a macaroon for an invalid user
+	invalidMacaroon, err := macaroon.New(authStateData.MacaroonKey, "invalid", "snapd")
+	c.Check(err, IsNil)
+	serializedInvalidMacaroon, err := auth.MacaroonSerialize(invalidMacaroon)
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, serializedInvalidMacaroon, nil)
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
 }
 
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
@@ -180,7 +267,7 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 
 func (as *authSuite) TestUserForNonExistent(c *C) {
 	as.state.Lock()
-	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -192,7 +279,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 func (as *authSuite) TestUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -205,7 +292,7 @@ func (as *authSuite) TestUser(c *C) {
 
 func (as *authSuite) TestUpdateUser(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user.Username = "different"
@@ -225,7 +312,7 @@ func (as *authSuite) TestUpdateUser(c *C) {
 
 func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
-	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user := &auth.UserState{
@@ -242,7 +329,7 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 
 func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -285,7 +372,7 @@ func (as *authSuite) TestSetDevice(c *C) {
 
 func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	newDischarges := []string{"updated-discharge"}
@@ -299,13 +386,13 @@ func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
-	c.Check(userFromState.Discharges, DeepEquals, []string{"discharge"})
+	c.Check(userFromState.Discharges, IsNil)
 	c.Check(user.StoreDischarges, DeepEquals, newDischarges)
 }
 
 func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	otherUpdateUser := *user
 	otherUpdateUser.Macaroon = "macaroon2"
 	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
@@ -328,8 +415,9 @@ func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 	c.Check(curUser, DeepEquals, &auth.UserState{
 		ID:              user.ID,
 		Username:        "username",
+		Email:           "email@test.com",
 		Macaroon:        "macaroon2",
-		Discharges:      []string{"discharge"},
+		Discharges:      nil,
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: newDischarges,
 	})
@@ -337,7 +425,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 
 func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 	as.state.Lock()
-	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user := &auth.UserState{
@@ -436,17 +524,10 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }
-
-func (as *authSuite) TestAuthContextSerialAndFriendsNilDeviceAssertions(c *C) {
+func (as *authSuite) TestAuthContextDeviceSessionRequestNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
-	_, err := authContext.Serial()
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, err = authContext.SerialProof("NONCE")
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, _, err = authContext.DeviceSessionRequest("NONCE")
+	_, _, err := authContext.DeviceSessionRequest("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
@@ -483,12 +564,6 @@ device-key:
     rAsxbnHXiXyVimUAEQEAAQ==
 device-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 timestamp: 2016-08-24T21:55:00Z
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-AXNpZw=`
-
-	exSerialProof = `type: serial-proof
-nonce: @NONCE@
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
@@ -530,17 +605,6 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) SerialProof(nonce string) (*asserts.SerialProof, error) {
-	if da.nothing {
-		return nil, state.ErrNoState
-	}
-	a, err := asserts.Decode([]byte(strings.Replace(exSerialProof, "@NONCE@", nonce, 1)))
-	if err != nil {
-		return nil, err
-	}
-	return a.(*asserts.SerialProof), nil
-}
-
 func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error) {
 	if da.nothing {
 		return nil, nil, state.ErrNoState
@@ -562,13 +626,8 @@ func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.Dev
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
-	_, err := authContext.Serial()
-	c.Check(err, Equals, state.ErrNoState)
 
-	_, err = authContext.SerialProof("NONCE")
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, _, err = authContext.DeviceSessionRequest("NONCE")
+	_, _, err := authContext.DeviceSessionRequest("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 
 	storeID, err := authContext.StoreID("fallback")
@@ -580,14 +639,6 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
 
-	serial, err := authContext.Serial()
-	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(serial), "serial: 9999\n"), Equals, true)
-
-	proof, err := authContext.SerialProof("NONCE-1")
-	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(proof), "nonce: NONCE-1\n"), Equals, true)
-
 	req, serial, err := authContext.DeviceSessionRequest("NONCE-1")
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(req), "nonce: NONCE-1\n"), Equals, true)
@@ -597,4 +648,19 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
+}
+
+func (as *authSuite) TestUsers(c *C) {
+	as.state.Lock()
+	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})
+	user2, err2 := auth.NewUser(as.state, "user2", "email2@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err1, IsNil)
+	c.Check(err2, IsNil)
+
+	as.state.Lock()
+	users, err := auth.Users(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(users, DeepEquals, []*auth.UserState{user1, user2})
 }
