@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -97,19 +96,16 @@ func (x *cmdRun) Execute(args []string) error {
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	if revision.Unset() {
-		// User didn't supply a revision, so we need to get it
-		// here because once we're inside the confinement it
-		// may be unavailable.
 		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
 		realFn, err := filepath.EvalSymlinks(curFn)
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve %q: %s", curFn, err)
 		}
-		rev, err := strconv.Atoi(filepath.Base(realFn))
+		rev := filepath.Base(realFn)
+		revision, err = snap.ParseRevision(rev)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read revision %q: %s", rev, err)
+			return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
 		}
-		revision = snap.R(rev)
 	}
 
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{

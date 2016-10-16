@@ -20,8 +20,6 @@
 package main_test
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -69,7 +67,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R(42),
+		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
@@ -98,7 +96,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 		"/usr/lib/snapd/snap-exec",
 		"snapname.app",
 		"--arg1", "arg2"})
-	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
 func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
@@ -318,22 +316,6 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	err = snaprun.SnapRunHook("snapname", "unset", "missing-hook")
 	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
-}
-
-func (s *SnapSuite) mockServer(c *check.C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "snapname", "status": "active", "version": "1.0", "developer": "someone", "revision":42}]}`)
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
-		}
-
-		n++
-	})
 }
 
 func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
