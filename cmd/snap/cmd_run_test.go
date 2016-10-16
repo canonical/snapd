@@ -68,12 +68,11 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -107,12 +106,11 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -127,7 +125,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	err := snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
+	err = snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -162,12 +160,11 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -182,7 +179,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -199,12 +196,11 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -219,7 +215,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Specifically pass "unset" which would use the active version.
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -243,9 +239,6 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
 
 	// redirect exec
 	execArg0 := ""
@@ -278,12 +271,11 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
@@ -292,7 +284,7 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Attempt to run a hook on revision 41, which doesn't exist
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
@@ -309,12 +301,11 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	called := false
@@ -324,7 +315,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	err := snaprun.SnapRunHook("snapname", "unset", "missing-hook")
+	err = snaprun.SnapRunHook("snapname", "unset", "missing-hook")
 	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
@@ -360,12 +351,11 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execEnv := []string{}
