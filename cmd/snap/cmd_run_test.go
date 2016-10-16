@@ -328,6 +328,11 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
+func (s *SnapSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "not-there"})
+	c.Assert(err, check.ErrorMatches, "cannot find current revision for snap not-there: readlink /snap/not-there/current: no such file or directory")
+}
+
 func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())

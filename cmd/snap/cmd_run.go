@@ -97,9 +97,9 @@ func (x *cmdRun) Execute(args []string) error {
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	if revision.Unset() {
 		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
-		realFn, err := filepath.EvalSymlinks(curFn)
+		realFn, err := os.Readlink(curFn)
 		if err != nil {
-			return nil, fmt.Errorf("cannot resolve %q: %s", curFn, err)
+			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
 		}
 		rev := filepath.Base(realFn)
 		revision, err = snap.ParseRevision(rev)
