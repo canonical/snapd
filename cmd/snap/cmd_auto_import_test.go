@@ -31,10 +31,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-var mockMountInfoFmt = `
-24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered
-`
-
 func makeMockMountInfo(c *C, content string) string {
 	fn := filepath.Join(c.MkDir(), "mountinfo")
 	err := ioutil.WriteFile(fn, []byte(content), 0644)
@@ -76,6 +72,8 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
 	snap.MockMountInfoPath(makeMockMountInfo(c, content))
 
@@ -92,4 +90,56 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	// in the output
 	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
+}
+
+func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
+	fakeAssertData := []byte("bad-assertion")
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		// assertion is ignored, nothing is posted to this endpoint
+		panic("not reached")
+	})
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmtWithLoop := `
+24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/loop1 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmtWithLoop, filepath.Dir(fakeAssertsFn))
+	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+
+	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestAutoImportCandidatesHappy(c *C) {
+	dirs := make([]string, 4)
+	args := make([]interface{}, len(dirs))
+	files := make([]string, len(dirs))
+	for i := range dirs {
+		dirs[i] = c.MkDir()
+		args[i] = dirs[i]
+		files[i] = filepath.Join(dirs[i], "auto-import.assert")
+		err := ioutil.WriteFile(files[i], nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	mockMountInfoFmtWithLoop := `
+too short
+24 0 8:18 / %[1]s rw,relatime foo ext3 /dev/meep2 no,separator
+24 0 8:18 / %[2]s rw,relatime - ext3 /dev/meep2 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[3]s rw,relatime opt:1 - ext4 /dev/meep3 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[4]s rw,relatime opt:1 opt:2 - ext2 /dev/meep1 rw,errors=remount-ro,data=ordered
+`
+
+	content := fmt.Sprintf(mockMountInfoFmtWithLoop, args...)
+	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+
+	l, err := snap.AutoImportCandidates()
+	c.Check(err, IsNil)
+	c.Check(l, DeepEquals, files[1:len(files)])
 }
