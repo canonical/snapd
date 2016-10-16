@@ -252,7 +252,7 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
-    ptrace (tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,
     capability sys_admin,
@@ -319,7 +319,7 @@
         # This allows snap-confine to be killed from the outside.
         signal (receive) peer=unconfined,
         # This allows snap-confine to wait for us
-        ptrace (trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
+        ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
     }
 
     # Allow snap-confine to be killed
