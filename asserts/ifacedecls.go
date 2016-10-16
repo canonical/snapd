@@ -120,13 +120,7 @@ func matchList(context string, matcher attrMatcher, l []interface{}) error {
 
 func (matcher mapAttrMatcher) match(context string, v interface{}) error {
 	switch x := v.(type) {
-	case map[string]interface{}: // top level looks like this
-		for k, matcher1 := range matcher {
-			if err := matchEntry(context, k, matcher1, x[k]); err != nil {
-				return err
-			}
-		}
-	case map[interface{}]interface{}: // nested maps look like this
+	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
 			if err := matchEntry(context, k, matcher1, x[k]); err != nil {
 				return err
@@ -161,6 +155,8 @@ func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
 		s = strconv.FormatBool(x)
 	case int:
 		s = strconv.Itoa(x)
+	case int64:
+		s = strconv.FormatInt(x, 10)
 	case []interface{}:
 		return matchList(context, matcher, x)
 	default:

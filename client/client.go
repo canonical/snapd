@@ -296,6 +296,7 @@ const (
 	ErrorKindLoginRequired     = "login-required"
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
+	ErrorKindPaymentDeclined   = "payment-declined"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems

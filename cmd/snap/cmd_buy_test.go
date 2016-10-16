@@ -309,6 +309,69 @@ with 'snap install hello'.
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+const buySnapPaymentDeclinedJson = `
+{
+  "type": "error",
+  "result": {
+    "message": "payment declined",
+    "kind": "payment-declined"
+  },
+  "status-code": 400
+}
+`
+
+func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find":      buySnapFindURL(c),
+				"/v2/buy/ready": buyReady(c),
+			},
+			"POST": &expectedMethod{
+				"/v2/login": &expectedURL{
+					Body: loginJson,
+				},
+				"/v2/buy": &expectedURL{
+					Body: buySnapPaymentDeclinedJson,
+					Checker: func(r *http.Request) {
+						var postData struct {
+							SnapID   string  `json:"snap-id"`
+							SnapName string  `json:"snap-name"`
+							Price    float64 `json:"price"`
+							Currency string  `json:"currency"`
+						}
+						decoder := json.NewDecoder(r.Body)
+						err := decoder.Decode(&postData)
+						c.Assert(err, check.IsNil)
+
+						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
+						c.Check(postData.SnapName, check.Equals, "hello")
+						c.Check(postData.Price, check.Equals, 2.99)
+						c.Check(postData.Currency, check.Equals, "GBP")
+					},
+				},
+			},
+		},
+		Checker: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
+
+	// Confirm the purchase.
+	fmt.Fprint(s.term, "the password\n")
+
+	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `Sorry, your payment method has been declined by the issuer. Please review your
+payment details at https://my.ubuntu.com/payment/edit and try again.`)
+	c.Check(rest, check.DeepEquals, []string{"hello"})
+	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
+for 2.99GBP. Press ctrl-c to cancel.
+Password: 
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 const readyToBuyNoPaymentMethodJson = `
 {
   "type": "error",
