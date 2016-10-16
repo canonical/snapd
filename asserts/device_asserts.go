@@ -44,6 +44,16 @@ func (mod *Model) Model() string {
 	return mod.HeaderString("model")
 }
 
+// ModelDisplayName returns the display-friendly name of the model or
+// falls back to Model if this was not set.
+func (mod *Model) ModelDisplayName() string {
+	display := mod.HeaderString("model-display-name")
+	if display == "" {
+		return mod.Model()
+	}
+	return display
+}
+
 // Series returns the series of the core software the model uses.
 func (mod *Model) Series() string {
 	return mod.HeaderString("series")
@@ -134,6 +144,12 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// store is optional but must be a string, defaults to the ubuntu store
 	_, err = checkOptionalString(assert.headers, "store")
+	if err != nil {
+		return nil, err
+	}
+
+	// model-display-name is optional but must be a string
+	_, err = checkOptionalString(assert.headers, "model-display-name")
 	if err != nil {
 		return nil, err
 	}
