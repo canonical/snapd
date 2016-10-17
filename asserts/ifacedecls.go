@@ -351,7 +351,7 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 			alternatives = true
 			l = x
 		}
-		if l == nil {
+		if l == nil { // v is map or a string, checked below
 			l = []interface{}{v}
 		}
 		compiler := compilers[subrule]
@@ -362,7 +362,7 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 		for i, alt := range l {
 			subctxt := fmt.Sprintf("%s in %s", subrule, context)
 			if alternatives {
-				subctxt = fmt.Sprintf("alternative %d %s", i+1, subctxt)
+				subctxt = fmt.Sprintf("alternative %d of %s", i+1, subctxt)
 			}
 			cMap, invert, err := checkMapOrShortcut(subctxt, alt)
 			if err != nil || (cMap == nil && alternatives) {

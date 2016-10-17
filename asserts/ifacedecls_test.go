@@ -634,10 +634,10 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
   allow-connection: foo`, `allow-connection in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   allow-connection:
-    - foo`, `alternative 1 allow-connection in plug rule for interface "iface" must be a map`},
+    - foo`, `alternative 1 of allow-connection in plug rule for interface "iface" must be a map`},
 		{`iface:
   allow-connection:
-    - true`, `alternative 1 allow-connection in plug rule for interface "iface" must be a map`},
+    - true`, `alternative 1 of allow-connection in plug rule for interface "iface" must be a map`},
 		{`iface:
   allow-installation:
     plug-attributes:
@@ -935,10 +935,10 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
   allow-connection: foo`, `allow-connection in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   allow-connection:
-    - foo`, `alternative 1 allow-connection in slot rule for interface "iface" must be a map`},
+    - foo`, `alternative 1 of allow-connection in slot rule for interface "iface" must be a map`},
 		{`iface:
   allow-connection:
-    - true`, `alternative 1 allow-connection in slot rule for interface "iface" must be a map`},
+    - true`, `alternative 1 of allow-connection in slot rule for interface "iface" must be a map`},
 		{`iface:
   allow-installation:
     slot-attributes:
