@@ -15,6 +15,7 @@ environment:
     SUDO_USER: ""
     SUDO_UID: ""
     TRUST_TEST_KEYS: "true"
+    MANAGED_DEVICE: "false"
 
 backends:
     linode:
@@ -28,6 +29,11 @@ backends:
                 kernel: GRUB 2
                 workers: 2
             - ubuntu-core-16-64:
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
+            # FIXME restore of ubuntu-core does not properly reset
+            # boot variables and key snaps to their pristine state.
+            - ubuntu-core-16-64-fixme:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
     qemu:
@@ -62,6 +68,7 @@ backends:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
+            MANAGED_DEVICE: "true"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
@@ -94,6 +101,13 @@ prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
+    # check that we are not updating
+    . "$TESTSLIB/boot.sh"
+    if [ $(bootenv snap_mode) = "try" ]; then
+        echo "Ongoing reboot upgrade process, please try again when finished"
+        exit 1
+    fi
+
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
@@ -113,7 +127,7 @@ prepare: |
         if [ ! -f $GOPATH/bin/snapbuild ]; then
             mkdir -p $GOPATH/bin
             snap install --devmode --edge classic
-            classic "sudo apt update && apt install -y git golang-go"
+            classic "sudo apt update && apt install -y git golang-go build-essential"
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
@@ -178,11 +192,13 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+    # Build fakedevicesvc.
+    go get ./tests/lib/fakedevicesvc
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-
+        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -200,6 +216,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
+        systems: [-ubuntu-core-16-64-fixme]
         restore:
             apt-get purge -y snapd || true
         restore-each: |

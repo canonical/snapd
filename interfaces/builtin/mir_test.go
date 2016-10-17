@@ -73,6 +73,6 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	}
 }
 
-func (s MirInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+func (s MirInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

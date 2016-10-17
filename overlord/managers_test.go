@@ -127,6 +127,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	ms.o = o
+	st := ms.o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
@@ -186,7 +190,7 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
@@ -228,7 +232,7 @@ apps:
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
@@ -255,7 +259,7 @@ const (
 	fooSnapID = "idididididididididididididididid"
 )
 
-func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
+func (ms *mgrsSuite) prereqSnapAssertions(c *C) *asserts.SnapDeclaration {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      fooSnapID,
@@ -267,6 +271,7 @@ func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	err = ms.storeSigning.Add(snapDecl)
 	c.Assert(err, IsNil)
+	return snapDecl.(*asserts.SnapDeclaration)
 }
 
 func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
@@ -499,6 +504,8 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
 	snapYamlContent := `name: foo
 apps:
  bar:
@@ -517,6 +524,14 @@ apps:
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
 
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
@@ -553,11 +568,57 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/55", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/55")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
+}
+
+func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+slots:
+ network:
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName:    "foo",
+		SnapID:      fooSnapID,
+		Revision:    snap.R(55),
+		DeveloperID: "devdevdevID",
+		Developer:   "devdevdev",
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
+
+	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*installation not allowed by "network" slot rule of interface "network".*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
 
 func (ms *mgrsSuite) TestHappyRefreshControl(c *C) {
@@ -624,7 +685,8 @@ version: @VERSION@
 		Sequence: []*snap.SideInfo{
 			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
 		},
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: "app",
 	})
 
 	develSigning := assertstest.NewSigningDB("devdevdev", develPrivKey)

@@ -31,7 +31,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -45,8 +47,8 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -55,6 +57,7 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
+	bootOkRan  bool
 }
 
 // Manager returns a new device manager.
@@ -73,6 +76,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
 }
@@ -93,6 +97,16 @@ func (h prepareDeviceHandler) Done() error {
 
 func (h prepareDeviceHandler) Error(err error) error {
 	return nil
+}
+
+func (m *DeviceManager) changeInFlight(kind string) bool {
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == kind && !chg.Status().Ready() {
+			// change already in motion
+			return true
+		}
+	}
+	return false
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -120,11 +134,8 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "become-operational" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
-		}
+	if m.changeInFlight("become-operational") {
+		return nil
 	}
 
 	if serialRequestURL == "" {
@@ -150,7 +161,11 @@ func (m *DeviceManager) ensureOperational() error {
 	var prepareDevice *state.Task
 	if gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
-		prepareDevice = hookstate.HookTask(m.state, summary, gadgetInfo.Name(), snap.R(0), "prepare-device", nil)
+		hooksup := &hookstate.HookSetup{
+			Snap: gadgetInfo.Name(),
+			Hook: "prepare-device",
+		}
+		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
 	}
 
@@ -169,13 +184,166 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-// Ensure implements StateManager.Ensure.
-func (m *DeviceManager) Ensure() error {
-	err := m.ensureOperational()
+var populateStateFromSeed = populateStateFromSeedImpl
+
+// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// with the matching assertions
+func (m *DeviceManager) ensureSeedYaml() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// FIXME: enable on classic?
+	//
+	// Disable seed.yaml on classic for now. In the long run we want
+	// classic to have a seed parsing as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now it is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if seeded {
+		return nil
+	}
+
+	if m.changeInFlight("seed") {
+		return nil
+	}
+
+	coreInfo, err := snapstate.CoreInfo(m.state)
+	if err == nil && coreInfo.Name() == "ubuntu-core" {
+		// already seeded... recover
+		return m.alreadyFirstbooted()
+	}
+
+	tsAll, err := populateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}
+	if len(tsAll) == 0 {
+		return nil
+	}
+
+	msg := fmt.Sprintf("Initialize system state")
+	chg := m.state.NewChange("seed", msg)
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	m.state.EnsureBefore(0)
+
+	return nil
+}
+
+// alreadyFirstbooted recovers already first booted devices with the old method appropriately
+func (m *DeviceManager) alreadyFirstbooted() error {
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+	// recover key-id
+	if device.Brand != "" && device.Model != "" {
+		serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+			"brand-id": device.Brand,
+			"model":    device.Model,
+		})
+		if err != nil && err != asserts.ErrNotFound {
+			return err
+		}
+
+		if len(serials) == 1 {
+			// we can recover the key id from the assertion
+			serial := serials[0].(*asserts.Serial)
+			keyID := serial.DeviceKey().ID()
+			device.KeyID = keyID
+			device.Serial = serial.Serial()
+			err := auth.SetDevice(m.state, device)
+			if err != nil {
+				return err
+			}
+			// best effort to cleanup abandoned keys
+			pat := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "*")
+			keyFns, err := filepath.Glob(pat)
+			if err != nil {
+				panic(fmt.Sprintf("invalid glob for device keys: %v", err))
+			}
+			for _, keyFn := range keyFns {
+				if filepath.Base(keyFn) == keyID {
+					continue
+				}
+				os.Remove(keyFn)
+			}
+		}
+
+	}
+
+	m.state.Set("seeded", true)
+	return nil
+}
+
+func (m *DeviceManager) ensureBootOk() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if !m.bootOkRan {
+		bootloader, err := partition.FindBootloader()
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
+		}
+		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+			return err
+		}
+		m.bootOkRan = true
+	}
+
+	return snapstate.UpdateBootRevisions(m.state)
+}
+
+type ensureError struct {
+	errs []error
+}
+
+func (e *ensureError) Error() string {
+	if len(e.errs) == 1 {
+		return fmt.Sprintf("devicemgr: %v", e.errs[0])
+	}
+	parts := []string{"devicemgr:"}
+	for _, e := range e.errs {
+		parts = append(parts, e.Error())
+	}
+	return strings.Join(parts, "\n - ")
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *DeviceManager) Ensure() error {
+	var errs []error
+
+	if err := m.ensureSeedYaml(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := m.ensureOperational(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureBootOk(); err != nil {
+		errs = append(errs, err)
+	}
+
 	m.runner.Ensure()
+
+	if len(errs) > 0 {
+		return &ensureError{errs}
+	}
+
 	return nil
 }
 
@@ -235,7 +403,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	auth.SetDevice(st, device)
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -534,11 +705,17 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
+	if err != nil && err != asserts.ErrNotFound {
+		return err
+	}
 
 	if len(serials) == 1 {
 		// means we saved the assertion but didn't get to the end of the task
 		device.Serial = serials[0].(*asserts.Serial).Serial()
-		auth.SetDevice(st, device)
+		err := auth.SetDevice(st, device)
+		if err != nil {
+			return err
+		}
 		t.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -586,9 +763,20 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.Serial = serial.Serial()
-	auth.SetDevice(st, device)
-
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("seeded", true)
 	return nil
 }
 

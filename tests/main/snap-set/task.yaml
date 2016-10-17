@@ -7,7 +7,6 @@ prepare: |
 
     echo "Build failing hooks package"
     snapbuild $TESTSLIB/snaps/failing-config-hooks .
-    snap install --dangerous failing-config-hooks_1.0_all.snap
 
     echo "Build package with hook to run snapctl set"
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
@@ -19,14 +18,14 @@ restore: |
     rm snapctl-hooks_1.0_all.snap
 
 execute: |
-    echo "Test that snap set executes successfully without configure hook"
-    if ! snap set basic foo=bar; then
-        echo "Expected snap set to succeed, even when configure hook is missing"
+    echo "Test that snap set fails without configure hook"
+    if snap set basic foo=bar; then
+        echo "Expected snap set to fail without a configure hook"
         exit 1
     fi
 
     echo "Test that snap set fails when configure hook fails"
-    if snap set failing-config-hooks foo=bar; then
+    if snap set snapctl-hooks command=test-exit-one; then
         echo "Expected snap set to fail when configure hook fails"
         exit 1
     fi
@@ -36,3 +35,10 @@ execute: |
         echo "Expected hook to be able to retrieve set value"
         exit 1
     fi
+
+    echo "Install should fail altogether as it has a broken hook"
+    if obtained=$(snap install --dangerous failing-config-hooks_1.0_all.snap 2>&1); then
+        echo "Expected install of snap with broken configure hook to fail"
+        exit 1
+    fi
+    [[ "$obtained" == *"error from within configure hook"* ]]

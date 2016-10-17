@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -731,7 +732,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, Flags(ss.Flags)); err != nil {
 		return err
 	}
 
@@ -953,7 +954,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		st.RequestRestart(state.RestartDaemon)
 		st.Lock()
 	}
-	if !release.OnClassic && (newInfo.Type == snap.TypeOS || newInfo.Type == snap.TypeKernel) {
+	if !release.OnClassic && boot.KernelOrOsRebootRequired(newInfo) {
 		t.Logf("Requested system restart.")
 		st.Unlock()
 		st.RequestRestart(state.RestartSystem)

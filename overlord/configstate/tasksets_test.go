@@ -38,39 +38,64 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-func (s *tasksetsSuite) TestChange(c *C) {
-	s.state.Lock()
-	taskset := configstate.Change(s.state, "test-snap", map[string]interface{}{
-		"foo": "bar",
-	})
-	s.state.Unlock()
+var configureTests = []struct {
+	patch    map[string]interface{}
+	optional bool
+}{{
+	patch:    nil,
+	optional: true,
+}, {
+	patch:    map[string]interface{}{},
+	optional: true,
+}, {
+	patch:    map[string]interface{}{"foo": "bar"},
+	optional: false,
+}}
 
-	tasks := taskset.Tasks()
-	c.Assert(tasks, HasLen, 1)
-	task := tasks[0]
+func (s *tasksetsSuite) TestConfigure(c *C) {
+	for _, test := range configureTests {
+		s.state.Lock()
+		taskset := configstate.Configure(s.state, "test-snap", test.patch)
+		s.state.Unlock()
 
-	c.Assert(task.Kind(), Equals, "run-hook")
+		tasks := taskset.Tasks()
+		c.Assert(tasks, HasLen, 1)
+		task := tasks[0]
 
-	// Check that the Context is initialized as we expect
-	var setup hookstate.HookSetup
-	s.state.Lock()
-	err := task.Get("hook-setup", &setup)
-	s.state.Unlock()
-	c.Check(err, IsNil)
+		c.Assert(task.Kind(), Equals, "run-hook")
 
-	context, err := hookstate.NewContext(task, &setup, nil)
-	c.Check(err, IsNil)
-	c.Check(context.SnapName(), Equals, "test-snap")
-	c.Check(context.SnapRevision(), Equals, snap.Revision{})
-	c.Check(context.HookName(), Equals, "configure")
+		summary := `Run configure hook of "test-snap" snap`
+		if test.optional {
+			summary += " if present"
+		}
+		c.Assert(task.Summary(), Equals, summary)
 
-	context.Lock()
-	defer context.Unlock()
+		var hooksup hookstate.HookSetup
+		s.state.Lock()
+		err := task.Get("hook-setup", &hooksup)
+		s.state.Unlock()
+		c.Check(err, IsNil)
 
-	var patchValues map[string]interface{}
-	err = context.Get("patch", &patchValues)
-	c.Check(err, IsNil)
-	c.Check(patchValues, DeepEquals, map[string]interface{}{
-		"foo": "bar",
-	})
+		c.Assert(hooksup.Snap, Equals, "test-snap")
+		c.Assert(hooksup.Hook, Equals, "configure")
+		c.Assert(hooksup.Optional, Equals, test.optional)
+
+		context, err := hookstate.NewContext(task, &hooksup, nil)
+		c.Check(err, IsNil)
+		c.Check(context.SnapName(), Equals, "test-snap")
+		c.Check(context.SnapRevision(), Equals, snap.Revision{})
+		c.Check(context.HookName(), Equals, "configure")
+
+		var patch map[string]interface{}
+		context.Lock()
+		err = context.Get("patch", &patch)
+		context.Unlock()
+		if len(test.patch) > 0 {
+			c.Check(err, IsNil)
+			c.Check(patch, DeepEquals, test.patch)
+		} else {
+			c.Check(err, Equals, state.ErrNoState)
+			c.Check(patch, IsNil)
+		}
+	}
 }

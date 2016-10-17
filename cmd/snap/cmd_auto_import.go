@@ -54,9 +54,32 @@ func autoImportCandidates() ([]string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		l := strings.Fields(scanner.Text())
-		if len(l) == 0 {
+
+		// Per proc.txt:3.5, /proc/<pid>/mountinfo looks like
+		//
+		//  36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+		//  (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
+		//
+		// and (7) has zero or more elements, find the "-" separator.
+		i := 6
+		for i < len(l) && l[i] != "-" {
+			i++
+		}
+		if i+2 >= len(l) {
 			continue
 		}
+
+		mountSrc := l[i+2]
+
+		// skip everything that is not a device (cgroups, debugfs etc)
+		if !strings.HasPrefix(mountSrc, "/dev/") {
+			continue
+		}
+		// skip all loop devices (snaps)
+		if strings.HasPrefix(mountSrc, "/dev/loop") {
+			continue
+		}
+
 		mountPoint := l[4]
 		cand := filepath.Join(mountPoint, autoImportsName)
 		if osutil.FileExists(cand) {
@@ -160,6 +183,16 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	for _, path := range x.Mount {
+		// udev adds new /dev/loopX devices on the fly when a
+		// loop mount happens and there is no loop device left.
+		//
+		// We need to ignore these events because otherwise both
+		// our mount and the "mount -o loop" fight over the same
+		// device and we get nasty errors
+		if strings.HasPrefix(path, "/dev/loop") {
+			continue
+		}
+
 		mp, err := tryMount(path)
 		if err != nil {
 			continue // Error was reported. Continue looking.

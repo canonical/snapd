@@ -62,7 +62,7 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Valid values of number
-	if _, ok := number.(int); !ok {
+	if _, ok := number.(int64); !ok {
 		return fmt.Errorf("gpio slot number attribute must be an int")
 	}
 
@@ -135,7 +135,11 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	return nil, nil
 }
 
-// AutoConnect returns whether interface should be auto-connected by default
-func (iface *GpioInterface) AutoConnect() bool {
+func (iface *GpioInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *GpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

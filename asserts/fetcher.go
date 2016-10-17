@@ -74,7 +74,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	case fetchSaved:
 		return nil // nothing to do
 	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type.Name, ref.PrimaryKey)
+		return fmt.Errorf("internal error: circular assertions are not expected: %s", ref)
 	}
 	if a == nil {
 		retrieved, err := f.retrieve(ref)

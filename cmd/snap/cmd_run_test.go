@@ -325,7 +325,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	defer restorer()
 
 	err := snaprun.SnapRunHook("snapname", "unset", "missing-hook")
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
 

@@ -126,6 +126,7 @@ const (
 	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
+	errorKindPaymentDeclined   = errorKind("payment-declined")
 )
 
 type errorValue interface{}

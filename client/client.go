@@ -296,6 +296,7 @@ const (
 	ErrorKindLoginRequired     = "login-required"
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
+	ErrorKindPaymentDeclined   = "payment-declined"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -321,6 +322,7 @@ type SysInfo struct {
 	Version   string    `json:"version,omitempty"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
+	Managed   bool      `json:"managed"`
 }
 
 func (rsp *response) err() error {
@@ -360,7 +362,7 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
 	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
-		return nil, fmt.Errorf("bad sysinfo result: %v", err)
+		return nil, fmt.Errorf("cannot obtain system details: %v", err)
 	}
 
 	return &sysInfo, nil

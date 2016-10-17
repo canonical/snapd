@@ -20,9 +20,9 @@
 package main
 
 import (
-	"github.com/jessevdk/go-flags"
+	"fmt"
 
-	"github.com/snapcore/snapd/overlord/boot"
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdInternalFirstBoot struct{}
@@ -36,10 +36,14 @@ func init() {
 	cmd.hidden = true
 }
 
+// WARNING: do not remove this command, older systems may still have
+//          a systemd snapd.firstboot.service job in /etc/systemd/system
+//          that we did not cleanup. so we need this dummy command or
+//          those units will start failing.
 func (x *cmdInternalFirstBoot) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	return boot.FirstBoot()
+	fmt.Fprintf(Stderr, "firstboot command is deprecated")
+	return nil
 }

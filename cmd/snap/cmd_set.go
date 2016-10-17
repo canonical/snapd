@@ -29,10 +29,19 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortSetHelp = i18n.G("Set snap configuration")
+var shortSetHelp = i18n.G("Changes configuration options")
 var longSetHelp = i18n.G(`
-The set command sets configuration parameters for the given snap. This command
-accepts a number of key=value pairs of parameters.`)
+The set command changes the provided configuration options as requested.
+
+    $ snap set snap-name username=frank password=$PASSWORD
+
+All configuration changes are persisted at once, and only after the
+snap's configuration hook returns successfully.
+
+Nested values may be modified via a dotted path:
+
+    $ snap set author.name=frank
+`)
 
 type cmdSet struct {
 	Positional struct {

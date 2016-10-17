@@ -407,6 +407,11 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
+// hasStoreAuth returns true if given user has store macaroons setup
+func hasStoreAuth(user *auth.UserState) bool {
+	return user != nil && user.StoreMacaroon != ""
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -623,7 +628,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateDevice(req, device)
 	}
 
-	if user != nil {
+	// only set user authentication if user logged in to the store
+	if hasStoreAuth(user) {
 		authenticateUser(req, user)
 	}
 
@@ -1090,7 +1096,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -1183,7 +1189,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	}()
 
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 
@@ -1328,9 +1334,9 @@ type BuyResult struct {
 
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
-	SnapID   string  `json:"snap_id"`
-	Amount   float64 `json:"amount,omitempty"`
-	Currency string  `json:"currency,omitempty"`
+	SnapID   string `json:"snap_id"`
+	Amount   string `json:"amount,omitempty"`
+	Currency string `json:"currency,omitempty"`
 }
 
 type storeError struct {
@@ -1391,7 +1397,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	instruction := orderInstruction{
 		SnapID:   options.SnapID,
-		Amount:   options.Price,
+		Amount:   fmt.Sprintf("%.2f", options.Price),
 		Currency: options.Currency,
 	}
 
@@ -1440,6 +1446,9 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
 		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
+	case http.StatusPaymentRequired:
+		// Payment failed for some reason.
+		return nil, ErrPaymentDeclined
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials

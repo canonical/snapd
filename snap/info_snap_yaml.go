@@ -49,20 +49,6 @@ type snapYaml struct {
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 }
 
-type plugYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
-}
-
-type slotYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
-}
-
 type appYaml struct {
 	Command string `yaml:"command"`
 
@@ -292,8 +278,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 
 func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	for hookName, yHook := range y.Hooks {
-		// Verify that the requested hook name is actually supported. If not,
-		// ignore it.
 		if !IsHookSupported(hookName) {
 			continue
 		}
@@ -411,12 +395,56 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				attrs[key] = valueData
+				value, err := validateAttr(valueData)
+				if err != nil {
+					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
+				}
+				attrs[key] = value
 			}
 		}
 		return iface, label, attrs, nil
 	default:
 		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
 		return "", "", nil, err
+	}
+}
+
+// validateAttr validates an attribute value and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
+func validateAttr(v interface{}) (interface{}, error) {
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case bool:
+		return x, nil
+	case int:
+		return int64(x), nil
+	case int64:
+		return x, nil
+	case []interface{}:
+		l := make([]interface{}, len(x))
+		for i, el := range x {
+			el, err := validateAttr(el)
+			if err != nil {
+				return nil, err
+			}
+			l[i] = el
+		}
+		return l, nil
+	case map[interface{}]interface{}:
+		m := make(map[string]interface{}, len(x))
+		for k, item := range x {
+			kStr, ok := k.(string)
+			if !ok {
+				return nil, fmt.Errorf("non-string key in attribute map: %v", k)
+			}
+			item, err := validateAttr(item)
+			if err != nil {
+				return nil, err
+			}
+			m[kStr] = item
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("invalid attribute scalar: %v", v)
 	}
 }

@@ -151,11 +151,11 @@ const (
 	// the default target for systemd units that we generate
 	ServicesTarget = "multi-user.target"
 
+	// the target prerequisite for systemd units we generate
+	PrerequisiteTarget = "network-online.target"
+
 	// the default target for systemd units that we generate
 	SocketsTarget = "sockets.target"
-
-	// the location to put system services
-	snapServicesDir = "/etc/systemd/system"
 )
 
 type reporter interface {
@@ -431,9 +431,9 @@ func useFuse() bool {
 }
 
 // MountUnitPath returns the path of a {,auto}mount unit
-func MountUnitPath(baseDir, ext string) string {
+func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
+	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
 func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
@@ -459,6 +459,6 @@ Type=%s
 WantedBy=multi-user.target
 `, name, what, where, fstype, extra)
 
-	mu := MountUnitPath(where, "mount")
+	mu := MountUnitPath(where)
 	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
 }

@@ -78,7 +78,7 @@ func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("hidraw path attribute specifies invalid symlink location")
 		}
 
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return fmt.Errorf("hidraw slot failed to find usb-vendor attribute")
 		}
@@ -86,7 +86,7 @@ func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("hidraw usb-vendor attribute not valid: %d", usbVendor)
 		}
 
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return fmt.Errorf("hidraw slot failed to find usb-product attribute")
 		}
@@ -116,11 +116,11 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return nil, nil
 		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return nil, nil
 		}
@@ -161,11 +161,11 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		cleanedPath := filepath.Clean(path)
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return nil, nil
 		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return nil, nil
 		}
@@ -179,9 +179,13 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 	return nil, nil
 }
 
-// AutoConnect indicates whether this type of interface should allow autoconnect
-func (iface *HidrawInterface) AutoConnect() bool {
+func (iface *HidrawInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }
 
 func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {

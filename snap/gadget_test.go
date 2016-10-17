@@ -41,6 +41,10 @@ type: gadget
 `
 
 var mockGadgetYaml = []byte(`
+defaults:
+  core:
+    something: true
+
 volumes:
   volumename:
     schema: mbr
@@ -87,21 +91,24 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
-		Volumes: map[string]snap.Volume{
-			"volumename": snap.Volume{
+		Defaults: map[string]map[string]interface{}{
+			"core": {"something": true},
+		},
+		Volumes: map[string]snap.GadgetVolume{
+			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "id,guid",
-				Structure: []snap.Structure{
+				Structure: []snap.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
-						OffsetWrite: 777,
-						Size:        88888,
+						Offset:      "12345",
+						OffsetWrite: "777",
+						Size:        "88888",
 						Type:        "id,guid",
 						ID:          "id,guid",
 						Filesystem:  "vfat",
-						Content: []snap.Content{
+						Content: []snap.VolumeContent{
 							{
 								Source: "subdir/",
 								Target: "/",
@@ -109,9 +116,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 							},
 							{
 								Image:       "foo.img",
-								Offset:      4321,
-								OffsetWrite: 8888,
-								Size:        88888,
+								Offset:      "4321",
+								OffsetWrite: "8888",
+								Size:        "88888",
 								Unpack:      false,
 							},
 						},

@@ -6,7 +6,16 @@ restore: |
     sed -i '/^mvo/d' /var/lib/extrausers/shadow
     sed -i '/^mvo/d' /var/lib/extrausers/group
     rm -rf /home/mvo
+    rm -f create.error
 execute: |
+    if [ "$MANAGED_DEVICE" = "true" ]; then
+        if snap create-user --sudoer mvo@ubuntu.com 2>create.error; then
+            echo "Did not get expected error creating user in managed device"
+            exit 1
+        fi
+        grep "cannot create user: device already managed" create.error
+        exit 0
+    fi
     echo "Adding valid user"
     expected='created user "mvo"'
     output=$(snap create-user --sudoer mvo@ubuntu.com)
