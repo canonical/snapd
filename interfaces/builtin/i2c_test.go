@@ -73,9 +73,9 @@ func (s *I2CInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *I2CInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, "slot is not of interface i2c")
+		PanicMatches, `slot is not of interface "i2c"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, "plug is not of interface i2c")
+		PanicMatches, `plug is not of interface "i2c"`)
 }
 
 func (s *I2CInterfaceSuite) TestAutoConnect(c *C) {
