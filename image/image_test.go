@@ -411,12 +411,10 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	}
 
 	// check the bootloader config
-	cv, err := s.bootloader.GetBootVar("snap_kernel")
+	m, err := s.bootloader.GetBootVars([]string{"snap_kernel", "snap_core"})
 	c.Assert(err, IsNil)
-	c.Check(cv, Equals, "pc-kernel_2.snap")
-	cv, err = s.bootloader.GetBootVar("snap_core")
-	c.Assert(err, IsNil)
-	c.Check(cv, Equals, "core_3.snap")
+	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
+	c.Check(m["snap_core"], Equals, "core_3.snap")
 }
 
 func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
@@ -524,12 +522,11 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	c.Check(decls, HasLen, 2)
 
 	// check the bootloader config
-	cv, err := s.bootloader.GetBootVar("snap_kernel")
+	m, err := s.bootloader.GetBootVars([]string{"snap_kernel", "snap_core"})
 	c.Assert(err, IsNil)
-	c.Check(cv, Equals, "pc-kernel_2.snap")
-	cv, err = s.bootloader.GetBootVar("snap_core")
+	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Assert(err, IsNil)
-	c.Check(cv, Equals, "core_x1.snap")
+	c.Check(m["snap_core"], Equals, "core_x1.snap")
 
 	// check that cloud-init is setup correctly
 	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)

@@ -74,9 +74,10 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommand = mockGrubEditenvList
 
 	g := newGrub()
-	v, err := g.GetBootVar(bootmodeVar)
+	v, err := g.GetBootVars([]string{bootmodeVar})
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "regular")
+	c.Check(v, HasLen, 1)
+	c.Check(v[bootmodeVar], Equals, "regular")
 }
 
 func (s *PartitionTestSuite) TestSetBootVer(c *C) {
@@ -88,9 +89,11 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 	}
 
 	g := newGrub()
-	err := g.SetBootVar("key", "value")
+	err := g.SetBootVars(map[string]string{
+		"key": "value",
+	})
 	c.Assert(err, IsNil)
 	c.Assert(cmds, DeepEquals, [][]string{
-		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value"},
+		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value "},
 	})
 }
