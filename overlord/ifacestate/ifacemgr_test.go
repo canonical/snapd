@@ -45,8 +45,6 @@ var (
 	storeKey, _ = assertstest.GenerateKey(752)
 )
 
-var devModeFlag = snapstate.SnapSetupFlags{SnapStateFlags: snapstate.SnapStateFlags{DevMode: true}}
-
 type interfaceManagerSuite struct {
 	state           *state.State
 	db              *asserts.Database
@@ -920,7 +918,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 			RealName: snapInfo.Name(),
 			Revision: snapInfo.Revision,
 		},
-		Flags: devModeFlag,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -1369,7 +1367,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 			RealName: siC.Name(),
 			Revision: siC.Revision,
 		},
-		Flags: devModeFlag,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()

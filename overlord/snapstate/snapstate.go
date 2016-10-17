@@ -757,9 +757,10 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flag
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
+	flags.Revert = true
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
-		Flags:    flags.ForSnapSetupWithRevert(),
+		Flags:    flags.ForSnapSetup(),
 	}
 	return doInstall(s, &snapst, ss)
 }

@@ -663,9 +663,7 @@ func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	var flags snapstate.Flags
-	flags.DevMode = true
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, flags)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
@@ -1445,18 +1443,14 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	var flags snapstate.Flags
-	flags.IgnoreValidation = true
-	flags.JailMode = true
+	flags := snapstate.Flags{JailMode: true, IgnoreValidation: true}
 	ts, err := snapstate.Update(s.state, "some-snap", "stable", snap.R(0), s.user.ID, flags)
 	c.Assert(err, IsNil)
 
 	var ss snapstate.SnapSetup
 	err = ts.Tasks()[0].Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-	var setupFlags snapstate.SnapSetupFlags
-	setupFlags.JailMode = true
-	c.Check(ss.Flags, DeepEquals, setupFlags)
+	c.Check(ss.Flags, DeepEquals, flags.ForSnapSetup())
 }
 
 func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {

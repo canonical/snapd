@@ -19,8 +19,8 @@
 
 package snapstate
 
-// SnapStateFlags are Flags that are stored in SnapState.
-type SnapStateFlags struct {
+// Flags are used to pass additional flags to operations and to keep track of snap modes.
+type Flags struct {
 	// DevMode switches confinement to non-enforcing mode.
 	DevMode bool `json:"devmode,omitempty"`
 	// JailMode is set when the user has requested confinement
@@ -28,42 +28,32 @@ type SnapStateFlags struct {
 	JailMode bool `json:"jailmode,omitempty"`
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode bool `json:"trymode,omitempty"`
-}
 
-func (f SnapStateFlags) DevModeAllowed() bool {
-	return f.DevMode || f.JailMode
-}
-
-func (f SnapStateFlags) ForSnapSetup() SnapSetupFlags {
-	return SnapSetupFlags{
-		SnapStateFlags: f,
-		Revert:         false,
-	}
-}
-
-func (f SnapStateFlags) ForSnapSetupWithRevert() SnapSetupFlags {
-	return SnapSetupFlags{
-		SnapStateFlags: f,
-		Revert:         true,
-	}
-}
-
-// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
-type SnapSetupFlags struct {
-	SnapStateFlags
+	// Revert flags the SnapSetup as coming from a revert
 	Revert bool `json:"revert,omitempty"`
-}
 
-// Flags are used to pass additional flags to operations and to keep track of snap modes.
-type Flags struct {
-	SnapStateFlags
 	// IgnoreValidation is set when the user requested as one-off
 	// to ignore refresh control validation.
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 }
 
-var DefaultFlags = Flags{}
-
-func (f Flags) ForSnapState() SnapStateFlags {
-	return f.SnapStateFlags
+// DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
+func (f Flags) DevModeAllowed() bool {
+	return f.DevMode || f.JailMode
 }
+
+// ForSnapSetup sets flags that we don't need in SnapSetup to false (so they're not serialized)
+func (f Flags) ForSnapSetup() Flags {
+	f.IgnoreValidation = false
+	return f
+}
+
+// ForSnapState sets flags that we don't need in SnapState to false (so they're not serialized)
+func (f Flags) ForSnapState() Flags {
+	f.IgnoreValidation = false
+	f.Revert = false
+
+	return f
+}
+
+var DefaultFlags = Flags{}
