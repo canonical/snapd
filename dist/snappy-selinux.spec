@@ -1,4 +1,4 @@
-%global commit0 5d7a2a53a32d116dd912f4478c451532e9e6d9bc
+%global commit0 6ed3a427705d157f533ea249e98d17b39ada7351
 %global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
 %global snapdate 20161017
 
@@ -10,11 +10,12 @@ Summary:        SELinux module for snappy
 License:        GPLv2+
 URL:            https://gitlab.com/Conan_Kudo/snapcore-selinux
 Source0:        %{url}/repository/archive.tar.gz?ref=%{commit0}#/%{name}-%{shortcommit0}.tar.gz
-
+BuildArch:      noarch
 BuildRequires:  selinux-policy, selinux-policy-devel
 Requires(post): selinux-policy-base >= %{_selinux_policy_version}
 Requires(post): policycoreutils
 Requires(post): policycoreutils-python-utils
+Requires(pre):  libselinux-utils
 Requires(post): libselinux-utils
 
 %description
@@ -23,7 +24,7 @@ to ensure snapd runs properly under an environment
 with SELinux enabled.
 
 %prep
-%setup -q -n snapcore-selinux-%{commit0}
+%setup -q -n snapcore-selinux-%{commit0}-%{commit0}
 
 
 %build
@@ -52,8 +53,8 @@ install -m 0644 snappy.pp.bz2 %{buildroot}%{_datadir}/selinux/packages
 %files
 %license COPYING
 %doc README.md
-%{buildroot}%{_datadir}/selinux/packages/snappy.pp.bz2
-%{buildroot}%{_datadir}/selinux/devel/include/contrib/snappy.if
+%{_datadir}/selinux/packages/snappy.pp.bz2
+%{_datadir}/selinux/devel/include/contrib/snappy.if
 
 
 %changelog
