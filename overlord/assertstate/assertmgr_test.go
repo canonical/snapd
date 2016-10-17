@@ -266,6 +266,31 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
+func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
+	batch := assertstate.NewBatch()
+
+	var a asserts.Assertion
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		headers := map[string]interface{}{
+			"format":       "999",
+			"revision":     "1",
+			"series":       "16",
+			"snap-id":      "snap-id-1",
+			"snap-name":    "foo",
+			"publisher-id": s.dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+		}
+		var err error
+		a, err = s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+		c.Assert(err, IsNil)
+	})()
+
+	err := batch.Add(a)
+	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 0 is latest supported`)
+}
+
 func fakeSnap(rev int) []byte {
 	fake := fmt.Sprintf("hsqs________________%d", rev)
 	return []byte(fake)

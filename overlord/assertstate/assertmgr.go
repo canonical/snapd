@@ -125,6 +125,9 @@ func NewBatch() *Batch {
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
+	if !a.SupportedFormat() {
+		return &asserts.UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+	}
 	if err := b.bs.Put(a.Type(), a); err != nil {
 		// TODO: do we need to ignore UnsupportedFormatError here sometimes? not for the current use cases at least
 		if revErr, ok := err.(*asserts.RevisionError); ok {
