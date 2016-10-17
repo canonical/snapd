@@ -46,20 +46,6 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
-type SnapSetupFlags Flags
-
-const (
-	// flags that are only used by SnapSetup grow downwards
-
-	// SnapSetupFlagRevert flags the SnapSetup as coming from a revert
-	SnapSetupFlagRevert SnapSetupFlags = 0x40000000 >> iota
-)
-
-func (f SnapSetupFlags) Revert() bool {
-	return f&SnapSetupFlagRevert != 0
-}
-
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
@@ -95,24 +81,21 @@ func (ss *SnapSetup) MountDir() string {
 
 // DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
-	return Flags(ss.Flags).DevMode()
+	return ss.Flags.DevMode
 }
 
 func (ss *SnapSetup) JailMode() bool {
-	return Flags(ss.Flags).JailMode()
+	return ss.Flags.JailMode
 }
 
 func (ss *SnapSetup) DevModeAllowed() bool {
-	return Flags(ss.Flags).DevModeAllowed()
+	return ss.Flags.DevModeAllowed()
 }
 
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
-	return ss.Flags&TryMode != 0
+	return ss.Flags.TryMode
 }
-
-// SnapStateFlags are flags stored in SnapState.
-type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
@@ -250,48 +233,36 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
-	return Flags(snapst.Flags).DevMode()
+	return snapst.Flags.DevMode
 }
 
 // SetDevMode sets/clears the DevMode flag in the SnapState.
 func (snapst *SnapState) SetDevMode(active bool) {
-	if active {
-		snapst.Flags |= DevMode
-	} else {
-		snapst.Flags &= ^DevMode
-	}
+	snapst.Flags.DevMode = active
 }
 
 func (snapst *SnapState) JailMode() bool {
-	return Flags(snapst.Flags).JailMode()
+	return snapst.Flags.JailMode
 }
 
 // SetJailMode sets/clears the JailMode flag in the SnapState.
 func (snapst *SnapState) SetJailMode(active bool) {
-	if active {
-		snapst.Flags |= JailMode
-	} else {
-		snapst.Flags &= ^JailMode
-	}
+	snapst.Flags.JailMode = active
 }
 
 func (snapst *SnapState) DevModeAllowed() bool {
-	return Flags(snapst.Flags).DevModeAllowed()
+	return snapst.Flags.DevModeAllowed()
 }
 
 // TryMode returns true if the snap is installed in `try` mode as an
 // unpacked directory.
 func (snapst *SnapState) TryMode() bool {
-	return snapst.Flags&TryMode != 0
+	return snapst.Flags.TryMode
 }
 
 // SetTryMode sets/clears the TryMode flag in the SnapState.
 func (snapst *SnapState) SetTryMode(active bool) {
-	if active {
-		snapst.Flags |= TryMode
-	} else {
-		snapst.Flags &= ^TryMode
-	}
+	snapst.Flags.TryMode = active
 }
 
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
@@ -732,7 +703,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, Flags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, ss.Flags); err != nil {
 		return err
 	}
 
@@ -889,7 +860,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
-	} else if !ss.Flags.Revert() {
+	} else if !ss.Flags.Revert {
 		// remove the old candidate from the sequence, add it at the end
 		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
@@ -1005,7 +976,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	isRevert := ss.Flags.Revert()
+	isRevert := ss.Flags.Revert
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	currentIndex := snapst.LastIndex(snapst.Current)
