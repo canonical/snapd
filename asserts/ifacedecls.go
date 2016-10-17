@@ -153,8 +153,6 @@ func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
 		s = x
 	case bool:
 		s = strconv.FormatBool(x)
-	case int:
-		s = strconv.Itoa(x)
 	case int64:
 		s = strconv.FormatInt(x, 10)
 	case []interface{}:
