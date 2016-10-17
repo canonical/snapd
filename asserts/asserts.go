@@ -161,7 +161,7 @@ type Assertion interface {
 	Type() *AssertionType
 	// Format returns the format iteration of this assertion
 	Format() int
-	// SupportedFormat() returns whether the assertion uses a supported
+	// SupportedFormat returns whether the assertion uses a supported
 	// format iteration. If false the assertion might have been only
 	// partially parsed.
 	SupportedFormat() bool
@@ -234,7 +234,7 @@ func (ab *assertionBase) Format() int {
 	return ab.format
 }
 
-// SupportedFormat() returns whether the assertion uses a supported
+// SupportedFormat returns whether the assertion uses a supported
 // format iteration. If false the assertion might have been only
 // partially parsed.
 func (ab *assertionBase) SupportedFormat() bool {
