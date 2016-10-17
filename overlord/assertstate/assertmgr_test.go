@@ -502,6 +502,8 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirsInstall(c *C) {
+	c.Skip("the assertion service will make this scenario not possible")
+
 	s.prereqSnapAssertions(c, 10)
 
 	tempdir := c.MkDir()
