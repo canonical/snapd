@@ -79,5 +79,5 @@ func (s *I2CInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *I2CInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
