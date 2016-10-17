@@ -177,8 +177,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 
 	cmd := []string{
-		"/usr/bin/ubuntu-core-launcher",
-		securityTag,
+		"/usr/bin/snap-confine",
 		securityTag,
 		"/usr/lib/snapd/snap-exec",
 	}
