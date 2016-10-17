@@ -33,6 +33,6 @@ func NewI2CInterface() interfaces.Interface {
 		name: "i2c",
 		connectedPlugAppArmor: i2cConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           true,
+		autoConnect:           false,
 	}
 }
