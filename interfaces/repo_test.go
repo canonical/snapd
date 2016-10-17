@@ -822,13 +822,13 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 // Connected fails if snap name is empty and there's no core snap around
 func (s *RepositorySuite) TestConnectedFailsWithEmptySnapName(c *C) {
 	_, err := s.testRepo.Connected("", s.plug.Name)
-	c.Check(err, ErrorMatches, `cannot resolve disconnect, snap name is empty`)
+	c.Check(err, ErrorMatches, "snap name is empty")
 }
 
 // Connected fails if plug or slot name is empty
 func (s *RepositorySuite) TestConnectedFailsWithEmptyPlugSlotName(c *C) {
 	_, err := s.testRepo.Connected(s.plug.Snap.Name(), "")
-	c.Check(err, ErrorMatches, `cannot resolve disconnect, plug or slot name is empty`)
+	c.Check(err, ErrorMatches, "plug or slot name is empty")
 }
 
 // Connected fails if plug or slot doesn't exist
