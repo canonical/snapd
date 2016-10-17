@@ -1,7 +1,13 @@
 libexec_PROGRAMS = snap-confine snap-discard-ns
+noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
-noinst_PROGRAMS = snap-confine-unit-tests
+noinst_PROGRAMS += snap-confine-unit-tests
 endif
+
+decode_mount_opts_SOURCES = \
+	decode-mount-opts.c \
+	mount-opt.c \
+	mount-opt.h
 
 snap_discard_ns_SOURCES = \
 	ns-support.c \
