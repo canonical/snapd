@@ -215,6 +215,7 @@ suites:
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
+
     tests/upgrade/:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
