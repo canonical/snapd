@@ -31,6 +31,7 @@ import (
 // A Backstore stores assertions. It can store and retrieve assertions
 // by type under unique primary key headers (whose names are available
 // from assertType.PrimaryKey). Plus it supports searching by headers.
+// Lookups can be limited to a maximum allowed format.
 type Backstore interface {
 	// Put stores an assertion.
 	// It is responsible for checking that assert is newer than a
@@ -38,10 +39,10 @@ type Backstore interface {
 	Put(assertType *AssertionType, assert Assertion) error
 	// Get returns the assertion with the given unique key for its primary key headers.
 	// If none is present it returns ErrNotFound.
-	Get(assertType *AssertionType, key []string) (Assertion, error)
+	Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error)
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
-	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion)) error
+	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error
 }
 
 type nullBackstore struct{}
@@ -50,11 +51,11 @@ func (nbs nullBackstore) Put(t *AssertionType, a Assertion) error {
 	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
 }
 
-func (nbs nullBackstore) Get(t *AssertionType, k []string) (Assertion, error) {
+func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Assertion, error) {
 	return nil, ErrNotFound
 }
 
-func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion)) error {
+func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
 	return nil
 }
 
@@ -262,7 +263,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 	key := []string{keyID}
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
-		a, err := bs.Get(AccountKeyType, key)
+		a, err := bs.Get(AccountKeyType, key, AccountKeyType.MaxSupportedFormat())
 		if err == nil {
 			hit := a.(*AccountKey)
 			if hit.AccountID() != authorityID {
@@ -282,7 +283,7 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 	if accountID == "" {
 		return false
 	}
-	_, err := db.trusted.Get(AccountType, []string{accountID})
+	_, err := db.trusted.Get(AccountType, []string{accountID}, AccountType.MaxSupportedFormat())
 	return err == nil
 }
 
@@ -352,7 +353,7 @@ func (db *Database) Add(assert Assertion) error {
 	// assuming trusted account keys/assertions will be managed
 	// through the os snap this seems the safest policy until we
 	// know more/better
-	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey)
+	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 	if err != ErrNotFound {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
@@ -385,8 +386,10 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 	}
 
 	var assert Assertion
+	// TODO: Find variant taking this
+	maxFormat := assertionType.MaxSupportedFormat()
 	for _, bs := range backstores {
-		a, err := bs.Get(assertionType, keyValues)
+		a, err := bs.Get(assertionType, keyValues, maxFormat)
 		if err == nil {
 			assert = a
 			break
@@ -430,8 +433,10 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 		res = append(res, assert)
 	}
 
+	// TODO: Find variant taking this
+	maxFormat := assertionType.MaxSupportedFormat()
 	for _, bs := range db.backstores {
-		err = bs.Search(assertionType, headers, foundCb)
+		err = bs.Search(assertionType, headers, foundCb, maxFormat)
 		if err != nil {
 			return nil, err
 		}

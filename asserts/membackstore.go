@@ -135,7 +135,7 @@ func (mbs *memoryBackstore) Put(assertType *AssertionType, assert Assertion) err
 	return err
 }
 
-func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string) (Assertion, error) {
+func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error) {
 	mbs.mu.RLock()
 	defer mbs.mu.RUnlock()
 
@@ -146,7 +146,7 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string) (Assert
 	return mbs.top.get(internalKey)
 }
 
-func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion)) error {
+func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error {
 	mbs.mu.RLock()
 	defer mbs.mu.RUnlock()
 
