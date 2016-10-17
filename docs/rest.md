@@ -576,12 +576,11 @@ Generally the UUID of a background operation you are interested in.
 * Operation: sync
 * Return: Dict with buy state.
 
-#### Sample input using default payment method:
+#### Sample input:
 
 ```javascript
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
-    "snap-name": "moon-buggy",
     "price": 2.99,
     "currency": "USD"
 }

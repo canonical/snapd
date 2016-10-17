@@ -2662,7 +2662,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -2674,7 +2674,7 @@ var buyTests = []struct {
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -2777,7 +2777,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 
 		buyOptions := &BuyOptions{
 			SnapID:   snap.SnapID,
-			SnapName: snap.Name(),
 			Currency: repo.SuggestedCurrency(),
 			Price:    snap.Prices[repo.SuggestedCurrency()],
 		}
@@ -2812,48 +2811,34 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no snap ID
 	result, err := repo.Buy(&BuyOptions{
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
-
-	// no name
-	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		Price:    1.0,
-		Currency: "USD",
-	}, t.user)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
+	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		SnapName: "snap name",
-		Price:    1.0,
+		SnapID: "snap ID",
+		Price:  1.0,
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, nil)

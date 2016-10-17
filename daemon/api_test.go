@@ -3789,7 +3789,6 @@ const validBuyInput = `{
 
 var validBuyOptions = &store.BuyOptions{
 	SnapID:   "the-snap-id-1234abcd",
-	SnapName: "the snap name",
 	Price:    1.23,
 	Currency: "EUR",
 }

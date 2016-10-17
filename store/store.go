@@ -1322,7 +1322,6 @@ func (s *Store) SuggestedCurrency() string {
 // BuyOptions specifies parameters to buy from the store.
 type BuyOptions struct {
 	SnapID   string  `json:"snap-id"`
-	SnapName string  `json:"snap-name"`
 	Price    float64 `json:"price"`
 	Currency string  `json:"currency"` // ISO 4217 code as string
 }
@@ -1359,31 +1358,21 @@ func (s *storeErrors) Error() string {
 	return "store reported an error: " + s.Errors[0].Error()
 }
 
-func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
-	identifier := ""
-	if options.SnapName != "" {
-		identifier = fmt.Sprintf(" %q", options.SnapName)
-	} else if options.SnapID != "" {
-		identifier = fmt.Sprintf(" %q", options.SnapID)
-	}
-
-	return nil, fmt.Errorf("cannot buy snap%s: %s", identifier, message)
+func buyOptionError(message string) (*BuyResult, error) {
+	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
 func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
-		return buyOptionError(options, "snap ID missing")
-	}
-	if options.SnapName == "" {
-		return buyOptionError(options, "snap name missing")
+		return buyOptionError("snap ID missing")
 	}
 	if options.Price <= 0 {
-		return buyOptionError(options, "invalid expected price")
+		return buyOptionError("invalid expected price")
 	}
 	if options.Currency == "" {
-		return buyOptionError(options, "currency missing")
+		return buyOptionError("currency missing")
 	}
 	if user == nil {
 		return nil, ErrUnauthenticated
@@ -1429,7 +1418,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		}
 
 		if orderDetails.State == "Cancelled" {
-			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
+			return buyOptionError("payment cancelled")
 		}
 
 		return &BuyResult{
@@ -1442,10 +1431,10 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("cannot buy snap %q: bad request: %v", options.SnapName, errorInfo.Error())
+		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
-		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
+		return buyOptionError("server says not found (snap got removed?)")
 	case http.StatusPaymentRequired:
 		// Payment failed for some reason.
 		return nil, ErrPaymentDeclined
@@ -1458,7 +1447,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap %q: %v", options.SnapName, errorInfo))
+		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
 }
 
