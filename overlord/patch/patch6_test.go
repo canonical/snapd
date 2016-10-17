@@ -165,17 +165,17 @@ func (s *patch6Suite) TestPatch6(c *C) {
 	stateMap, err := patch.Patch6StateMap(st)
 	c.Assert(err, IsNil)
 
-	c.Check(stateMap["a"].Flags.DevMode, Equals, true)
-	c.Check(stateMap["a"].Flags.TryMode, Equals, false)
-	c.Check(stateMap["a"].Flags.JailMode, Equals, false)
+	c.Check(stateMap["a"].DevMode, Equals, true)
+	c.Check(stateMap["a"].TryMode, Equals, false)
+	c.Check(stateMap["a"].JailMode, Equals, false)
 
-	c.Check(stateMap["b"].Flags.DevMode, Equals, false)
-	c.Check(stateMap["b"].Flags.TryMode, Equals, true)
-	c.Check(stateMap["b"].Flags.JailMode, Equals, false)
+	c.Check(stateMap["b"].DevMode, Equals, false)
+	c.Check(stateMap["b"].TryMode, Equals, true)
+	c.Check(stateMap["b"].JailMode, Equals, false)
 
-	c.Check(stateMap["c"].Flags.DevMode, Equals, false)
-	c.Check(stateMap["c"].Flags.TryMode, Equals, false)
-	c.Check(stateMap["c"].Flags.JailMode, Equals, true)
+	c.Check(stateMap["c"].DevMode, Equals, false)
+	c.Check(stateMap["c"].TryMode, Equals, false)
+	c.Check(stateMap["c"].JailMode, Equals, true)
 
 	for _, task := range st.Tasks() {
 		ss, err := patch.Patch6SnapSetup(task)
@@ -190,20 +190,20 @@ func (s *patch6Suite) TestPatch6(c *C) {
 
 		switch snaps[0] {
 		case "a":
-			c.Check(ss.Flags.DevMode, Equals, true, Commentf("a"))
-			c.Check(ss.Flags.TryMode, Equals, false, Commentf("a"))
-			c.Check(ss.Flags.JailMode, Equals, false, Commentf("a"))
-			c.Check(ss.Flags.Revert, Equals, false, Commentf("a"))
+			c.Check(ss.DevMode, Equals, true, Commentf("a"))
+			c.Check(ss.TryMode, Equals, false, Commentf("a"))
+			c.Check(ss.JailMode, Equals, false, Commentf("a"))
+			c.Check(ss.Revert, Equals, false, Commentf("a"))
 		case "b":
-			c.Check(ss.Flags.DevMode, Equals, false, Commentf("b"))
-			c.Check(ss.Flags.TryMode, Equals, true, Commentf("b"))
-			c.Check(ss.Flags.JailMode, Equals, false, Commentf("b"))
-			c.Check(ss.Flags.Revert, Equals, false, Commentf("b"))
+			c.Check(ss.DevMode, Equals, false, Commentf("b"))
+			c.Check(ss.TryMode, Equals, true, Commentf("b"))
+			c.Check(ss.JailMode, Equals, false, Commentf("b"))
+			c.Check(ss.Revert, Equals, false, Commentf("b"))
 		case "c":
-			c.Check(ss.Flags.DevMode, Equals, false, Commentf("c"))
-			c.Check(ss.Flags.TryMode, Equals, false, Commentf("c"))
-			c.Check(ss.Flags.JailMode, Equals, true, Commentf("c"))
-			c.Check(ss.Flags.Revert, Equals, true, Commentf("c"))
+			c.Check(ss.DevMode, Equals, false, Commentf("c"))
+			c.Check(ss.TryMode, Equals, false, Commentf("c"))
+			c.Check(ss.JailMode, Equals, true, Commentf("c"))
+			c.Check(ss.Revert, Equals, true, Commentf("c"))
 		}
 	}
 }

@@ -42,18 +42,8 @@ func (f Flags) DevModeAllowed() bool {
 	return f.DevMode || f.JailMode
 }
 
-// ForSnapSetup sets flags that we don't need in SnapSetup to false (so they're not serialized)
+// ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
 func (f Flags) ForSnapSetup() Flags {
 	f.IgnoreValidation = false
 	return f
 }
-
-// ForSnapState sets flags that we don't need in SnapState to false (so they're not serialized)
-func (f Flags) ForSnapState() Flags {
-	f.IgnoreValidation = false
-	f.Revert = false
-
-	return f
-}
-
-var DefaultFlags = Flags{}

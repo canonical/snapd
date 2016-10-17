@@ -722,7 +722,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, err
 	}
 
-	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.DefaultFlags)
+	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.Flags{})
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -750,7 +750,7 @@ var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	if jailMode {
 		if devModeOS {
 			return flags, errNoJailMode

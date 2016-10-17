@@ -52,7 +52,7 @@ type SnapSetup struct {
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
 
-	Flags Flags `json:"flags,omitempty"`
+	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
 
@@ -79,24 +79,6 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
-// DevMode returns true if the snap is being installed in developer mode.
-func (ss *SnapSetup) DevMode() bool {
-	return ss.Flags.DevMode
-}
-
-func (ss *SnapSetup) JailMode() bool {
-	return ss.Flags.JailMode
-}
-
-func (ss *SnapSetup) DevModeAllowed() bool {
-	return ss.Flags.DevModeAllowed()
-}
-
-// TryMode returns true if the snap is being installed in try mode directly from a directory.
-func (ss *SnapSetup) TryMode() bool {
-	return ss.Flags.TryMode
-}
-
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
@@ -107,7 +89,7 @@ type SnapState struct {
 	// (usually while a snap is being operated on or disabled)
 	Current snap.Revision `json:"current"`
 	Channel string        `json:"channel,omitempty"`
-	Flags   Flags         `json:"flags,omitempty"`
+	Flags
 }
 
 // Type returns the type of the snap or an error.
@@ -229,40 +211,6 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 		return nil, ErrNoCurrent
 	}
 	return readInfo(cur.RealName, cur)
-}
-
-// DevMode returns true if the snap is installed in developer mode.
-func (snapst *SnapState) DevMode() bool {
-	return snapst.Flags.DevMode
-}
-
-// SetDevMode sets/clears the DevMode flag in the SnapState.
-func (snapst *SnapState) SetDevMode(active bool) {
-	snapst.Flags.DevMode = active
-}
-
-func (snapst *SnapState) JailMode() bool {
-	return snapst.Flags.JailMode
-}
-
-// SetJailMode sets/clears the JailMode flag in the SnapState.
-func (snapst *SnapState) SetJailMode(active bool) {
-	snapst.Flags.JailMode = active
-}
-
-func (snapst *SnapState) DevModeAllowed() bool {
-	return snapst.Flags.DevModeAllowed()
-}
-
-// TryMode returns true if the snap is installed in `try` mode as an
-// unpacked directory.
-func (snapst *SnapState) TryMode() bool {
-	return snapst.Flags.TryMode
-}
-
-// SetTryMode sets/clears the TryMode flag in the SnapState.
-func (snapst *SnapState) SetTryMode(active bool) {
-	snapst.Flags.TryMode = active
 }
 
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
@@ -860,7 +808,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
-	} else if !ss.Flags.Revert {
+	} else if !ss.Revert {
 		// remove the old candidate from the sequence, add it at the end
 		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
@@ -873,12 +821,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
-	oldTryMode := snapst.TryMode()
-	snapst.SetTryMode(ss.TryMode())
-	oldDevMode := snapst.DevMode()
-	snapst.SetDevMode(ss.DevMode())
-	oldJailMode := snapst.JailMode()
-	snapst.SetJailMode(ss.JailMode())
+	oldTryMode := snapst.TryMode
+	snapst.TryMode = ss.TryMode
+	oldDevMode := snapst.DevMode
+	snapst.DevMode = ss.DevMode
+	oldJailMode := snapst.JailMode
+	snapst.JailMode = ss.JailMode
 
 	newInfo, err := readInfo(ss.Name(), cand)
 	if err != nil {
@@ -976,7 +924,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	isRevert := ss.Flags.Revert
+	isRevert := ss.Revert
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	currentIndex := snapst.LastIndex(snapst.Current)
@@ -994,9 +942,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
-	snapst.SetTryMode(oldTryMode)
-	snapst.SetDevMode(oldDevMode)
-	snapst.SetJailMode(oldJailMode)
+	snapst.TryMode = oldTryMode
+	snapst.DevMode = oldDevMode
+	snapst.JailMode = oldJailMode
 
 	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
