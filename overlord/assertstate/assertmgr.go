@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -124,6 +125,9 @@ func NewBatch() *Batch {
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
+	if !a.SupportedFormat() {
+		return &asserts.UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+	}
 	if err := b.bs.Put(a.Type(), a); err != nil {
 		if revErr, ok := err.(*asserts.RevisionError); ok {
 			if revErr.Current >= a.Revision() {
@@ -239,12 +243,14 @@ func (f *fetcher) commit() error {
 	var errs []error
 	for _, a := range f.fetched {
 		err := f.db.Add(a)
-		if revErr, ok := err.(*asserts.RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// be idempotent
-				// system db has already the same or newer
-				continue
+		if asserts.IsUnaccceptedUpdate(err) {
+			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
+				// we kept the old one, but log the issue
+				logger.Noticef("Cannot update assertion: %v", err)
 			}
+			// be idempotent
+			// system db has already the same or newer
+			continue
 		}
 		if err != nil {
 			errs = append(errs, err)
