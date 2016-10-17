@@ -107,24 +107,27 @@ func (e *RevisionError) Error() string {
 
 // UnsupportedFormatError indicates an assertion with a format iteration not yet supported by the present version of asserts.
 type UnsupportedFormatError struct {
-	// KeptCurrent marks there was already a current revision of the assertion and it has been kept.
-	KeptCurrent bool
+	Ref    *Ref
+	Format int
+	// Update marks there was already a current revision of the assertion and it has been kept.
+	Update bool
 }
 
 func (e *UnsupportedFormatError) Error() string {
 	postfx := ""
-	if e.KeptCurrent {
-		postfx = " (kept current revision)"
+	if e.Update {
+		postfx = " (current not updated)"
 	}
-	return "assertion format is too new" + postfx
+	return fmt.Sprintf("proposed %q assertion has format %d but %d is latest supported%s", e.Ref.Type.Name, e.Format, e.Ref.Type.MaxSupportedFormat(), postfx)
 }
 
-// IsKeptCurrent returns whether the error indicates that an assertion revision
-// was already present and has been kept.
-func IsKeptCurrent(err error) bool {
+// IsUnaccceptedUpdate returns whether the error indicates that an
+// assertion revision was already present and has been kept because
+// the update was not accepted.
+func IsUnaccceptedUpdate(err error) bool {
 	switch x := err.(type) {
 	case *UnsupportedFormatError:
-		return x.KeptCurrent
+		return x.Update
 	case *RevisionError:
 		return x.Used <= x.Current
 	}
@@ -289,7 +292,7 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	if !assert.SupportedFormat() {
-		return &UnsupportedFormatError{}
+		return &UnsupportedFormatError{Ref: assert.Ref(), Format: assert.Format()}
 	}
 
 	typ := assert.Type()
@@ -333,12 +336,12 @@ func (db *Database) Add(assert Assertion) error {
 
 	err := db.Check(assert)
 	if err != nil {
-		if _, ok := err.(*UnsupportedFormatError); ok {
+		if ufe, ok := err.(*UnsupportedFormatError); ok {
 			_, err := ref.Resolve(db.Find)
 			if err != nil && err != ErrNotFound {
 				return err
 			}
-			return &UnsupportedFormatError{KeptCurrent: err == nil}
+			return &UnsupportedFormatError{Ref: ufe.Ref, Format: ufe.Format, Update: err == nil}
 		}
 		return err
 	}

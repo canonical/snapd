@@ -308,7 +308,7 @@ func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
 
 	err = db.Check(a)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
-	c.Check(err, ErrorMatches, "assertion format is too new")
+	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
 }
 
 type signAddFindSuite struct {
@@ -525,7 +525,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 
 	err = safs.db.Add(a1)
 	c.Check(err, ErrorMatches, "revision 0 is older than current revision 1")
-	c.Check(asserts.IsKeptCurrent(err), Equals, true)
+	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestAddNoAuthorityNoPrimaryKey(c *C) {
@@ -571,9 +571,9 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 
 	err = safs.db.Add(aUnsupp)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
-	c.Check(err.(*asserts.UnsupportedFormatError).KeptCurrent, Equals, false)
-	c.Check(err, ErrorMatches, "assertion format is too new")
-	c.Check(asserts.IsKeptCurrent(err), Equals, false)
+	c.Check(err.(*asserts.UnsupportedFormatError).Update, Equals, false)
+	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
+	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, false)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -589,9 +589,9 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 
 	err = safs.db.Add(aUnsupp)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
-	c.Check(err.(*asserts.UnsupportedFormatError).KeptCurrent, Equals, true)
-	c.Check(err, ErrorMatches, `assertion format is too new \(kept current revision\)`)
-	c.Check(asserts.IsKeptCurrent(err), Equals, true)
+	c.Check(err.(*asserts.UnsupportedFormatError).Update, Equals, true)
+	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported \(current not updated\)`)
+	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, true)
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
@@ -855,15 +855,15 @@ func (res *revisionErrorSuite) TestErrorText(c *C) {
 	}
 }
 
-type isKeptCurrentSuite struct{}
+type isUnacceptedUpdateSuite struct{}
 
-func (s *isKeptCurrentSuite) TestIsKeptCurrent(c *C) {
+func (s *isUnacceptedUpdateSuite) TestIsUnacceptedUpdate(c *C) {
 	tests := []struct {
 		err         error
 		keptCurrent bool
 	}{
 		{&asserts.UnsupportedFormatError{}, false},
-		{&asserts.UnsupportedFormatError{KeptCurrent: true}, true},
+		{&asserts.UnsupportedFormatError{Update: true}, true},
 		{&asserts.RevisionError{Used: 1, Current: 1}, true},
 		{&asserts.RevisionError{Used: 1, Current: 5}, true},
 		{&asserts.RevisionError{Used: 3, Current: 1}, false},
@@ -872,6 +872,6 @@ func (s *isKeptCurrentSuite) TestIsKeptCurrent(c *C) {
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.IsKeptCurrent(t.err), Equals, t.keptCurrent, Commentf("%v", t.err))
+		c.Check(asserts.IsUnaccceptedUpdate(t.err), Equals, t.keptCurrent, Commentf("%v", t.err))
 	}
 }

@@ -525,7 +525,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirsInstall(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap-declaration .* assertion format is too new for this snapd, upgrade snapd/core snap\n.*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
 }
 
 func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *asserts.SnapDeclaration {

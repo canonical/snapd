@@ -236,30 +236,19 @@ func (e *commitError) Error() string {
 	return fmt.Sprintf("cannot add some assertions to the system database:%s", strings.Join(l, "\n - "))
 }
 
-func clarifyUnsupportedFormat(err error, a asserts.Assertion) (clarifyd error) {
-	if _, ok := err.(*asserts.UnsupportedFormatError); ok {
-		return fmt.Errorf("%v assertion format is too new for this snapd, upgrade snapd/core snap", a.Ref())
-	}
-	return nil
-}
-
 // commit does a best effort of adding all the fetched assertions to the system database.
 func (f *fetcher) commit() error {
 	var errs []error
 	for _, a := range f.fetched {
 		err := f.db.Add(a)
-		clarified := clarifyUnsupportedFormat(err, a)
-		if asserts.IsKeptCurrent(err) {
-			if clarified != nil {
+		if asserts.IsUnaccceptedUpdate(err) {
+			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
 				// we kept the old one, but log the issue
-				logger.Noticef(clarified.Error())
+				logger.Noticef("Cannot update assertion: %v", err)
 			}
 			// be idempotent
 			// system db has already the same or newer
 			continue
-		}
-		if clarified != nil {
-			err = clarified
 		}
 		if err != nil {
 			errs = append(errs, err)
