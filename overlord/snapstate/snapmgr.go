@@ -52,7 +52,7 @@ type SnapSetup struct {
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
 
-	Flags SnapSetupFlags `json:"flags,omitempty"`
+	Flags Flags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
 
@@ -105,9 +105,9 @@ type SnapState struct {
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
-	Current snap.Revision  `json:"current"`
-	Channel string         `json:"channel,omitempty"`
-	Flags   SnapStateFlags `json:"flags,omitempty"`
+	Current snap.Revision `json:"current"`
+	Channel string        `json:"channel,omitempty"`
+	Flags   Flags         `json:"flags,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
