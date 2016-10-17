@@ -16,7 +16,15 @@ execute: |
     snap list | grep network-bind-consumer
 
     echo "Ensure the service is (still) running."
-    systemctl status snap.network-bind-consumer.network-consumer.service | grep 'Active: active (running)'
+    retries=10
+    while ! systemctl is-active snap.network-bind-consumer.network-consumer.service; do
+        if [ $retries -eq 0 ]; then
+            echo "Service did not activate."
+            exit 1
+        fi
+        retries=$(( $retries - 1 ))
+        sleep 0.5
+    done
 
     echo "Ensure apparmor profiles are (still) loaded."
     for app in success fail echo head env block cat; do
