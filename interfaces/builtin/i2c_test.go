@@ -29,23 +29,23 @@ import (
 
 type I2CInterfaceSuite struct {
 	iface interfaces.Interface
-	slot *interfaces.Slot
-	plug *interfaces.Plug
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
 var _ = Suite(&I2CInterfaceSuite{
 	iface: builtin.NewI2CInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{SuggestedName: "i2c", Type: snap.TypeOS},
-			Name: "i2c",
+			Snap:      &snap.Info{SuggestedName: "i2c", Type: snap.TypeOS},
+			Name:      "i2c",
 			Interface: "i2c",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{SuggestedName: "i2c"},
-			Name: "i2c",
+			Snap:      &snap.Info{SuggestedName: "i2c"},
+			Name:      "i2c",
 			Interface: "i2c",
 		},
 	},
@@ -59,8 +59,8 @@ func (s *I2CInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{SuggestedName: "some-snap"},
-		Name: "i2c",
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "i2c",
 		Interface: "i2c",
 	}})
 	c.Assert(err, ErrorMatches, "i2c slots are reserved for the operating system snap")
@@ -72,9 +72,9 @@ func (s *I2CInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *I2CInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() {s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
+	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
 		PanicMatches, "slot is not of interface i2c")
-	c.Assert(func() {s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
+	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, "plug is not of interface i2c")
 }
 
