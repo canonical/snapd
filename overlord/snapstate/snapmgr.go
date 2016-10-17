@@ -671,14 +671,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
 
-	// cleanup the downloaded snap after it got installed
-	// in backend.SetupSnap.
-	//
-	// Note that we always remove the file because the
-	// way sideloading works currently is to always create
-	// a temporary file (see daemon/api.go:sideloadSnap()
-	if err := os.Remove(ss.SnapPath); err != nil {
-		logger.Noticef("Failed to cleanup %q: %s", err)
+	if !ss.Flags.KeepSnapPath {
+		if err := os.Remove(ss.SnapPath); err != nil {
+			logger.Noticef("Failed to cleanup %q: %s", err)
+		}
 	}
 
 	return nil
