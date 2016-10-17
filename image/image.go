@@ -213,19 +213,24 @@ func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addi
 func installCloudConfig(gadgetDir string) error {
 	var err error
 
-	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud")
+	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/")
 	if err := os.MkdirAll(cloudDir, 0755); err != nil {
 		return err
 	}
 
 	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
 	if osutil.FileExists(cloudConfig) {
-		dst := filepath.Join(cloudDir, "cloud.cfg")
+		cfgDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d")
+		if err := os.MkdirAll(cfgDir, 0755); err != nil {
+			return err
+		}
+		dst := filepath.Join(cfgDir, "10_gadget_snap_cloud.cfg")
 		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
 	} else {
 		dst := filepath.Join(cloudDir, "cloud-init.disabled")
 		err = osutil.AtomicWriteFile(dst, nil, 0644, 0)
 	}
+
 	return err
 }
 
