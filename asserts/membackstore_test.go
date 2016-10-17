@@ -50,21 +50,21 @@ func (mbss *memBackstoreSuite) TestPutAndGet(c *C) {
 	err := mbss.bs.Put(asserts.TestOnlyType, mbss.a)
 	c.Assert(err, IsNil)
 
-	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"})
+	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"}, 0)
 	c.Assert(err, IsNil)
 
 	c.Check(a, Equals, mbss.a)
 }
 
 func (mbss *memBackstoreSuite) TestGetNotFound(c *C) {
-	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"})
+	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"}, 0)
 	c.Assert(err, Equals, asserts.ErrNotFound)
 	c.Check(a, IsNil)
 
 	err = mbss.bs.Put(asserts.TestOnlyType, mbss.a)
 	c.Assert(err, IsNil)
 
-	a, err = mbss.bs.Get(asserts.TestOnlyType, []string{"bar"})
+	a, err = mbss.bs.Get(asserts.TestOnlyType, []string{"bar"}, 0)
 	c.Assert(err, Equals, asserts.ErrNotFound)
 	c.Check(a, IsNil)
 }
@@ -107,14 +107,14 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 	cb := func(a asserts.Assertion) {
 		found[a.HeaderString("primary-key")] = a
 	}
-	err = mbss.bs.Search(asserts.TestOnlyType, nil, cb)
+	err = mbss.bs.Search(asserts.TestOnlyType, nil, cb, 0)
 	c.Assert(err, IsNil)
 	c.Check(found, HasLen, 2)
 
 	found = map[string]asserts.Assertion{}
 	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
 		"primary-key": "one",
-	}, cb)
+	}, cb, 0)
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, map[string]asserts.Assertion{
 		"one": a1,
@@ -123,7 +123,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 	found = map[string]asserts.Assertion{}
 	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
 		"other": "other2",
-	}, cb)
+	}, cb, 0)
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, map[string]asserts.Assertion{
 		"two": a2,
@@ -133,7 +133,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
 		"primary-key": "two",
 		"other":       "other1",
-	}, cb)
+	}, cb, 0)
 	c.Assert(err, IsNil)
 	c.Check(found, HasLen, 0)
 }
@@ -170,7 +170,7 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 	}
 	err = mbss.bs.Search(asserts.TestOnly2Type, map[string]string{
 		"pk2": "x",
-	}, cb)
+	}, cb, 0)
 	c.Assert(err, IsNil)
 	c.Check(found, HasLen, 2)
 }
