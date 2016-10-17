@@ -14,9 +14,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "config.h"
 #include "sc-main.h"
 
 int main(int argc, char **argv)
 {
+	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
+		return 0;
+	}
 	return sc_main(argc, argv);
 }
