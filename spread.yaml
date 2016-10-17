@@ -93,9 +93,11 @@ prepare-each: |
     journalctl --rotate
     sleep .1
     journalctl --vacuum-time=1ms
+    dmesg -c > /dev/null
 
 debug-each: |
     journalctl -u snapd
+    dmesg | grep DENIED
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
@@ -213,8 +215,6 @@ suites:
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
-        debug-each: |
-            dmesg | grep DENIED
     tests/upgrade/:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
@@ -222,5 +222,3 @@ suites:
             apt-get purge -y snapd || true
         restore-each: |
             $TESTSLIB/reset.sh
-        debug-each: |
-            dmesg | grep DENIED
