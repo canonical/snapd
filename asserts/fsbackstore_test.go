@@ -110,7 +110,6 @@ func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
-	// Create two revisions of assertion with different formats
 	af0, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: foo\n" +
@@ -164,12 +163,11 @@ func (fsbss *fsBackstoreSuite) TestGetFormat(c *C) {
 	c.Check(a.Revision(), Equals, 22)
 }
 
-func (fsbss *fsBackstoreSuite) TestSearch(c *C) {
+func (fsbss *fsBackstoreSuite) TestSearchFormat(c *C) {
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
-	// Create two revisions of assertion with different formats
 	af0, err := asserts.Decode([]byte("type: test-only-2\n" +
 		"authority-id: auth-id1\n" +
 		"pk1: foo\n" +

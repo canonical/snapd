@@ -169,7 +169,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
 func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		a, err := b.bs.Get(ref.Type, ref.PrimaryKey)
+		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if err == asserts.ErrNotFound {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
