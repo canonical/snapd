@@ -91,10 +91,9 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, "/usr/bin/snap-confine")
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.app",
+		"/usr/bin/snap-confine",
 		"snap.snapname.app",
 		"/usr/lib/snapd/snap-exec",
 		"snapname.app",
@@ -129,10 +128,9 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	// and run it!
 	err := snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, "/usr/bin/snap-confine")
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.app",
+		"/usr/bin/snap-confine",
 		"snap.snapname.app",
 		"/usr/lib/snapd/snap-exec",
 		"--command=my-command", "snapname.app",
@@ -184,10 +182,9 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	// Run a hook from the active revision
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, "/usr/bin/snap-confine")
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.configure",
+		"/usr/bin/snap-confine",
 		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
 		"--hook=configure", "snapname"})
@@ -221,10 +218,9 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	// Specifically pass "unset" which would use the active version.
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, "/usr/bin/snap-confine")
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.configure",
+		"/usr/bin/snap-confine",
 		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
 		"--hook=configure", "snapname"})
@@ -262,10 +258,9 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	// Run a hook on revision 41
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, "/usr/bin/snap-confine")
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.configure",
+		"/usr/bin/snap-confine",
 		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
 		"--hook=configure", "snapname"})
