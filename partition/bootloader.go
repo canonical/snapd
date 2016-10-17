@@ -128,13 +128,14 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	}
 
 	// update the boot vars
-	if m["snap_try_core"] != "" {
-		m["snap_core"] = m["snap_try_core"]
-		m["snap_try_core"] = ""
-	}
-	if m["snap_try_kernel"] != "" {
-		m["snap_kernel"] = m["snap_try_kernel"]
-		m["snap_try_kernel"] = ""
+	for _, k := range []string{"kernel", "core"} {
+		tryBootVar := fmt.Sprintf("snap_try_%s", k)
+		bootVar := fmt.Sprintf("snap_%s", k)
+		// update the boot vars
+		if m[tryBootVar] != "" {
+			m[bootVar] = m[tryBootVar]
+			m[tryBootVar] = ""
+		}
 	}
 	m["snap_mode"] = modeSuccess
 
