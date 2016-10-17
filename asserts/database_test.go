@@ -829,7 +829,7 @@ func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 func (safs *signAddFindSuite) TestFindSupported(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
-		"primary-key": "foo",
+		"primary-key":  "foo",
 	}
 	af0, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
@@ -839,9 +839,9 @@ func (safs *signAddFindSuite) TestFindSupported(c *C) {
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
-		"primary-key": "foo",
-		"format": "1",
-		"revision": "1",
+		"primary-key":  "foo",
+		"format":       "1",
+		"revision":     "1",
 	}
 	af1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
@@ -866,7 +866,6 @@ func (safs *signAddFindSuite) TestFindSupported(c *C) {
 	}, 3)
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for max format 3 higher than max supported format 1`)
 }
-
 
 type revisionErrorSuite struct{}
 
