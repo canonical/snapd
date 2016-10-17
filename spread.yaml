@@ -213,7 +213,8 @@ suites:
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
-
+        debug-each: |
+            dmesg | grep DENIED
     tests/upgrade/:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
@@ -221,3 +222,5 @@ suites:
             apt-get purge -y snapd || true
         restore-each: |
             $TESTSLIB/reset.sh
+        debug-each: |
+            dmesg | grep DENIED
