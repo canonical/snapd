@@ -417,7 +417,7 @@ func validateAttr(v interface{}) (interface{}, error) {
 	case bool:
 		return x, nil
 	case int:
-		return x, nil
+		return int64(x), nil
 	case int64:
 		return x, nil
 	case []interface{}:
