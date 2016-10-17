@@ -1,8 +1,17 @@
+TARGETS?= snappy
+SHARE?=/usr/share
+MODULES?=${TARGETS:=.pp.bz2}
 
-AWK ?= gawk
+all: ${TARGETS:=.pp.bz2}
 
-NAME ?= $(shell $(AWK) -F= '/^SELINUXTYPE/{ print $$2 }' /etc/selinux/config)
-SHAREDIR ?= /usr/share/selinux
-HEADERDIR := $(SHAREDIR)/$(NAME)/include
+%.pp.bz2: %.pp
+	@echo Compressing $^ -\ $@
+	bzip2 -9 $^
 
-include $(HEADERDIR)/Makefile
+%.pp: %.te
+	make -f ${SHARE}/selinux/devel/Makefile $@
+
+clean:
+	rm -f *~ *.tc *.pp *.pp.bz2
+	rm -rf tmp
+
