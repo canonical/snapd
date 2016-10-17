@@ -90,7 +90,7 @@ func UpdateBootRevisions(st *state.State) error {
 		if rev != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, name, rev, Flags(0))
+			ts, err := RevertToRevision(st, name, rev, DefaultFlags)
 			if err != nil {
 				return err
 			}

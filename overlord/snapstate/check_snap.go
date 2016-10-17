@@ -55,7 +55,7 @@ func checkAssumes(s *snap.Info) error {
 var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags SnapSetupFlags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, _, err := openSnapFile(snapFilePath, si)
