@@ -234,6 +234,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  system-power-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   system-trace:
     allow-installation:
       slot-snap-type:

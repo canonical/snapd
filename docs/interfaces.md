@@ -460,6 +460,13 @@ processes on the system.
 
 * Auto-Connect: no
 
+### system-power-control
+
+Can control the system power state and rebooting, powering off or halting the
+system.
+
+* Auto-Connect: no
+
 ### system-trace
 
 Can use kernel tracing facilities. This is restricted because it gives
