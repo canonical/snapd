@@ -826,6 +826,48 @@ func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 	c.Assert(err, Equals, asserts.ErrNotFound)
 }
 
+func (safs *signAddFindSuite) TestFindSupported(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key": "foo",
+	}
+	af0, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(af0)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key": "foo",
+		"format": "1",
+		"revision": "1",
+	}
+	af1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(af1)
+	c.Assert(err, IsNil)
+
+	a, err := safs.db.FindSupported(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 1)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 1)
+
+	a, err = safs.db.FindSupported(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 0)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 0)
+
+	a, err = safs.db.FindSupported(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 3)
+	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for max format 3 higher than max supported format 1`)
+}
+
+
 type revisionErrorSuite struct{}
 
 func (res *revisionErrorSuite) TestErrorText(c *C) {

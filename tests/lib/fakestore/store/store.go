@@ -445,7 +445,7 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
-	a, err := bs.Get(assertType, primaryKey)
+	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
 	if err == asserts.ErrNotFound && s.assertFallback {
 		return s.fallback.Assertion(assertType, primaryKey, nil)
 	}
@@ -508,7 +508,7 @@ func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]str
 		m[decl.SnapID()] = decl.SnapName()
 	}
 
-	err := bs.Search(asserts.SnapDeclarationType, nil, hit)
+	err := bs.Search(asserts.SnapDeclarationType, nil, hit, asserts.SnapDeclarationType.MaxSupportedFormat())
 	if err != nil {
 		return nil, err
 	}
@@ -517,13 +517,13 @@ func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]str
 }
 
 func findSnapRevision(snapDigest string, bs asserts.Backstore) (*asserts.SnapRevision, *asserts.Account, error) {
-	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest})
+	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest}, asserts.SnapRevisionType.MaxSupportedFormat())
 	if err != nil {
 		return nil, nil, err
 	}
 	snapRev := a.(*asserts.SnapRevision)
 
-	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()})
+	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()}, asserts.AccountType.MaxSupportedFormat())
 	if err != nil {
 		return nil, nil, err
 	}

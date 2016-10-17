@@ -374,10 +374,18 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 	return true
 }
 
-func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
+	}
+	maxSupp := assertionType.MaxSupportedFormat()
+	if maxFormat == -1 {
+		maxFormat = maxSupp
+	} else {
+		if maxFormat > maxSupp {
+			return nil, fmt.Errorf("cannot find %q assertions for max format %d higher than max supported format %d", assertionType.Name, maxFormat, maxSupp)
+		}
 	}
 	keyValues := make([]string, len(assertionType.PrimaryKey))
 	for i, k := range assertionType.PrimaryKey {
@@ -389,8 +397,6 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 	}
 
 	var assert Assertion
-	// TODO: Find variant taking this
-	maxFormat := assertionType.MaxSupportedFormat()
 	for _, bs := range backstores {
 		a, err := bs.Get(assertionType, keyValues, maxFormat)
 		if err == nil {
@@ -413,14 +419,21 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find(db.backstores, assertionType, headers)
+	return find(db.backstores, assertionType, headers, -1)
+}
+
+// FindSupported finds an assertion like Find but such that its
+// format is <= maxFormat by passing maxFormat along to the backend.
+// It returns ErrNotFound if such an assertion cannot be found.
+func (db *Database) FindSupported(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
+	return find(db.backstores, assertionType, headers, maxFormat)
 }
 
 // FindTrusted finds an assertion in the trusted set based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
 func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find([]Backstore{db.trusted}, assertionType, headers)
+	return find([]Backstore{db.trusted}, assertionType, headers, -1)
 }
 
 // FindMany finds assertions based on arbitrary headers.
