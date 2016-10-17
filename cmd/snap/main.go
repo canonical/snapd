@@ -40,9 +40,10 @@ import (
 
 // Standard streams, redirected for testing.
 var (
-	Stdin  io.Reader = os.Stdin
-	Stdout io.Writer = os.Stdout
-	Stderr io.Writer = os.Stderr
+	Stdin    io.Reader = os.Stdin
+	Stdout   io.Writer = os.Stdout
+	Stderr   io.Writer = os.Stderr
+	Terminal int       = 0
 )
 
 type options struct {
@@ -268,13 +269,17 @@ func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
-				parser.Command.Active = nil
+		if e, ok := err.(*flags.Error); ok {
+			if e.Type == flags.ErrHelp {
+				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
+					parser.Command.Active = nil
+				}
+				parser.WriteHelp(Stdout)
+				return nil
 			}
-			parser.WriteHelp(Stdout)
-			return nil
-
+			if e.Type == flags.ErrUnknownCommand {
+				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
+			}
 		}
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
 			u, _ := user.Current()

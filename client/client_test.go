@@ -407,7 +407,7 @@ func (cs *clientSuite) TestClientCreateUsers(c *C) {
 func (cs *clientSuite) TestClientJSONError(c *C) {
 	cs.rsp = `some non-json error message`
 	_, err := cs.cli.SysInfo()
-	c.Assert(err, ErrorMatches, `bad sysinfo result: cannot decode "some non-json error message": invalid char.*`)
+	c.Assert(err, ErrorMatches, `cannot obtain system details: cannot decode "some non-json error message": invalid char.*`)
 }
 
 func (cs *clientSuite) TestUsers(c *C) {

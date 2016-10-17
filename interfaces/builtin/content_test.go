@@ -245,3 +245,39 @@ slots:
 	expected := "/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0\n"
 	c.Assert(string(content), Equals, expected)
 }
+
+func (s *ContentSuite) TestLegacyAutoConnect(c *C) {
+	const plugSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  content: cont1
+`
+	info := snaptest.MockInfo(c, plugSnapYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
+
+	const slotSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  content: cont1
+`
+	info = snaptest.MockInfo(c, slotSnapYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
+
+	c.Check(s.iface.AutoConnect(plug, slot), Equals, true)
+
+	const otherSnapYaml = `name: content-other-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  content: cont2
+`
+	info = snaptest.MockInfo(c, otherSnapYaml, nil)
+	otherslot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
+
+	c.Check(s.iface.AutoConnect(plug, otherslot), Equals, false)
+}

@@ -36,15 +36,19 @@ type setCommand struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortSetHelp = i18n.G("Set snap configuration")
+var shortSetHelp = i18n.G("Changes configuration options")
 var longSetHelp = i18n.G(`
-The set command changes the provided configuration options as requested. For
-example:
+The set command changes the provided configuration options as requested.
 
-    $ snapctl set username=joe password=$PASSWORD
+    $ snapctl set username=frank password=$PASSWORD
 
-All configuration changes are persisted at once, and only after the hook returns
-successfully.`)
+All configuration changes are persisted at once, and only after the hook
+returns successfully.
+
+Nested values may be modified via a dotted path:
+
+    $ snapctl set author.name=frank
+`)
 
 func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })

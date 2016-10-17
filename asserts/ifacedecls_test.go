@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -35,12 +36,26 @@ var (
 
 type attrConstraintsSuite struct{}
 
-func attrs(yml string) (r map[string]interface{}) {
-	err := yaml.Unmarshal([]byte(yml), &r)
+func attrs(yml string) map[string]interface{} {
+	var attrs map[string]interface{}
+	err := yaml.Unmarshal([]byte(yml), &attrs)
 	if err != nil {
 		panic(err)
 	}
-	return
+	snapYaml, err := yaml.Marshal(map[string]interface{}{
+		"name": "sample",
+		"plugs": map[string]interface{}{
+			"plug": attrs,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	info, err := snap.InfoFromSnapYaml(snapYaml)
+	if err != nil {
+		panic(err)
+	}
+	return info.Plugs["plug"].Attrs
 }
 
 func (s *attrConstraintsSuite) TestSimple(c *C) {
@@ -243,6 +258,12 @@ func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
 foo: 1
 bar: true
 `))
+	c.Check(err, IsNil)
+
+	err = cstrs.Check(map[string]interface{}{
+		"foo": int64(1),
+		"bar": true,
+	})
 	c.Check(err, IsNil)
 }
 

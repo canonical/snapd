@@ -200,7 +200,32 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		addTask(s.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", ss.Name(), revisionStr)))
 	}
 
-	return state.NewTaskSet(tasks...), nil
+	var defaults map[string]interface{}
+
+	if !snapst.HasCurrent() && ss.SideInfo != nil && ss.SideInfo.SnapID != "" {
+		gadget, err := GadgetInfo(s)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if err == nil {
+			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
+			if err != nil {
+				return nil, err
+			}
+			defaults = gadgetInfo.Defaults[ss.SideInfo.SnapID]
+		}
+	}
+
+	installSet := state.NewTaskSet(tasks...)
+	configSet := Configure(s, ss.Name(), defaults)
+	configSet.WaitAll(installSet)
+	installSet.AddAll(configSet)
+
+	return installSet, nil
+}
+
+var Configure = func(s *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+	panic("internal error: snapstate.Configure is unset")
 }
 
 func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) error {

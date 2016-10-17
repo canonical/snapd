@@ -247,6 +247,12 @@ prepare_all_snap() {
         fi
     fi
 
+    echo "Wait for firstboot change to be ready"
+    while ! snap changes | grep "Done"; do
+        snap changes || true
+        sleep 1
+    done
+ 
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
     for name in $gadget_name $kernel_name $core_name; do
