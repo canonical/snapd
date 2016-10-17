@@ -1552,7 +1552,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, snapstate.DefaultFlags, false)
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{}, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1562,7 +1562,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.DevMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
@@ -1583,7 +1583,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.DevMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
@@ -1606,7 +1606,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.JailMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
@@ -1716,7 +1716,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		return nil, nil
 	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
-		c.Check(flags, check.Equals, snapstate.DefaultFlags)
+		c.Check(flags, check.Equals, snapstate.Flags{})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName:    "x",
 			SnapID:      "x-id",
@@ -1822,7 +1822,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	}
 
 	// try the snap
-	rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.DefaultFlags).(*resp)
+	rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	c.Assert(tryWasCalled, check.Equals, true)
 
@@ -1858,7 +1858,7 @@ func (s *apiSuite) TestTrySnapRelative(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := trySnap(snapsCmd, req, nil, "relative-path", snapstate.DefaultFlags).(*resp)
+	rsp := trySnap(snapsCmd, req, nil, "relative-path", snapstate.Flags{}).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "need an absolute path")
 }
@@ -1867,7 +1867,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := trySnap(snapsCmd, req, nil, "/does/not/exist", snapstate.DefaultFlags).(*resp)
+	rsp := trySnap(snapsCmd, req, nil, "/does/not/exist", snapstate.Flags{}).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
@@ -1898,7 +1898,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
-		c.Check(flags, check.Equals, snapstate.DefaultFlags)
+		c.Check(flags, check.Equals, snapstate.Flags{})
 		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -2128,19 +2128,19 @@ func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.DefaultFlags, snap.R(0))
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.DevMode = true
 	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, flags, snap.R(0))
 }
 func (s *apiSuite) TestInstallRevision(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.DefaultFlags, snap.R(42))
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(42))
 }
 
 func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags, revision snap.Revision) {
-	calledFlags := snapstate.DefaultFlags
+	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
 	restore := release.MockReleaseInfo(releaseInfo)
 	defer restore()
@@ -2234,7 +2234,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(assertstateCalledUserID, check.Equals, 17)
-	c.Check(calledFlags, check.DeepEquals, snapstate.DefaultFlags)
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{})
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -2276,7 +2276,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	summary, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.DevMode = true
 	c.Check(calledFlags, check.DeepEquals, flags)
 	c.Check(calledUserID, check.Equals, 17)
@@ -2320,7 +2320,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	summary, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	flags := snapstate.DefaultFlags
+	flags := snapstate.Flags{}
 	flags.IgnoreValidation = true
 
 	c.Check(calledFlags, check.DeepEquals, flags)
@@ -2614,7 +2614,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	_, _, err := inst.dispatch()(inst, st)
 	c.Assert(err, check.IsNil)
 
-	c.Check(calledFlags, check.DeepEquals, snapstate.DefaultFlags)
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{})
 	c.Check(err, check.IsNil)
 }
 

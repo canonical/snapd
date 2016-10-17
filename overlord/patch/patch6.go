@@ -28,22 +28,18 @@ func init() {
 	patches[6] = patch6
 }
 
-type patch6StateFlags struct {
+type patch6Flags struct {
 	DevMode  bool `json:"devmode,omitempty"`
 	JailMode bool `json:"jailmode,omitempty"`
 	TryMode  bool `json:"trymode,omitempty"`
-}
-
-type patch6SetupFlags struct {
-	patch6StateFlags
-	Revert bool `json:"revert,omitempty"`
+	Revert   bool `json:"revert,omitempty"`
 }
 
 type patch6SnapSetup struct {
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
 
-	Flags patch6SetupFlags `json:"flags,omitempty"`
+	patch6Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
 
@@ -57,21 +53,15 @@ type patch6SnapState struct {
 	Active   bool              `json:"active,omitempty"`
 	Current  snap.Revision     `json:"current"`
 	Channel  string            `json:"channel,omitempty"`
-	Flags    patch6StateFlags  `json:"flags,omitempty"`
+	patch6Flags
 }
 
-func patch6StateFlagsFromPatch4(old patch4Flags) patch6StateFlags {
-	return patch6StateFlags{
+func patch6FlagsFromPatch4(old patch4Flags) patch6Flags {
+	return patch6Flags{
 		DevMode:  old.DevMode(),
 		TryMode:  old.TryMode(),
 		JailMode: old.JailMode(),
-	}
-}
-
-func patch6SetupFlagsFromPatch4(old patch4Flags) patch6SetupFlags {
-	return patch6SetupFlags{
-		patch6StateFlags: patch6StateFlagsFromPatch4(old),
-		Revert:           old.Revert(),
+		Revert:   old.Revert(),
 	}
 }
 
@@ -90,12 +80,12 @@ func patch6(st *state.State) error {
 
 	for key, old := range oldStateMap {
 		newStateMap[key] = &patch6SnapState{
-			SnapType: old.SnapType,
-			Sequence: old.Sequence,
-			Active:   old.Active,
-			Current:  old.Current,
-			Channel:  old.Channel,
-			Flags:    patch6StateFlagsFromPatch4(old.Flags),
+			SnapType:    old.SnapType,
+			Sequence:    old.Sequence,
+			Active:      old.Active,
+			Current:     old.Current,
+			Channel:     old.Channel,
+			patch6Flags: patch6FlagsFromPatch4(old.Flags),
 		}
 	}
 
@@ -115,7 +105,7 @@ func patch6(st *state.State) error {
 			SnapPath:     old.SnapPath,
 			DownloadInfo: old.DownloadInfo,
 			SideInfo:     old.SideInfo,
-			Flags:        patch6SetupFlagsFromPatch4(old.Flags),
+			patch6Flags:  patch6FlagsFromPatch4(old.Flags),
 		})
 	}
 

@@ -319,7 +319,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
-		if snapst.TryMode() || snapst.DevMode() {
+		if snapst.TryMode || snapst.DevMode {
 			// no multi-refresh for trymode nor devmode
 			continue
 		}
@@ -917,7 +917,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	installed := make([]string, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
 	for i, name := range names {
-		ts, err := Install(st, name, "", snap.R(0), userID, DefaultFlags)
+		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
 		if err != nil {
 			return nil, nil, err
 		}
