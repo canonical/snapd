@@ -121,46 +121,51 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	refControl, err := checkStringList(assert.headers, "refresh-control")
-	if err != nil {
-		return nil, err
-	}
-
-	var plugRules map[string]*PlugRule
-	plugs, err := checkMap(assert.headers, "plugs")
-	if err != nil {
-		return nil, err
-	}
-	if plugs != nil {
-		plugRules = make(map[string]*PlugRule, len(plugs))
-		for iface, rule := range plugs {
-			plugRule, err := compilePlugRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			plugRules[iface] = plugRule
-		}
-	}
-
-	var slotRules map[string]*SlotRule
-	slots, err := checkMap(assert.headers, "slots")
-	if err != nil {
-		return nil, err
-	}
-	if slots != nil {
-		slotRules = make(map[string]*SlotRule, len(slots))
-		for iface, rule := range slots {
-			slotRule, err := compileSlotRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			slotRules[iface] = slotRule
-		}
-	}
-
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
+	}
+
+	var refControl []string
+	var plugRules map[string]*PlugRule
+	var slotRules map[string]*SlotRule
+
+	// guard evolvable complex parts
+	if assert.SupportedFormat() {
+		refControl, err = checkStringList(assert.headers, "refresh-control")
+		if err != nil {
+			return nil, err
+		}
+
+		plugs, err := checkMap(assert.headers, "plugs")
+		if err != nil {
+			return nil, err
+		}
+		if plugs != nil {
+			plugRules = make(map[string]*PlugRule, len(plugs))
+			for iface, rule := range plugs {
+				plugRule, err := compilePlugRule(iface, rule)
+				if err != nil {
+					return nil, err
+				}
+				plugRules[iface] = plugRule
+			}
+		}
+
+		slots, err := checkMap(assert.headers, "slots")
+		if err != nil {
+			return nil, err
+		}
+		if slots != nil {
+			slotRules = make(map[string]*SlotRule, len(slots))
+			for iface, rule := range slots {
+				slotRule, err := compileSlotRule(iface, rule)
+				if err != nil {
+					return nil, err
+				}
+				slotRules[iface] = slotRule
+			}
+		}
 	}
 
 	return &SnapDeclaration{

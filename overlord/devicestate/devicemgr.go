@@ -740,7 +740,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if errAcctKey == nil {
 		err := assertstate.Add(st, a)
 		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); !ok {
+			if !asserts.IsUnaccceptedUpdate(err) {
 				return err
 			}
 		}

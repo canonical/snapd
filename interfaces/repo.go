@@ -433,12 +433,12 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 		case r.slots["ubuntu-core"] != nil:
 			snapName = "ubuntu-core"
 		default:
-			return nil, fmt.Errorf("cannot resolve disconnect, snap name is empty")
+			return nil, fmt.Errorf("snap name is empty")
 		}
 	}
 	var conns []ConnRef
 	if plugOrSlotName == "" {
-		return nil, fmt.Errorf("cannot resolve disconnect, plug or slot name is empty")
+		return nil, fmt.Errorf("plug or slot name is empty")
 	}
 	// Check if plugOrSlotName actually maps to anything
 	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
