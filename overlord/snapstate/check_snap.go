@@ -161,6 +161,10 @@ func checkGadget(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) err
 		return fmt.Errorf("cannot replace gadget snap with a different one")
 	}
 
+	if currentGadget.SnapID != "" && snapInfo.SnapID == "" {
+		return fmt.Errorf("cannot replace signed gadget snap with an unasserted one")
+	}
+
 	if currentGadget.Name() != snapInfo.Name() {
 		return fmt.Errorf("cannot replace gadget snap with a different one")
 	}
