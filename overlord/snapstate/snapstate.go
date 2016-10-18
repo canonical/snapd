@@ -79,10 +79,6 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		return nil, err
 	}
 
-	if ss.SnapPath == "" && ss.Channel == "" {
-		ss.Channel = "stable"
-	}
-
 	// clear out IgnoreValidation
 	ss.Flags &= ^IgnoreValidation
 
