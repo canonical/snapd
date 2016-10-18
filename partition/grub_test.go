@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 
@@ -94,7 +95,11 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
-	c.Assert(cmds, DeepEquals, [][]string{
-		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "k1=v1", "k2=v2"},
+	c.Check(cmds, HasLen, 1)
+	c.Check(cmds[0][0:3], DeepEquals, []string{
+		"/usr/bin/grub-editenv", g.(*grub).envFile(), "set",
 	})
+	// need to sort, its coming from a slice
+	kwargs := sort.StringSlice(cmds[0][3:])
+	c.Check(kwargs, DeepEquals, sort.StringSlice{"k1=v1", "k2=v2"})
 }
