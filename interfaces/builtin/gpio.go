@@ -20,11 +20,11 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/systemd"
 )
 
 var gpioSysfsGpioBase = "/sys/class/gpio/gpio"
@@ -109,30 +109,43 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
-// ConnectedSlotSnippet - no slot snippets provided
-func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// We need to export the GPIO so that it becomes as entry in sysfs
-	// available and we can assign it to a connecting plug.
-	numInt, ok := slot.Attrs["number"].(int)
-	if !ok {
-		return nil, fmt.Errorf("gpio slot has invalid number attribute")
-	}
-	numBytes := []byte(strconv.Itoa(numInt))
-
-	// Check if the gpio symlink is present, if not it needs exporting. Attempting
-	// to export a gpio again will cause an error on the Write() call
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numInt)); os.IsNotExist(err) {
-		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
-		if err != nil {
-			return nil, err
+func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) (interfaces.Snippet, error) {
+	switch securitySystem {
+	case interfaces.SecuritySystemd:
+		gpioNum, ok := slot.Attrs["number"].(int64)
+		if !ok {
+			return nil, fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 		}
-		defer fileExport.Close()
-		_, err = fileExport.Write(numBytes)
-		if err != nil {
-			return nil, err
+		snippet := &systemd.Snippet{
+			Services: map[string]systemd.Service{
+				// XXX: figure out if the name is okay
+				// The code below uses "-" as an impossible app name
+				fmt.Sprintf("snap.%s.-.gpio-%d.service", slot.Snap.Name(), gpioNum): systemd.Service{
+					Type:            "oneshot",
+					RemainAfterExit: true,
+					ExecStart:       fmt.Sprintf("sh -c 'echo %d > /sys/class/gpio/export'", gpioNum),
+					ExecStop:        fmt.Sprintf("sh -c 'echo %d > /sys/class/gpio/unexport'", gpioNum),
+				},
+			},
 		}
+		return snippet, nil
 	}
 	return nil, nil
+}
+
+func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	richSnippet, err := iface.ConnectedSlotRichSnippet(plug, slot, securitySystem)
+	if err != nil {
+		return nil, err
+	}
+	if richSnippet == nil {
+		return nil, nil
+	}
+	rawSnippet, err := json.Marshal(richSnippet)
+	if err != nil {
+		return nil, err
+	}
+	return rawSnippet, nil
 }
 
 func (iface *GpioInterface) LegacyAutoConnect() bool {
