@@ -617,7 +617,7 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 	dirs.SetRootDir(targetDir)
 	err = image.InstallCloudConfig(gadgetDir)
 	c.Assert(err, IsNil)
-	content, err := ioutil.ReadFile(filepath.Join(targetDir, "etc/cloud/cloud.cfg"))
+	content, err := ioutil.ReadFile(filepath.Join(targetDir, "etc/cloud/cloud.cfg.d/10_gadget_snap_cloud.cfg"))
 	c.Assert(err, IsNil)
 	c.Check(content, DeepEquals, canary)
 }
