@@ -31,9 +31,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const autoImportsName = "auto-import.assert"
@@ -91,6 +93,35 @@ func autoImportCandidates() ([]string, error) {
 
 }
 
+func queueFile(src string) error {
+	dst := filepath.Join(dirs.SnapAssertsSpoolDir, strutil.MakeRandomString(16))
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	return osutil.CopyFile(src, dst, 0)
+}
+
+func autoImportFromSpool() (added int, err error) {
+	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
+	if err != nil {
+		return added, err
+	}
+	for _, fi := range files {
+		cand := filepath.Join(dirs.SnapAssertsSpoolDir, fi.Name())
+		if err := ackFile(cand); err != nil {
+			logger.Noticef("error: cannot import %s: %s", cand, err)
+			continue
+		} else {
+			logger.Noticef("imported %s", cand)
+			if err := os.Remove(cand); err != nil {
+				return 0, err
+			}
+		}
+		added++
+	}
+	return added, nil
+}
+
 func autoImportFromAllMounts() (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
@@ -99,8 +130,19 @@ func autoImportFromAllMounts() (int, error) {
 
 	added := 0
 	for _, cand := range cands {
-		if err := ackFile(cand); err != nil {
+		err := ackFile(cand)
+		// HORRIBLE: string compare OMG
+		// the server is not ready yet
+		if err != nil && strings.Contains(err.Error(), "cannot communicate with server") {
+			logger.Noticef("queuing for later %s", cand)
+			if err := queueFile(cand); err != nil {
+				return 0, err
+			}
+			continue
+		}
+		if err != nil {
 			logger.Noticef("error: cannot import %s: %s", cand, err)
+			continue
 		} else {
 			logger.Noticef("imported %s", cand)
 		}
@@ -200,12 +242,17 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		defer doUmount(mp)
 	}
 
-	added, err := autoImportFromAllMounts()
+	added1, err := autoImportFromSpool()
 	if err != nil {
 		return err
 	}
 
-	if added > 0 {
+	added2, err := autoImportFromAllMounts()
+	if err != nil {
+		return err
+	}
+
+	if added1+added2 > 0 {
 		return autoAddUsers()
 	}
 

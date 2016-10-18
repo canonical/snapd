@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -75,7 +77,8 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	mockMountInfoFmt := `
 24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
-	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
 
 	l, err := logger.NewConsoleLog(s.stderr, 0)
 	c.Assert(err, IsNil)
@@ -107,7 +110,8 @@ func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
 	mockMountInfoFmtWithLoop := `
 24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/loop1 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmtWithLoop, filepath.Dir(fakeAssertsFn))
-	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
@@ -137,9 +141,100 @@ too short
 `
 
 	content := fmt.Sprintf(mockMountInfoFmtWithLoop, args...)
-	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
 
 	l, err := snap.AutoImportCandidates()
 	c.Check(err, IsNil)
 	c.Check(l, DeepEquals, files[1:len(files)])
+}
+
+func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	l, err := logger.NewConsoleLog(s.stderr, 0)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
+
+	fakeAssertData := []byte("good-assertion")
+
+	// ensure we can not connect
+	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/sc1 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Matches, "queuing for later.*\n")
+
+	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+}
+
+func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
+	fakeAssertData := []byte("my-assertion")
+
+	n := 0
+	total := 2
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/assertions")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(postData, DeepEquals, fakeAssertData)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+			n++
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
+
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
+			n++
+		default:
+			c.Fatalf("unexpected request: %v (expected %d got %d)", r, total, n)
+		}
+
+	})
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	fakeAssertsFn := filepath.Join(dirs.SnapAssertsSpoolDir, "1234343")
+	err := os.MkdirAll(filepath.Dir(fakeAssertsFn), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	l, err := logger.NewConsoleLog(s.stderr, 0)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
+
+	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, `created user "foo"`+"\n")
+	// matches because we may get a:
+	//   "WARNING: cannot create syslog logger\n"
+	// in the output
+	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
+	c.Check(n, Equals, total)
+
+	c.Check(osutil.FileExists(fakeAssertsFn), Equals, false)
 }
