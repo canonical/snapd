@@ -1,4 +1,4 @@
-name: snapd-control-consumer
+name: test-snapd-control-consumer
 version: 1.0
 summary: Basic snapd-control consumer snap
 description: A basic snap declaring a plug on snapd-control
