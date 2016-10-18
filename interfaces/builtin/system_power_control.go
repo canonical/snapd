@@ -40,8 +40,8 @@ dbus (send)
 `
 
 const systemPowerControlConnectedPlugSecComp = `
-# Description: Can inhibit and uninhibit screen savers in desktop sessions.
-# dbus
+# Description: Can reboot, power-off and halt the system.
+# Following things are needed for dbus connectivity
 connect
 getsockname
 recvfrom
