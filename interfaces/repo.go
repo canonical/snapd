@@ -451,13 +451,31 @@ func (r *Repository) Interfaces() *Interfaces {
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security
-// system that affect a given snap. The return value is indexed by app name
-// within that snap.
+// system that affect a given snap. The return value is indexed by app/hook
+// security tag within that snap.
 func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	return r.securitySnippetsForSnap(snapName, securitySystem)
+}
+
+func addSnippet(snapName, uniqueName string, apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snippets map[string][][]byte, snippet []byte) {
+	if len(snippet) == 0 {
+		return
+	}
+	for appName := range apps {
+		securityTag := snap.AppSecurityTag(snapName, appName)
+		snippets[securityTag] = append(snippets[securityTag], snippet)
+	}
+	for hookName := range hooks {
+		securityTag := snap.HookSecurityTag(snapName, hookName)
+		snippets[securityTag] = append(snippets[securityTag], snippet)
+	}
+	if len(apps) == 0 && len(hooks) == 0 {
+		securityTag := snap.NoneSecurityTag(snapName, uniqueName)
+		snippets[securityTag] = append(snippets[securityTag], snippet)
+	}
 }
 
 func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
@@ -470,23 +488,15 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		if err != nil {
 			return nil, err
 		}
-		if snippet != nil {
-			for appName := range slot.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
-			}
-		}
+		addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
+
 		// Add connection-specific snippet specific to each plug
 		for plug := range r.slotPlugs[slot] {
 			snippet, err := iface.ConnectedSlotSnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
-			if snippet == nil {
-				continue
-			}
-			for appName := range slot.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
-			}
+			addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
 		}
 	}
 	// Find all of the plugs that affect this snap because of slot connection
@@ -497,23 +507,15 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		if err != nil {
 			return nil, err
 		}
-		if snippet != nil {
-			for appName := range plug.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
-			}
-		}
+		addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
+
 		// Add connection-specific snippet specific to each slot
 		for slot := range r.plugSlots[plug] {
 			snippet, err := iface.ConnectedPlugSnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
-			if snippet == nil {
-				continue
-			}
-			for appName := range plug.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
-			}
+			addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
 		}
 	}
 	return snippets, nil
@@ -714,6 +716,17 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
+// isLivePatchSnap checks special Name/Developer combinations to see
+// if this particular snap's connections should be automatically connected even
+// if the interfaces are not autoconnect and the snap is not an OS snap.
+// FIXME: remove once we have assertions that provide this feature
+func isLivePatchSnap(snap *snap.Info) bool {
+	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
+		return true
+	}
+	return false
+}
+
 // AutoConnectCandidates finds and returns viable auto-connection candidates
 // for a given plug.
 func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
@@ -724,16 +737,48 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	if plug == nil {
 		return nil
 	}
-	if r.ifaces[plug.Interface].AutoConnect() == false {
-		return nil
-	}
+
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+			if r.isAutoConnectCandidate(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
 	}
 	return candidates
+}
+
+// isAutoConnectCandidate returns true if the plug is a candidate to
+// automatically connect to the given slot.
+func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+	if slot.Interface != plug.Interface {
+		return false
+	}
+
+	// FIXME: remove once we have assertions that provide this feature
+	if isLivePatchSnap(plug.Snap) {
+		return true
+	}
+
+	if !r.ifaces[plug.Interface].AutoConnect() {
+		return false
+	}
+
+	// content sharing auto connect candidates
+	if slot.Interface == "content" {
+		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
+			return true
+		}
+		// we need to stop here to avoid the OS snap autoconnecting
+		// any content later
+		return false
+	}
+
+	// OS snap auto connect candidates
+	if slot.Snap.Type == snap.TypeOS {
+		return true
+	}
+
+	return false
 }

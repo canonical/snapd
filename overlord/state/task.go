@@ -28,8 +28,9 @@ import (
 )
 
 type progress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Label string `json:"label"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 // Task represents an individual operation to be performed
@@ -42,6 +43,7 @@ type Task struct {
 	kind      string
 	summary   string
 	status    Status
+	clean     bool
 	progress  *progress
 	data      customData
 	waitTasks []string
@@ -51,6 +53,8 @@ type Task struct {
 
 	spawnTime time.Time
 	readyTime time.Time
+
+	atTime time.Time
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -70,6 +74,7 @@ type marshalledTask struct {
 	Kind      string                      `json:"kind"`
 	Summary   string                      `json:"summary"`
 	Status    Status                      `json:"status"`
+	Clean     bool                        `json:"clean,omitempty"`
 	Progress  *progress                   `json:"progress,omitempty"`
 	Data      map[string]*json.RawMessage `json:"data,omitempty"`
 	WaitTasks []string                    `json:"wait-tasks,omitempty"`
@@ -79,6 +84,8 @@ type marshalledTask struct {
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	AtTime *time.Time `json:"at-time,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -88,11 +95,16 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	if !t.readyTime.IsZero() {
 		readyTime = &t.readyTime
 	}
+	var atTime *time.Time
+	if !t.atTime.IsZero() {
+		atTime = &t.atTime
+	}
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
 		Kind:      t.kind,
 		Summary:   t.summary,
 		Status:    t.status,
+		Clean:     t.clean,
 		Progress:  t.progress,
 		Data:      t.data,
 		WaitTasks: t.waitTasks,
@@ -102,6 +114,8 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
+
+		AtTime: atTime,
 	})
 }
 
@@ -119,8 +133,13 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
+	t.clean = unmarshalled.Clean
 	t.progress = unmarshalled.Progress
-	t.data = unmarshalled.Data
+	custData := unmarshalled.Data
+	if custData == nil {
+		custData = make(customData)
+	}
+	t.data = custData
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
@@ -128,6 +147,9 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.spawnTime = unmarshalled.SpawnTime
 	if unmarshalled.ReadyTime != nil {
 		t.readyTime = *unmarshalled.ReadyTime
+	}
+	if unmarshalled.AtTime != nil {
+		t.atTime = *unmarshalled.AtTime
 	}
 	return nil
 }
@@ -170,6 +192,27 @@ func (t *Task) SetStatus(new Status) {
 	}
 }
 
+// IsClean returns whether the task has been cleaned. See SetClean.
+func (t *Task) IsClean() bool {
+	t.state.reading()
+	return t.clean
+}
+
+// SetClean flags the task as clean after any left over data was removed.
+//
+// Cleaning a task must only be done after the change is ready.
+func (t *Task) SetClean() {
+	t.state.writing()
+	if t.clean {
+		return
+	}
+	t.clean = true
+	chg := t.Change()
+	if chg != nil {
+		chg.taskCleanChanged()
+	}
+}
+
 // State returns the system State
 func (t *Task) State() *State {
 	return t.state
@@ -184,19 +227,19 @@ func (t *Task) Change() *Change {
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns
 // (0, 1) if the status is DoStatus and (1, 1) otherwise.
-func (t *Task) Progress() (done, total int) {
+func (t *Task) Progress() (label string, done, total int) {
 	t.state.reading()
 	if t.progress == nil {
 		if t.Status() == DoStatus {
-			return 0, 1
+			return "", 0, 1
 		}
-		return 1, 1
+		return "", 1, 1
 	}
-	return t.progress.Done, t.progress.Total
+	return t.progress.Label, t.progress.Done, t.progress.Total
 }
 
 // SetProgress sets the task progress to cur out of total steps.
-func (t *Task) SetProgress(done, total int) {
+func (t *Task) SetProgress(label string, done, total int) {
 	// Only mark state for checkpointing if progress is final.
 	if total > 0 && done == total {
 		t.state.writing()
@@ -207,7 +250,7 @@ func (t *Task) SetProgress(done, total int) {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
 	} else {
-		t.progress = &progress{Done: done, Total: total}
+		t.progress = &progress{Label: label, Done: done, Total: total}
 	}
 }
 
@@ -221,6 +264,12 @@ func (t *Task) SpawnTime() time.Time {
 func (t *Task) ReadyTime() time.Time {
 	t.state.reading()
 	return t.readyTime
+}
+
+// AtTime returns the time at which the task is scheduled to run. A zero time means no special schedule, i.e. run as soon as prerequisites are met.
+func (t *Task) AtTime() time.Time {
+	t.state.reading()
+	return t.atTime
 }
 
 const (
@@ -292,6 +341,12 @@ func (t *Task) Get(key string, value interface{}) error {
 	return t.data.get(key, value)
 }
 
+// Clear disassociates the value from key.
+func (t *Task) Clear(key string) {
+	t.state.writing()
+	delete(t.data, key)
+}
+
 func addOnce(set []string, s string) []string {
 	for _, cur := range set {
 		if s == cur {
@@ -326,6 +381,23 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
+}
+
+// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is supressed.
+func (t *Task) At(when time.Time) {
+	t.state.writing()
+	iszero := when.IsZero()
+	if t.Status().Ready() && !iszero {
+		return
+	}
+	t.atTime = when
+	if !iszero {
+		d := when.Sub(timeNow())
+		if d < 0 {
+			d = 0
+		}
+		t.state.EnsureBefore(d)
+	}
 }
 
 // A TaskSet holds a set of tasks.

@@ -42,7 +42,8 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOutsideClassic(c *C) {
 	c.Assert(info.Slots["network"].Interface, Equals, "network")
 	c.Assert(info.Slots["network"].Name, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 13)
+	// Ensure that we have *some* implicit slots
+	c.Assert(len(info.Slots) > 10, Equals, true)
 }
 
 func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOnClassic(c *C) {
@@ -56,7 +57,8 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	c.Assert(info.Slots["unity7"].Interface, Equals, "unity7")
 	c.Assert(info.Slots["unity7"].Name, Equals, "unity7")
 	c.Assert(info.Slots["unity7"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 20)
+	// Ensure that we have *some* implicit slots
+	c.Assert(len(info.Slots) > 10, Equals, true)
 }
 
 func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {

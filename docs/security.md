@@ -44,11 +44,13 @@ as per the snappy FHS. Under the hood, the launcher:
       commands
     * `SNAP`: read-only install directory
     * `SNAP_ARCH`: the architecture of device (eg, amd64, arm64, armhf, i386, etc)
-    * `SNAP_DATA`: writable area for the snap
+    * `SNAP_DATA`: writable area for a particular revision of the snap
+    * `SNAP_COMMON`: writable area common across all revisions of the snap
     * `SNAP_LIBRARY_PATH`: additional directories added to `LD_LIBRARY_PATH`
     * `SNAP_NAME`: snap name (from `meta.md`)
     * `SNAP_REVISION`: store revision of the snap
-    * `SNAP_USER_DATA`: per-user writable area for the snap
+    * `SNAP_USER_DATA`: per-user writable area for a particular revision of the snap
+    * `SNAP_USER_COMMON`: per-user writable area common across all revisions of the snap
     * `SNAP_VERSION`: snap version (from `meta.md`)
     * `TMPDIR`: set to `/tmp`
 * When hardware is assigned to the snap, sets up a device cgroup with default

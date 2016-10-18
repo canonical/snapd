@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -33,8 +34,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type InfoSnapYamlTestSuite struct {
-}
+type InfoSnapYamlTestSuite struct{}
 
 var _ = Suite(&InfoSnapYamlTestSuite{})
 
@@ -56,9 +56,20 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
 }
 
-type YamlSuite struct{}
+type YamlSuite struct {
+	restore func()
+}
 
 var _ = Suite(&YamlSuite{})
+
+func (s *YamlSuite) SetUpTest(c *C) {
+	hookType := snap.NewHookType(regexp.MustCompile(".*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+}
+
+func (s *YamlSuite) TearDownTest(c *C) {
+	s.restore()
+}
 
 func (s *YamlSuite) TestUnmarshalGarbage(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte(`"`))
@@ -711,6 +722,54 @@ hooks:
 	})
 }
 
+func (s *YamlSuite) TestUnmarshalUnsupportedHook(c *C) {
+	s.restore()
+	hookType := snap.NewHookType(regexp.MustCompile("not-test-hook"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 0, Commentf("Expected no hooks to be loaded"))
+}
+
+func (s *YamlSuite) TestUnmarshalHookFiltersOutUnsupportedHooks(c *C) {
+	s.restore()
+	hookType := snap.NewHookType(regexp.MustCompile("test-.*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+    foo-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: nil,
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalHookWithPlug(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -908,21 +967,21 @@ apps:
     daemon:
        command: foo --daemon
        plugs: [network, network-bind]
-       slots: [foo-socket]
+       slots: [foo-socket-slot]
     foo:
        command: fooctl
-       plugs: [foo-socket]
+       plugs: [foo-socket-plug]
 hooks:
     test-hook:
-       plugs: [foo-socket]
+       plugs: [foo-socket-plug]
 plugs:
-    foo-socket:
+    foo-socket-plug:
         interface: socket
         # $protocol: foo
     logging:
         interface: syslog
 slots:
-    foo-socket:
+    foo-socket-slot:
         interface: socket
         path: $SNAP_DATA/socket
         protocol: foo
@@ -949,9 +1008,9 @@ slots:
 	hook := info.Hooks["test-hook"]
 	plug1 := info.Plugs["network"]
 	plug2 := info.Plugs["network-bind"]
-	plug3 := info.Plugs["foo-socket"]
+	plug3 := info.Plugs["foo-socket-plug"]
 	plug4 := info.Plugs["logging"]
-	slot1 := info.Slots["foo-socket"]
+	slot1 := info.Slots["foo-socket-slot"]
 	slot2 := info.Slots["tracing"]
 
 	// app1 ("daemon") has three plugs ("network", "network-bind", "logging")
@@ -1013,7 +1072,7 @@ slots:
 
 	c.Assert(plug3, Not(IsNil))
 	c.Check(plug3.Snap, Equals, info)
-	c.Check(plug3.Name, Equals, "foo-socket")
+	c.Check(plug3.Name, Equals, "foo-socket-plug")
 	c.Check(plug3.Interface, Equals, "socket")
 	c.Check(plug3.Attrs, HasLen, 0)
 	c.Check(plug3.Label, Equals, "")
@@ -1034,7 +1093,7 @@ slots:
 
 	c.Assert(slot1, Not(IsNil))
 	c.Check(slot1.Snap, Equals, info)
-	c.Check(slot1.Name, Equals, "foo-socket")
+	c.Check(slot1.Name, Equals, "foo-socket-slot")
 	c.Check(slot1.Interface, Equals, "socket")
 	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
 		"protocol": "foo", "path": "$SNAP_DATA/socket"})

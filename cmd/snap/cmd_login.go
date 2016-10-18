@@ -32,9 +32,7 @@ import (
 
 type cmdLogin struct {
 	Positional struct {
-		// FIXME: add support for translated descriptions
-		//        (see cmd/snappy/common.go:addOptionDescription)
-		UserName string `positional-arg-name:"email" description:"login.ubuntu.com email to login as"`
+		UserName string
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -45,7 +43,7 @@ The login command authenticates on snapd and the snap store and saves credential
 into the ~/.snap/auth.json file. Further communication with snapd will then be made
 using those credentials.
 
-Login only works for local users in the sudo or admin groups.
+Login only works for local users in the sudo, admin or wheel groups.
 
 An account can be setup at https://login.ubuntu.com
 `)
@@ -56,7 +54,11 @@ func init() {
 		longLoginHelp,
 		func() flags.Commander {
 			return &cmdLogin{}
-		})
+		}, nil, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("<email>"),
+			desc: i18n.G("The login.ubuntu.com email to login as"),
+		}})
 }
 
 func requestLoginWith2faRetry(username, password string) error {
@@ -90,6 +92,10 @@ func requestLoginWith2faRetry(username, password string) error {
 }
 
 func (x *cmdLogin) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	username := x.Positional.UserName
 	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)

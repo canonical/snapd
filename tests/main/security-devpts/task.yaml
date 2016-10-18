@@ -1,0 +1,12 @@
+summary: Ensure that the basic devpts security rules are in place.
+
+systems: [-ubuntu-core-16-64]
+
+prepare: |
+    echo "Given a basic snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+
+execute: |
+    echo "Then the pts device follows confinement rules"
+    expect -f pts.exp

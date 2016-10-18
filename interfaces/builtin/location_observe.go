@@ -229,12 +229,7 @@ func (iface *LocationObserveInterface) Name() string {
 }
 
 func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -248,10 +243,8 @@ func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return locationObserveConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationObserveConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -263,10 +256,8 @@ func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationObservePermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationObservePermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -277,14 +268,12 @@ func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
-func (iface *LocationObserveInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *LocationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 

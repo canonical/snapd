@@ -62,9 +62,18 @@ const unity7ConnectedPlugAppArmor = `
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
 
-#owner @{HOME}/.themes/                r,
-#owner @{HOME}/.themes/**              r,
-
+# Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
+# only in environments supporting dbus-send (eg, X11). In the future once
+# snappy's xdg-open supports all snaps images, this access may move to another
+# interface.
+/usr/local/bin/xdg-open ixr,
+/usr/bin/dbus-send ixr,
+dbus (send)
+    bus=session
+    path=/
+    interface=com.canonical.SafeLauncher
+    member=OpenURL
+    peer=(label=unconfined),
 
 # input methods (ibus)
 # subset of ibus abstraction
@@ -249,21 +258,21 @@ dbus (send)
 # dbusmenu
 dbus (send)
     bus=session
-    path=/MenuBar
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/MenuBar
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
     member=Get*
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/MenuBar
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
@@ -308,11 +317,18 @@ dbus (send)
     member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+dbus (send)
+    bus=session
+    path=/StatusNotifierItem/menu
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
 dbus (receive)
     bus=session
-    path=/StatusNotifierItem
-    interface=org.freedesktop.DBus.Properties
-    member=Get*
+    path=/StatusNotifierItem{,/menu}
+    interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
+    member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
 
 dbus (send)
@@ -320,7 +336,7 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member="{GetCapabilities,GetServerInformation,Notify}"
-    peer=(name=org.freedesktop.Notifications, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session

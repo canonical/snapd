@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -49,7 +48,7 @@ $ snap disconnect <snap>
 Disconnects all plugs from the provided snap.
 
 Application Options:
-      --version            print the version and exit
+      --version            Print the version and exit
 
 Help Options:
   -h, --help               Show this help message
@@ -90,7 +89,7 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -125,7 +124,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -160,6 +159,6 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

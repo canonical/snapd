@@ -58,7 +58,7 @@ func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
 	c.Assert(err, IsNil)
 
 	bs, err := asserts.OpenFSBackstore(topDir)
-	c.Assert(err, ErrorMatches, "failed to create assert storage root: .*")
+	c.Assert(err, ErrorMatches, "cannot create assert storage root: .*")
 	c.Check(bs, IsNil)
 }
 
@@ -83,15 +83,17 @@ func (fsbss *fsBackstoreSuite) TestPutOldRevision(c *C) {
 	a0, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: foo\n" +
-		"\n" +
-		"openpgp c2ln"))
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
 	c.Assert(err, IsNil)
 	a1, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: foo\n" +
 		"revision: 1\n" +
-		"\n" +
-		"openpgp c2ln"))
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
 	c.Assert(err, IsNil)
 
 	// Put newer revision, follwed by old revision.

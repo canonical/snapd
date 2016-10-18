@@ -1,0 +1,34 @@
+summary: Check snap web servers
+systems: [-ubuntu-core-16-64]
+environment:
+    SNAP_NAME/pythonServer: xkcd-webserver
+    IP_VERSION/pythonServer: 4
+    PORT/pythonServer: 80
+    TEXT/pythonServer: XKCD rocks!
+    LOCALHOST/pythonServer: localhost
+    SNAP_NAME/goServer: go-example-webserver
+    IP_VERSION/goServer: 6
+    PORT/goServer: 8081
+    TEXT/goServer: Hello World
+    LOCALHOST/goServer: ip6-localhost
+
+warn-timeout: 3m
+
+prepare: |
+    snap install $SNAP_NAME
+    cat > request.txt <<EOF
+    GET / HTTP/1.0
+
+    EOF
+    echo "Wait for the service to be listening, limited to the task kill-timeout"
+    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+
+restore: |
+    rm -f request.txt
+
+execute: |
+    response=$(nc -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
+
+    statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
+    echo "$response" | grep -Pzq "$statusPattern"
+    echo "$response" | grep -Pzq "$TEXT"

@@ -134,9 +134,10 @@ func (ss *stateSuite) TestCache(c *C) {
 }
 
 type fakeStateBackend struct {
-	checkpoints  [][]byte
-	error        func() error
-	ensureBefore time.Duration
+	checkpoints      [][]byte
+	error            func() error
+	ensureBefore     time.Duration
+	restartRequested bool
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -149,6 +150,10 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 
 func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
 	b.ensureBefore = d
+}
+
+func (b *fakeStateBackend) RequestRestart(t state.RestartType) {
+	b.restartRequested = true
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -386,12 +391,14 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1ID := t1.ID()
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
-	t1.SetProgress(5, 10)
+	t1.SetProgress("snap", 5, 10)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
+	schedule := time.Now().Add(time.Hour)
+	t2.At(schedule)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -429,7 +436,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
 
-	cur, tot := task0_1.Progress()
+	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
 
@@ -443,6 +450,70 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 		tasks2[t.ID()] = t
 	}
 	c.Assert(tasks2, HasLen, 2)
+
+	c.Check(task0_1.AtTime().IsZero(), Equals, true)
+	c.Check(task0_2.AtTime().Equal(schedule), Equals, true)
+}
+
+func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "summary")
+	c.Assert(chg, NotNil)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	// no crash
+	st2.Set("a", 1)
+}
+
+func (ss *stateSuite) TestEmptyTaskAndChangeDataAndCheckpointReadAndSet(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	t1 := st.NewTask("1...", "...")
+	t1ID := t1.ID()
+	chg := st.NewChange("chg", "...")
+	chgID := chg.ID()
+	chg.AddTask(t1)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chg2 := st2.Change(chgID)
+	t1_2 := st2.Task(t1ID)
+	c.Assert(t1_2, NotNil)
+
+	// no crash
+	chg2.Set("c", 1)
+	// no crash either
+	t1_2.Set("t", 1)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -478,6 +549,37 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+}
+
+func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("download", "...")
+	chg.AddTask(t)
+	t.SetStatus(state.DoneStatus)
+	t.SetClean()
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chg2 := st2.Change(chg.ID())
+	t2 := st2.Task(t.ID())
+
+	c.Assert(chg2.IsClean(), Equals, true)
+	c.Assert(t2.IsClean(), Equals, true)
 }
 
 func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
@@ -636,4 +738,43 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
 	c.Check(st.NumTask(), Equals, 3)
+}
+
+func (ss *stateSuite) TestPruneEmptyChange(c *C) {
+	// Empty changes are a bit special because they start out on Hold
+	// which is a Ready status, but the change itself is not considered Ready
+	// explicitly because that's how every change that will have tasks added
+	// to it starts their life.
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	chg := st.NewChange("abort", "...")
+	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
+
+	st.Prune(pruneWait, abortWait)
+	c.Assert(st.Change(chg.ID()), IsNil)
+}
+
+func (ss *stateSuite) TestRequestRestart(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.RequestRestart(state.RestartDaemon)
+
+	c.Check(b.restartRequested, Equals, true)
+}
+
+func (ss *stateSuite) TestReadStateInitsCache(c *C) {
+	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
+	c.Assert(err, IsNil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Cache("key", "value")
+	c.Assert(st.Cached("key"), Equals, "value")
 }

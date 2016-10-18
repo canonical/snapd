@@ -43,9 +43,9 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"control --reload-rules",
-		"trigger",
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger"},
 	})
 }
 
@@ -62,7 +62,9 @@ fi
 		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
 		"failure 1\n")
-	c.Assert(cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+	})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromTrigger(c *C) {
@@ -78,8 +80,8 @@ fi
 		"cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
 		"failure 2\n")
-	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"control --reload-rules",
-		"trigger",
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger"},
 	})
 }

@@ -20,14 +20,20 @@
 package daemon
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -36,6 +42,16 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
+
+func (s *daemonSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *daemonSuite) TearDownTest(c *check.C) {
+	dirs.SetRootDir("")
+}
 
 // build a new daemon, with only a little of Init(), suitable for the tests
 func newTestDaemon(c *check.C) *Daemon {
@@ -120,6 +136,15 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
 	c.Check(cmd.canAccess(del, nil), check.Equals, false)
+
+	// Since this request has no RemoteAddr, it must be coming from the snap
+	// socket instead of the snapd one. In that case, if SnapOK is true, this
+	// command should be wide open for all HTTP methods.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, true)
+	c.Check(cmd.canAccess(del, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
@@ -137,34 +162,13 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-}
 
-func (s *daemonSuite) TestGroupAccess(c *check.C) {
-	oldf := isUIDInAny
-	isSudo := false
-	isUIDInAny = func(uint32, ...string) bool {
-		return isSudo
-	}
-	defer func() {
-		isUIDInAny = oldf
-	}()
-
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
+	// Since this request has a RemoteAddr, it must be coming from the snapd
+	// socket instead of the snap one. In that case, SnapOK should have no
+	// bearing on the default behavior, which is to deny access.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, false)
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = false
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
-	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = true
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, true)
-	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
@@ -180,6 +184,10 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
@@ -205,41 +213,98 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
 }
 
-func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(user, check.IsNil)
+type witnessAcceptListener struct {
+	net.Listener
+	accept chan struct{}
 }
 
-func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
+func (l *witnessAcceptListener) Accept() (net.Conn, error) {
+	close(l.accept)
+	return l.Listener.Accept()
 }
 
-func (s *daemonSuite) TestAutherValidUser(c *check.C) {
+func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
 
-	state := d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
+
+	d.Start()
+
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
+	err = d.Stop()
 	c.Check(err, check.IsNil)
+}
 
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+func (s *daemonSuite) TestRestartWiring(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
 
-	user, err := d.auther(req)
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
 
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
+
+	d.Start()
+	defer d.Stop()
+
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snap accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
+	d.overlord.State().RequestRestart(state.RestartDaemon)
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
 }

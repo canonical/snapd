@@ -23,18 +23,26 @@ package overlord
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 var (
@@ -54,11 +62,18 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTimer  *time.Timer
+	// restarts
+	restartHandler func(t state.RestartType)
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
+	hookMgr   *hookstate.HookManager
+	configMgr *configstate.ConfigManager
+	deviceMgr *devicestate.DeviceManager
 }
+
+var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -67,8 +82,9 @@ func New() (*Overlord, error) {
 	}
 
 	backend := &overlordStateBackend{
-		path:         dirs.SnapStateFile,
-		ensureBefore: o.ensureBefore,
+		path:           dirs.SnapStateFile,
+		ensureBefore:   o.ensureBefore,
+		requestRestart: o.requestRestart,
 	}
 	s, err := loadState(backend)
 	if err != nil {
@@ -98,21 +114,66 @@ func New() (*Overlord, error) {
 	o.ifaceMgr = ifaceMgr
 	o.stateEng.AddManager(o.ifaceMgr)
 
+	hookMgr, err := hookstate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.hookMgr = hookMgr
+	o.stateEng.AddManager(o.hookMgr)
+
+	configMgr, err := configstate.Manager(s, hookMgr)
+	if err != nil {
+		return nil, err
+	}
+	o.configMgr = configMgr
+
+	deviceMgr, err := devicestate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.deviceMgr = deviceMgr
+	o.stateEng.AddManager(o.deviceMgr)
+
+	// setting up the store
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	sto := storeNew(nil, authContext)
+	s.Lock()
+	snapstate.ReplaceStore(s, sto)
+	s.Unlock()
+
 	return o, nil
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
 	if !osutil.FileExists(dirs.SnapStateFile) {
-		return state.New(backend), nil
+		// fail fast, mostly interesting for tests, this dir is setup
+		// by the snapd package
+		stateDir := filepath.Dir(dirs.SnapStateFile)
+		if !osutil.IsDirectory(stateDir) {
+			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
+		}
+		s := state.New(backend)
+		patch.Init(s)
+		return s, nil
 	}
 
 	r, err := os.Open(dirs.SnapStateFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the state file: %s", err)
+		return nil, fmt.Errorf("cannot read the state file: %s", err)
 	}
 	defer r.Close()
 
-	return state.ReadState(backend, r)
+	s, err := state.ReadState(backend, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// one-shot migrations
+	err = patch.Apply(s)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (o *Overlord) ensureTimerSetup() {
@@ -146,11 +207,28 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
+func (o *Overlord) requestRestart(t state.RestartType) {
+	if o.restartHandler == nil {
+		logger.Noticef("restart requested but no handler set")
+	} else {
+		o.restartHandler(t)
+	}
+}
+
+// SetRestartHandler sets a handler to fulfill restart requests asynchronously.
+func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
+	o.restartHandler = handleRestart
+}
+
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
+			o.ensureTimerReset()
+			// in case of errors engine logs them,
+			// continue to the next Ensure() try for now
+			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -161,10 +239,6 @@ func (o *Overlord) Loop() {
 				st.Prune(pruneWait, abortWait)
 				st.Unlock()
 			}
-			o.ensureTimerReset()
-			// in case of errors engine logs them,
-			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
 		}
 	})
 }
@@ -242,4 +316,15 @@ func (o *Overlord) AssertManager() *assertstate.AssertManager {
 // interface connections under the overlord.
 func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
+}
+
+// HookManager returns the hook manager responsible for running hooks under the
+// overlord.
+func (o *Overlord) HookManager() *hookstate.HookManager {
+	return o.hookMgr
+}
+
+// DeviceManager returns the device manager responsible for the device identity and policies
+func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
+	return o.deviceMgr
 }

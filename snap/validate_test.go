@@ -20,6 +20,8 @@
 package snap_test
 
 import (
+	"regexp"
+
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
@@ -34,6 +36,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"a", "aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
 	}
 	for _, name := range validNames {
 		err := ValidateName(name)
@@ -99,7 +102,7 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 		&HookInfo{Name: "a-"},
 		&HookInfo{Name: "0"},
 		&HookInfo{Name: "123"},
-		&HookInfo{Name: "abc0"},
+		&HookInfo{Name: "123abc"},
 		&HookInfo{Name: "日本語"},
 	}
 	for _, hook := range invalidHooks {
@@ -225,13 +228,29 @@ version: 1.0
 }
 
 func (s *ValidateSuite) TestIllegalHookName(c *C) {
+	hookType := NewHookType(regexp.MustCompile(".*"))
+	restore := MockSupportedHookTypes([]*HookType{hookType})
+	defer restore()
+
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:
-  abc123:
+  123abc:
 `))
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `invalid hook name: "abc123"`)
+	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
+}
+
+func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: snap
+plugs:
+ foo:
+slots:
+ foo:
+`))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
 }

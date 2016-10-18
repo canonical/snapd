@@ -23,6 +23,11 @@ var ReadOSRelease = readOSRelease
 
 func MockOSReleasePath(filename string) (restore func()) {
 	old := osReleasePath
+	oldFallback := fallbackOsReleasePath
 	osReleasePath = filename
-	return func() { osReleasePath = old }
+	fallbackOsReleasePath = filename
+	return func() {
+		osReleasePath = old
+		fallbackOsReleasePath = oldFallback
+	}
 }

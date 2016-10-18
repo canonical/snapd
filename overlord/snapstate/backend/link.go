@@ -24,11 +24,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	// XXX: eventually not needed
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -64,11 +63,19 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 	}
 
 	// XXX/TODO: this needs to be a task with proper undo and tests!
-	if err := snappy.SetNextBoot(info); err != nil {
+	if err := boot.SetNextBoot(info); err != nil {
 		return err
 	}
 
 	return updateCurrentSymlinks(info)
+}
+
+func (b Backend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+	return wrappers.StartSnapServices(info, meter)
+}
+
+func (b Backend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
+	return wrappers.StopSnapServices(info, meter)
 }
 
 func generateWrappers(s *snap.Info) error {

@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -40,6 +41,10 @@ const (
 // Note that it won't follow symlinks and will replace existing symlinks
 // with the real file
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
+	return AtomicWriteFileChown(filename, data, perm, flags, -1, -1)
+}
+
+func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
 	if flags&AtomicWriteFollow != 0 {
 		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
@@ -76,6 +81,14 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags Atomi
 	// len(b), so don't worry about short writes.
 	if _, err := fd.Write(data); err != nil {
 		return err
+	}
+
+	if uid > -1 && gid > -1 {
+		if err := fd.Chown(uid, gid); err != nil {
+			return err
+		}
+	} else if uid > -1 || gid > -1 {
+		return errors.New("internal error: AtomicWriteFileChown needs none or both of uid and gid set")
 	}
 
 	if err := fd.Sync(); err != nil {

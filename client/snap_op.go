@@ -31,8 +31,11 @@ import (
 )
 
 type SnapOptions struct {
-	Channel string `json:"channel,omitempty"`
-	DevMode bool   `json:"devmode,omitempty"`
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	DevMode   bool   `json:"devmode,omitempty"`
+	JailMode  bool   `json:"jailmode,omitempty"`
+	Dangerous bool   `json:"dangerous,omitempty"`
 }
 
 type actionData struct {
@@ -42,15 +45,28 @@ type actionData struct {
 	*SnapOptions
 }
 
+type multiActionData struct {
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps,omitempty"`
+}
+
 // Install adds the snap with the given name from the given channel (or
 // the system default channel if not).
 func (client *Client) Install(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("install", name, options)
 }
 
+func (client *Client) InstallMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("install", names, options)
+}
+
 // Remove removes the snap with the given name.
 func (client *Client) Remove(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("remove", name, options)
+}
+
+func (client *Client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("remove", names, options)
 }
 
 // Refresh refreshes the snap with the given name (switching it to track
@@ -59,18 +75,59 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 	return client.doSnapAction("refresh", name, options)
 }
 
+func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("refresh", names, options)
+}
+
+func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("enable", name, options)
+}
+
+func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("disable", name, options)
+}
+
+// Revert rolls the snap back to the previous on-disk state
+func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("revert", name, options)
+}
+
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
 	action := actionData{
 		Action:      actionName,
-		Name:        snapName,
 		SnapOptions: options,
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
-		return "", fmt.Errorf("cannot marshal snap options: %s", err)
+		return "", fmt.Errorf("cannot marshal snap action: %s", err)
 	}
 	path := fmt.Sprintf("/v2/snaps/%s", snapName)
-	return client.doAsync("POST", path, nil, nil, bytes.NewBuffer(data))
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	return client.doAsync("POST", path, nil, headers, bytes.NewBuffer(data))
+}
+
+func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
+	if options != nil {
+		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
+	}
+	action := multiActionData{
+		Action: actionName,
+		Snaps:  snaps,
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
+	}
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	return client.doAsync("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
 }
 
 // InstallPath sideloads the snap with the given path, returning the UUID
@@ -109,6 +166,7 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	mw.WriteField("action", "try")
 	mw.WriteField("snap-path", path)
 	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
+	mw.WriteField("jailmode", strconv.FormatBool(options.JailMode))
 	mw.Close()
 
 	headers := map[string]string{
@@ -130,6 +188,8 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("snap-path", action.SnapPath),
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
+		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {
 		if err != nil {
