@@ -133,40 +133,50 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	return nil
 }
 
-func checkGadget(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
-	if snapInfo.Type != snap.TypeGadget {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+	kind := ""
+	var currentInfo func(*state.State) (*snap.Info, error)
+	switch snapInfo.Type {
+	case snap.TypeGadget:
+		kind = "gadget"
+		currentInfo = GadgetInfo
+	case snap.TypeKernel:
+		kind = "kernel"
+		currentInfo = KernelInfo
+	default:
 		// not a relevant check
 		return nil
 	}
+
 	if release.OnClassic {
 		// for the time being
-		return fmt.Errorf("cannot install a gadget snap on classic")
+		return fmt.Errorf("cannot install a %s snap on classic", kind)
 	}
 
-	currentGadget, err := GadgetInfo(st)
-	// in firstboot we have no gadget yet - that is ok
+	currentSnap, err := currentInfo(st)
+	// in firstboot we have no gadget/kernel yet - that is ok
 	// devicestate considers that case
 	if err == state.ErrNoState {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("cannot find original gadget snap: %v", err)
+		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
 	}
 
-	if currentGadget.SnapID != "" && snapInfo.SnapID != "" {
-		if currentGadget.SnapID == snapInfo.SnapID {
+	if currentSnap.SnapID != "" && snapInfo.SnapID != "" {
+		if currentSnap.SnapID == snapInfo.SnapID {
 			// same snap
 			return nil
 		}
-		return fmt.Errorf("cannot replace gadget snap with a different one")
+		return fmt.Errorf("cannot replace %s snap with a different one", kind)
 	}
 
-	if currentGadget.SnapID != "" && snapInfo.SnapID == "" {
-		return fmt.Errorf("cannot replace signed gadget snap with an unasserted one")
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
+		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
-	if currentGadget.Name() != snapInfo.Name() {
-		return fmt.Errorf("cannot replace gadget snap with a different one")
+	if currentSnap.Name() != snapInfo.Name() {
+		return fmt.Errorf("cannot replace %s snap with a different one", kind)
 	}
 
 	return nil
@@ -174,5 +184,5 @@ func checkGadget(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) err
 
 func init() {
 	AddCheckSnapCallback(checkCoreName)
-	AddCheckSnapCallback(checkGadget)
+	AddCheckSnapCallback(checkGadgetOrKernel)
 }

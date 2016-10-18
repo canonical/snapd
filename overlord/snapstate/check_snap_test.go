@@ -450,3 +450,87 @@ confinement: devmode
 
 	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }
+
+func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapKernelAdditionProhibitedBySnapID(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: zkernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "zkernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
+}
