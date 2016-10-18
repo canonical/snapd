@@ -25,7 +25,7 @@ import (
 	"os"
 	"unicode"
 
-	"github.com/cheggaaa/pb"
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 // Meter is an interface to show progress to the user
