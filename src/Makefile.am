@@ -98,8 +98,6 @@ snap_confine_unit_tests_SOURCES = \
 	user-support.h \
 	quirks.c \
 	quirks.h \
-	mount-opt.c \
-	mount-opt.h \
 	unit-tests.c \
 	unit-tests.h \
 	utils-test.c \
@@ -107,7 +105,8 @@ snap_confine_unit_tests_SOURCES = \
 	mount-support-test.c \
 	verify-executable-name-test.c \
 	mountinfo-test.c \
-	ns-support-test.c
+	ns-support-test.c \
+	mount-opt-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
