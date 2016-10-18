@@ -70,6 +70,18 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - $PLUG_PUBLISHER_ID
+  plug-or:
+    allow-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   auto-base-plug-allow: true
   auto-base-plug-not-allow:
     allow-auto-connection: false
@@ -83,6 +95,18 @@ plugs:
         p: P
   auto-base-plug-deny:
     deny-auto-connection: true
+  auto-plug-or:
+    allow-auto-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   install-plug-attr-ok:
     allow-installation:
       plug-attributes:
@@ -95,6 +119,16 @@ plugs:
     deny-installation:
       plug-attributes:
         attr: attrvalue
+  install-plug-or:
+    deny-installation:
+      -
+        plug-attributes:
+          p: P1
+      -
+        plug-snap-type:
+          - gadget
+        plug-attributes:
+          p: P2
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -120,6 +154,18 @@ slots:
     allow-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+  slot-or:
+    allow-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   auto-base-slot-allow: true
   auto-base-slot-not-allow:
     allow-auto-connection: false
@@ -136,6 +182,18 @@ slots:
   auto-base-deny-snap-slot-allow: false
   auto-base-deny-snap-plug-allow: false
   auto-base-allow-snap-slot-not-allow: true
+  auto-slot-or:
+    allow-auto-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   install-slot-coreonly:
     allow-installation:
       slot-snap-type:
@@ -152,6 +210,16 @@ slots:
     deny-installation:
       slot-attributes:
         have: true
+  install-slot-or:
+    deny-installation:
+      -
+        slot-attributes:
+          p: P1
+      -
+        slot-snap-type:
+          - gadget
+        slot-attributes:
+          p: P2
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -228,6 +296,55 @@ plugs:
    checked-slot-publisher-id:
 
    same-plug-publisher-id:
+
+   plug-or-p1-s1:
+     interface: plug-or
+     p: P1
+
+   plug-or-p2-s2:
+     interface: plug-or
+     p: P2
+
+   plug-or-p1-s2:
+     interface: plug-or
+     p: P1
+
+   auto-plug-or-p1-s1:
+     interface: auto-plug-or
+     p: P1
+
+   auto-plug-or-p2-s2:
+     interface: auto-plug-or
+     p: P2
+
+   auto-plug-or-p2-s1:
+     interface: auto-plug-or
+     p: P2
+
+   slot-or-p1-s1:
+     interface: slot-or
+     p: P1
+
+   slot-or-p2-s2:
+     interface: slot-or
+     p: P2
+
+   slot-or-p1-s2:
+     interface: slot-or
+     p: P1
+
+   auto-slot-or-p1-s1:
+     interface: auto-slot-or
+     p: P1
+
+   auto-slot-or-p2-s2:
+     interface: auto-slot-or
+     p: P2
+
+   auto-slot-or-p2-s1:
+     interface: auto-slot-or
+     p: P2
+
 `, nil)
 
 	s.slotSnap = snaptest.MockInfo(c, `
@@ -298,6 +415,55 @@ slots:
    checked-slot-publisher-id:
 
    same-slot-publisher-id:
+
+   plug-or-p1-s1:
+     interface: plug-or
+     s: S1
+
+   plug-or-p2-s2:
+     interface: plug-or
+     s: S2
+
+   plug-or-p1-s2:
+     interface: plug-or
+     s: S2
+
+   auto-plug-or-p1-s1:
+     interface: auto-plug-or
+     s: S1
+
+   auto-plug-or-p2-s2:
+     interface: auto-plug-or
+     s: S2
+
+   auto-plug-or-p2-s1:
+     interface: auto-plug-or
+     s: S1
+
+   slot-or-p1-s1:
+     interface: slot-or
+     s: S1
+
+   slot-or-p2-s2:
+     interface: slot-or
+     s: S2
+
+   slot-or-p1-s2:
+     interface: slot-or
+     s: S2
+
+   auto-slot-or-p1-s1:
+     interface: auto-slot-or
+     s: S1
+
+   auto-slot-or-p2-s2:
+     interface: auto-slot-or
+     s: S2
+
+   auto-slot-or-p2-s1:
+     interface: auto-slot-or
+     s: S1
+
 `, nil)
 
 	a, err = asserts.Decode([]byte(`type: snap-declaration
@@ -444,6 +610,12 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 		{"base-slot-not-allow-slots", `connection not allowed.*`},
 		{"base-plug-not-allow-plugs", `connection not allowed.*`},
 		{"base-slot-not-allow-plugs", `connection not allowed.*`},
+		{"plug-or-p1-s1", ""},
+		{"plug-or-p2-s2", ""},
+		{"plug-or-p1-s2", "connection not allowed by plug rule.*"},
+		{"slot-or-p1-s1", ""},
+		{"slot-or-p2-s2", ""},
+		{"slot-or-p1-s2", "connection not allowed by slot rule.*"},
 	}
 
 	for _, t := range tests {
@@ -477,6 +649,12 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 		{"auto-base-slot-not-allow-slots", `auto-connection not allowed.*`},
 		{"auto-base-plug-not-allow-plugs", `auto-connection not allowed.*`},
 		{"auto-base-slot-not-allow-plugs", `auto-connection not allowed.*`},
+		{"auto-plug-or-p1-s1", ""},
+		{"auto-plug-or-p2-s2", ""},
+		{"auto-plug-or-p2-s1", "auto-connection not allowed by plug rule.*"},
+		{"auto-slot-or-p1-s1", ""},
+		{"auto-slot-or-p2-s2", ""},
+		{"auto-slot-or-p2-s1", "auto-connection not allowed by slot rule.*"},
 	}
 
 	for _, t := range tests {
@@ -915,6 +1093,32 @@ type: gadget
 plugs:
   install-plug-gadget-only:
 `, ""},
+		{`name: install-gadget
+type: gadget
+plugs:
+  install-plug-or:
+     p: P2`, `installation denied by "install-plug-or" plug rule.*`},
+		{`name: install-snap
+plugs:
+  install-plug-or:
+     p: P1`, `installation denied by "install-plug-or" plug rule.*`},
+		{`name: install-snap
+plugs:
+  install-plug-or:
+     p: P3`, ""},
+		{`name: install-gadget
+type: gadget
+slots:
+  install-slot-or:
+     p: P2`, `installation denied by "install-slot-or" slot rule.*`},
+		{`name: install-snap
+slots:
+  install-slot-or:
+     p: P1`, `installation denied by "install-slot-or" slot rule.*`},
+		{`name: install-snap
+slots:
+  install-slot-or:
+     p: P3`, ""},
 	}
 
 	for _, t := range tests {

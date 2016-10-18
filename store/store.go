@@ -34,6 +34,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1271,14 +1272,17 @@ type assertionSvcError struct {
 
 // Assertion retrivies the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	url, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
+	u, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
 	if err != nil {
 		return nil, err
 	}
+	v := url.Values{}
+	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+	u.RawQuery = v.Encode()
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    url,
+		URL:    u,
 		Accept: asserts.MediaType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
