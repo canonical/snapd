@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -124,6 +125,9 @@ func NewBatch() *Batch {
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
+	if !a.SupportedFormat() {
+		return &asserts.UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+	}
 	if err := b.bs.Put(a.Type(), a); err != nil {
 		if revErr, ok := err.(*asserts.RevisionError); ok {
 			if revErr.Current >= a.Revision() {
@@ -167,7 +171,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
 func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		a, err := b.bs.Get(ref.Type, ref.PrimaryKey)
+		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if err == asserts.ErrNotFound {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
@@ -239,12 +243,14 @@ func (f *fetcher) commit() error {
 	var errs []error
 	for _, a := range f.fetched {
 		err := f.db.Add(a)
-		if revErr, ok := err.(*asserts.RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// be idempotent
-				// system db has already the same or newer
-				continue
+		if asserts.IsUnaccceptedUpdate(err) {
+			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
+				// we kept the old one, but log the issue
+				logger.Noticef("Cannot update assertion: %v", err)
 			}
+			// be idempotent
+			// system db has already the same or newer
+			continue
 		}
 		if err != nil {
 			errs = append(errs, err)
@@ -308,7 +314,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		if notFound.Ref.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
 		} else {
-			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
 		}
 	}
 	if err != nil {
