@@ -1189,18 +1189,25 @@ out:
 		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
+	// we are in charge of the tempfile life cycle until we hand it off to the change
+	changeTriggered := false
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
+	tempPath := tmpf.Name()
+
+	defer func() {
+		if !changeTriggered {
+			os.Remove(tempPath)
+		}
+	}()
+
 	if _, err := io.Copy(tmpf, snapBody); err != nil {
-		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
 	tmpf.Sync()
-
-	tempPath := tmpf.Name()
 
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
@@ -1263,6 +1270,7 @@ out:
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
 	}
+	changeTriggered = true
 
 	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
