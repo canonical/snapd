@@ -911,7 +911,7 @@ func CoreInfo(s *state.State) (*snap.Info, error) {
 	return infoForType(s, snap.TypeOS)
 }
 
-// KernelInfo finds the current kernel snap's info
+// KernelInfo finds the current kernel snap's info.
 func KernelInfo(s *state.State) (*snap.Info, error) {
 	return infoForType(s, snap.TypeKernel)
 }
