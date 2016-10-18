@@ -24,6 +24,7 @@ Build-Depends: bash-completion,
                golang-gopkg-cheggaaa-pb.v1-dev,
                golang-websocket-dev,
                golang-yaml.v2-dev,
+               golang-gopkg-macaroon.v1-dev,
                python3,
                python3-markdown,
                squashfs-tools
