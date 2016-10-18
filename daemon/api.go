@@ -1901,8 +1901,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if len(users) > 0 && !createData.ForceManaged {
-		return BadRequest("cannot create user: device already managed")
+
+	if !createData.ForceManaged {
+		if len(users) > 0 {
+			return BadRequest("cannot create user: device already managed")
+		}
+		if release.OnClassic {
+			return BadRequest("cannot create user: device is a classic system")
+		}
 	}
 
 	// special case: the user requested the creation of all known
