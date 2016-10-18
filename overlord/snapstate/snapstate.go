@@ -312,6 +312,9 @@ func Install(s *state.State, name, channel string, revision snap.Revision, userI
 	if snapst.HasCurrent() {
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
+	if channel == "" {
+		channel = "stable"
+	}
 
 	snapInfo, err := snapInfo(s, name, channel, revision, userID, flags)
 	if err != nil {
