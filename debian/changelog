@@ -1,3 +1,11 @@
+snapd (2.16+1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+  * Import gopkg.in/cheggaaa/pb.v1 rather than github.com/cheggaaa/pb.
+  * Switch to unconditional conflict against `snap` (Closes: #826884)
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
+
 snapd (2.16) xenial; urgency=medium
 
   * New upstream release, LP: #1628425
