@@ -338,7 +338,7 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 			c = &OnClassicConstraint{Classic: true, Distros: lst}
 		}
 		if c == nil {
-			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of distros", context)
+			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of operating system IDs", context)
 		}
 		target.setOnClassicConstraint(c)
 	}
