@@ -234,7 +234,7 @@ snaps:
 	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Assert(snapst.DevMode(), Equals, true)
+	c.Assert(snapst.DevMode, Equals, true)
 
 	// check local
 	info, err = snapstate.CurrentInfo(state, "local")

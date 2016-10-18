@@ -162,13 +162,14 @@ plugs:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalStandalonePlugWithListAndMap(c *C) {
+func (s *YamlSuite) TestUnmarshalStandalonePlugWithIntAndListAndMap(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     iface:
         interface: complex
+        i: 3
         l: [1,2,3]
         m:
           a: A
@@ -183,7 +184,8 @@ plugs:
 		Name:      "iface",
 		Interface: "complex",
 		Attrs: map[string]interface{}{
-			"l": []interface{}{1, 2, 3},
+			"i": int64(3),
+			"l": []interface{}{int64(1), int64(2), int64(3)},
 			"m": map[string]interface{}{"a": "A", "b": "B"},
 		},
 	})
@@ -209,7 +211,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Attrs:     map[string]interface{}{"attr": int64(2)},
 	})
 }
 
@@ -541,13 +543,14 @@ slots:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalStandaloneSlotWithListAndMap(c *C) {
+func (s *YamlSuite) TestUnmarshalStandaloneSlotWithIntAndListAndMap(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
     iface:
         interface: complex
+        i: 3
         l: [1,2]
         m:
           a: "A"
@@ -561,7 +564,8 @@ slots:
 		Name:      "iface",
 		Interface: "complex",
 		Attrs: map[string]interface{}{
-			"l": []interface{}{1, 2},
+			"i": int64(3),
+			"l": []interface{}{int64(1), int64(2)},
 			"m": map[string]interface{}{"a": "A"},
 		},
 	})
@@ -587,7 +591,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Attrs:     map[string]interface{}{"attr": int64(2)},
 	})
 }
 
