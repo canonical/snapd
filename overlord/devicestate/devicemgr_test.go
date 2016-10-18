@@ -1063,7 +1063,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	gadgetInfo := snaptest.MockInfo(c, `type: gadget
 name: gadget`, nil)
 
-	err := devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
 
 	// setup model assertion
@@ -1085,12 +1085,52 @@ name: gadget`, nil)
 	})
 	c.Assert(err, IsNil)
 
-	err = devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
+	err = devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
 
 	// install pc gadget
 	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
 name: pc`, nil)
-	err = devicestate.CheckGadget(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	err = devicestate.CheckGadgetOrKernel(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCheckKernel(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	kernelInfo := snaptest.MockInfo(c, `type: kernel
+name: lnrk`, nil)
+
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
+
+	// install krnl kernel
+	krnlKernelInfo := snaptest.MockInfo(c, `type: kernel
+name: krnl`, nil)
+	err = devicestate.CheckGadgetOrKernel(s.state, krnlKernelInfo, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 }
