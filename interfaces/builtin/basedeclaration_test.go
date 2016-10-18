@@ -80,6 +80,21 @@ slots:
 	}
 }
 
+func (s *baseDeclSuite) installPlugCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
+	if yaml == "" {
+		yaml = fmt.Sprintf(`name: install-plug-snap
+type: %s
+plugs:
+  %s:
+`, snapType, iface)
+	}
+	snap := snaptest.MockInfo(c, yaml, nil)
+	return &policy.InstallCandidate{
+		Snap:            snap,
+		BaseDeclaration: s.baseDecl,
+	}
+}
+
 const declTempl = `type: snap-declaration
 authority-id: canonical
 series: 16
@@ -183,10 +198,21 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
-	// snapd-control is auto-connect until we have snap declaration editing
+func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"snapd-control\"")
+
+	plugsSlots := `
+plugs:
+  snapd-control:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
 
@@ -198,16 +224,111 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
+	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 
-	// TODO: have the real snap-decl allow things and not the base-decl
-	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", "")
+	plugsSlots := `
+plugs:
+  lxd-support:
+    allow-auto-connection: true
+`
+
+	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = lxdDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverrideRevoke(c *C) {
+	cand := s.connectCand(c, "lxd-support", "", "")
+	plugsSlots := `
+plugs:
+  lxd-support:
+    allow-auto-connection: false
+`
+
+	lxdDecl := s.mockSnapDecl(c, "notlxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = lxdDecl
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
+}
+
+func (s *baseDeclSuite) TestAutoConnectionKernelModuleControlOverride(c *C) {
+	cand := s.connectCand(c, "kernel-module-control", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kernel-module-control\"")
+
+	plugsSlots := `
+plugs:
+  kernel-module-control:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDockerSupportOverride(c *C) {
+	cand := s.connectCand(c, "docker-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"docker-support\"")
+
+	plugsSlots := `
+plugs:
+  docker-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
+	plugsSlots := `
+plugs:
+  network-bind:
+    allow-auto-connection: true
+  network-control:
+    allow-auto-connection: true
+  kernel-module-control:
+    allow-auto-connection: true
+  system-observe:
+    allow-auto-connection: true
+  hardware-observe:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+
+	all := builtin.Interfaces()
+	// these are a mixture interfaces that the snap plugs
+	plugged := map[string]bool{
+		"network-bind":          true,
+		"network-control":       true,
+		"kernel-module-control": true,
+		"system-observe":        true,
+		"hardware-observe":      true,
+	}
+	for _, iface := range all {
+		if !plugged[iface.Name()] {
+			continue
+		}
+
+		cand := s.connectCand(c, iface.Name(), "", "")
+		cand.PlugSnapDeclaration = snapDecl
+		err := cand.CheckAutoConnect()
+		c.Check(err, IsNil)
+	}
 }
 
 // describe installation rules for slots succinctly for cross-checking,
@@ -224,12 +345,10 @@ var (
 	slotInstallation = map[string][]string{
 		// unconstrained
 		"bluez":            unconstrained,
-		"docker":           unconstrained, // TODO: we want slots: docker: false
 		"fwupd":            unconstrained,
 		"location-control": unconstrained,
 		"location-observe": unconstrained,
 		"modem-manager":    unconstrained,
-		"network-manager":  unconstrained,
 		"udisks2":          unconstrained,
 		// other
 		"bool-file":       []string{"core", "gadget"},
@@ -241,9 +360,12 @@ var (
 		"lxd-support":     []string{"core"},
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
+		"network-manager": []string{"app", "core"},
 		"ppp":             []string{"core"},
-		"pulseaudio":      []string{"core"},
+		"pulseaudio":      []string{"app", "core"},
 		"serial-port":     []string{"core", "gadget"},
+		// snowflakes
+		"docker": nil,
 	}
 )
 
@@ -297,6 +419,34 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 					c.Check(sanitizeErr, NotNil, comm)
 				}
 			}
+		}
+	}
+
+	// test docker specially
+	ic := s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	err := ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+}
+
+func (s *baseDeclSuite) TestPlugInstallation(c *C) {
+	all := builtin.Interfaces()
+
+	restricted := map[string]bool{
+		"docker-support":        true,
+		"kernel-module-control": true,
+		"lxd-support":           true,
+		"snapd-control":         true,
+	}
+
+	for _, iface := range all {
+		ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
+		err := ic.Check()
+		comm := Commentf("%s", iface.Name())
+		if restricted[iface.Name()] {
+			c.Check(err, NotNil, comm)
+		} else {
+			c.Check(err, IsNil, comm)
 		}
 	}
 }
