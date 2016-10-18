@@ -40,42 +40,68 @@ func (fs *findWildcardSuite) TestFindWildcard(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = os.MkdirAll(filepath.Join(top, "acc-id1"), os.ModePerm)
 	c.Assert(err, check.IsNil)
+	err = os.MkdirAll(filepath.Join(top, "acc-id1", "abcd"), os.ModePerm)
+	c.Assert(err, check.IsNil)
+	err = os.MkdirAll(filepath.Join(top, "acc-id1", "e5cd"), os.ModePerm)
+	c.Assert(err, check.IsNil)
 	err = os.MkdirAll(filepath.Join(top, "acc-id2"), os.ModePerm)
 	c.Assert(err, check.IsNil)
+	err = os.MkdirAll(filepath.Join(top, "acc-id2", "f444"), os.ModePerm)
+	c.Assert(err, check.IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd"), nil, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "e5cd"), nil, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "abcd", "active.1"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(top, "acc-id2", "f444"), nil, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(top, "acc-id1", "e5cd", "active"), nil, os.ModePerm)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(filepath.Join(top, "acc-id2", "f444", "active"), nil, os.ModePerm)
 	c.Assert(err, check.IsNil)
 
 	var res []string
-	foundCb := func(relpath string) error {
-		res = append(res, relpath)
+	foundCb := func(relpath []string) error {
+		res = append(res, relpath...)
 		return nil
 	}
 
-	err = findWildcard(top, []string{"*", "*"}, foundCb)
+	err = findWildcard(top, []string{"*", "*", "active"}, foundCb)
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
-	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd", "acc-id1/e5cd", "acc-id2/f444"})
+	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/e5cd/active", "acc-id2/f444/active"})
 
 	res = nil
-	err = findWildcard(top, []string{"zoo", "*"}, foundCb)
+	err = findWildcard(top, []string{"*", "*", "active*"}, foundCb)
+	c.Assert(err, check.IsNil)
+	sort.Strings(res)
+	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/abcd/active.1", "acc-id1/e5cd/active", "acc-id2/f444/active"})
+
+	res = nil
+	err = findWildcard(top, []string{"zoo", "*", "active"}, foundCb)
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"a*", "zoo"}, foundCb)
+	err = findWildcard(top, []string{"zoo", "*", "active*"}, foundCb)
 	c.Assert(err, check.IsNil)
 	c.Check(res, check.HasLen, 0)
 
 	res = nil
-	err = findWildcard(top, []string{"acc-id1", "*cd"}, foundCb)
+	err = findWildcard(top, []string{"a*", "zoo", "active"}, foundCb)
+	c.Assert(err, check.IsNil)
+	c.Check(res, check.HasLen, 0)
+
+	res = nil
+	err = findWildcard(top, []string{"acc-id1", "*cd", "active"}, foundCb)
 	c.Assert(err, check.IsNil)
 	sort.Strings(res)
-	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd", "acc-id1/e5cd"})
+	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/e5cd/active"})
+
+	res = nil
+	err = findWildcard(top, []string{"acc-id1", "*cd", "active*"}, foundCb)
+	c.Assert(err, check.IsNil)
+	sort.Strings(res)
+	c.Check(res, check.DeepEquals, []string{"acc-id1/abcd/active", "acc-id1/abcd/active.1", "acc-id1/e5cd/active"})
+
 }
 
 func (fs *findWildcardSuite) TestFindWildcardSomeErrors(c *check.C) {
@@ -96,8 +122,8 @@ func (fs *findWildcardSuite) TestFindWildcardSomeErrors(c *check.C) {
 
 	var res []string
 	var retErr error
-	foundCb := func(relpath string) error {
-		res = append(res, relpath)
+	foundCb := func(relpath []string) error {
+		res = append(res, relpath...)
 		return retErr
 	}
 
