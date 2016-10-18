@@ -74,8 +74,8 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 	if c.Classic != release.OnClassic {
 		return fmt.Errorf("on-classic mismatch")
 	}
-	if c.Classic && len(c.Distros) != 0 {
-		return checkID("operating system ID", release.ReleaseInfo.ID, c.Distros, nil)
+	if c.Classic && len(c.SystemIDs) != 0 {
+		return checkID("operating system ID", release.ReleaseInfo.ID, c.SystemIDs, nil)
 	}
 	return nil
 }

@@ -238,7 +238,7 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
 type OnClassicConstraint struct {
 	Classic bool
-	Distros []string
+	SystemIDs []string
 }
 
 // rules
@@ -335,7 +335,7 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 			if err != nil {
 				return err
 			}
-			c = &OnClassicConstraint{Classic: true, Distros: lst}
+			c = &OnClassicConstraint{Classic: true, SystemIDs: lst}
 		}
 		if c == nil {
 			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of operating system IDs", context)

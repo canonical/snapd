@@ -626,7 +626,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
 	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
@@ -687,7 +687,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
 	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsAttributesDefault(c *C) {
@@ -1028,7 +1028,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
 	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstraints(c *C) {
@@ -1088,7 +1088,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
 	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
