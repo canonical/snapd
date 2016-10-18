@@ -210,3 +210,11 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestUnknownCommand(c *C) {
+	restore := mockArgs("snap", "unknowncmd")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see "snap --help"`)
+}

@@ -93,9 +93,11 @@ prepare-each: |
     journalctl --rotate
     sleep .1
     journalctl --vacuum-time=1ms
+    dmesg -c > /dev/null
 
 debug-each: |
     journalctl -u snapd
+    dmesg | grep DENIED
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
@@ -192,6 +194,8 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+    # Build fakedevicesvc.
+    go get ./tests/lib/fakedevicesvc
 
 suites:
     tests/main/:

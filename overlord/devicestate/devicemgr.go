@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -293,7 +292,6 @@ func (m *DeviceManager) ensureBootOk() error {
 	defer m.state.Unlock()
 
 	if release.OnClassic {
-		logger.Debugf("Ignoring 'booted' on classic")
 		return nil
 	}
 
@@ -743,7 +741,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if errAcctKey == nil {
 		err := assertstate.Add(st, a)
 		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); !ok {
+			if !asserts.IsUnaccceptedUpdate(err) {
 				return err
 			}
 		}
