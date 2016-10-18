@@ -58,6 +58,8 @@ snap_confine_SOURCES = \
 	user-support.h \
 	quirks.c \
 	quirks.h \
+	mount-opt.c \
+	mount-opt.h \
 	mountinfo.c \
 	mountinfo.h \
 	ns-support.c \
@@ -96,6 +98,8 @@ snap_confine_unit_tests_SOURCES = \
 	user-support.h \
 	quirks.c \
 	quirks.h \
+	mount-opt.c \
+	mount-opt.h \
 	unit-tests.c \
 	unit-tests.h \
 	utils-test.c \
