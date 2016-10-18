@@ -90,10 +90,11 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 
 	g := newGrub()
 	err := g.SetBootVars(map[string]string{
-		"key": "value",
+		"k1": "v1",
+		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(cmds, DeepEquals, [][]string{
-		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value "},
+		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "k1=v1", "k2=v2"},
 	})
 }

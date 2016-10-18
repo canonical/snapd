@@ -92,12 +92,12 @@ func (g *grub) GetBootVars(names []string) (map[string]string, error) {
 
 func (g *grub) SetBootVars(values map[string]string) error {
 	// note that strings are not quoted since because
-	// RunCommand() does not use a shell and thus adding quotes
+	// runCommand does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
-	arg := ""
+	args := []string{grubEnvCmd, g.envFile(), "set"}
 	for k, v := range values {
-		arg += fmt.Sprintf("%s=%s ", k, v)
+		args = append(args, fmt.Sprintf("%s=%s", k, v))
 	}
-	_, err := runCommand(grubEnvCmd, g.envFile(), "set", arg)
+	_, err := runCommand(args...)
 	return err
 }
