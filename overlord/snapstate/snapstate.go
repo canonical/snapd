@@ -911,6 +911,11 @@ func CoreInfo(s *state.State) (*snap.Info, error) {
 	return infoForType(s, snap.TypeOS)
 }
 
+// KernelInfo finds the current kernel snap's info
+func KernelInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeKernel)
+}
+
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
