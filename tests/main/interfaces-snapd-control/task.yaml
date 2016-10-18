@@ -16,10 +16,10 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a plug on the snapd-control interface is installed"
-    snap install test-snapd-control-consumer
+    snap install --edge test-snapd-control-consumer
 
 restore: |
-    rm -f test-snapd-control-consumer_1.0_all.snap snapd.error
+    rm -f snapd.error
 
 execute: |
     . "$TESTSLIB/names.sh"
