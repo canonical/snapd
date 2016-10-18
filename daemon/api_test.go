@@ -1767,9 +1767,13 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
+	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
+	glbBefore, _ := filepath.Glob(glob)
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
+	glbAfter, _ := filepath.Glob(glob)
+	c.Check(len(glbBefore), check.Equals, len(glbAfter))
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
