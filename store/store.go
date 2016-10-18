@@ -38,6 +38,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rogpeppe/retry"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -171,6 +172,15 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+}
+
+func defaultRetryStrategy() retry.Strategy {
+	return retry.LimitTime(30*time.Second,
+		retry.Exponential{
+			Initial: 10 * time.Millisecond,
+			Factor:  1.5,
+		},
+	)
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -594,6 +604,76 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	}
 
 	return resp, err
+}
+
+
+type decodeFunc func(resp *http.Response) (error, bool)
+
+func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, retryStrategy retry.Strategy, decode decodeFunc) error {
+	for a := retry.Start(retryStrategy, nil); a.Next(); {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return err
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode == 500 || resp.StatusCode == 503 {
+			if a.More() {
+				resp.Body.Close()
+				continue
+			}
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 {
+			refreshed := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				err = s.refreshUser(user)
+				if err != nil {
+					return err
+				}
+				refreshed = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				if s.authContext == nil {
+					return fmt.Errorf("internal error: no authContext")
+				}
+				device, err := s.authContext.Device()
+				if err != nil {
+					return err
+				}
+
+				err = s.refreshDeviceSession(device)
+				if err != nil {
+					return err
+				}
+				refreshed = true
+			}
+			if refreshed {
+				// close previous response and retry
+				// TODO: make this non-recursive or add a recursion limit
+				resp.Body.Close()
+				return s.retryRequest(client, reqOptions, user, retryStrategy, decode)
+			}
+		}
+
+		err, shouldRetry := decode(resp)
+		if shouldRetry {
+			if a.More() {
+				resp.Body.Close()
+				continue
+			}
+		}
+
+		return err
+	}
+	panic("unreachable")
 }
 
 // build a new http.Request with headers for the store
