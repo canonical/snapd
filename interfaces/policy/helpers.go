@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -66,6 +67,19 @@ func checkID(kind, id string, ids []string, special map[string]string) error {
 	return fmt.Errorf("%s does not match", kind)
 }
 
+func checkOnClassic(c *asserts.OnClassicConstraint) error {
+	if c == nil {
+		return nil
+	}
+	if c.Classic != release.OnClassic {
+		return fmt.Errorf("on-classic mismatch")
+	}
+	if c.Classic && len(c.Distros) != 0 {
+		return checkID("distro", release.ReleaseInfo.ID, c.Distros, nil)
+	}
+	return nil
+}
+
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs()); err != nil {
 		return err
@@ -83,6 +97,9 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Plu
 		"$PLUG_PUBLISHER_ID": connc.plugPublisherID(),
 	})
 	if err != nil {
+		return err
+	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
 	return nil
@@ -122,6 +139,9 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err != nil {
 		return err
 	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -147,6 +167,9 @@ func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotI
 	if err := checkSnapType(slot.Snap.Type, cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -170,6 +193,9 @@ func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugI
 		return err
 	}
 	if err := checkSnapType(plug.Snap.Type, cstrs.PlugSnapTypes); err != nil {
+		return err
+	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
 		return err
 	}
 	return nil

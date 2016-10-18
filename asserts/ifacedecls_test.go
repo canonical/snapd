@@ -586,6 +586,49 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstrai
 	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 }
 
+func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic: false`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic: true`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic:
+      - ubuntu
+      - debian`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
+}
+
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
@@ -602,6 +645,49 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
 
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-connection: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic: false`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic: true`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic:
+      - ubuntu
+      - debian`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsAttributesDefault(c *C) {
@@ -666,19 +752,19 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     slot-snap-ids:
-      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, on-classic`},
 		{`iface:
   deny-connection:
     slot-snap-ids:
-      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, on-classic`},
 		{`iface:
   allow-auto-connection:
     slot-snap-ids:
-      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, on-classic`},
 		{`iface:
   deny-auto-connection:
     slot-snap-ids:
-      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, on-classic`},
 		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 	}
@@ -889,7 +975,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleDefaults(c *C) {
 	checkBoolSlotConnConstraints(c, rule.DenyAutoConnection, true)
 }
 
-func (s *plugSlotRulesSuite) TestCompileSlotRuleInstalationConstraintsIDConstraints(c *C) {
+func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
 		"allow-installation": map[string]interface{}{
 			"slot-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
@@ -900,6 +986,49 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstalationConstraintsIDConstrai
 	c.Assert(rule.AllowInstallation, HasLen, 1)
 	cstrs := rule.AllowInstallation[0]
 	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic: false`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic: true`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    on-classic:
+      - ubuntu
+      - debian`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstraints(c *C) {
@@ -917,6 +1046,49 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstrain
 	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 	c.Check(cstrs.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 	c.Check(cstrs.PlugPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-connection: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic: false`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic: true`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true})
+
+	m, err = asserts.ParseHeaders([]byte(`iface:
+  allow-connection:
+    on-classic:
+      - ubuntu
+      - debian`))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, Distros: []string{"ubuntu", "debian"}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
@@ -966,20 +1138,28 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
       - xapp`, `plug-snap-type in allow-connection in slot rule for interface "iface" contains an invalid element: "xapp"`},
 		{`iface:
   allow-connection:
+    on-classic:
+      x: 1`, `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of distros`},
+		{`iface:
+  allow-connection:
+    on-classic:
+      - zoom!`, `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"zoom!\"`},
+		{`iface:
+  allow-connection:
     plug-snap-ids:
-      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, on-classic`},
 		{`iface:
   deny-connection:
     plug-snap-ids:
-      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, on-classic`},
 		{`iface:
   allow-auto-connection:
     plug-snap-ids:
-      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, on-classic`},
 		{`iface:
   deny-auto-connection:
     plug-snap-ids:
-      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, on-classic`},
 		{`iface:
   allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 	}
