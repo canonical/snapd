@@ -253,22 +253,6 @@ type apiSuite struct {
 	apiBaseSuite
 }
 
-func (s *apiSuite) SetUpSuite(c *check.C) {
-	s.apiBaseSuite.SetUpSuite(c)
-}
-
-func (s *apiSuite) TearDownSuite(c *check.C) {
-	s.apiBaseSuite.TearDownSuite(c)
-}
-
-func (s *apiSuite) SetUpTest(c *check.C) {
-	s.apiBaseSuite.SetUpTest(c)
-}
-
-func (s *apiSuite) TearDownTest(c *check.C) {
-	s.apiBaseSuite.TearDownTest(c)
-}
-
 var _ = check.Suite(&apiSuite{})
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
@@ -4125,11 +4109,7 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *ch
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
-func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
-	// this must be done very early
-	restorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
-	defer restorer()
-
+func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
 	st := s.d.overlord.State()
 
 	// create fake brand signature
@@ -4180,8 +4160,6 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-
-	return restorer
 }
 
 var goodUser = map[string]interface{}{
@@ -4212,8 +4190,7 @@ var badUser = map[string]interface{}{
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
@@ -4234,8 +4211,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
@@ -4277,8 +4253,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser, badUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser, badUser})
 
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
@@ -4321,8 +4296,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
@@ -4346,8 +4320,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErr
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	st := s.d.overlord.State()
 	st.Lock()
@@ -4370,8 +4343,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c 
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	st := s.d.overlord.State()
 	st.Lock()
