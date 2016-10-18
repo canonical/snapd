@@ -1024,7 +1024,12 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	ss, snapst, err := snapSetupAndState(t)
+	if t.Status() != state.DoneStatus {
+		// it failed
+		return nil
+	}
+
+	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -1032,12 +1037,6 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	info, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
-	}
-
-	if ss.SideInfo.Revision != info.Revision {
-		// it failed!
-		// N.B. this shouldn't be the only way to find out if it failed
-		return nil
 	}
 
 	m.backend.ClearTrashedData(info)
