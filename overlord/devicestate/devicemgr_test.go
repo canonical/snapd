@@ -1063,7 +1063,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	gadgetInfo := snaptest.MockInfo(c, `type: gadget
 name: gadget`, nil)
 
-	err := devicestate.CheckGadget(s.state, gadgetInfo, nil, 0)
+	err := devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
 
 	// setup model assertion
@@ -1085,12 +1085,12 @@ name: gadget`, nil)
 	})
 	c.Assert(err, IsNil)
 
-	err = devicestate.CheckGadget(s.state, gadgetInfo, nil, 0)
+	err = devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
 
 	// install pc gadget
 	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
 name: pc`, nil)
-	err = devicestate.CheckGadget(s.state, pcGadgetInfo, nil, 0)
+	err = devicestate.CheckGadget(s.state, pcGadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 }
