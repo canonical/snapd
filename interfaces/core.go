@@ -77,6 +77,9 @@ func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
+// Snippet is an opaque type for conveying typed information between interfaces and backends.
+type Snippet interface{}
+
 // Interface describes a group of interchangeable capabilities with common features.
 // Interfaces act as a contract between system builders, application developers
 // and end users.
