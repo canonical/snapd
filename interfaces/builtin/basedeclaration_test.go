@@ -450,3 +450,64 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		}
 	}
 }
+
+func (s *baseDeclSuite) TestConnection(c *C) {
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis
+	noconnect := map[string]bool{
+		"bluez":            true,
+		"docker":           true,
+		"location-control": true,
+		"location-observe": true,
+		"fwupd":            true,
+		"mir":              true,
+		"modem-manager":    true,
+		"udisks2":          true,
+	}
+
+	for _, iface := range all {
+		expected := !noconnect[iface.Name()]
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), "", "")
+		err := cand.Check()
+
+		if expected {
+			c.Check(err, IsNil, comm)
+		} else {
+			c.Check(err, NotNil, comm)
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestSanity(c *C) {
+	all := builtin.Interfaces()
+
+	// these interfaces have rules both for the slots and plugs side
+	// given how the rules work this can be delicate,
+	// listed here to make sure that was a conscious decision
+	bothSides := map[string]bool{
+		"snapd-control":         true,
+		"kernel-module-control": true,
+		"lxd-support":           true,
+		"docker-support":        true,
+	}
+
+	for _, iface := range all {
+		plugRule := s.baseDecl.PlugRule(iface.Name())
+		slotRule := s.baseDecl.SlotRule(iface.Name())
+		if plugRule == nil && slotRule == nil {
+			c.Logf("%s is not considered in the base declaration", iface.Name())
+			c.Fail()
+		}
+		if plugRule != nil && slotRule != nil {
+			if !bothSides[iface.Name()] {
+				c.Logf("%s have both a base declaration slot rule and plug rule, make sure that's intended and correct", iface.Name())
+				c.Fail()
+			}
+		}
+	}
+}
