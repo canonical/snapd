@@ -827,6 +827,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			op:   "start-snap-services",
 			name: "/snap/some-snap/42",
 		},
+		{
+			op:    "cleanup-trash",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
 	})
 
 	// check progress
@@ -1177,6 +1182,8 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -1303,12 +1310,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/11",
-		},
-		// only here because of how we triggered the error:
-		{
-			op:    "cleanup-trash",
-			name:  "some-snap",
-			revno: snap.R(11),
 		},
 		// undoing everything from here down...
 		{
@@ -1555,7 +1556,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -1780,7 +1781,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap

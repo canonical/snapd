@@ -291,9 +291,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
+	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("cleanup", m.cleanup, nil)
+
+	// FIXME: drop the task entirely after a while
+	// (having this wart here avoids yet-another-patch)
+	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -1013,21 +1018,25 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	_, snapst, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
-		return nil // cleanup should not return error
+		return err
 	}
 
 	info, err := snapst.CurrentInfo()
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
+		return err
+	}
+
+	if ss.SideInfo.Revision != info.Revision {
+		// it failed!
+		// N.B. this shouldn't be the only way to find out if it failed
 		return nil
 	}
 
