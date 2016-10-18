@@ -55,7 +55,7 @@ func (b *mockBootloader) Name() string {
 func (b *mockBootloader) Dir() string {
 	return "/boot/mocky"
 }
-func (b *mockBootloader) GetBootVars(names []string) (map[string]string, error) {
+func (b *mockBootloader) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, name := range names {
 		out[name] = b.bootVars[name]

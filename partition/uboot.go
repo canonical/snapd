@@ -80,7 +80,7 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 	return nil
 }
 
-func (u *uboot) GetBootVars(names []string) (map[string]string, error) {
+func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
 	env, err := uenv.Open(u.envFile())

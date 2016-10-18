@@ -411,7 +411,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	}
 
 	// check the bootloader config
-	m, err := s.bootloader.GetBootVars([]string{"snap_kernel", "snap_core"})
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
 	c.Assert(err, IsNil)
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Check(m["snap_core"], Equals, "core_3.snap")
@@ -522,7 +522,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	c.Check(decls, HasLen, 2)
 
 	// check the bootloader config
-	m, err := s.bootloader.GetBootVars([]string{"snap_kernel", "snap_core"})
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
 	c.Assert(err, IsNil)
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Assert(err, IsNil)

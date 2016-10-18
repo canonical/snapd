@@ -973,7 +973,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	m, err := bootloader.GetBootVars([]string{"snap_mode"})
+	m, err := bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]string{"snap_mode": ""})
 }

@@ -64,7 +64,7 @@ func UpdateBootRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	m, err := bootloader.GetBootVars([]string{"snap_kernel", "snap_core"})
+	m, err := bootloader.GetBootVars("snap_kernel", "snap_core")
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}

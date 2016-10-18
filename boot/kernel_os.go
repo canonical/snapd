@@ -151,7 +151,7 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 		goodBoot = "snap_core"
 	}
 
-	m, err := bootloader.GetBootVars([]string{nextBoot, goodBoot})
+	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
 	if err != nil {
 		return false
 	}

@@ -49,7 +49,7 @@ var (
 // bootloader
 type Bootloader interface {
 	// Return the value of the specified bootloader variable
-	GetBootVars(names []string) (map[string]string, error)
+	GetBootVars(names ...string) (map[string]string, error)
 
 	// Set the value of the specified bootloader variable
 	SetBootVars(values map[string]string) error
@@ -116,7 +116,7 @@ func ForceBootloader(booloader Bootloader) {
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
 func MarkBootSuccessful(bootloader Bootloader) error {
-	m, err := bootloader.GetBootVars([]string{"snap_mode", "snap_try_core", "snap_try_kernel"})
+	m, err := bootloader.GetBootVars("snap_mode", "snap_try_core", "snap_try_kernel")
 	if err != nil {
 		return err
 	}

@@ -50,7 +50,7 @@ func (b *MockBootloader) SetBootVars(values map[string]string) error {
 	return b.SetErr
 }
 
-func (b *MockBootloader) GetBootVars(keys []string) (map[string]string, error) {
+func (b *MockBootloader) GetBootVars(keys ...string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, k := range keys {
 		out[k] = b.BootVars[k]

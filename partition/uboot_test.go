@@ -62,7 +62,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	m, err := u.GetBootVars([]string{"snap_mode", "snap_core"})
+	m, err := u.GetBootVars("snap_mode", "snap_core")
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]string{
 		"snap_mode": "",
@@ -116,7 +116,7 @@ func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	err := u.SetBootVars(map[string]string{"key": "value"})
 	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVars([]string{"key"})
+	content, err := u.GetBootVars("key")
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
 }
@@ -128,7 +128,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 	err := u.SetBootVars(map[string]string{"key2": "value2"})
 	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVars([]string{"key2"})
+	content, err := u.GetBootVars("key2")
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, map[string]string{"key2": "value2"})
 }

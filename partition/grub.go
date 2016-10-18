@@ -63,7 +63,7 @@ func (g *grub) envFile() string {
 	return filepath.Join(g.Dir(), "grubenv")
 }
 
-func (g *grub) GetBootVars(names []string) (map[string]string, error) {
+func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
 	// Grub doesn't provide a get verb, so retrieve all values and

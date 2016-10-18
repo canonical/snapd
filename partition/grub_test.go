@@ -75,7 +75,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommand = mockGrubEditenvList
 
 	g := newGrub()
-	v, err := g.GetBootVars([]string{bootmodeVar})
+	v, err := g.GetBootVars(bootmodeVar)
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
 	c.Check(v[bootmodeVar], Equals, "regular")
@@ -100,6 +100,7 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 		"/usr/bin/grub-editenv", g.(*grub).envFile(), "set",
 	})
 	// need to sort, its coming from a slice
-	kwargs := sort.StringSlice(cmds[0][3:])
-	c.Check(kwargs, DeepEquals, sort.StringSlice{"k1=v1", "k2=v2"})
+	kwargs := cmds[0][3:]
+	sort.Strings(kwargs)
+	c.Check(kwargs, DeepEquals, []string{"k1=v1", "k2=v2"})
 }
