@@ -1139,7 +1139,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     on-classic:
-      x: 1`, `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of distros`},
+      x: 1`, `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of operating system IDs`},
 		{`iface:
   allow-connection:
     on-classic:
