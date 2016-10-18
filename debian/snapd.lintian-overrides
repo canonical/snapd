@@ -6,3 +6,6 @@ snapd: embedded-library usr/lib/snapd/snap-exec: libyaml
 # patch snap to use some different mountpoint; in the meantime, override to
 # pass the NEW queue.
 snapd: non-standard-toplevel-dir snap/
+# Up for discussion whether we should use this directory on Debian, or
+# patch snap to use some different mountpoint; in the meantime, override.
+snapd: non-standard-dir-in-var snap/
