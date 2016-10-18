@@ -7,7 +7,7 @@ execute: |
     mkdir -p /snap/bin
     ln -s /usr/bin/snap /snap/bin/xxx
     echo Running unknown command
-    expected='internal error, please report: running "xxx" failed: cannot find snap "xxx"'
+    expected='internal error, please report: running "xxx" failed: cannot find current revision for snap xxx: readlink /snap/xxx/current: no such file or directory'
     output="$(/snap/bin/xxx 2>&1 )" && exit 1
     echo $output
     err=$?

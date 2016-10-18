@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
-	"path/filepath"
 )
 
 var (
@@ -96,19 +96,16 @@ func (x *cmdRun) Execute(args []string) error {
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	if revision.Unset() {
-		// User didn't supply a revision, so we need to get it via the snapd API
-		// here because once we're inside the confinement it may be unavailable.
-		snaps, err := Client().List([]string{snapName})
+		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+		realFn, err := os.Readlink(curFn)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
 		}
-		if len(snaps) == 0 {
-			return nil, fmt.Errorf("cannot find snap %q", snapName)
+		rev := filepath.Base(realFn)
+		revision, err = snap.ParseRevision(rev)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
 		}
-		if len(snaps) > 1 {
-			return nil, fmt.Errorf(i18n.G("multiple snaps for %q: %d"), snapName, len(snaps))
-		}
-		revision = snaps[0].Revision
 	}
 
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
