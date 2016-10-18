@@ -60,9 +60,9 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	tsAll := []*state.TaskSet{}
 	for i, sn := range seed.Snaps {
 
-		flags := snapstate.Flags(0)
+		flags := snapstate.Flags{}
 		if sn.DevMode {
-			flags |= snapstate.DevMode
+			flags.DevMode = true
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
 
