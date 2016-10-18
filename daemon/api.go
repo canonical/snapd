@@ -1976,6 +1976,15 @@ func convertBuyError(err error) Response {
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
+	case store.ErrPaymentDeclined:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindPaymentDeclined,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	default:
 		return InternalError("%v", err)
 	}

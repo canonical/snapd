@@ -190,7 +190,7 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
@@ -232,7 +232,7 @@ apps:
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
-	mup := systemd.MountUnitPath("/snap/foo/x1", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/x1")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
@@ -568,7 +568,7 @@ apps:
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/foo/55", "mount")
+	mup := systemd.MountUnitPath("/snap/foo/55")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")

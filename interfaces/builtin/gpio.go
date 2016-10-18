@@ -62,7 +62,7 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Valid values of number
-	if _, ok := number.(int); !ok {
+	if _, ok := number.(int64); !ok {
 		return fmt.Errorf("gpio slot number attribute must be an int")
 	}
 
