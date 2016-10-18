@@ -501,7 +501,9 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
 }
 
-func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirsInstall(c *C) {
+func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
+	c.Skip("the assertion service will make this scenario not possible")
+
 	s.prereqSnapAssertions(c, 10)
 
 	tempdir := c.MkDir()
