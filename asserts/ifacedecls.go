@@ -235,10 +235,17 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 	return c.matcher.match("", attrs)
 }
 
+// OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
+type OnClassicConstraint struct {
+	Classic bool
+	Distros []string
+}
+
 // rules
 
 var (
 	validSnapType  = regexp.MustCompile("^(?:core|kernel|gadget|app)$")
+	validDistro    = regexp.MustCompile("^[-0-9a-z._]+$")
 	validSnapID    = regexp.MustCompile("^[a-z0-9A-Z]{32}$")                                        // snap-ids look like this
 	validPublisher = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[A-Z][A-Z0-9_]*)$") // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 
@@ -270,6 +277,7 @@ func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}
 type constraintsHolder interface {
 	setAttributeConstraints(field string, cstrs *AttributeConstraints)
 	setIDConstraints(field string, cstrs []string)
+	setOnClassicConstraint(onClassic *OnClassicConstraint)
 }
 
 func baseCompileConstraints(context string, cDef constraintsDef, target constraintsHolder, attrConstraints, idConstraints []string) error {
@@ -309,8 +317,33 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 		}
 		target.setAttributeConstraints(field, cstrs)
 	}
-	if defaultUsed == len(attributeConstraints)+len(idConstraints) {
-		return fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
+	onClassic := cMap["on-classic"]
+	if onClassic == nil {
+		defaultUsed++
+	} else {
+		var c *OnClassicConstraint
+		switch x := onClassic.(type) {
+		case string:
+			switch x {
+			case "true":
+				c = &OnClassicConstraint{Classic: true}
+			case "false":
+				c = &OnClassicConstraint{Classic: false}
+			}
+		case []interface{}:
+			l, err := checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro)
+			if err != nil {
+				return err
+			}
+			c = &OnClassicConstraint{Classic: true, Distros: l}
+		}
+		if c == nil {
+			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of distros", context)
+		}
+		target.setOnClassicConstraint(c)
+	}
+	if defaultUsed == len(attributeConstraints)+len(idConstraints)+1 {
+		return fmt.Errorf("%s must specify at least one of %s, %s, on-classic", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
 	}
 	return nil
 }
@@ -459,6 +492,8 @@ type PlugInstallationConstraints struct {
 	PlugSnapTypes []string
 
 	PlugAttributes *AttributeConstraints
+
+	OnClassic *OnClassicConstraint
 }
 
 func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -477,6 +512,10 @@ func (c *PlugInstallationConstraints) setIDConstraints(field string, cstrs []str
 	default:
 		panic("unknown PlugInstallationConstraints field " + field)
 	}
+}
+
+func (c *PlugInstallationConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
+	c.OnClassic = onClassic
 }
 
 func compilePlugInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
@@ -498,6 +537,8 @@ type PlugConnectionConstraints struct {
 
 	PlugAttributes *AttributeConstraints
 	SlotAttributes *AttributeConstraints
+
+	OnClassic *OnClassicConstraint
 }
 
 func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -522,6 +563,10 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 	default:
 		panic("unknown PlugConnectionConstraints field " + field)
 	}
+}
+
+func (c *PlugConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
+	c.OnClassic = onClassic
 }
 
 var (
@@ -651,6 +696,8 @@ type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
 
 	SlotAttributes *AttributeConstraints
+
+	OnClassic *OnClassicConstraint
 }
 
 func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -669,6 +716,10 @@ func (c *SlotInstallationConstraints) setIDConstraints(field string, cstrs []str
 	default:
 		panic("unknown SlotInstallationConstraints field " + field)
 	}
+}
+
+func (c *SlotInstallationConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
+	c.OnClassic = onClassic
 }
 
 func compileSlotInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
@@ -690,6 +741,8 @@ type SlotConnectionConstraints struct {
 
 	SlotAttributes *AttributeConstraints
 	PlugAttributes *AttributeConstraints
+
+	OnClassic *OnClassicConstraint
 }
 
 func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -719,6 +772,10 @@ func (c *SlotConnectionConstraints) setIDConstraints(field string, cstrs []strin
 var (
 	slotIDConstraints = []string{"plug-snap-type", "plug-publisher-id", "plug-snap-id"}
 )
+
+func (c *SlotConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
+	c.OnClassic = onClassic
+}
 
 func compileSlotConnectionConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
 	slotConnCstrs := &SlotConnectionConstraints{}
