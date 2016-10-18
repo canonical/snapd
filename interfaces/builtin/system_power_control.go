@@ -27,10 +27,8 @@ const systemPowerControlConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
 # Usage: reserved
 
-#include <abstractions/dbus-session-strict>
 #include <abstractions/dbus-strict>
 
-# gnome-session
 dbus (send)
     bus=system
     path=/org/freedesktop/systemd1
@@ -42,14 +40,11 @@ dbus (send)
 const systemPowerControlConnectedPlugSecComp = `
 # Description: Can reboot, power-off and halt the system.
 # Following things are needed for dbus connectivity
-connect
-getsockname
 recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewSystemPowerControlInterface returns a new "system-power-control" interface.
