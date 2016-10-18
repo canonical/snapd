@@ -203,7 +203,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -216,7 +216,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdateLocal(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
@@ -248,6 +248,47 @@ version: 2
 	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapGadgetUpdateToUnassertedProhibited(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: gadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
@@ -328,7 +369,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
