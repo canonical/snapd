@@ -90,6 +90,7 @@ func (ic *InstallCandidate) checkPlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
+// Check checks whether the installation is allowed.
 func (ic *InstallCandidate) Check() error {
 	if ic.BaseDeclaration == nil {
 		return fmt.Errorf("internal error: improperly initialized InstallCandidate")
@@ -244,7 +245,7 @@ func (connc *ConnectCandidate) Check() error {
 	return connc.check("connection")
 }
 
-// Check checks whether the connection is allowed to auto-connect.
+// CheckAutoConnect checks whether the connection is allowed to auto-connect.
 func (connc *ConnectCandidate) CheckAutoConnect() error {
 	return connc.check("auto-connection")
 }

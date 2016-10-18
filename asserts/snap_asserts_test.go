@@ -244,6 +244,7 @@ AXNpZw==`
 	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
+	c.Check(a.SupportedFormat(), Equals, true)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.Series(), Equals, "16")
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
@@ -287,6 +288,36 @@ AXNpZw==`
 	c.Check(slotRule4.DenyConnection.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 	c.Check(slotRule4.AllowInstallation.SlotAttributes.Check(nil), ErrorMatches, `attribute "e1".*`)
 	c.Check(slotRule4.AllowInstallation.SlotSnapTypes, DeepEquals, []string{"app"})
+}
+
+func (sds *snapDeclSuite) TestDecodePartialFutureFormat(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"format: 999\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"refresh-control: future-refresh-control\n" +
+		"plugs: future-plugs\n" +
+		"slots: future-slots\n" +
+		sds.tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.SupportedFormat(), Equals, false)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
+	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDecl.RefreshControl(), IsNil)
+	c.Check(snapDecl.PlugRule("foo"), IsNil)
+	c.Check(snapDecl.SlotRule("foo"), IsNil)
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
