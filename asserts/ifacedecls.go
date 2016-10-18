@@ -237,7 +237,7 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
 type OnClassicConstraint struct {
-	Classic bool
+	Classic   bool
 	SystemIDs []string
 }
 
