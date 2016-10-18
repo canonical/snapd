@@ -244,6 +244,7 @@ AXNpZw==`
 	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
+	c.Check(a.SupportedFormat(), Equals, true)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.Series(), Equals, "16")
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
