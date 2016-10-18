@@ -66,7 +66,7 @@ func checkID(kind, id string, ids []string, special map[string]string) error {
 	return fmt.Errorf("%s does not match", kind)
 }
 
-func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
+func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs()); err != nil {
 		return err
 	}
@@ -88,7 +88,22 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Plug
 	return nil
 }
 
-func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.SlotConnectionConstraints) error {
+func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.PlugConnectionConstraints) error {
+	var firstErr error
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		err := checkPlugConnectionConstraints1(connc, cstrs1)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.SlotConnectionConstraints) error {
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs()); err != nil {
 		return err
 	}
@@ -110,7 +125,22 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 	return nil
 }
 
-func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.SlotConnectionConstraints) error {
+	var firstErr error
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		err := checkSlotConnectionConstraints1(connc, cstrs1)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
 	if err := cstrs.SlotAttributes.Check(slot.Attrs); err != nil {
 		return err
 	}
@@ -120,7 +150,22 @@ func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs *asserts.SlotIn
 	return nil
 }
 
-func checkPlugInstallationConstraints(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
+func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) error {
+	var firstErr error
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		err := checkSlotInstallationConstraints1(slot, cstrs1)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
 	if err := cstrs.PlugAttributes.Check(plug.Attrs); err != nil {
 		return err
 	}
@@ -128,4 +173,19 @@ func checkPlugInstallationConstraints(plug *snap.PlugInfo, cstrs *asserts.PlugIn
 		return err
 	}
 	return nil
+}
+
+func checkPlugInstallationConstraints(plug *snap.PlugInfo, cstrs []*asserts.PlugInstallationConstraints) error {
+	var firstErr error
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		err := checkPlugInstallationConstraints1(plug, cstrs1)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }

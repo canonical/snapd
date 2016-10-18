@@ -78,7 +78,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("serial-port path attribute specifies invalid symlink location")
 		}
 
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return fmt.Errorf("serial-port slot failed to find usb-vendor attribute")
 		}
@@ -86,7 +86,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("serial-port usb-vendor attribute not valid: %d", usbVendor)
 		}
 
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return fmt.Errorf("serial-port slot failed to find usb-product attribute")
 		}
@@ -116,11 +116,11 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return nil, nil
 		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return nil, nil
 		}
@@ -161,11 +161,11 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		cleanedPath := filepath.Clean(path)
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
+		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {
 			return nil, nil
 		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int)
+		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
 		if !pOk {
 			return nil, nil
 		}

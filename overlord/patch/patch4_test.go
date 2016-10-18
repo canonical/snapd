@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -221,7 +220,7 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		c.Assert(task, NotNil)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		ss, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
 		c.Check(ss.Flags.Revert(), Equals, false)
 
@@ -243,7 +242,7 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	ss, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
 	c.Check(ss.Flags.Revert(), Equals, true)
 
@@ -275,7 +274,7 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		ss, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
 		c.Check(ss.Flags.Revert(), Equals, false)
 
@@ -296,7 +295,7 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	ss, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
 	c.Check(ss.Flags.Revert(), Equals, true)
 
@@ -328,7 +327,7 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		// is not fully done yet)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		ss, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
 		c.Check(ss.Flags.Revert(), Equals, false)
 
@@ -350,7 +349,7 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	ss, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
 	c.Check(ss.Flags.Revert(), Equals, false)
 
@@ -385,7 +384,7 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := snapstate.TaskSnapSetup(task)
+		ss, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
 		c.Check(ss.Flags.Revert(), Equals, false)
 
@@ -406,7 +405,7 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	ss, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
 	c.Check(ss.Flags.Revert(), Equals, false)
 
