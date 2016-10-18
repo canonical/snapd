@@ -1,6 +1,0 @@
-# all snappy framework services start after this
-
-[Unit]
-Description=Ready for frameworks
-After=cloud-init.service
-

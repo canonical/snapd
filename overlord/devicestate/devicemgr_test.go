@@ -953,8 +953,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVar("snap_mode", "trying")
-	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -971,9 +973,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	mode, err := bootloader.GetBootVar("snap_mode")
+	m, err := bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
-	c.Assert(mode, Equals, "")
+	c.Assert(m, DeepEquals, map[string]string{"snap_mode": ""})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
@@ -984,9 +986,11 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	defer partition.ForceBootloader(nil)
 
 	// simulate that we have a new core_2, tried to boot it but that failed
-	bootloader.SetBootVar("snap_mode", "")
-	bootloader.SetBootVar("snap_try_core", "core_2.snap")
-	bootloader.SetBootVar("snap_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "",
+		"snap_try_core": "core_2.snap",
+		"snap_core":     "core_1.snap",
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1012,8 +1016,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	release.OnClassic = false
 
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.SetBootVar("snap_mode", "trying")
-	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
 	bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)

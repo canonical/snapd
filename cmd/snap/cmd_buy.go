@@ -122,6 +122,13 @@ for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.P
 
 	_, err = cli.Buy(opts)
 	if err != nil {
+		if e, ok := err.(*client.Error); ok {
+			switch e.Kind {
+			case client.ErrorKindPaymentDeclined:
+				return fmt.Errorf(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
+payment details at https://my.ubuntu.com/payment/edit and try again.`))
+			}
+		}
 		return err
 	}
 
