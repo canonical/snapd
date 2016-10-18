@@ -176,10 +176,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 
 	cmd := []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		securityTag,
-		securityTag,
-		"/usr/lib/snapd/snap-exec",
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
 	}
 
 	if command != "" {
