@@ -1054,3 +1054,43 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
 }
+
+func (s *deviceMgrSuite) TestCheckGadget(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	gadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: gadget`, nil)
+
+	err := devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadget(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
+
+	// install pc gadget
+	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: pc`, nil)
+	err = devicestate.CheckGadget(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+}
