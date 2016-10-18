@@ -175,12 +175,12 @@ type Store struct {
 }
 
 func defaultRetryStrategy() retry.Strategy {
-	return retry.LimitTime(30*time.Second,
+	return retry.LimitCount(6, retry.LimitTime(30*time.Second,
 		retry.Exponential{
 			Initial: 10 * time.Millisecond,
-			Factor:  1.5,
+			Factor:  1.67,
 		},
-	)
+	))
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -1560,40 +1560,38 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	err := s.retryRequest(s.client, reqOptions, user, defaultRetryStrategy(), func (resp *http.Response) (error, bool) {
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var customer storeCustomer
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&customer); err != nil {
+				return err, true
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted, false
+			}
+			if !customer.HasPaymentMethod {
+				return ErrNoPaymentMethods, false
+			}
+			return nil, false
+		case http.StatusNotFound:
+			// Likely because user has no account registered on the pay server
+			return fmt.Errorf("cannot get customer details: server says no account exists"), false
+		case http.StatusUnauthorized:
+			return ErrInvalidCredentials, false
+		default:
+			var errors storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errors); err != nil {
+				return err, false
+			}
+			if len(errors.Errors) == 0 {
+				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode), false
+			}
+			return &errors, false
+		}
+	})
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
-		}
-		if !customer.LatestTOSAccepted {
-			return ErrTOSNotAccepted
-		}
-		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethods
-		}
-		return nil
-	case http.StatusNotFound:
-		// Likely because user has no account registered on the pay server
-		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
-		return ErrInvalidCredentials
-	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
-		if len(errors.Errors) == 0 {
-			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-		}
-		return &errors
-	}
+	return err
 }
