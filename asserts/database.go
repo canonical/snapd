@@ -384,7 +384,7 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 		maxFormat = maxSupp
 	} else {
 		if maxFormat > maxSupp {
-			return nil, fmt.Errorf("cannot find %q assertions for max format %d higher than max supported format %d", assertionType.Name, maxFormat, maxSupp)
+			return nil, fmt.Errorf("cannot find %q assertions for format %d higher than supported format %d", assertionType.Name, maxFormat, maxSupp)
 		}
 	}
 	keyValues := make([]string, len(assertionType.PrimaryKey))
@@ -422,10 +422,10 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 	return find(db.backstores, assertionType, headers, -1)
 }
 
-// FindSupported finds an assertion like Find but such that its
+// FindMaxFormat finds an assertion like Find but such that its
 // format is <= maxFormat by passing maxFormat along to the backend.
 // It returns ErrNotFound if such an assertion cannot be found.
-func (db *Database) FindSupported(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
+func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
 	return find(db.backstores, assertionType, headers, maxFormat)
 }
 
