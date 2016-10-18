@@ -52,7 +52,7 @@ func OpenFSBackstore(path string) (Backstore, error) {
 }
 
 // guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
-func (fsbs *filesystemBackstore) readAssertion1(assertType *AssertionType, diskPrimaryPath string) (Assertion, error) {
+func (fsbs *filesystemBackstore) readAssertion(assertType *AssertionType, diskPrimaryPath string) (Assertion, error) {
 	encoded, err := readEntry(fsbs.top, assertType.Name, diskPrimaryPath)
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
@@ -84,7 +84,7 @@ func (fsbs *filesystemBackstore) pickLatestAssertion(assertType *AssertionType, 
 			}
 		}
 		if formatnum <= maxFormat {
-			a1, err := fsbs.readAssertion1(assertType, diskPrimaryPath)
+			a1, err := fsbs.readAssertion(assertType, diskPrimaryPath)
 			if err != nil {
 				return nil, err
 			}

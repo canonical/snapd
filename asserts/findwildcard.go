@@ -27,7 +27,7 @@ import (
 )
 
 /*
-findWildcard invokes foundCb once for each parent directory of regulars files matching:
+findWildcard invokes foundCb once for each parent directory of regular files matching:
 
 <top>/<descendantWithWildcard[0]>/<descendantWithWildcard[1]>...
 

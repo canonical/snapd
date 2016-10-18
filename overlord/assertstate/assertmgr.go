@@ -314,7 +314,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		if notFound.Ref.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
 		} else {
-			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
 		}
 	}
 	if err != nil {
