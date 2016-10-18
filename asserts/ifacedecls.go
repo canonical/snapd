@@ -294,14 +294,14 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 	}
 	defaultUsed := 0
 	for _, field := range idConstraints {
-		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
+		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
 		if err != nil {
 			return err
 		}
-		if l == nil {
+		if lst == nil {
 			defaultUsed++
 		}
-		target.setIDConstraints(field, l)
+		target.setIDConstraints(field, lst)
 	}
 	for _, field := range attrConstraints {
 		cstrs := AlwaysMatchAttributes
@@ -331,11 +331,11 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 				c = &OnClassicConstraint{Classic: false}
 			}
 		case []interface{}:
-			l, err := checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro)
+			lst, err := checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro)
 			if err != nil {
 				return err
 			}
-			c = &OnClassicConstraint{Classic: true, Distros: l}
+			c = &OnClassicConstraint{Classic: true, Distros: lst}
 		}
 		if c == nil {
 			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of distros", context)
@@ -374,7 +374,7 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 	// compile and set subrules
 	for _, subrule := range subrules {
 		v := rMap[subrule]
-		var l []interface{}
+		var lst []interface{}
 		alternatives := false
 		switch x := v.(type) {
 		case nil:
@@ -382,17 +382,17 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 			defaultUsed++
 		case []interface{}:
 			alternatives = true
-			l = x
+			lst = x
 		}
-		if l == nil { // v is map or a string, checked below
-			l = []interface{}{v}
+		if lst == nil { // v is map or a string, checked below
+			lst = []interface{}{v}
 		}
 		compiler := compilers[subrule]
 		if compiler == nil {
 			panic(fmt.Sprintf("no compiler for %s in %s", subrule, context))
 		}
-		alts := make([]constraintsHolder, len(l))
-		for i, alt := range l {
+		alts := make([]constraintsHolder, len(lst))
+		for i, alt := range lst {
 			subctxt := fmt.Sprintf("%s in %s", subrule, context)
 			if alternatives {
 				subctxt = fmt.Sprintf("alternative %d of %s", i+1, subctxt)
