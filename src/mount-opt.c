@@ -51,7 +51,7 @@ const char *sc_mount_opt2str(unsigned long flags)
 	// MS_PRIVATE, MS_SLAVE, MS_SHARED)
 	// XXX: kernel has MS_VERBOSE, glibc has MS_SILENT, both use the same constant
 	F(MS_SILENT, silent);
-	F(MS_POSIXACL, posixacl);
+	F(MS_POSIXACL, acl);
 	F(MS_UNBINDABLE, unbindable);
 	if (flags & MS_PRIVATE) {
 		if (flags & MS_REC) {
