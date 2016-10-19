@@ -157,6 +157,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	c.Check(err, IsNil)
 	// the service was also started (whee)
 	c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
 		{"systemctl", "start", "snap.samba.-.foo.service"},
 	})
 }
@@ -208,11 +209,11 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
 	// The bar service should have been stopped
 	calls := s.systemctlCmd.Calls()
-	c.Check(calls[0], DeepEquals, []string{"systemctl", "stop", "snap.samba.-.bar.service"})
+	c.Check(calls[0], DeepEquals, []string{"systemctl", "daemon-reload"})
+	c.Check(calls[1], DeepEquals, []string{"systemctl", "stop", "snap.samba.-.bar.service"})
 	for i, call := range calls {
-		if i > 0 && i < len(calls)-1 {
+		if i > 1 {
 			c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.-.bar.service"})
 		}
 	}
-	c.Check(calls[len(calls)-1], DeepEquals, []string{"systemctl", "daemon-reload"})
 }
