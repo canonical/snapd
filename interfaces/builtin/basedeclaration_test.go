@@ -459,9 +459,9 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	noconnect := map[string]bool{
 		"bluez":            true,
 		"docker":           true,
+		"fwupd":            true,
 		"location-control": true,
 		"location-observe": true,
-		"fwupd":            true,
 		"mir":              true,
 		"modem-manager":    true,
 		"udisks2":          true,
@@ -490,10 +490,10 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
-		"snapd-control":         true,
+		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
-		"docker-support":        true,
+		"snapd-control":         true,
 	}
 
 	for _, iface := range all {
