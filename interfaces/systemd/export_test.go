@@ -17,18 +17,10 @@
  *
  */
 
-package interfaces
+package systemd
 
-import (
-	"github.com/snapcore/snapd/snap"
+var (
+	UnmarshalRawSnippetMap = unmarshalRawSnippetMap
+	MergeSnippetMap        = mergeSnippetMap
+	RenderSnippet          = renderSnippet
 )
-
-// SecurityTagGlob returns a pattern that matches all security tags belonging to
-// the same snap as the given app.
-func SecurityTagGlob(snapName string) string {
-	return snap.AppSecurityTag(snapName, "*")
-}
-
-func InterfaceServiceName(snapName, uniqueName string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".service"
-}
