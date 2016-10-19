@@ -125,7 +125,7 @@ func (s *backendSuite) TestFlattenSnippetMapClashing(c *C) {
 		},
 	}
 	snippet, err := systemd.FlattenSnippetMap(snippetMap)
-	c.Assert(err, ErrorMatches, `cannot merge two diferent services competing for name "foo.service"`)
+	c.Assert(err, ErrorMatches, `interface require conflicting system needs`)
 	c.Assert(snippet, IsNil)
 }
 
@@ -148,38 +148,38 @@ func (s *backendSuite) TestRenderSnippet(c *C) {
 func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	devMode := false
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.-.foo.service": {"exec-start": "/bin/true"}}}`), nil
+		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
 	}
 	s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
-	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.-.foo.service")
+	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	// the service file was created
 	_, err := os.Stat(service)
 	c.Check(err, IsNil)
 	// the service was also started (whee)
 	c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "daemon-reload"},
-		{"systemctl", "start", "snap.samba.-.foo.service"},
+		{"systemctl", "start", "snap.samba.interface.foo.service"},
 	})
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.-.foo.service": {"exec-start": "/bin/true"}}}`), nil
+		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
 	}
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
 		s.systemctlCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
-		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.-.foo.service")
+		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 		// the service file was removed
 		_, err := os.Stat(service)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
 		calls := s.systemctlCmd.Calls()
-		c.Check(calls[0], DeepEquals, []string{"systemctl", "stop", "snap.samba.-.foo.service"})
+		c.Check(calls[0], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.foo.service"})
 		for i, call := range calls {
 			if i > 0 && i < len(calls)-1 {
-				c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.-.foo.service"})
+				c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"})
 			}
 		}
 		c.Check(calls[len(calls)-1], DeepEquals, []string{"systemctl", "daemon-reload"})
@@ -189,12 +189,12 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	devMode := false
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.-.foo.service": {"exec-start": "/bin/true"}, "snap.samba.-.bar.service": {"exec-start": "/bin/false"}}}`), nil
+		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}, "snap.samba.interface.bar.service": {"exec-start": "/bin/false"}}}`), nil
 	}
 	snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
 	s.systemctlCmd.ForgetCalls()
-	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.-.foo.service")
-	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.-.bar.service")
+	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
+	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.bar.service")
 	// the services were created
 	_, err := os.Stat(serviceFoo)
 	c.Check(err, IsNil)
@@ -203,17 +203,17 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 
 	// Change what the interface returns to simulate some useful change
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.-.foo.service": {"exec-start": "/bin/true"}}}`), nil
+		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
 	}
 	// Update over to the same snap to regenerate security
 	s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
 	// The bar service should have been stopped
 	calls := s.systemctlCmd.Calls()
 	c.Check(calls[0], DeepEquals, []string{"systemctl", "daemon-reload"})
-	c.Check(calls[1], DeepEquals, []string{"systemctl", "stop", "snap.samba.-.bar.service"})
+	c.Check(calls[1], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.bar.service"})
 	for i, call := range calls {
 		if i > 1 {
-			c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.-.bar.service"})
+			c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"})
 		}
 	}
 }

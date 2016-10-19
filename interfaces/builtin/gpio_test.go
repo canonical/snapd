@@ -143,7 +143,7 @@ func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, map[string]interface{}{
 		"services": map[string]interface{}{
-			"snap.my-device.-.gpio-100.service": map[string]interface{}{
+			"snap.my-device.interface.gpio-100.service": map[string]interface{}{
 				"type":              "oneshot",
 				"remain-after-exit": true,
 				"exec-start":        `sh -c 'echo 100 > /sys/class/gpio/export'`,
