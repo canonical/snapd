@@ -179,12 +179,13 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		_, err := os.Stat(service)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
-		c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
-			{"systemctl", "stop", "snap.samba.-.foo.service"},
-			{"systemctl", "show", "--property=ActiveState", "snap.samba.-.foo.service"},
-			{"systemctl", "show", "--property=ActiveState", "snap.samba.-.foo.service"},
-			{"systemctl", "show", "--property=ActiveState", "snap.samba.-.foo.service"},
-			{"systemctl", "daemon-reload"},
-		})
+		calls := s.systemctlCmd.Calls()
+		c.Check(calls[0], DeepEquals, []string{"systemctl", "stop", "snap.samba.-.foo.service"})
+		for i, call := range calls {
+			if i > 0 && i < len(calls)-1 {
+				c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.-.foo.service"})
+			}
+		}
+		c.Check(calls[len(calls)-1], DeepEquals, []string{"systemctl", "daemon-reload"})
 	}
 }
