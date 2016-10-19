@@ -115,16 +115,29 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
 
-	var bootvar string
+	var nextBoot, goodBoot string
 	switch s.Type {
 	case snap.TypeOS:
-		bootvar = "snap_try_core"
+		nextBoot = "snap_try_core"
+		goodBoot = "snap_core"
 	case snap.TypeKernel:
-		bootvar = "snap_try_kernel"
+		nextBoot = "snap_try_kernel"
+		goodBoot = "snap_kernel"
 	}
 	blobName := filepath.Base(s.MountFile())
+
+	// check if we actually need to do anything, i.e. the exact same
+	// kernel/core revision got installed again (e.g. firstboot)
+	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
+	if err != nil {
+		return err
+	}
+	if m[goodBoot] == blobName {
+		return nil
+	}
+
 	return bootloader.SetBootVars(map[string]string{
-		bootvar:     blobName,
+		nextBoot:    blobName,
 		"snap_mode": "try",
 	})
 }

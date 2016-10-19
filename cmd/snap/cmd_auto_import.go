@@ -21,6 +21,8 @@ package main
 
 import (
 	"bufio"
+	"crypto"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -31,6 +33,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -92,6 +96,60 @@ func autoImportCandidates() ([]string, error) {
 
 }
 
+func queueFile(src string) error {
+	// refuse huge files, this is for assertions
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	// 640kb ought be to enough for anyone
+	if fi.Size() > 640*1024 {
+		msg := fmt.Errorf("cannot queue %s, file size too big: %v", src, fi.Size())
+		logger.Noticef("error: %v", msg)
+		return msg
+	}
+
+	// ensure name is predictable, weak hash is ok
+	hash, _, err := osutil.FileDigest(src, crypto.SHA3_384)
+	if err != nil {
+		return err
+	}
+
+	dst := filepath.Join(dirs.SnapAssertsSpoolDir, fmt.Sprintf("%s.assert", base64.URLEncoding.EncodeToString(hash)))
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	return osutil.CopyFile(src, dst, osutil.CopyFlagOverwrite)
+}
+
+func autoImportFromSpool() (added int, err error) {
+	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	for _, fi := range files {
+		cand := filepath.Join(dirs.SnapAssertsSpoolDir, fi.Name())
+		if err := ackFile(cand); err != nil {
+			logger.Noticef("error: cannot import %s: %s", cand, err)
+			continue
+		} else {
+			logger.Noticef("imported %s", cand)
+			added++
+		}
+		// FIXME: only remove stuff older than N days?
+		if err := os.Remove(cand); err != nil {
+			return 0, err
+		}
+	}
+
+	return added, nil
+}
+
 func autoImportFromAllMounts() (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
@@ -100,8 +158,18 @@ func autoImportFromAllMounts() (int, error) {
 
 	added := 0
 	for _, cand := range cands {
-		if err := ackFile(cand); err != nil {
+		err := ackFile(cand)
+		// the server is not ready yet
+		if _, ok := err.(client.ConnectionError); ok {
+			logger.Noticef("queuing for later %s", cand)
+			if err := queueFile(cand); err != nil {
+				return 0, err
+			}
+			continue
+		}
+		if err != nil {
 			logger.Noticef("error: cannot import %s: %s", cand, err)
+			continue
 		} else {
 			logger.Noticef("imported %s", cand)
 		}
@@ -210,12 +278,17 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		defer doUmount(mp)
 	}
 
-	added, err := autoImportFromAllMounts()
+	added1, err := autoImportFromSpool()
 	if err != nil {
 		return err
 	}
 
-	if added > 0 {
+	added2, err := autoImportFromAllMounts()
+	if err != nil {
+		return err
+	}
+
+	if added1+added2 > 0 {
 		return autoAddUsers()
 	}
 
