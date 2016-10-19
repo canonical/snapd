@@ -4121,44 +4121,62 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *ch
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
-func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
+func (s *postCreateUserSuite) setupSigner(accountID string) *assertstest.SigningDB {
 	st := s.d.overlord.State()
 
 	// create fake brand signature
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+	signerPrivKey, _ := assertstest.GenerateKey(752)
+	signerSigning := assertstest.NewSigningDB(accountID, signerPrivKey)
 
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
+	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
+		"account-id":   accountID,
 		"verification": "certified",
 	}, "")
-	s.storeSigning.Add(brandAcct)
+	s.storeSigning.Add(signerAcct)
+	assertAdd(st, signerAcct)
 
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
+	signerAccKey := assertstest.NewAccountKey(s.storeSigning, signerAcct, nil, signerPrivKey.PublicKey(), "")
+	s.storeSigning.Add(signerAccKey)
+	assertAdd(st, signerAccKey)
+
+	return signerSigning
+}
+
+func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
+	st := s.d.overlord.State()
+
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+
+	brandSigning := s.setupSigner("my-brand")
+	partnerSigning := s.setupSigner("partner")
+	unknownSigning := s.setupSigner("unknown")
+
+	signers := map[string]*assertstest.SigningDB{
+		"my-brand": brandSigning,
+		"partner":  partnerSigning,
+		"unknown":  unknownSigning,
+	}
 
 	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
+		"series":                "16",
+		"authority-id":          "my-brand",
+		"brand-id":              "my-brand",
+		"model":                 "my-model",
+		"architecture":          "amd64",
+		"gadget":                "pc",
+		"kernel":                "pc-kernel",
+		"required-snaps":        []interface{}{"required-snap1"},
+		"system-user-authority": []interface{}{"my-brand", "partner"},
+		"timestamp":             time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 	model = model.(*asserts.Model)
 
 	// now add model related stuff to the system
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-	assertAdd(st, brandAcct)
-	assertAdd(st, brandAccKey)
 	assertAdd(st, model)
 
 	for _, suMap := range systemUsers {
-		su, err := brandSigning.Sign(asserts.SystemUserType, suMap, nil, "")
+		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
@@ -4187,6 +4205,19 @@ var goodUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
+var partnerUser = map[string]interface{}{
+	"authority-id": "partner",
+	"brand-id":     "my-brand",
+	"email":        "p@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "Partner Guy",
+	"username":     "partnerguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
 var badUser = map[string]interface{}{
 	// bad user (not valid for this model)
 	"authority-id": "my-brand",
@@ -4196,6 +4227,19 @@ var badUser = map[string]interface{}{
 	"models":       []interface{}{"non-of-the-models-i-have"},
 	"name":         "Random Gal",
 	"username":     "gal",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var unknownUser = map[string]interface{}{
+	"authority-id": "unknown",
+	"brand-id":     "my-brand",
+	"email":        "x@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "XGuy",
+	"username":     "xguy",
 	"password":     "$6$salt$hash",
 	"since":        time.Now().Format(time.RFC3339),
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
@@ -4265,12 +4309,19 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser, badUser})
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, badUser, unknownUser})
 
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		switch username {
+		case "guy":
+			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		case "partnerguy":
+			c.Check(opts.Gecos, check.Equals, "p@partner.com,Partner Guy")
+		default:
+			c.Logf("unexpected username %q", username)
+			c.Fail()
+		}
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		return nil
@@ -4286,22 +4337,26 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	// note that we get a list here instead of a single
 	// userResponseData item
-	expected := []userResponseData{
-		{Username: "guy"},
+	c.Check(rsp.Result, check.FitsTypeOf, []userResponseData{})
+	seen := map[string]bool{}
+	for _, u := range rsp.Result.([]userResponseData) {
+		seen[u.Username] = true
+		c.Check(u, check.DeepEquals, userResponseData{Username: u.Username})
 	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
+	c.Check(seen, check.DeepEquals, map[string]bool{
+		"guy":        true,
+		"partnerguy": true,
+	})
 
 	// ensure the user was added to the state
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
 	st.Unlock()
-	c.Check(users, check.HasLen, 1)
+	c.Check(users, check.HasLen, 2)
 }
 
 func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
