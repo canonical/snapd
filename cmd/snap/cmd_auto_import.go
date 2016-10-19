@@ -118,11 +118,12 @@ func autoImportFromSpool() (added int, err error) {
 			continue
 		} else {
 			logger.Noticef("imported %s", cand)
-			if err := os.Remove(cand); err != nil {
-				return 0, err
-			}
+			added++
 		}
-		added++
+		// FIXME: check and only remove stuff older than N days
+		if err := os.Remove(cand); err != nil {
+			return 0, err
+		}
 	}
 	return added, nil
 }
