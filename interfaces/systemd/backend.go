@@ -138,7 +138,7 @@ func flattenSnippetMap(snippetMap map[string][]*Snippet) (*Snippet, error) {
 			for name, service := range snippet.Services {
 				if old, present := services[name]; present {
 					if old != service {
-						return nil, fmt.Errorf("cannot merge two diferent services competing for name %q", name)
+						return nil, fmt.Errorf("interface require conflicting system needs")
 					}
 				} else {
 					services[name] = service
