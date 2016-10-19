@@ -69,18 +69,21 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	glob := fmt.Sprintf("snap.%s.-.*.service", snapName)
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	// Start any new services
 	for _, service := range changed {
 		err := systemd.Start(service)
 		if err != nil {
 			logger.Noticef("cannot start service %q: %s", service, err)
 		}
 	}
+	// Stop any removed services
 	for _, service := range removed {
 		err := systemd.Stop(service, 1*time.Second)
 		if err != nil {
 			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}
+	// Reload systemd whenever something is removed
 	if len(removed) > 0 {
 		err := systemd.DaemonReload()
 		if err != nil {
@@ -101,6 +104,7 @@ func (b *Backend) Remove(snapName string) error {
 			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}
+	// Reload systemd whenever something is removed
 	if len(removed) > 0 {
 		err := systemd.DaemonReload()
 		if err != nil {
