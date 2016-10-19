@@ -35,6 +35,9 @@ import (
 	sysd "github.com/snapcore/snapd/systemd"
 )
 
+// FIXME: This backend unmarshals snippets as JSON. This is a hack that needs to be fixed
+// by making the interface methods get a typed backend object to talk to instead.
+
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct{}
 
