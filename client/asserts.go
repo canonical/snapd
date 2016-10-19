@@ -37,6 +37,10 @@ import (
 func (client *Client) Ack(b []byte) error {
 	var rsp interface{}
 	if _, err := client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp); err != nil {
+		// slightly horrible
+		if _, ok := err.(ConnectionError); ok {
+			return err
+		}
 		return fmt.Errorf("cannot assert: %v", err)
 	}
 

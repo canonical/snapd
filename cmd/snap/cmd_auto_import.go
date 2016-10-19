@@ -31,6 +31,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -135,9 +136,8 @@ func autoImportFromAllMounts() (int, error) {
 	added := 0
 	for _, cand := range cands {
 		err := ackFile(cand)
-		// HORRIBLE: string compare OMG
 		// the server is not ready yet
-		if err != nil && strings.Contains(err.Error(), "cannot communicate with server") {
+		if _, ok := err.(client.ConnectionError); ok {
 			logger.Noticef("queuing for later %s", cand)
 			if err := queueFile(cand); err != nil {
 				return 0, err
