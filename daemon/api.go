@@ -1808,6 +1808,11 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		}
 		return false
 	}
+	// check that the signer of the assertion is one of the accepted ones
+	sysUserAuths := modelAs.SystemUserAuthority()
+	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
+	}
 	if len(su.Series()) > 0 && !contains(series, su.Series()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
