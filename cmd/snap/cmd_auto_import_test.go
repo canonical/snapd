@@ -218,7 +218,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	c.Assert(err, IsNil)
 	c.Check(files, HasLen, 1)
-	c.Check(files[0].Name(), Equals, "2191084fab58a42ffe4d8ceef0984359d4f7d016.assert")
+	c.Check(files[0].Name(), Equals, "iOkaeet50rajLvL-0Qsf2ELrTdn3XIXRIBlDewcK02zwRi3_TJlUOTl9AaiDXmDn.assert")
 }
 
 func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
