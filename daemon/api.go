@@ -722,7 +722,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, err
 	}
 
-	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, 0)
+	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.Flags{})
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -750,18 +750,18 @@ var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
-	flags := snapstate.Flags(0)
+	flags := snapstate.Flags{}
 	if jailMode {
 		if devModeOS {
-			return 0, errNoJailMode
+			return flags, errNoJailMode
 		}
 		if devMode {
-			return 0, errModeConflict
+			return flags, errModeConflict
 		}
-		flags |= snapstate.JailMode
+		flags.JailMode = true
 	}
 	if devMode || devModeOS {
-		flags |= snapstate.DevMode
+		flags.DevMode = true
 	}
 
 	return flags, nil
@@ -851,7 +851,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 	if inst.IgnoreValidation {
-		flags |= snapstate.IgnoreValidation
+		flags.IgnoreValidation = true
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
@@ -1901,8 +1901,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if len(users) > 0 && !createData.ForceManaged {
-		return BadRequest("cannot create user: device already managed")
+
+	if !createData.ForceManaged {
+		if len(users) > 0 {
+			return BadRequest("cannot create user: device already managed")
+		}
+		if release.OnClassic {
+			return BadRequest("cannot create user: device is a classic system")
+		}
 	}
 
 	// special case: the user requested the creation of all known

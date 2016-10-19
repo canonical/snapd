@@ -142,6 +142,7 @@ var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []st
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
+	maxSupportedFormat[TestOnlyType.Name] = 1
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
 	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
 	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
