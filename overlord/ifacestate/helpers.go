@@ -191,11 +191,6 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	// FIXME: remove once we have assertions that provide this feature
-	if interfaces.IsLivePatchSnap(plug.Snap) {
-		return true
-	}
-
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap.SnapID != "" {
 		var err error
