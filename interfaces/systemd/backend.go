@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	sysd "github.com/snapcore/snapd/systemd"
@@ -74,13 +75,22 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	for _, service := range changed {
-		systemd.Start(service)
+		err := systemd.Start(service)
+		if err != nil {
+			logger.Noticef("cannot start service %q: %s", service, err)
+		}
 	}
 	for _, service := range removed {
-		systemd.Stop(service, 1*time.Second)
+		err := systemd.Stop(service, 1*time.Second)
+		if err != nil {
+			logger.Noticef("cannot stop service %q: %s", service, err)
+		}
 	}
 	if len(removed) > 0 {
-		systemd.DaemonReload()
+		err := systemd.DaemonReload()
+		if err != nil {
+			logger.Noticef("cannot reload systemd state: %s", err)
+		}
 	}
 	return errEnsure
 }
@@ -91,10 +101,16 @@ func (b *Backend) Remove(snapName string) error {
 	glob := fmt.Sprintf("snap.%s.-.*.service", snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
-		systemd.Stop(service, 1*time.Second)
+		err := systemd.Stop(service, 1*time.Second)
+		if err != nil {
+			logger.Noticef("cannot stop service %q: %s", service, err)
+		}
 	}
 	if len(removed) > 0 {
-		systemd.DaemonReload()
+		err := systemd.DaemonReload()
+		if err != nil {
+			logger.Noticef("cannot reload systemd state: %s", err)
+		}
 	}
 	return errEnsure
 }
