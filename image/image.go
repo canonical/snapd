@@ -429,10 +429,8 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 			m[bootvar] = name
 		}
 	}
-	if len(m) > 0 {
-		if err := bootloader.SetBootVars(m); err != nil {
-			return err
-		}
+	if err := bootloader.SetBootVars(m); err != nil {
+		return err
 	}
 
 	return nil
