@@ -64,6 +64,7 @@ var implicitClassicSlots = []string{
 	"browser-support",
 	"cups-control",
 	"gsettings",
+	"i2c",
 	"libvirt",
 	"modem-manager",
 	"network-manager",
