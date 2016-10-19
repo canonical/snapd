@@ -663,8 +663,8 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		if testCase.error == "" {
-			c.Assert(os.Remove(snapPath), IsNil)
-			c.Assert(err, IsNil)
+			err := os.Remove(snapPath)
+			c.Assert(err == nil || os.IsNotExist(err), Equals, true)
 			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
 				{"xdelta", "patch", "/the/delta/path", currentSnapPath, snapPath},
 			})

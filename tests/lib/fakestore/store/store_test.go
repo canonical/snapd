@@ -50,6 +50,14 @@ var _ = Suite(&storeTestSuite{})
 
 var defaultAddr = "localhost:23321"
 
+func getSha(fn string) string {
+	snapDigest, _, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		panic(err)
+	}
+	return hexify(snapDigest)
+}
+
 func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
 	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
@@ -127,12 +135,13 @@ func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
     "anon_download_url": "%s/download/foo_7_all.snap",
     "download_url": "%s/download/foo_7_all.snap",
     "version": "7",
-    "revision": 77
-}`, s.store.URL(), s.store.URL()))
+    "revision": 77,
+    "download_sha3_384": "%s"
+}`, s.store.URL(), s.store.URL(), getSha(snapFn)))
 }
 
 func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
-	s.makeTestSnap(c, "name: foo\nversion: 1")
+	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
 	resp, err := s.StoreGet(`/snaps/details/foo`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -148,12 +157,13 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
     "anon_download_url": "%s/download/foo_1_all.snap",
     "download_url": "%s/download/foo_1_all.snap",
     "version": "1",
-    "revision": 424242
-}`, s.store.URL(), s.store.URL()))
+    "revision": 424242,
+    "download_sha3_384": "%s"
+}`, s.store.URL(), s.store.URL(), getSha(snapFn)))
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
-	s.makeTestSnap(c, "name: hello-world\nversion: 1")
+	snapFn := s.makeTestSnap(c, "name: hello-world\nversion: 1")
 
 	// note that we send the hello-world snapID here
 	resp, err := s.StorePostJSON("/snaps/metadata", []byte(`{
@@ -176,11 +186,12 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
                 "anon_download_url": "%[1]s/download/hello-world_1_all.snap",
                 "download_url": "%[1]s/download/hello-world_1_all.snap",
                 "version": "1",
-                "revision": 424242
+                "revision": 424242,
+                "download_sha3_384": "%s"
             }
         ]
     }
-}`, s.store.URL()))
+}`, s.store.URL(), getSha(snapFn)))
 }
 
 func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
@@ -207,11 +218,12 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
                 "anon_download_url": "%[1]s/download/foo_10_all.snap",
                 "download_url": "%[1]s/download/foo_10_all.snap",
                 "version": "10",
-                "revision": 99
+                "revision": 99,
+                "download_sha3_384": "%s"
             }
         ]
     }
-}`, s.store.URL()))
+}`, s.store.URL(), getSha(snapFn)))
 }
 
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
