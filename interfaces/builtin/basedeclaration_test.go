@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -190,12 +191,15 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
-	// home will be controlled by AutoConnect(plug, slot) until
-	// we have on-classic support in decls
-	// to stop it from working on non-classic
+	r1 := release.MockOnClassic(true)
+	defer r1()
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+
+	release.OnClassic = false
+	err = cand.CheckAutoConnect()
+	c.Check(err, ErrorMatches, `auto-connection denied by slot rule of interface \"home\"`)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
