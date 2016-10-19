@@ -288,7 +288,7 @@ func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
 	})()
 
 	err := batch.Add(a)
-	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 0 is latest supported`)
+	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 1 is latest supported`)
 }
 
 func fakeSnap(rev int) []byte {
