@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -882,4 +883,43 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 	}
 
 	return a.(*asserts.Serial), nil
+}
+
+func checkGadget(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+	if snapInfo.Type != snap.TypeGadget {
+		// not a relevant check
+		return nil
+	}
+	if release.OnClassic {
+		// for the time being
+		return fmt.Errorf("cannot install a gadget snap on classic")
+	}
+
+	currentGadget, err := snapstate.GadgetInfo(st)
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot find original gadget snap: %v", err)
+	}
+	if currentGadget != nil {
+		// already installed, snapstate takes care
+		return nil
+	}
+	// first installation of a gadget
+
+	model, err := Model(st)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot install gadget without model assertion")
+	}
+	if err != nil {
+		return err
+	}
+
+	if snapInfo.Name() != model.Gadget() {
+		return fmt.Errorf("cannot install gadget %q, model assertion requests %q", snapInfo.Name(), model.Gadget())
+	}
+
+	return nil
+}
+
+func init() {
+	snapstate.AddCheckSnapCallback(checkGadget)
 }

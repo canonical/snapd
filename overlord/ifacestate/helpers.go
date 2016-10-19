@@ -322,5 +322,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 
 func init() {
 	// hook interface checks into snapstate installation logic
-	snapstate.CheckInterfaces = CheckInterfaces
+	snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
+		return CheckInterfaces(st, snapInfo)
+	})
 }
