@@ -43,11 +43,6 @@ func (b *Backend) Name() string {
 	return "systemd"
 }
 
-type dummyReporter struct{}
-
-func (dr *dummyReporter) Notify(msg string) {
-}
-
 func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	rawSnippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySystemd)
@@ -158,4 +153,9 @@ func renderSnippet(snippet *Snippet) (map[string]*osutil.FileState, error) {
 		}
 	}
 	return content, nil
+}
+
+type dummyReporter struct{}
+
+func (dr *dummyReporter) Notify(msg string) {
 }
