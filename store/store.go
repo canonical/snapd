@@ -320,6 +320,11 @@ var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
+	deltaDirs, _ := filepath.Glob(filepath.Join(dirs.SnapPartialBlobDir, "deltas-*"))
+	for _, dir := range deltaDirs {
+		os.RemoveAll(dir)
+	}
+
 	if cfg == nil {
 		cfg = &defaultConfig
 	}

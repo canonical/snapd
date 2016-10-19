@@ -1191,6 +1191,7 @@ out:
 
 	// we are in charge of the tempfile life cycle until we hand it off to the change
 	changeTriggered := false
+	// if you change this prefix, look for it in the tests
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
@@ -1270,12 +1271,15 @@ out:
 	if err != nil {
 		return InternalError("cannot install snap file: %v", err)
 	}
-	changeTriggered = true
 
 	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	ensureStateSoon(st)
+
+	// only when the unlock succeeds (as opposed to panicing) is the handoff done
+	// but this is good enough
+	changeTriggered = true
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
