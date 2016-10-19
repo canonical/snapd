@@ -17,18 +17,14 @@
  *
  */
 
-package interfaces
+package systemd_test
 
 import (
-	"github.com/snapcore/snapd/snap"
+	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
-// SecurityTagGlob returns a pattern that matches all security tags belonging to
-// the same snap as the given app.
-func SecurityTagGlob(snapName string) string {
-	return snap.AppSecurityTag(snapName, "*")
-}
-
-func InterfaceServiceName(snapName, uniqueName string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".service"
+func Test(t *testing.T) {
+	TestingT(t)
 }
