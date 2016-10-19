@@ -1,7 +1,13 @@
 libexec_PROGRAMS = snap-confine snap-discard-ns
+noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
-noinst_PROGRAMS = snap-confine-unit-tests
+noinst_PROGRAMS += snap-confine-unit-tests
 endif
+
+decode_mount_opts_SOURCES = \
+	decode-mount-opts.c \
+	mount-opt.c \
+	mount-opt.h
 
 snap_discard_ns_SOURCES = \
 	ns-support.c \
@@ -52,6 +58,8 @@ snap_confine_SOURCES = \
 	user-support.h \
 	quirks.c \
 	quirks.h \
+	mount-opt.c \
+	mount-opt.h \
 	mountinfo.c \
 	mountinfo.h \
 	ns-support.c \
@@ -97,7 +105,8 @@ snap_confine_unit_tests_SOURCES = \
 	mount-support-test.c \
 	verify-executable-name-test.c \
 	mountinfo-test.c \
-	ns-support-test.c
+	ns-support-test.c \
+	mount-opt-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)

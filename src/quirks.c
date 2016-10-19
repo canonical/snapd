@@ -28,6 +28,7 @@
 #include "utils.h"
 #include "cleanup-funcs.h"
 #include "classic.h"
+#include "mount-opt.h"
 // XXX: for smaller patch, this should be in utils.h later
 #include "user-support.h"
 
@@ -73,51 +74,6 @@ static void sc_quirk_setup_tmpfs(const char *dirname)
 	};
 }
 
-const char *mount_flags_to_string(unsigned flags)
-{
-	static char buf[1000];
-	strcpy(buf, "");
-	if (flags & MS_BIND) {
-		if (flags & MS_REC) {
-			strcat(buf, "rbind,");
-		} else {
-			strcat(buf, "bind,");
-		}
-	}
-	if (flags & MS_PRIVATE) {
-		if (flags & MS_REC) {
-			strcat(buf, "rprivate,");
-		} else {
-			strcat(buf, "private,");
-		}
-	}
-	if (flags & MS_SLAVE) {
-		if (flags & MS_REC) {
-			strcat(buf, "rslave,");
-		} else {
-			strcat(buf, "slave,");
-		}
-	}
-	if (flags & MS_SHARED) {
-		if (flags & MS_REC) {
-			strcat(buf, "rshared,");
-		} else {
-			strcat(buf, "shared,");
-		}
-	}
-	if (flags & MS_MOVE) {
-		strcat(buf, "move,");
-	}
-	if (flags & MS_UNBINDABLE) {
-		strcat(buf, "unbindable,");
-	}
-	size_t len = strlen(buf);
-	if (len > 0 && buf[len - 1] == ',') {
-		buf[len - 1] = 0;
-	}
-	return buf;
-}
-
 /**
  * Create an empty directory and bind mount something there.
  *
@@ -131,7 +87,7 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	flags |= MS_BIND;
 	debug("creating empty directory at %s", dest_dir);
 	mkpath(dest_dir);
-	const char *flags_str = mount_flags_to_string(flags);
+	const char *flags_str = sc_mount_opt2str(flags);
 	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
 	      flags_str);
 	if (mount(src_dir, dest_dir, NULL, flags, NULL) != 0) {
