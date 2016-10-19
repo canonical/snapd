@@ -98,7 +98,7 @@ var maxSupportedFormat = map[string]int{}
 
 func init() {
 	// register maxSupportedFormats while breaking initialisation loop
-	maxSupportedFormat[SnapDeclarationType.Name] = 0
+	maxSupportedFormat[SnapDeclarationType.Name] = 1
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
