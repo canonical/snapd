@@ -122,8 +122,8 @@ func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot
 				serviceName: systemd.Service{
 					Type:            "oneshot",
 					RemainAfterExit: true,
-					ExecStart:       fmt.Sprintf("sh -c 'echo %d > /sys/class/gpio/export'", gpioNum),
-					ExecStop:        fmt.Sprintf("sh -c 'echo %d > /sys/class/gpio/unexport'", gpioNum),
+					ExecStart:       fmt.Sprintf("/bin/sh -c 'echo %d > /sys/class/gpio/export'", gpioNum),
+					ExecStop:        fmt.Sprintf("/bin/sh -c 'echo %d > /sys/class/gpio/unexport'", gpioNum),
 				},
 			},
 		}
