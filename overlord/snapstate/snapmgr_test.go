@@ -2555,11 +2555,13 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	siNew := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
+		SnapID:   "october",
 	}
 
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(2),
+		SnapID:   "october",
 	}
 
 	s.state.Lock()
@@ -2569,6 +2571,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si, &siNew},
 		Current:  snap.R(2),
+		Channel:  "edge",
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap forward")
@@ -2596,11 +2599,8 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			revno: snap.R(7),
 		},
 		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "some-snap",
-				Revision: snap.R(7),
-			},
+			op:    "candidate",
+			sinfo: siNew,
 		},
 		{
 			op:   "link-snap",
@@ -2618,11 +2618,13 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Current, Equals, snap.R(7))
-	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(7))
+	c.Check(snapst.Sequence, HasLen, 2)
+	c.Check(snapst.Channel, Equals, "edge")
+	c.Check(snapst.CurrentSideInfo(), DeepEquals, &siNew)
 
-	c.Assert(snapst.Block(), HasLen, 0)
+	c.Check(snapst.Block(), HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
@@ -2838,6 +2840,8 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
+		Channel:  "edge",
+		SnapID:   "foo",
 	}
 
 	s.state.Lock()
@@ -2847,6 +2851,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 		Active:   false,
+		Channel:  "edge",
 	})
 
 	chg := s.state.NewChange("enable", "enable a snap")
@@ -2861,11 +2866,8 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "some-snap",
-				Revision: snap.R(7),
-			},
+			op:    "candidate",
+			sinfo: si,
 		},
 		{
 			op:   "link-snap",
@@ -2883,6 +2885,10 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Channel, Equals, "edge")
+	c.Assert(info.SnapID, Equals, "foo")
 }
 
 func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {

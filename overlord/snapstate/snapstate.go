@@ -39,10 +39,6 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		return nil, err
 	}
 
-	if ss.SnapPath == "" && ss.Channel == "" {
-		ss.Channel = "stable"
-	}
-
 	revisionStr := ""
 	if ss.SideInfo != nil {
 		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
@@ -265,6 +261,10 @@ func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, er
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	if channel == "" {
+		channel = "stable"
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -523,16 +523,13 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	ss := &SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: snapst.Current,
-		},
+		SideInfo: snapst.CurrentSideInfo(),
 	}
 
 	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), ss.Name(), snapst.Current))
 	prepareSnap.Set("snap-setup", &ss)
 
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system%s"), ss.Name(), snapst.Current))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), ss.Name(), snapst.Current))
 	linkSnap.Set("snap-setup", &ss)
 	linkSnap.WaitFor(prepareSnap)
 
