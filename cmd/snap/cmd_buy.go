@@ -79,7 +79,8 @@ func buySnap(snapName, currency string) error {
 	}
 
 	opts := &store.BuyOptions{
-		SnapID: snap.ID,
+		SnapID:   snap.ID,
+		Currency: currency,
 	}
 
 	if opts.Currency == "" {
