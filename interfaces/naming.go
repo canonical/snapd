@@ -20,8 +20,6 @@
 package interfaces
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -31,10 +29,6 @@ func SecurityTagGlob(snapName string) string {
 	return snap.AppSecurityTag(snapName, "*")
 }
 
-func SystemdServiceName(snapName, serviceName string) string {
-	return fmt.Sprintf("snap.%s.-.%s.service", snapName, serviceName)
-}
-
-func SystemdServiceGlob(snapName string) string {
-	return SystemdServiceName(snapName, "*")
+func InterfaceServiceName(snapName, uniqueName string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".service"
 }

@@ -116,7 +116,7 @@ func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot
 		if !ok {
 			return nil, fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 		}
-		serviceName := interfaces.SystemdServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+		serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
 		snippet := &systemd.Snippet{
 			Services: map[string]systemd.Service{
 				serviceName: systemd.Service{

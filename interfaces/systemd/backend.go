@@ -68,7 +68,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	glob := interfaces.SystemdServiceGlob(snapName)
+	glob := interfaces.InterfaceServiceName(snapName, "*")
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	// Reload systemd whenever something is added or removed
@@ -98,7 +98,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 func (b *Backend) Remove(snapName string) error {
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	// Remove all the files matching snap glob
-	glob := interfaces.SystemdServiceGlob(snapName)
+	glob := interfaces.InterfaceServiceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
 		err := systemd.Stop(service, 10*time.Second)
