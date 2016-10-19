@@ -254,6 +254,7 @@ prepare_all_snap() {
     echo "Wait for firstboot change to be ready"
     while ! snap changes | grep "Done"; do
         snap changes || true
+        snap change 1 || true
         sleep 1
     done
 
