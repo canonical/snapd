@@ -80,7 +80,7 @@ func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
 	})
 }
 
-func (s *backendSuite) TestFlattenSnippetMapOK(c *C) {
+func (s *backendSuite) TestMergeSnippetMapOK(c *C) {
 	snippetMap := map[string][]*systemd.Snippet{
 		"security-tag": []*systemd.Snippet{
 			&systemd.Snippet{
@@ -97,7 +97,7 @@ func (s *backendSuite) TestFlattenSnippetMapOK(c *C) {
 			},
 		},
 	}
-	snippet, err := systemd.FlattenSnippetMap(snippetMap)
+	snippet, err := systemd.MergeSnippetMap(snippetMap)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, &systemd.Snippet{
 		Services: map[string]systemd.Service{
@@ -107,7 +107,7 @@ func (s *backendSuite) TestFlattenSnippetMapOK(c *C) {
 	})
 }
 
-func (s *backendSuite) TestFlattenSnippetMapClashing(c *C) {
+func (s *backendSuite) TestMergeSnippetMapClashing(c *C) {
 	snippetMap := map[string][]*systemd.Snippet{
 		"security-tag": []*systemd.Snippet{
 			&systemd.Snippet{
@@ -124,7 +124,7 @@ func (s *backendSuite) TestFlattenSnippetMapClashing(c *C) {
 			},
 		},
 	}
-	snippet, err := systemd.FlattenSnippetMap(snippetMap)
+	snippet, err := systemd.MergeSnippetMap(snippetMap)
 	c.Assert(err, ErrorMatches, `interface require conflicting system needs`)
 	c.Assert(snippet, IsNil)
 }
