@@ -444,6 +444,16 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
+func isAssertNotFound(err error) bool {
+	if err == asserts.ErrNotFound {
+		return true
+	}
+	if _, ok := err.(*store.AssertionNotFoundError); ok {
+		return true
+	}
+	return false
+}
+
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
 	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
 	if err == asserts.ErrNotFound && s.assertFallback {
@@ -481,7 +491,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	a, err := s.retrieveAssertion(bs, typ, comps[1:])
-	if err == asserts.ErrNotFound {
+	if isAssertNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))
