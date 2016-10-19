@@ -2227,12 +2227,15 @@ T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
 xS4u9rVT6UY=`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
+	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
 		io.WriteString(w, testAssertion)
 	}))
 
@@ -2255,7 +2258,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
