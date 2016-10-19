@@ -23,6 +23,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    rm -rf /var/lib/snapd/auto-import/*
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

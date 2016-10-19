@@ -120,7 +120,7 @@ func queueFile(src string) error {
 		return err
 	}
 
-	return osutil.CopyFile(src, dst, 0)
+	return osutil.CopyFile(src, dst, osutil.CopyFlagOverwrite)
 }
 
 func autoImportFromSpool() (added int, err error) {
