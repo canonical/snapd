@@ -30,8 +30,8 @@ Build-Depends: bash-completion,
                squashfs-tools
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
-Vcs-Browser: https://github.com/vorlonofportland/snappy/tree/debian
-Vcs-Git: https://github.com/vorlonofportland/snappy.git -b debian
+Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/snapd.git
+Vcs-Git: git://anonscm.debian.org/collab-maint/snapd.git
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
