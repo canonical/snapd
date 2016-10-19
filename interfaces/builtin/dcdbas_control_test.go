@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type DcdbasControlInterfaceSuite struct {
@@ -83,6 +84,7 @@ func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Assert(string(snippet), testutil.Contains, `/dcdbas/smi_data`)
 }
 
 func (s *DcdbasControlInterfaceSuite) TestLegacyAutoConnect(c *C) {

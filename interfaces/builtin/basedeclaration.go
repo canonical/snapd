@@ -71,7 +71,7 @@ slots:
   dcdbas-control:
     allow-installation:
       slot-snap-type:
-        - gadget
+        - core
     deny-auto-connection: true
   docker:
     deny-auto-connection: true
