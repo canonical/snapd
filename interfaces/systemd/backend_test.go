@@ -43,11 +43,6 @@ var _ = Suite(&backendSuite{})
 func (s *backendSuite) SetUpTest(c *C) {
 	s.BackendSuite.SetUpTest(c)
 	s.Backend = &systemd.Backend{}
-	// Prepare a directory for systemd units
-	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapServicesDir, 0700)
-	c.Assert(err, IsNil)
-	// Mock away systemd interaction
 	s.systemctlCmd = testutil.MockCommand(c, "systemctl", "")
 }
 
