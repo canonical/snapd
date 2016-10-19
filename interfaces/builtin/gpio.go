@@ -21,8 +21,6 @@ package builtin
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -111,26 +109,12 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 
 // ConnectedSlotSnippet - no slot snippets provided
 func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// We need to export the GPIO so that it becomes as entry in sysfs
-	// available and we can assign it to a connecting plug.
-	numInt, ok := slot.Attrs["number"].(int)
-	if !ok {
-		return nil, fmt.Errorf("gpio slot has invalid number attribute")
-	}
-	numBytes := []byte(strconv.Itoa(numInt))
-
-	// Check if the gpio symlink is present, if not it needs exporting. Attempting
-	// to export a gpio again will cause an error on the Write() call
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numInt)); os.IsNotExist(err) {
-		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
-		if err != nil {
-			return nil, err
-		}
-		defer fileExport.Close()
-		_, err = fileExport.Write(numBytes)
-		if err != nil {
-			return nil, err
-		}
+	switch securitySystem {
+	case interfaces.SecurityUDev:
+		// NOTE: nothing unexports this GPIO when the slot is disconnected but
+		// AFAIK this doesn't hurt.
+		snippet := fmt.Sprintf(`ACTION=="add", SUBSYSTEM=="gpio", RUN+="/bin/echo %v > /syc/class/gpio/export"`, slot.Attrs["number"])
+		return []byte(snippet), nil
 	}
 	return nil, nil
 }

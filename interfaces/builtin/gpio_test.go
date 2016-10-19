@@ -132,3 +132,12 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
 	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
 }
+
+func (s *GpioInterfaceSuite) TestUsedSnippet(c *C) {
+	slot := s.gadgetGpioSlot
+	plug := s.gadgetPlug
+	content, err := s.iface.ConnectedSlotSnippet(plug, slot, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	expected := `ACTION=="add", SUBSYSTEM=="gpio", RUN+="/bin/echo 100 > /syc/class/gpio/export"`
+	c.Assert(string(content), Equals, expected)
+}
