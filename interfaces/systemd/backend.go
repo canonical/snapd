@@ -56,7 +56,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal systemd snippets for snap %q: %s", snapName, err)
 	}
-	snippet, err := flattenSnippetMap(snippets)
+	snippet, err := mergeSnippetMap(snippets)
 	if err != nil {
 		return fmt.Errorf("cannot merge systemd snippets for snap %q: %s", snapName, err)
 	}
@@ -131,7 +131,8 @@ func unmarshalRawSnippetMap(rawSnippetMap map[string][][]byte) (map[string][]*Sn
 	return richSnippetMap, nil
 }
 
-func flattenSnippetMap(snippetMap map[string][]*Snippet) (*Snippet, error) {
+// Flatten, deduplicate and check for conflicts in the services in the given snippet map
+func mergeSnippetMap(snippetMap map[string][]*Snippet) (*Snippet, error) {
 	services := make(map[string]Service)
 	for _, snippets := range snippetMap {
 		for _, snippet := range snippets {

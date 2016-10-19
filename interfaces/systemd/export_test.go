@@ -21,6 +21,6 @@ package systemd
 
 var (
 	UnmarshalRawSnippetMap = unmarshalRawSnippetMap
-	FlattenSnippetMap      = flattenSnippetMap
+	MergeSnippetMap        = mergeSnippetMap
 	RenderSnippet          = renderSnippet
 )
