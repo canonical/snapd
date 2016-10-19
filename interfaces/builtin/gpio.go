@@ -116,11 +116,10 @@ func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot
 		if !ok {
 			return nil, fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 		}
+		serviceName := interfaces.SystemdServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
 		snippet := &systemd.Snippet{
 			Services: map[string]systemd.Service{
-				// XXX: figure out if the name is okay
-				// The code below uses "-" as an impossible app name
-				fmt.Sprintf("snap.%s.-.gpio-%d.service", slot.Snap.Name(), gpioNum): systemd.Service{
+				serviceName: systemd.Service{
 					Type:            "oneshot",
 					RemainAfterExit: true,
 					ExecStart:       fmt.Sprintf("sh -c 'echo %d > /sys/class/gpio/export'", gpioNum),
