@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -37,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const autoImportsName = "auto-import.assert"
@@ -96,10 +96,29 @@ func autoImportCandidates() ([]string, error) {
 }
 
 func queueFile(src string) error {
-	dst := filepath.Join(dirs.SnapAssertsSpoolDir, strutil.MakeRandomString(16))
+	// refuse huge files, this is for assertions
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	// 640kb ought be to enough for anyone
+	if fi.Size() > 640*1024 {
+		msg := fmt.Errorf("cannot queue %s, file size too big: %v", src, fi.Size())
+		logger.Noticef("error: %v", msg)
+		return msg
+	}
+
+	// ensure name is predictable, weak hash is ok
+	hash, _, err := osutil.FileDigest(src, crypto.SHA1)
+	if err != nil {
+		return err
+	}
+
+	dst := filepath.Join(dirs.SnapAssertsSpoolDir, fmt.Sprintf("%x.assert", hash))
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
+
 	return osutil.CopyFile(src, dst, 0)
 }
 

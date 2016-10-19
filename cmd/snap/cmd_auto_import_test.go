@@ -218,6 +218,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	c.Assert(err, IsNil)
 	c.Check(files, HasLen, 1)
+	c.Check(files[0].Name(), Equals, "2191084fab58a42ffe4d8ceef0984359d4f7d016.assert")
 }
 
 func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
@@ -277,4 +278,35 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	c.Check(n, Equals, total)
 
 	c.Check(osutil.FileExists(fakeAssertsFn), Equals, false)
+}
+
+func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	l, err := logger.NewConsoleLog(s.stderr, 0)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
+
+	// fake data is bigger than the default assertion limit
+	fakeAssertData := make([]byte, 641*1024)
+
+	// ensure we can not connect
+	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err = ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/sc1 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	_, err = snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, ErrorMatches, "cannot queue .*, file size too big: 656384")
 }
