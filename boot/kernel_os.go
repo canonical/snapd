@@ -128,7 +128,7 @@ func SetNextBoot(s *snap.Info) error {
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
-	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
+	m, err := bootloader.GetBootVars(goodBoot)
 	if err != nil {
 		return err
 	}
