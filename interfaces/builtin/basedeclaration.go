@@ -239,6 +239,8 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection:
+      on-classic: false
   kernel-module-control:
     allow-installation:
       slot-snap-type:
