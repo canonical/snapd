@@ -1767,6 +1767,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
+	// this is the prefix used for tempfiles for sideloading
 	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
 	glbBefore, _ := filepath.Glob(glob)
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)

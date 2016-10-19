@@ -145,11 +145,6 @@ func New() (*Overlord, error) {
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
-	deltaDirs, _ := filepath.Glob(filepath.Join(dirs.SnapPartialBlobDir, "deltas-*"))
-	for _, dir := range deltaDirs {
-		os.RemoveAll(dir)
-	}
-
 	if !osutil.FileExists(dirs.SnapStateFile) {
 		// fail fast, mostly interesting for tests, this dir is setup
 		// by the snapd package
