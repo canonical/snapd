@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"crypto"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -109,12 +110,12 @@ func queueFile(src string) error {
 	}
 
 	// ensure name is predictable, weak hash is ok
-	hash, _, err := osutil.FileDigest(src, crypto.SHA1)
+	hash, _, err := osutil.FileDigest(src, crypto.SHA3_384)
 	if err != nil {
 		return err
 	}
 
-	dst := filepath.Join(dirs.SnapAssertsSpoolDir, fmt.Sprintf("%x.assert", hash))
+	dst := filepath.Join(dirs.SnapAssertsSpoolDir, fmt.Sprintf("%s.assert", base64.URLEncoding.EncodeToString(hash)))
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
