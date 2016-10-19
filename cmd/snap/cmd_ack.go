@@ -60,7 +60,11 @@ func ackFile(assertFile string) error {
 		return err
 	}
 
-	return Client().Ack(assertData)
+	if err := Client().Ack(assertData); err {
+		return fmt.Errorf("cannot assert: %v", err)
+	}
+
+	return nil
 }
 
 func (x *cmdAck) Execute(args []string) error {
