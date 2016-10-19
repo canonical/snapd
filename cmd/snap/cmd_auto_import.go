@@ -128,8 +128,9 @@ func autoImportFromSpool() (added int, err error) {
 		return 0, nil
 	}
 	if err != nil {
-		return added, err
+		return 0, err
 	}
+
 	for _, fi := range files {
 		cand := filepath.Join(dirs.SnapAssertsSpoolDir, fi.Name())
 		if err := ackFile(cand); err != nil {
@@ -139,11 +140,12 @@ func autoImportFromSpool() (added int, err error) {
 			logger.Noticef("imported %s", cand)
 			added++
 		}
-		// FIXME: check and only remove stuff older than N days
+		// FIXME: only remove stuff older than N days?
 		if err := os.Remove(cand); err != nil {
 			return 0, err
 		}
 	}
+
 	return added, nil
 }
 
