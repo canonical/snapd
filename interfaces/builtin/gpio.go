@@ -109,7 +109,7 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
-func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) (interfaces.Snippet, error) {
+func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) (*systemd.Snippet, error) {
 	switch securitySystem {
 	case interfaces.SecuritySystemd:
 		gpioNum, ok := slot.Attrs["number"].(int64)
