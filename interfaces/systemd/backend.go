@@ -65,8 +65,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	// TODO: maybe make this glob nicer?
-	glob := fmt.Sprintf("snap.%s.-.*.service", snapName)
+	glob := interfaces.SystemdServiceGlob(snapName)
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	// Start any new services
@@ -96,7 +95,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 func (b *Backend) Remove(snapName string) error {
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
 	// Remove all the files matching snap glob
-	glob := fmt.Sprintf("snap.%s.-.*.service", snapName)
+	glob := interfaces.SystemdServiceGlob(snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
 		err := systemd.Stop(service, 1*time.Second)
