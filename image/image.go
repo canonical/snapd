@@ -406,7 +406,10 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 		return fmt.Errorf("internal error: cannot find core/kernel snap")
 	}
 
-	m := map[string]string{}
+	m := map[string]string{
+		"snap_try_core":   "",
+		"snap_try_kernel": "",
+	}
 	for _, fn := range snaps {
 		bootvar := ""
 
