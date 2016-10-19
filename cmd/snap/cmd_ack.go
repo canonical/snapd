@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/i18n"
@@ -60,16 +61,15 @@ func ackFile(assertFile string) error {
 		return err
 	}
 
-	if err := Client().Ack(assertData); err {
-		return fmt.Errorf("cannot assert: %v", err)
-	}
-
-	return nil
+	return Client().Ack(assertData)
 }
 
 func (x *cmdAck) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	return ackFile(x.AckOptions.AssertionFile)
+	if err := ackFile(x.AckOptions.AssertionFile); err != nil {
+		return fmt.Errorf("cannot assert: %v", err)
+	}
+	return nil
 }
