@@ -57,26 +57,40 @@ func (u *uboot) envFile() string {
 	return filepath.Join(u.Dir(), "uboot.env")
 }
 
-func (u *uboot) SetBootVar(name, value string) error {
+func (u *uboot) SetBootVars(values map[string]string) error {
 	env, err := uenv.Open(u.envFile())
 	if err != nil {
 		return err
 	}
 
-	// already set, nothing to do
-	if env.Get(name) == value {
-		return nil
+	dirty := false
+	for k, v := range values {
+		// already set to the right value, nothing to do
+		if env.Get(k) == v {
+			continue
+		}
+		env.Set(k, v)
+		dirty = true
 	}
 
-	env.Set(name, value)
-	return env.Save()
+	if dirty {
+		return env.Save()
+	}
+
+	return nil
 }
 
-func (u *uboot) GetBootVar(name string) (string, error) {
+func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
+	out := map[string]string{}
+
 	env, err := uenv.Open(u.envFile())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return env.Get(name), nil
+	for _, name := range names {
+		out[name] = env.Get(name)
+	}
+
+	return out, nil
 }

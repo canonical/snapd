@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -103,6 +104,9 @@ func queueFile(src string) error {
 
 func autoImportFromSpool() (added int, err error) {
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
 	if err != nil {
 		return added, err
 	}
@@ -184,6 +188,8 @@ func doUmount(mp string) error {
 
 type cmdAutoImport struct {
 	Mount []string `long:"mount" arg-name:"<device path>"`
+
+	ForceClassic bool `long:"force-classic"`
 }
 
 var shortAutoImportHelp = i18n.G("Inspects devices for actionable information")
@@ -208,7 +214,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdAutoImport{}
 		}, map[string]string{
-			"mount": i18n.G("Temporarily mount device before inspecting"),
+			"mount":         i18n.G("Temporarily mount device before inspecting"),
+			"force-classic": i18n.G("Force import on classic systems"),
 		}, nil)
 	cmd.hidden = true
 }
@@ -224,6 +231,12 @@ func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
+	if release.OnClassic && !x.ForceClassic {
+		fmt.Fprintf(Stderr, "auto-import is disabled on classic\n")
+		return nil
+	}
+
 	for _, path := range x.Mount {
 		// udev adds new /dev/loopX devices on the fly when a
 		// loop mount happens and there is no loop device left.

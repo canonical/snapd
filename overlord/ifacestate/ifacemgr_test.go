@@ -918,7 +918,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 			RealName: snapInfo.Name(),
 			Revision: snapInfo.Revision,
 		},
-		Flags: snapstate.DevMode,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -1367,7 +1367,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 			RealName: siC.Name(),
 			Revision: siC.Revision,
 		},
-		Flags: snapstate.DevMode,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()

@@ -31,6 +31,8 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 func makeMockMountInfo(c *C, content string) string {
@@ -41,6 +43,9 @@ func makeMockMountInfo(c *C, content string) string {
 }
 
 func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0
@@ -77,7 +82,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	mockMountInfoFmt := `
 24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
-	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
 	l, err := logger.NewConsoleLog(s.stderr, 0)
@@ -96,6 +101,9 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 }
 
 func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	fakeAssertData := []byte("bad-assertion")
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +118,7 @@ func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
 	mockMountInfoFmtWithLoop := `
 24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/loop1 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmtWithLoop, filepath.Dir(fakeAssertsFn))
-	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
@@ -149,7 +157,36 @@ too short
 	c.Check(l, DeepEquals, files[1:len(files)])
 }
 
+func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	fakeAssertData := []byte("my-assertion")
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Errorf("auto-import on classic is disabled, but something tried to do a %q with %s", r.Method, r.URL.Path)
+	})
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled on classic\n")
+}
+
 func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
@@ -169,7 +206,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	mockMountInfoFmt := `
 24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/sc1 rw,errors=remount-ro,data=ordered`
 	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
-	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
 	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
@@ -184,6 +221,9 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 }
 
 func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0

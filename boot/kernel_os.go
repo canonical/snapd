@@ -123,15 +123,10 @@ func SetNextBoot(s *snap.Info) error {
 		bootvar = "snap_try_kernel"
 	}
 	blobName := filepath.Base(s.MountFile())
-	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
-		return err
-	}
-
-	if err := bootloader.SetBootVar("snap_mode", "try"); err != nil {
-		return err
-	}
-
-	return nil
+	return bootloader.SetBootVars(map[string]string{
+		bootvar:     blobName,
+		"snap_mode": "try",
+	})
 }
 
 // KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
@@ -156,17 +151,13 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 		goodBoot = "snap_core"
 	}
 
-	nextBootVer, err := bootloader.GetBootVar(nextBoot)
-	if err != nil {
-		return false
-	}
-	goodBootVer, err := bootloader.GetBootVar(goodBoot)
+	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
 	if err != nil {
 		return false
 	}
 
 	squashfsName := filepath.Base(s.MountFile())
-	if nextBootVer == squashfsName && goodBootVer != nextBootVer {
+	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
 		return true
 	}
 
