@@ -71,6 +71,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	glob := interfaces.SystemdServiceGlob(snapName)
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	// Reload systemd whenever something is added or removed
+	if len(changed) > 0 || len(removed) > 0 {
+		err := systemd.DaemonReload()
+		if err != nil {
+			logger.Noticef("cannot reload systemd state: %s", err)
+		}
+	}
 	// Start any new services
 	for _, service := range changed {
 		err := systemd.Start(service)
@@ -83,13 +90,6 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		err := systemd.Stop(service, 10*time.Second)
 		if err != nil {
 			logger.Noticef("cannot stop service %q: %s", service, err)
-		}
-	}
-	// Reload systemd whenever something is removed
-	if len(removed) > 0 {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
 	return errEnsure
