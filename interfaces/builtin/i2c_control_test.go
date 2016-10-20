@@ -186,7 +186,7 @@ func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeppEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
 
 func (s *I2cControlInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
