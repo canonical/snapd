@@ -360,6 +360,11 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
+  shutdown:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   snapd-control:
     allow-installation:
       slot-snap-type:
