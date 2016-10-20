@@ -42,14 +42,42 @@ func (iface *I2cControlInterface) String() string {
 // identification
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
-// Checks for validity of the defined slot
+// Check validity of the defined slot
 func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// FIXME: please!
+
+	// Does it have right type?
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	// Creation of the slot of this type
+	// is allowed only by a gadget snap
+	if slot.Snap.Type != "gadget" {
+		return fmt.Error("i2c-control slots only allowed on gadget snaps")
+	}
+
+	// Validate the path
+	path, ok := slot.Attrs["path"].(string)
+	if !ok || path == "" {
+		return fmt.Error("i2c-control slot must have a path attribute")
+	}
+
+	path = filepath.Clean(path)
+
+	if !i2cControlDeviceNodePattern.MatchString(path) {
+		return fmt.Error("i2c-control path attribute must be a valid device node")
+	}
+
+	return nil
 }
 
 // Checks and possibly modifies a plug
 func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	// FIXME please!
+	if iface.Name() != plug.Interface {
+		panic("plug is not of interface %q", iface)
+	}
+	// Currently nothing is checked on the plug side
+	return nil
 }
 
 // Returns snippet granted on install
