@@ -447,6 +447,13 @@ access to configure serial port hardware.
     * path (slot): path where a symlink will be created to the device
     e.g. /dev/serial-port-mydevice
 
+### shutdown
+
+Can control the system power state and rebooting, powering off or halting the
+system.
+
+* Auto-Connect: no
+
 ### snapd-control
 
 Can manage snaps via snapd.
