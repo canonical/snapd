@@ -105,17 +105,17 @@ slots:
 	test-udev-bad-interface-1
 		interface: other-interface
 `, nil)
-	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-1"]}
-	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-2"]}
-	s.testUdev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-3"]}
-	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-1"]}
-	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-2"]}
-	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-3"]}
-	s.testUdevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-4"]}
-	s.testUdevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-5"]}
-	s.testUdevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-6"]}
-	s.testUdevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-7"]}
-	s.testUdevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-interface-1"]}
+	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
+	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
+	s.testUdev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-3"]}
+	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
+	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
+	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
+	s.testUdevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-4"]}
+	s.testUdevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
+	s.testUdevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-6"]}
+	s.testUdevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-7"]}
+	s.testUdevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-interface-1"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
