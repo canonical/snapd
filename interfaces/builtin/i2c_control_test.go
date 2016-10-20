@@ -121,13 +121,12 @@ slots:
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
 plugs:
-	plug-for-port-1
-		interface: i2c-control
-
+  plug-for-port-1:
+    interface: i2c-control
 apps:
-	app-accessing-1-port:
-		command: foo
-		plugs: [i2c-control]
+  app-accessing-1-port:
+    command: foo
+    plugs: [i2c-control]
 `, nil)
 	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
 }
