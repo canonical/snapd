@@ -52,9 +52,9 @@ func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	// FIXME please!
 }
 
-// Returns snippet granted to install
+// Returns snippet granted on install
 func (iface *I2cControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// FIXME do I really need it?
+	return nil, nil
 }
 
 // Getter for the security snippet specific to the plug
@@ -103,6 +103,7 @@ func (iface *I2cControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 }
 
 // =======================
+
 
 const i2cConnectedPlugAppArmor = `
 /dev/i2c-[0-9]* rw,
