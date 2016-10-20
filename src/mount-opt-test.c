@@ -57,7 +57,8 @@ static void test_sc_mount_opt2str()
 	g_assert_cmpstr(sc_mount_opt2str(MS_NOUSER), ==, "nouser");
 	g_assert_cmpstr(sc_mount_opt2str(0x300), ==, "0x300");
 	// random compositions do work
-	g_assert_cmpstr(sc_mount_opt2str(MS_RDONLY | MS_NOEXEC | MS_BIND), ==, "ro,noexec,bind");
+	g_assert_cmpstr(sc_mount_opt2str(MS_RDONLY | MS_NOEXEC | MS_BIND), ==,
+			"ro,noexec,bind");
 }
 
 static void __attribute__ ((constructor)) init()
