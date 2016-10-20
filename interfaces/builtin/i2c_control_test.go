@@ -27,61 +27,180 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type I2CInterfaceSuite struct {
+type I2cControlInterfaceSuite struct {
+	testutil.BaseTest
 	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+
+	// OS Snap
+	testSlot1 *interfaces.Slot
+
+	// Gadget Snap
+	testUdev1             *interfaces.Slot
+	testUdev2             *interfaces.Slot
+	testUdev3             *interfaces.Slot
+	testUdevBadValue1     *interfaces.Slot
+	testUdevBadValue2     *interfaces.Slot
+	testUdevBadValue3     *interfaces.Slot
+	testUdevBadValue4     *interfaces.Slot
+	testUdevBadValue5     *interfaces.Slot
+	testUdevBadValue6     *interfaces.Slot
+	testUdevBadValue7     *interfaces.Slot
+	testUdevBadInterface1 *interfaces.Slot
+
+	// Consuming Snap
+	testPlugPort1 *interfaces.Plug
 }
 
-var _ = Suite(&I2CInterfaceSuite{
-	iface: builtin.NewI2CInterface(),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "i2c", Type: snap.TypeOS},
-			Name:      "i2c",
-			Interface: "i2c",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "i2c"},
-			Name:      "i2c",
-			Interface: "i2c",
-		},
-	},
+var _ = Suite(&I2cControlInterfaceSuite{
+	iface: builtin.I2cControlInterface{},
 })
 
-func (s *I2CInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "i2c")
+func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
+	// Mock for OS Snap
+	osSnapInfo := snaptest.MockInfo(c, `
+name: ubuntu-core
+type: os
+slots:
+	test-port-1:
+		interface: i2c-control
+		path: /dev/i2c-0
+`, nil)
+	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
+
+	// Mock for Gadget Snap
+	gadgetSnapInfo := snaptest.MockInfo(c, `
+name: some-device
+type: gadget
+slots:
+	test-udev-1:
+		interface: i2c-control
+		path: /dev/i2c-1
+	test-udev-2:
+		interface: i2c-control
+		path: /dev/i2c-11
+	test-udev-3:
+		interface: i2c-control
+		path: /dev/i2c-0
+	test-udev-bad-value-1
+		interface: i2c-control
+		path: /dev/i2c
+	test-udev-bad-value-2
+		interface: i2c-control
+		path: /dev/i2c-a
+	test-udev-bad-value-3
+		interface: i2c-control
+		path: /dev/i2c-2a
+	test-udev-bad-value-4
+		interface: i2c-control
+		path: /dev/foo-0
+	test-udev-bad-value-5
+		interface: i2c-control
+		path: /dev/i2c-foo
+	test-udev-bad-value-6
+		interface: i2c-control
+		path: ""
+	test-udev-bad-value-7
+		interface: i2c-control
+	test-udev-bad-interface-1
+		interface: other-interface
+`, nil)
+	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-1"]}
+	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-2"]}
+	s.testUdev3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-3"]}
+	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-1"]}
+	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-2"]}
+	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-3"]}
+	s.testUdevBadValue4 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-4"]}
+	s.testUdevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-5"]}
+	s.testUdevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-6"]}
+	s.testUdevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-value-7"]}
+	s.testUdevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo["test-udev-bad-interface-1"]}
+
+	// Snap Consumers
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+plugs:
+	plug-for-port-1
+		interface: i2c-control
+
+apps:
+	app-accessing-1-port:
+		command: foo
+		plugs: [i2c-control]
+`, nil)
+	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
 }
 
-func (s *I2CInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.slot)
+func (s *I2cControlInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "i2c-control")
+}
+
+func (s *I2cControlInterfaceSuite) TestSanitizeBadSnapSlot(c *C) {
+	err := s.iface.SanitizeSlot(s.testSlot1)
+	c.Assert(err, ErrorMatches, "i2c-control slots only allowed on gadget snaps")
+}
+
+func (s *I2cControlInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
+
+	err := s.iface.SanitizeSlot(s.testUdev1)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "i2c",
-		Interface: "i2c",
-	}})
-	c.Assert(err, ErrorMatches, "i2c slots are reserved for the operating system snap")
-}
 
-func (s *I2CInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
+	err := s.iface.SanitizeSlot(s.testUdev2)
+	c.Assert(err, IsNil)
+
+	err := s.iface.SanitizeSlot(s.testUdev3)
 	c.Assert(err, IsNil)
 }
 
-func (s *I2CInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "i2c"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "i2c"`)
+func (s *I2cControlInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
+	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue2)
+	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue3)
+	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue4)
+	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue5)
+	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue6)
+	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadValue7)
+	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
+
+	err := s.iface.SanitizeSlot(s.testUdevBadInterface1)
+	c.Assert(err, PanicMatches, `slot is not of interface "i2c-control"`)
 }
 
-func (s *I2CInterfaceSuite) TestAutoConnect(c *C) {
+func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+
+	expectedSnippet1 := []byte(`KERNEL="i2c-0", TAG+="snap_client-snap_app-app-accessing-1-port"`)
+
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeppEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+}
+
+func (s *I2cControlInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
+	expectedSnippet1 := []byte(`/dev/i2c-[0-9]+ rw,
+`)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+
+}
+
+func (s *I2cControlInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
 
-func (s *I2CInterfaceSuite) TestLegacyAutoConnect(c *C) {
+func (s *I2cControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
