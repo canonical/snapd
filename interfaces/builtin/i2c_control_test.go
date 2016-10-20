@@ -53,7 +53,7 @@ type I2cControlInterfaceSuite struct {
 }
 
 var _ = Suite(&I2cControlInterfaceSuite{
-	iface: builtin.I2cControlInterface{},
+	iface: &builtin.I2cControlInterface{},
 })
 
 func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
