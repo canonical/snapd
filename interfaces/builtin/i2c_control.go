@@ -20,10 +20,10 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -101,7 +101,7 @@ func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		cleanedPath := filepath.Clean(path)
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
-	case interfaces.SecurityUdev:
+	case interfaces.SecurityUDev:
 		const udevRule string = `KERNEL=="%s", TAG+=snap_%s_%s`
 		var udevSnippet bytes.Buffer
 		for appName := range plug.Apps {
