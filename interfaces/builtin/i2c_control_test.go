@@ -62,9 +62,9 @@ func (s *I2cControlInterfaceSuite) SetUpTest(c *C) {
 name: ubuntu-core
 type: os
 slots:
-	test-port-1:
-		interface: i2c-control
-		path: /dev/i2c-0
+  test-port-1:
+    interface: i2c-control
+    path: /dev/i2c-0
 `, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
 
@@ -73,37 +73,37 @@ slots:
 name: some-device
 type: gadget
 slots:
-	test-udev-1:
-		interface: i2c-control
-		path: /dev/i2c-1
-	test-udev-2:
-		interface: i2c-control
-		path: /dev/i2c-11
-	test-udev-3:
-		interface: i2c-control
-		path: /dev/i2c-0
-	test-udev-bad-value-1
-		interface: i2c-control
-		path: /dev/i2c
-	test-udev-bad-value-2
-		interface: i2c-control
-		path: /dev/i2c-a
-	test-udev-bad-value-3
-		interface: i2c-control
-		path: /dev/i2c-2a
-	test-udev-bad-value-4
-		interface: i2c-control
-		path: /dev/foo-0
-	test-udev-bad-value-5
-		interface: i2c-control
-		path: /dev/i2c-foo
-	test-udev-bad-value-6
-		interface: i2c-control
-		path: ""
-	test-udev-bad-value-7
-		interface: i2c-control
-	test-udev-bad-interface-1
-		interface: other-interface
+  test-udev-1:
+    interface: i2c-control
+    path: /dev/i2c-1
+  test-udev-2:
+    interface: i2c-control
+    path: /dev/i2c-11
+  test-udev-3:
+    interface: i2c-control
+    path: /dev/i2c-0
+  test-udev-bad-value-1
+    interface: i2c-control
+    path: /dev/i2c
+  test-udev-bad-value-2
+    interface: i2c-control
+    path: /dev/i2c-a
+  test-udev-bad-value-3
+    interface: i2c-control
+    path: /dev/i2c-2a
+  test-udev-bad-value-4
+    interface: i2c-control
+    path: /dev/foo-0
+  test-udev-bad-value-5
+    interface: i2c-control
+    path: /dev/i2c-foo
+  test-udev-bad-value-6
+    interface: i2c-control
+    path: ""
+  test-udev-bad-value-7
+    interface: i2c-control
+  test-udev-bad-interface-1
+    interface: other-interface
 `, nil)
 	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
 	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
