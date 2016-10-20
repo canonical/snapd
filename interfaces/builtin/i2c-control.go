@@ -74,7 +74,7 @@ func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 // Checks and possibly modifies a plug
 func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic("plug is not of interface %q", iface)
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	// Currently nothing is checked on the plug side
 	return nil
