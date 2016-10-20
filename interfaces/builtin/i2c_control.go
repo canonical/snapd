@@ -56,19 +56,19 @@ func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Creation of the slot of this type
 	// is allowed only by a gadget snap
 	if slot.Snap.Type != "gadget" {
-		return fmt.Error("i2c-control slots only allowed on gadget snaps")
+		return fmt.Errorf("i2c-control slots only allowed on gadget snaps")
 	}
 
 	// Validate the path
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
-		return fmt.Error("i2c-control slot must have a path attribute")
+		return fmt.Errorf("i2c-control slot must have a path attribute")
 	}
 
 	path = filepath.Clean(path)
 
 	if !i2cControlDeviceNodePattern.MatchString(path) {
-		return fmt.Error("i2c-control path attribute must be a valid device node")
+		return fmt.Errorf("i2c-control path attribute must be a valid device node")
 	}
 
 	return nil
