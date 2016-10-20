@@ -44,6 +44,7 @@ var allInterfaces = []interfaces.Interface{
 	&PulseAudioInterface{},
 	&UDisks2Interface{},
 	&FwupdInterface{},
+	NewDcdbasControlInterface(),
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
