@@ -1,0 +1,15 @@
+summary: test chattr
+# ubuntu-core doesn't have go :-)
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+prepare: |
+  go build -o toggle ./toggle.go
+execute: |
+  touch foo
+  # no immutable flag:
+  lsattr foo | grep -qv i
+  test "$(./toggle foo)" = "mutable -> immutable"
+  # and now an immutable flag!:
+  lsattr foo | grep -q i
+  test "$(./toggle foo)" = "immutable -> mutable"
+  # no immutable flag again:
+  lsattr foo | grep -qv i
