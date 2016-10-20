@@ -56,7 +56,7 @@ var _ = Suite(&I2cControlInterfaceSuite{
 	iface: &builtin.I2cControlInterface{},
 })
 
-func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
+func (s *I2cControlInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
