@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"path/filepath"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -46,7 +48,7 @@ func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *I2cControlInterface) SanitizePlug(plug (interfaces.Plug) error {
+func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	// FIXME please!
 }
 
@@ -55,19 +57,40 @@ func (iface *I2cControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 	// FIXME do I really need it?
 }
 
+// Getter for the security snippet specific to the plug
+func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil, nil
+	}
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		// No USB attributes for i2c so just go directly to
+		// considering the fixed node
+		cleanedPath := filepath.Clean(path)
+		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
+
+	case interfaces.SecurityUdev:
+		const udevRule string = `KERNEL=="%s", TAG+=snap_%s_%s`
+		var udevSnippet bytes.Buffer
+		for appName := range plug.Apps {
+			fName = filepath.Base(path)
+			rule := fmt.Sprintf(udevRule, fName, plug.Snap.Name(), appName)
+			udevSnippet.WriteString(fmt.Sprintf("%s\n", rule))
+		}
+		return udevSnippet.Bytes(), nil
+	}
+	return nil, nil
+}
+
 // No extra permissions granted on connection
 func (iface *I2cControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-// No permissions granted to plug permanently 
+// No permissions granted to plug permanently
 func (iface *I2cControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
-}
-
-// Getter for the security snippet specific to the plug
-func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// FIXME please
 }
 
 func (iface *I2cControlInterface) LegacyAutoConnect() bool {
@@ -79,10 +102,7 @@ func (iface *I2cControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 	return true
 }
 
-
-
 // =======================
-
 
 const i2cConnectedPlugAppArmor = `
 /dev/i2c-[0-9]* rw,
