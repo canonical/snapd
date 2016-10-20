@@ -72,7 +72,7 @@ var allInterfaces = []interfaces.Interface{
 	NewOpenglInterface(),
 	NewCupsControlInterface(),
 	NewOpticalDriveInterface(),
-	NewI2CInterface(),
+	NewI2cControlInterface(),
 	NewCameraInterface(),
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
