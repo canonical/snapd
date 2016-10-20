@@ -146,10 +146,10 @@ func (s *I2cControlInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.testUdev1)
 	c.Assert(err, IsNil)
 
-	err := s.iface.SanitizeSlot(s.testUdev2)
+	err = s.iface.SanitizeSlot(s.testUdev2)
 	c.Assert(err, IsNil)
 
-	err := s.iface.SanitizeSlot(s.testUdev3)
+	err = s.iface.SanitizeSlot(s.testUdev3)
 	c.Assert(err, IsNil)
 }
 
@@ -158,25 +158,25 @@ func (s *I2cControlInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
 	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue2)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
 	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue3)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue3)
 	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue4)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue4)
 	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue5)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue5)
 	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue6)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue6)
 	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadValue7)
+	err = s.iface.SanitizeSlot(s.testUdevBadValue7)
 	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
 
-	err := s.iface.SanitizeSlot(s.testUdevBadInterface1)
+	err = s.iface.SanitizeSlot(s.testUdevBadInterface1)
 	c.Assert(err, PanicMatches, `slot is not of interface "i2c-control"`)
 }
 
