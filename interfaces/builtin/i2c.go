@@ -23,6 +23,67 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
+// The type for i2c control interface
+type I2cControlInterface struct{}
+
+// Getter for the name of the i2c-control interface
+func (iface *I2cControlInterface) Name() string {
+	return "i2c-control"
+}
+
+func (iface *I2cControlInterface) String() string {
+	return iface.Name()
+}
+
+// Pattern to match allowed i2c device nodes. It is gonna be used to check the
+// validity of the path attributes in case the udev is not used for
+// identification
+var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
+
+// Checks for validity of the defined slot
+func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	// FIXME: please!
+}
+
+// Checks and possibly modifies a plug
+func (iface *I2cControlInterface) SanitizePlug(plug (interfaces.Plug) error {
+	// FIXME please!
+}
+
+// Returns snippet granted to install
+func (iface *I2cControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	// FIXME do I really need it?
+}
+
+// No extra permissions granted on connection
+func (iface *I2cControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// No permissions granted to plug permanently 
+func (iface *I2cControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// Getter for the security snippet specific to the plug
+func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	// FIXME please
+}
+
+func (iface *I2cControlInterface) LegacyAutoConnect() bool {
+	return false
+}
+
+func (iface *I2cControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// Allow what is allowed in the declarations
+	return true
+}
+
+
+
+// =======================
+
+
 const i2cConnectedPlugAppArmor = `
 /dev/i2c-[0-9]* rw,
 /sys/class/i2c-dev/ r,
