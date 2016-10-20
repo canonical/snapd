@@ -213,7 +213,10 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Matches, "queuing for later.*\n")
+	// matches because we may get a:
+	//   "WARNING: cannot create syslog logger\n"
+	// in the output
+	c.Check(s.Stderr(), Matches, "(?ms).*queuing for later.*\n")
 
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	c.Assert(err, IsNil)
