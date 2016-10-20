@@ -28,58 +28,58 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SystemPowerControlInterfaceSuite struct {
+type ShutdownInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SystemPowerControlInterfaceSuite{
-	iface: builtin.NewSystemPowerControlInterface(),
+var _ = Suite(&ShutdownInterfaceSuite{
+	iface: builtin.NewShutdownInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "system-power-control",
-			Interface: "system-power-control",
+			Name:      "shutdown",
+			Interface: "shutdown",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "system-power-control",
-			Interface: "system-power-control",
+			Name:      "shutdown",
+			Interface: "shutdown",
 		},
 	},
 })
 
-func (s *SystemPowerControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-power-control")
+func (s *ShutdownInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "shutdown")
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *ShutdownInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "system-power-control",
-		Interface: "system-power-control",
+		Name:      "shutdown",
+		Interface: "shutdown",
 	}})
-	c.Assert(err, ErrorMatches, "system-power-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "shutdown slots are reserved for the operating system snap")
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *ShutdownInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "system-power-control"`)
+		PanicMatches, `slot is not of interface "shutdown"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "system-power-control"`)
+		PanicMatches, `plug is not of interface "shutdown"`)
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *ShutdownInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -90,7 +90,7 @@ func (s *SystemPowerControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `org.freedesktop.systemd1`)
@@ -100,6 +100,6 @@ func (s *SystemPowerControlInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(string(snippet), testutil.Contains, `recvfrom`)
 }
 
-func (s *SystemPowerControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+func (s *ShutdownInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

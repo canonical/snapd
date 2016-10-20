@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const systemPowerControlConnectedPlugAppArmor = `
+const shutdownConnectedPlugAppArmor = `
 # Description: Can reboot, power-off and halt the system.
 # Usage: reserved
 
@@ -37,7 +37,7 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-const systemPowerControlConnectedPlugSecComp = `
+const shutdownConnectedPlugSecComp = `
 # Description: Can reboot, power-off and halt the system.
 # Following things are needed for dbus connectivity
 recvfrom
@@ -47,12 +47,12 @@ sendto
 sendmsg
 `
 
-// NewSystemPowerControlInterface returns a new "system-power-control" interface.
-func NewSystemPowerControlInterface() interfaces.Interface {
+// NewShutdownInterface returns a new "shutdown" interface.
+func NewShutdownInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "system-power-control",
-		connectedPlugAppArmor: systemPowerControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  systemPowerControlConnectedPlugSecComp,
+		name: "shutdown",
+		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
+		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           false,
 	}

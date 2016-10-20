@@ -224,17 +224,17 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
+  shutdown:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   snapd-control:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: false
   system-observe:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  system-power-control:
     allow-installation:
       slot-snap-type:
         - core
