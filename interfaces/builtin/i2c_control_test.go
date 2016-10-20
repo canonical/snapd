@@ -82,27 +82,27 @@ slots:
   test-udev-3:
     interface: i2c-control
     path: /dev/i2c-0
-  test-udev-bad-value-1
+  test-udev-bad-value-1:
     interface: i2c-control
     path: /dev/i2c
-  test-udev-bad-value-2
+  test-udev-bad-value-2:
     interface: i2c-control
     path: /dev/i2c-a
-  test-udev-bad-value-3
+  test-udev-bad-value-3:
     interface: i2c-control
     path: /dev/i2c-2a
-  test-udev-bad-value-4
+  test-udev-bad-value-4:
     interface: i2c-control
     path: /dev/foo-0
-  test-udev-bad-value-5
+  test-udev-bad-value-5:
     interface: i2c-control
     path: /dev/i2c-foo
-  test-udev-bad-value-6
+  test-udev-bad-value-6:
     interface: i2c-control
     path: ""
-  test-udev-bad-value-7
+  test-udev-bad-value-7:
     interface: i2c-control
-  test-udev-bad-interface-1
+  test-udev-bad-interface-1:
     interface: other-interface
 `, nil)
 	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
