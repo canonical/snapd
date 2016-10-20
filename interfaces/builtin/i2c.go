@@ -25,6 +25,8 @@ import (
 
 const i2cConnectedPlugAppArmor = `
 /dev/i2c-[0-9]* rw,
+/sys/class/i2c-dev/ r,
+/sys/devices/i2c-dev/ rw,
 `
 
 // NewI2CInterface returns a new "i2c" interface.
