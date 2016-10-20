@@ -129,23 +129,3 @@ func (iface *I2cControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 	// Allow what is allowed in the declarations
 	return true
 }
-
-// =======================
-
-
-const i2cConnectedPlugAppArmor = `
-/dev/i2c-[0-9]* rw,
-/sys/class/i2c-dev/ r,
-/sys/devices/i2c-dev/ rw,
-`
-
-// NewI2CInterface returns a new "i2c" interface.
-func NewI2CInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "i2c",
-		connectedPlugAppArmor:  i2cConnectedPlugAppArmor,
-		reservedForOS:          true,
-		autoConnect:            false,
-		rejectAutoConnectPairs: false,
-	}
-}
