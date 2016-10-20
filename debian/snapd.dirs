@@ -1,5 +1,6 @@
 snap
-var/lib/snapd/snaps
+var/lib/snapd/auto-import
+var/lib/snapd/snaps/partial
 var/lib/snapd/lib/gl
 var/lib/snapd/desktop
 var/lib/snapd/environment
