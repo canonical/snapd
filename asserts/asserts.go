@@ -49,6 +49,11 @@ type AssertionType struct {
 	flags     typeFlags
 }
 
+// MaxSupportedFormat returns the maximum supported format iteration for the type.
+func (at *AssertionType) MaxSupportedFormat() int {
+	return maxSupportedFormat[at.Name]
+}
+
 // Understood assertion types.
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
@@ -87,6 +92,21 @@ var typeRegistry = map[string]*AssertionType{
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
+}
+
+var maxSupportedFormat = map[string]int{}
+
+func init() {
+	// register maxSupportedFormats while breaking initialisation loop
+	maxSupportedFormat[SnapDeclarationType.Name] = 1
+}
+
+func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
+	prev := maxSupportedFormat[assertType.Name]
+	maxSupportedFormat[assertType.Name] = maxFormat
+	return func() {
+		maxSupportedFormat[assertType.Name] = prev
+	}
 }
 
 // Type returns the AssertionType with name or nil
@@ -139,6 +159,12 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 type Assertion interface {
 	// Type returns the type of this assertion
 	Type() *AssertionType
+	// Format returns the format iteration of this assertion
+	Format() int
+	// SupportedFormat returns whether the assertion uses a supported
+	// format iteration. If false the assertion might have been only
+	// partially parsed.
+	SupportedFormat() bool
 	// Revision returns the revision of this assertion
 	Revision() int
 	// AuthorityID returns the authority that signed this assertion
@@ -182,6 +208,8 @@ const MediaType = "application/x.ubuntu.assertion"
 type assertionBase struct {
 	headers map[string]interface{}
 	body    []byte
+	// parsed format iteration
+	format int
 	// parsed revision
 	revision int
 	// preserved content
@@ -199,6 +227,18 @@ func (ab *assertionBase) HeaderString(name string) string {
 // Type returns the assertion type.
 func (ab *assertionBase) Type() *AssertionType {
 	return Type(ab.HeaderString("type"))
+}
+
+// Format returns the assertion format iteration.
+func (ab *assertionBase) Format() int {
+	return ab.format
+}
+
+// SupportedFormat returns whether the assertion uses a supported
+// format iteration. If false the assertion might have been only
+// partially parsed.
+func (ab *assertionBase) SupportedFormat() bool {
+	return ab.format <= maxSupportedFormat[ab.HeaderString("type")]
 }
 
 // Revision returns the assertion revision.
@@ -515,15 +555,23 @@ func (d *Decoder) Decode() (Assertion, error) {
 	return assemble(headers, finalBody, finalContent, finalSig)
 }
 
-func checkRevision(headers map[string]interface{}) (int, error) {
-	revision, err := checkIntWithDefault(headers, "revision", 0)
+func checkIteration(headers map[string]interface{}, name string) (int, error) {
+	iternum, err := checkIntWithDefault(headers, name, 0)
 	if err != nil {
 		return -1, err
 	}
-	if revision < 0 {
-		return -1, fmt.Errorf("revision should be positive: %v", revision)
+	if iternum < 0 {
+		return -1, fmt.Errorf("%s should be positive: %v", name, iternum)
 	}
-	return revision, nil
+	return iternum, nil
+}
+
+func checkFormat(headers map[string]interface{}) (int, error) {
+	return checkIteration(headers, "format")
+}
+
+func checkRevision(headers map[string]interface{}) (int, error) {
+	return checkIteration(headers, "revision")
 }
 
 // Assemble assembles an assertion from its components.
@@ -573,6 +621,11 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		}
 	}
 
+	formatnum, err := checkFormat(headers)
+	if err != nil {
+		return nil, fmt.Errorf("assertion: %v", err)
+	}
+
 	for _, primKey := range assertType.PrimaryKey {
 		if _, err := checkPrimaryKey(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
@@ -591,6 +644,7 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	assert, err := assertType.assembler(assertionBase{
 		headers:   headers,
 		body:      body,
+		format:    formatnum,
 		revision:  revision,
 		content:   content,
 		signature: signature,
@@ -643,6 +697,15 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		}
 	}
 
+	formatnum, err := checkFormat(finalHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	if formatnum > assertType.MaxSupportedFormat() {
+		return nil, fmt.Errorf("cannot sign %q assertion with format %d higher than max supported format %d", assertType.Name, formatnum, assertType.MaxSupportedFormat())
+	}
+
 	revision, err := checkRevision(finalHeaders)
 	if err != nil {
 		return nil, err
@@ -650,6 +713,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 
 	buf := bytes.NewBufferString("type: ")
 	buf.WriteString(assertType.Name)
+
+	if formatnum > 0 {
+		writeHeader(buf, finalHeaders, "format")
+	} else {
+		delete(finalHeaders, "format")
+	}
 
 	if withAuthority {
 		writeHeader(buf, finalHeaders, "authority-id")
@@ -662,6 +731,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	}
 	written := map[string]bool{
 		"type":              true,
+		"format":            true,
 		"authority-id":      true,
 		"revision":          true,
 		"body-length":       true,
@@ -716,6 +786,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	assert, err := assertType.assembler(assertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
+		format:    formatnum,
 		revision:  revision,
 		content:   content,
 		signature: signature,

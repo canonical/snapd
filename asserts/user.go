@@ -202,10 +202,9 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
-	}
+	// brand-id here can be different from authority-id,
+	// the code using the assertion must use the policy set
+	// by the model assertion system-user-authority header
 	email, err := checkNotEmptyString(assert.headers, "email")
 	if err != nil {
 		return nil, err
