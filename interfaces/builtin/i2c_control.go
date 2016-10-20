@@ -21,6 +21,9 @@ package builtin
 
 import (
 	"path/filepath"
+	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )

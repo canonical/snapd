@@ -24,7 +24,8 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type I2cControlInterfaceSuite struct {
