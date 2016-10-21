@@ -246,7 +246,7 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
-  i2c:
+  i2c-control:
     allow-installation:
       slot-snap-type:
         - core
