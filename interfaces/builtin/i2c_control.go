@@ -102,7 +102,7 @@ func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
 	case interfaces.SecurityUDev:
-		const udevRule string = `KERNEL=="%s", TAG+="snap_%s_%s"`
+		const udevRule string = `KERNEL="%s", TAG+="snap_%s_%s"`
 		var udevSnippet bytes.Buffer
 		for appName := range plug.Apps {
 			fName := filepath.Base(path)
