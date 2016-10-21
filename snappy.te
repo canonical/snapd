@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.1)
+policy_module(snappy,0.0.1.1)
 
 ########################################
 #
@@ -39,14 +39,19 @@ manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 # Allow snapd to manage its persistent data
 manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 
 logging_send_syslog_msg(snappy_t);
 
-allow snappy_t self:capability { setuid setgid };
-allow snappy_t self:process { getcap signal };
+allow snappy_t self:capability { chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
+allow snappy_t self:tun_socket relabelto;
+allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
 
+allow snappy_t self:fifo_file rw_fifo_file_perms;
+allow snappy_t self:unix_stream_socket create_stream_socket_perms;
 allow snappy_t self:tcp_socket create_stream_socket_perms;
 allow snappy_t self:unix_dgram_socket create_socket_perms;
+allow snappy_t self:capability2 block_suspend;
 
 corenet_all_recvfrom_unlabeled(snappy_t)
 corenet_all_recvfrom_netlabel(snappy_t)

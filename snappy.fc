@@ -13,5 +13,6 @@ ifdef(`distro_debian',`
 /lib/systemd/system/snapd.* 	--	gen_context(system_u:object_r:snappy_unit_file_t,s0)
 ')
 
-/var/run/snapd?\.socket 	--	gen_context(system_u:object_r:snappy_var_run_t,s0)
+/var/run/snapd\.socket 		--	gen_context(system_u:object_r:snappy_var_run_t,s0)
+/var/run/snapd-snap\.socket 	--	gen_context(system_u:object_r:snappy_var_run_t,s0)
 /var/lib/snapd(/.*)?			gen_context(system_u:object_r:snappy_var_lib_t,s0)
