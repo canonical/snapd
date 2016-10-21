@@ -61,6 +61,14 @@ dbus (receive, send)
 var locationControlConnectedSlotAppArmor = []byte(`
 # Allow connected clients to interact with the service
 
+# Allow clients to register providers
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=com.ubuntu.location.Service
+    member="AddProvider"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # Allow clients to query/modify service properties
 dbus (receive)
     bus=system
@@ -83,6 +91,14 @@ var locationControlConnectedPlugAppArmor = []byte(`
 # Usage: reserved
 
 #include <abstractions/dbus-strict>
+
+# Allow clients to register providers
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=com.ubuntu.location.Service
+    member="AddProvider"
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to query service properties
 dbus (send)

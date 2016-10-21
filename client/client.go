@@ -113,6 +113,24 @@ func (client *Client) setAuthorization(req *http.Request) error {
 	return nil
 }
 
+type RequestError struct{ error }
+
+func (e RequestError) Error() string {
+	return fmt.Sprintf("cannot build request: %v", e.error)
+}
+
+type AuthorizationError struct{ error }
+
+func (e AuthorizationError) Error() string {
+	return fmt.Sprintf("cannot add authorization: %v", e.error)
+}
+
+type ConnectionError struct{ error }
+
+func (e ConnectionError) Error() string {
+	return fmt.Sprintf("cannot communicate with server: %v", e.error)
+}
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
@@ -123,7 +141,7 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
-		return nil, err
+		return nil, RequestError{err}
 	}
 
 	for key, value := range headers {
@@ -133,10 +151,15 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	// set Authorization header if there are user's credentials
 	err = client.setAuthorization(req)
 	if err != nil {
-		return nil, err
+		return nil, AuthorizationError{err}
 	}
 
-	return client.doer.Do(req)
+	rsp, err := client.doer.Do(req)
+	if err != nil {
+		return nil, ConnectionError{err}
+	}
+
+	return rsp, nil
 }
 
 var (
@@ -178,7 +201,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 		break
 	}
 	if err != nil {
-		return fmt.Errorf("cannot communicate with server: %s", err)
+		return err
 	}
 	defer rsp.Body.Close()
 
@@ -296,6 +319,7 @@ const (
 	ErrorKindLoginRequired     = "login-required"
 	ErrorKindTermsNotAccepted  = "terms-not-accepted"
 	ErrorKindNoPaymentMethods  = "no-payment-methods"
+	ErrorKindPaymentDeclined   = "payment-declined"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems

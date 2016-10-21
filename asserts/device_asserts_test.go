@@ -43,7 +43,10 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 	mods.tsLine = "timestamp: " + mods.ts.Format(time.RFC3339) + "\n"
 }
 
-const reqSnaps = "required-snaps:\n  - foo\n  - bar\n"
+const (
+	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
+	sysUserAuths = "system-user-authority: *\n"
+)
 
 const modelExample = "type: model\n" +
 	"authority-id: brand-id1\n" +
@@ -54,6 +57,7 @@ const modelExample = "type: model\n" +
 	"gadget: brand-gadget\n" +
 	"kernel: baz-linux\n" +
 	"store: brand-store\n" +
+	sysUserAuths +
 	reqSnaps +
 	"TSLINE" +
 	"body-length: 0\n" +
@@ -77,6 +81,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -101,6 +106,22 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 	c.Check(model.RequiredSnaps(), HasLen, 0)
+}
+
+func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, sysUserAuths, "system-user-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"foo", "bar"})
 }
 
 const (
@@ -133,6 +154,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{reqSnaps, "required-snaps: foo\n", `"required-snaps" header must be a list of strings`},
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
+		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 	}
 
 	for _, test := range invalidTests {
@@ -367,45 +390,6 @@ func (ss *serialSuite) TestSerialRequestDecodeKeyIDMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, "assertion serial-request: device key does not match included signing key id")
-}
-
-func (ss *serialSuite) TestSerialProofHappy(c *C) {
-	sproof, err := asserts.SignWithoutAuthority(asserts.SerialProofType,
-		map[string]interface{}{
-			"nonce": "NONCE",
-		}, nil, ss.deviceKey)
-	c.Assert(err, IsNil)
-
-	// roundtrip
-	a, err := asserts.Decode(asserts.Encode(sproof))
-	c.Assert(err, IsNil)
-
-	sproof2, ok := a.(*asserts.SerialProof)
-	c.Assert(ok, Equals, true)
-
-	// standalone signature check
-	err = asserts.SignatureCheck(sproof2, ss.deviceKey.PublicKey())
-	c.Check(err, IsNil)
-
-	c.Check(sproof2.Nonce(), Equals, "NONCE")
-}
-
-func (ss *serialSuite) TestSerialProofDecodeInvalid(c *C) {
-	encoded := "type: serial-proof\n" +
-		"nonce: NONCE\n" +
-		"body-length: 0\n" +
-		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
-		"AXNpZw=="
-
-	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"nonce: NONCE\n", "nonce: \n", `"nonce" header should not be empty`},
-	}
-
-	for _, test := range invalidTests {
-		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, serialProofErrPrefix+test.expectedErr)
-	}
 }
 
 func (ss *serialSuite) TestDeviceSessionRequest(c *C) {

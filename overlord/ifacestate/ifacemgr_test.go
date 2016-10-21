@@ -918,7 +918,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 			RealName: snapInfo.Name(),
 			Revision: snapInfo.Revision,
 		},
-		Flags: snapstate.DevMode,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -1214,8 +1214,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
 
 	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
 	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
@@ -1367,7 +1367,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 			RealName: siC.Name(),
 			Revision: siC.Revision,
 		},
-		Flags: snapstate.DevMode,
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()

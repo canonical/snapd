@@ -17,8 +17,10 @@
  *
  */
 
-package boot
+package systemd
 
 var (
-	ImportAssertionsFromSeed = importAssertionsFromSeed
+	UnmarshalRawSnippetMap = unmarshalRawSnippetMap
+	MergeSnippetMap        = mergeSnippetMap
+	RenderSnippet          = renderSnippet
 )
