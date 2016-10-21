@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
@@ -65,21 +66,32 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		targetDir = pwd
 	}
 
+	defer func(b, p string) {
+		dirs.SnapBlobDir = b
+		dirs.SnapPartialBlobDir = p
+	}(dirs.SnapBlobDir, dirs.SnapPartialBlobDir)
+
+	dirs.SnapBlobDir = targetDir
+	dirs.SnapPartialBlobDir = filepath.Join(targetDir, "partial")
+
 	snap, err := sto.Snap(name, opts.Channel, opts.DevMode, revision, opts.User)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
+	partial, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
 	if err != nil {
 		return "", nil, err
 	}
-	defer os.Remove(tmpName)
 
 	baseName := filepath.Base(snap.MountFile())
 	targetPath = filepath.Join(targetDir, baseName)
-	if err := osutil.CopyFile(tmpName, targetPath, 0); err != nil {
-		return "", nil, err
+
+	if err := os.Rename(partial, targetPath); err != nil {
+		err = osutil.CopyFile(partial, targetPath, 0)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
 	return targetPath, snap, nil

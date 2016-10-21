@@ -67,6 +67,7 @@ var _ = Suite(&imageSuite{})
 
 func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
+	dirs.SetRootDir(s.root)
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 
