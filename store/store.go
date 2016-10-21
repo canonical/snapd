@@ -1142,7 +1142,12 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		}
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		break
+	case http.StatusUnauthorized:
+		return fmt.Errorf("cannot download non-free snap without purchase")
+	default:
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
