@@ -36,6 +36,7 @@ version: 1.0
 hooks:
  configure:
 `)
+var validApplyContents = ""
 
 func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 	invalidParameters := []string{"set", "snap-name", "key", "value"}
@@ -48,7 +49,7 @@ func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -65,7 +66,7 @@ func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -82,7 +83,7 @@ func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 

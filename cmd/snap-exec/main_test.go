@@ -73,6 +73,8 @@ hooks:
  configure:
 `)
 
+var mockContents = ""
+
 var binaryTemplate = `#!/bin/sh
 echo "$(basename $0)" >> %[1]q
 for arg in "$@"; do
@@ -128,7 +130,7 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 
 func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -152,7 +154,7 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 
 func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -173,7 +175,7 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 
 func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -210,7 +212,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	os.Setenv("SNAP_REVISION", "42")
 	defer os.Unsetenv("SNAP_REVISION")
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 
@@ -251,7 +253,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 
-	testSnap := snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+	testSnap := snaptest.MockSnap(c, string(mockHookYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 	hookPath := filepath.Join("meta", "hooks", "configure")
@@ -286,7 +288,7 @@ func actuallyExec(argv0 string, argv []string, env []string) error {
 
 func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("42"),
 	})
 

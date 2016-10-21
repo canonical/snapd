@@ -176,7 +176,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -217,7 +217,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,

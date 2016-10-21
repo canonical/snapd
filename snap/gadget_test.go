@@ -69,6 +69,8 @@ volumes:
             unpack: false
 `)
 
+var mockGadgetSnapContents = "SNAP"
+
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
@@ -78,13 +80,13 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	_, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -130,7 +132,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -145,7 +147,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -160,7 +162,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
