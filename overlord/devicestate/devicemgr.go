@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -40,16 +41,15 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -185,7 +185,7 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-var bootPopulateStateFromSeed = boot.PopulateStateFromSeed
+var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSnaps makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
@@ -217,7 +217,13 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := bootPopulateStateFromSeed(m.state)
+	coreInfo, err := snapstate.CoreInfo(m.state)
+	if err == nil && coreInfo.Name() == "ubuntu-core" {
+		// already seeded... recover
+		return m.alreadyFirstbooted()
+	}
+
+	tsAll, err := populateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}
@@ -235,12 +241,57 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	return nil
 }
 
+// alreadyFirstbooted recovers already first booted devices with the old method appropriately
+func (m *DeviceManager) alreadyFirstbooted() error {
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+	// recover key-id
+	if device.Brand != "" && device.Model != "" {
+		serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+			"brand-id": device.Brand,
+			"model":    device.Model,
+		})
+		if err != nil && err != asserts.ErrNotFound {
+			return err
+		}
+
+		if len(serials) == 1 {
+			// we can recover the key id from the assertion
+			serial := serials[0].(*asserts.Serial)
+			keyID := serial.DeviceKey().ID()
+			device.KeyID = keyID
+			device.Serial = serial.Serial()
+			err := auth.SetDevice(m.state, device)
+			if err != nil {
+				return err
+			}
+			// best effort to cleanup abandoned keys
+			pat := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "*")
+			keyFns, err := filepath.Glob(pat)
+			if err != nil {
+				panic(fmt.Sprintf("invalid glob for device keys: %v", err))
+			}
+			for _, keyFn := range keyFns {
+				if filepath.Base(keyFn) == keyID {
+					continue
+				}
+				os.Remove(keyFn)
+			}
+		}
+
+	}
+
+	m.state.Set("seeded", true)
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	if release.OnClassic {
-		logger.Debugf("Ignoring 'booted' on classic")
 		return nil
 	}
 
@@ -353,7 +404,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	auth.SetDevice(st, device)
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -652,11 +706,17 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		"model":               device.Model,
 		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
+	if err != nil && err != asserts.ErrNotFound {
+		return err
+	}
 
 	if len(serials) == 1 {
 		// means we saved the assertion but didn't get to the end of the task
 		device.Serial = serials[0].(*asserts.Serial).Serial()
-		auth.SetDevice(st, device)
+		err := auth.SetDevice(st, device)
+		if err != nil {
+			return err
+		}
 		t.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -681,7 +741,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if errAcctKey == nil {
 		err := assertstate.Add(st, a)
 		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); !ok {
+			if !asserts.IsUnaccceptedUpdate(err) {
 				return err
 			}
 		}
@@ -704,8 +764,10 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.Serial = serial.Serial()
-	auth.SetDevice(st, device)
-
+	err = auth.SetDevice(st, device)
+	if err != nil {
+		return err
+	}
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -821,4 +883,57 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 	}
 
 	return a.(*asserts.Serial), nil
+}
+
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+	kind := ""
+	var currentInfo func(*state.State) (*snap.Info, error)
+	var getName func(*asserts.Model) string
+	switch snapInfo.Type {
+	case snap.TypeGadget:
+		kind = "gadget"
+		currentInfo = snapstate.GadgetInfo
+		getName = (*asserts.Model).Gadget
+	case snap.TypeKernel:
+		kind = "kernel"
+		currentInfo = snapstate.KernelInfo
+		getName = (*asserts.Model).Kernel
+	default:
+		// not a relevant check
+		return nil
+	}
+
+	if release.OnClassic {
+		// for the time being
+		return fmt.Errorf("cannot install a %s snap on classic", kind)
+	}
+
+	currentSnap, err := currentInfo(st)
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	}
+	if currentSnap != nil {
+		// already installed, snapstate takes care
+		return nil
+	}
+	// first installation of a gadget/kernel
+
+	model, err := Model(st)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot install %s without model assertion", kind)
+	}
+	if err != nil {
+		return err
+	}
+
+	expectedName := getName(model)
+	if snapInfo.Name() != expectedName {
+		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.Name(), expectedName)
+	}
+
+	return nil
+}
+
+func init() {
+	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 }

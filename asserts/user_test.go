@@ -138,7 +138,6 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: canonical\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: canonical\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"brand-id: canonical\n", "brand-id: something-else\n", `authority-id and brand-id must match, system-user assertions are expected to be signed by the brand: "canonical" != "something-else"`},
 		{"email: foo@example.com\n", "", `"email" header is mandatory`},
 		{"email: foo@example.com\n", "email: \n", `"email" header should not be empty`},
 		{"email: foo@example.com\n", "email: <alice!example.com>\n", `"email" header must be a RFC 5322 compliant email address: mail: missing @ in addr-spec`},

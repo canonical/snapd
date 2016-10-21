@@ -213,8 +213,9 @@ func genServiceFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
-After=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
-Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
+Requires={{.MountUnit}}
+Wants={{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}
 X-Snappy=yes
 
 [Service]
@@ -226,12 +227,12 @@ WorkingDirectory={{.App.Snap.DataDir}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
-
+{{if not .App.Socket}}
 [Install]
-WantedBy={{.ServiceTargetUnit}}
-`
+WantedBy={{.ServicesTarget}}
+{{end}}`
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
 
 	var restartCond string
 	if appInfo.RestartCond == systemd.RestartNever {
@@ -242,28 +243,26 @@ WantedBy={{.ServiceTargetUnit}}
 	if restartCond == "" {
 		restartCond = systemd.RestartOnFailure.String()
 	}
-	socketFileName := ""
-	if appInfo.Socket {
-		socketFileName = filepath.Base(appInfo.ServiceSocketFile())
-	}
 
 	wrapperData := struct {
 		App *snap.AppInfo
 
-		SocketFileName    string
-		Restart           string
-		StopTimeout       time.Duration
-		ServiceTargetUnit string
+		Restart            string
+		StopTimeout        time.Duration
+		ServicesTarget     string
+		PrerequisiteTarget string
+		MountUnit          string
 
 		Home    string
 		EnvVars string
 	}{
 		App: appInfo,
 
-		SocketFileName:    socketFileName,
-		Restart:           restartCond,
-		StopTimeout:       serviceStopTimeout(appInfo),
-		ServiceTargetUnit: systemd.ServicesTarget,
+		Restart:            restartCond,
+		StopTimeout:        serviceStopTimeout(appInfo),
+		ServicesTarget:     systemd.ServicesTarget,
+		PrerequisiteTarget: systemd.PrerequisiteTarget,
+		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -278,10 +277,12 @@ WantedBy={{.ServiceTargetUnit}}
 }
 
 func genSocketFile(appInfo *snap.AppInfo) string {
-	serviceTemplate := `[Unit]
+	socketTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Socket for snap application {{.App.Snap.Name}}.{{.App.Name}}
-PartOf={{.ServiceFileName}}
+Requires={{.MountUnit}}
+Wants={{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}
 X-Snappy=yes
 
 [Socket]
@@ -289,19 +290,23 @@ ListenStream={{.App.ListenStream}}
 {{if .App.SocketMode}}SocketMode={{.App.SocketMode}}{{end}}
 
 [Install]
-WantedBy={{.SocketTargetUnit}}
+WantedBy={{.SocketsTarget}}
 `
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+	t := template.Must(template.New("socket-wrapper").Parse(socketTemplate))
 
 	wrapperData := struct {
-		App              *snap.AppInfo
-		ServiceFileName  string
-		SocketTargetUnit string
+		App                *snap.AppInfo
+		ServiceFileName    string
+		PrerequisiteTarget string
+		SocketsTarget      string
+		MountUnit          string
 	}{
-		App:              appInfo,
-		ServiceFileName:  filepath.Base(appInfo.ServiceFile()),
-		SocketTargetUnit: systemd.SocketsTarget,
+		App:                appInfo,
+		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
+		SocketsTarget:      systemd.SocketsTarget,
+		PrerequisiteTarget: systemd.PrerequisiteTarget,
+		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"encoding/json"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -131,4 +133,22 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 
 	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
 	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
+}
+
+func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
+	snippet, err := s.iface.ConnectedSlotSnippet(s.gadgetPlug, s.gadgetGpioSlot, interfaces.SecuritySystemd)
+	c.Assert(err, IsNil)
+	var data interface{}
+	err = json.Unmarshal(snippet, &data)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]interface{}{
+		"services": map[string]interface{}{
+			"snap.my-device.interface.gpio-100.service": map[string]interface{}{
+				"type":              "oneshot",
+				"remain-after-exit": true,
+				"exec-start":        `/bin/sh -c 'echo 100 > /sys/class/gpio/export'`,
+				"exec-stop":         `/bin/sh -c 'echo 100 > /sys/class/gpio/unexport'`,
+			},
+		},
+	})
 }

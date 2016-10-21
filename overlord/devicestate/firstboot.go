@@ -17,7 +17,7 @@
  *
  */
 
-package boot
+package devicestate
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func PopulateStateFromSeed(st *state.State) ([]*state.TaskSet, error) {
+func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -60,9 +60,9 @@ func PopulateStateFromSeed(st *state.State) ([]*state.TaskSet, error) {
 	tsAll := []*state.TaskSet{}
 	for i, sn := range seed.Snaps {
 
-		flags := snapstate.Flags(0)
+		flags := snapstate.Flags{KeepSnapPath: true}
 		if sn.DevMode {
-			flags |= snapstate.DevMode
+			flags.DevMode = true
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
 
@@ -114,6 +114,12 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) error {
+	device, err := auth.Device(st)
+	if err != nil {
+		return err
+	}
+
+	// set device,model from the model assertion
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
@@ -159,10 +165,11 @@ func importAssertionsFromSeed(st *state.State) error {
 	modelAssertion := a.(*asserts.Model)
 
 	// set device,model from the model assertion
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand: modelAssertion.BrandID(),
-		Model: modelAssertion.Model(),
-	})
+	device.Brand = modelAssertion.BrandID()
+	device.Model = modelAssertion.Model()
+	if err := auth.SetDevice(st, device); err != nil {
+		return err
+	}
 
 	return nil
 }
