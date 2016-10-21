@@ -240,12 +240,12 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string)
 	})
 }
 
-func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string) {
+func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents string) {
 	sideInfoCore := &snap.SideInfo{
 		RealName: name,
 		Revision: snap.R(3),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoCore)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -857,7 +857,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
 name: ubuntu-core
 type: os
 version: ubuntu-core
-`)
+`, "")
 
 	// have a model assertion
 	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
