@@ -63,12 +63,13 @@ var mockDesktopFile = []byte(`
 [Desktop Entry]
 Name=foo
 Icon=${SNAP}/foo.png`)
+var desktopContents = ""
 
 func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, desktopAppYaml, desktopContents, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
