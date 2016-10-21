@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,6 +40,9 @@ import (
 	"sync"
 	"time"
 
+	jujuerrors "github.com/juju/errors"
+	"github.com/juju/retry"
+	"github.com/juju/utils/clock"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -62,6 +66,8 @@ const (
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
 )
+
+var MaxRetryDuration = time.Duration(30) * time.Second
 
 // UserAgent to send
 // xxx: this should actually be set per client request, and include the client user agent
@@ -172,6 +178,16 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+}
+
+func httpStatusErrToError(httpErr httpErrorResponse, msg string) error {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
+	if httpErr.Oops != "" {
+		tpl += " [%s]"
+		return fmt.Errorf(tpl, msg, httpErr.StatusCode, httpErr.Method, httpErr.URL, httpErr.Oops)
+	}
+
+	return fmt.Errorf(tpl, msg, httpErr.StatusCode, httpErr.Method, httpErr.URL)
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -552,6 +568,145 @@ type requestOptions struct {
 	Data         []byte
 }
 
+type httpErrorResponse struct {
+	StatusCode int
+	URL        *url.URL
+	Method     string
+	Oops       string
+}
+
+func newHttpErrorResponse(resp *http.Response) *httpErrorResponse {
+	return &httpErrorResponse{
+		StatusCode: resp.StatusCode,
+		URL:        resp.Request.URL,
+		Method:     resp.Request.Method}
+}
+
+func (r httpErrorResponse) Error() string {
+	return fmt.Sprintf("HTTP request failed: '%v', method: %s, status: %d", r.URL, r.Method, r.StatusCode)
+}
+
+func (r httpErrorResponse) Fatal() bool {
+	return r.StatusCode != http.StatusInternalServerError && r.StatusCode != http.StatusServiceUnavailable
+}
+
+func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
+	var err error
+	for refreshed := true; refreshed; {
+		refreshed = false
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == http.StatusUnauthorized {
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				err := s.refreshUser(user)
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+				refreshed = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				if s.authContext == nil {
+					resp.Body.Close()
+					return fmt.Errorf("internal error: no authContext")
+				}
+				device, err := s.authContext.Device()
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+
+				err = s.refreshDeviceSession(device)
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+				refreshed = true
+			}
+		}
+
+		if !refreshed {
+			if resp.StatusCode == http.StatusUnauthorized {
+				return newHttpErrorResponse(resp)
+			}
+			err = dataDecodeFunc(resp)
+			if err != nil {
+				return err
+			}
+		}
+		resp.Body.Close()
+	}
+	return err
+}
+
+func isFatal(err error) bool {
+	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
+		return httpStatusErr.Fatal()
+	} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return false
+	} else if err == io.ErrUnexpectedEOF {
+		return false
+	}
+	return true
+}
+
+// retryRequest does an authenticated request to the store handling a potential macaroon refresh required if needed.
+// It retries the request on certain http errors or unexpected EOFs.
+func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
+	var lastError error
+
+	// 3 pₙ₊₁ ≥ 5 pₙ, prime numbers for the backoff delay; make sure the length matches the number of attempts declared below
+	var backoffs = []int{113, 191, 331, 557, 929, 1487}
+	err := retry.Call(retry.CallArgs{
+		Func: func() error {
+			req, err := s.newRequest(reqOptions, user)
+			if err != nil {
+				return err
+			}
+			return s.doStoreRequest(client, req, user, dataDecodeFunc)
+		},
+		Attempts: 6,
+		Delay:    time.Millisecond,
+		BackoffFunc: func(delay time.Duration, attempt int) time.Duration {
+			var d int
+			if attempt <= len(backoffs) {
+				d = backoffs[attempt-1]
+			} else {
+				// this should never be needed if backoffs length and Attempts number are properly kept in sync.
+				d = backoffs[len(backoffs)-1] * attempt
+			}
+			return time.Duration(d) * time.Millisecond
+		},
+		MaxDuration:  MaxRetryDuration,
+		Clock:        clock.WallClock,
+		IsFatalError: isFatal,
+		NotifyFunc: func(err error, attempt int) {
+			lastError = err
+		},
+	})
+
+	// NotifyFunc is not called if the request fails with Fatal error on first attempt; in such
+	// case the custom lastError value declared above is not available.
+	// Also, retry.LastError(err) doesn't help as it doesn't preserve the type information
+	// for the cause. Therefore we need to get the cause from juju error directly, otherwise it's impossible
+	// to check the type of the error (such as httpErrorResponse) later.
+	if lastError == nil {
+		if jerr, ok := err.(*jujuerrors.Err); ok {
+			return jerr.Cause()
+		}
+		lastError = err
+	}
+
+	return lastError
+}
+
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
@@ -564,8 +719,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 		return nil, err
 	}
 
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
+	if wwwAuth := resp.Header.Get("WWW-Authenticate"); resp.StatusCode == http.StatusUnauthorized {
 		refreshed := false
 		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 			// refresh user
@@ -1022,19 +1176,25 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for updates")
-	}
-
 	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
+	err = s.retryRequest(s.client, reqOptions, user, func(resp *http.Response) error {
+		if resp.StatusCode == http.StatusOK {
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&updateData); err != nil {
+				return err
+			}
+			s.extractSuggestedCurrency(resp)
+			return nil
+		} else {
+			return newHttpErrorResponse(resp)
+		}
+	})
+
+	if httpStatusErr, ok := err.(*httpErrorResponse); ok {
+		return nil, httpStatusErrToError(*httpStatusErr, "query the store for updates")
+	}
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -1054,8 +1214,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 		res = append(res, infoFromRemote(rsnap))
 	}
-
-	s.extractSuggestedCurrency(resp)
 
 	return res, nil
 }
@@ -1483,40 +1641,48 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
+	var errors storeErrors
+
+	err := s.retryRequest(s.client, reqOptions, user, func(resp *http.Response) error {
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var customer storeCustomer
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&customer); err != nil {
+				return err
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
+			}
+			if !customer.HasPaymentMethod {
+				return ErrNoPaymentMethods
+			}
+			return nil
+		case http.StatusNotFound:
+			// Likely because user has no account registered on the pay server
+			return fmt.Errorf("cannot get customer details: server says no account exists")
+		case http.StatusUnauthorized:
+			return ErrInvalidCredentials
+		default:
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errors); err != nil {
+				return err
+			}
+			// we want to deserialize and collect the error above, but at the same time
+			// retry the request if the http status falls into proper category.
+			return newHttpErrorResponse(resp)
 		}
-		if !customer.LatestTOSAccepted {
-			return ErrTOSNotAccepted
+	})
+
+	if err != nil {
+		if httpStatusErr, ok := err.(httpErrorResponse); ok && len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", httpStatusErr.StatusCode)
 		}
-		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethods
+
+		if len(errors.Errors) != 0 {
+			return &errors
 		}
-		return nil
-	case http.StatusNotFound:
-		// Likely because user has no account registered on the pay server
-		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
-		return ErrInvalidCredentials
-	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
-		if len(errors.Errors) == 0 {
-			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-		}
-		return &errors
 	}
+	return err
 }
