@@ -14,13 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-#include "sc-main.h"
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #ifdef HAVE_APPARMOR
 #include <sys/apparmor.h>
@@ -40,8 +40,12 @@
 #include "quirks.h"
 #include "secure-getenv.h"
 
-int sc_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
+	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
+		return 0;
+	}
 	char *basename = strrchr(argv[0], '/');
 	if (basename) {
 		debug("setting argv[0] to %s", basename + 1);
