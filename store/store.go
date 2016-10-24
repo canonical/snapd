@@ -554,6 +554,7 @@ type requestOptions struct {
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+	// FIXME: find a better place for this?
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) > 10 {
 			return errors.New("stopped after 10 redirects")

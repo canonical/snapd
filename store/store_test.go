@@ -3021,3 +3021,37 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 		c.Check(purchaseServerGetCalled, Equals, 1)
 	}
 }
+
+func (t *remoteRepoTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			http.Redirect(w, r, r.URL.Path+"-else", 302)
+			n++
+		case 1:
+			c.Check(r.URL.Path, Equals, "/somewhere-else")
+			rg := r.Header.Get("Range")
+			c.Check(rg, Equals, "bytes=5-")
+		default:
+			panic("got more than 2 requests in this test")
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	url, err := url.Parse(mockServer.URL + "/somewhere")
+	c.Assert(err, IsNil)
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    url,
+		ExtraHeaders: map[string]string{
+			"Range": "bytes=5-",
+		},
+	}
+
+	sto := New(&Config{}, nil)
+	_, err = sto.doRequest(sto.client, reqOptions, t.user)
+	c.Assert(err, IsNil)
+}
