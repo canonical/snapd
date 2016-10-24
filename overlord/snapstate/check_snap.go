@@ -81,62 +81,108 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	st.Lock()
 	defer st.Unlock()
 
-	if CheckInterfaces != nil {
-		if err := CheckInterfaces(st, s); err != nil {
+	for _, check := range checkSnapCallbacks {
+		err := check(st, s, curInfo, flags)
+		if err != nil {
 			return err
 		}
 	}
 
-	switch s.Type {
-	case snap.Type(""), snap.TypeApp, snap.TypeKernel:
-		// "" used in a lot of tests :-/
-		return nil
-	case snap.TypeOS:
-		if curInfo != nil {
-			// already one of these installed
-			return nil
-		}
-		core, err := CoreInfo(st)
-		if err == state.ErrNoState {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if core.Name() != s.Name() {
-			return fmt.Errorf("cannot install core snap %q when core snap %q is already present", s.Name(), core.Name())
-		}
-
-		return nil
-	case snap.TypeGadget:
-		// gadget specific checks
-		if release.OnClassic {
-			// for the time being
-			return fmt.Errorf("cannot install a gadget snap on classic")
-		}
-
-		currentGadget, err := GadgetInfo(st)
-		// FIXME: check from the model assertion that its the
-		//        right gadget
-		//
-		// in firstboot we have no gadget yet - that is ok
-		if err == state.ErrNoState {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("cannot find original gadget snap")
-		}
-
-		// TODO: actually compare snap ids, from current gadget and candidate
-		if currentGadget.Name() != s.Name() {
-			return fmt.Errorf("cannot replace gadget snap with a different one")
-		}
-
-		return nil
-	}
-
-	panic("unknown type")
+	return nil
 }
 
-// CheckInterfaces allows to hook into snap checking to verify interfaces.
-var CheckInterfaces func(s *state.State, snap *snap.Info) error
+// CheckSnapCallback defines callbacks for checking a snap for installation or refresh.
+type CheckSnapCallback func(s *state.State, snap, curSnap *snap.Info, flags Flags) error
+
+var checkSnapCallbacks []CheckSnapCallback
+
+// AddCheckSnapCallback installs a callback to check a snap for installation or refresh.
+func AddCheckSnapCallback(check CheckSnapCallback) {
+	checkSnapCallbacks = append(checkSnapCallbacks, check)
+}
+
+func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
+	prev := checkSnapCallbacks
+	checkSnapCallbacks = checks
+	return func() {
+		checkSnapCallbacks = prev
+	}
+}
+
+func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+	if snapInfo.Type != snap.TypeOS {
+		// not a relevant check
+		return nil
+	}
+	if curInfo != nil {
+		// already one of these installed
+		return nil
+	}
+	core, err := CoreInfo(st)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	if core.Name() != snapInfo.Name() {
+		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.Name(), core.Name())
+	}
+
+	return nil
+}
+
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+	kind := ""
+	var currentInfo func(*state.State) (*snap.Info, error)
+	switch snapInfo.Type {
+	case snap.TypeGadget:
+		kind = "gadget"
+		currentInfo = GadgetInfo
+	case snap.TypeKernel:
+		kind = "kernel"
+		currentInfo = KernelInfo
+	default:
+		// not a relevant check
+		return nil
+	}
+
+	if release.OnClassic {
+		// for the time being
+		return fmt.Errorf("cannot install a %s snap on classic", kind)
+	}
+
+	currentSnap, err := currentInfo(st)
+	// in firstboot we have no gadget/kernel yet - that is ok
+	// devicestate considers that case
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	}
+
+	if currentSnap.SnapID != "" && snapInfo.SnapID != "" {
+		if currentSnap.SnapID == snapInfo.SnapID {
+			// same snap
+			return nil
+		}
+		return fmt.Errorf("cannot replace %s snap with a different one", kind)
+	}
+
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
+		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
+	}
+
+	if currentSnap.Name() != snapInfo.Name() {
+		return fmt.Errorf("cannot replace %s snap with a different one", kind)
+	}
+
+	return nil
+}
+
+func init() {
+	AddCheckSnapCallback(checkCoreName)
+	AddCheckSnapCallback(checkGadgetOrKernel)
+}

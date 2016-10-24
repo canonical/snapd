@@ -34,6 +34,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -319,6 +320,11 @@ var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
+	deltaDirs, _ := filepath.Glob(filepath.Join(dirs.SnapPartialBlobDir, "deltas-*"))
+	for _, dir := range deltaDirs {
+		os.RemoveAll(dir)
+	}
+
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -1068,6 +1074,9 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+	if err := os.MkdirAll(dirs.SnapPartialBlobDir, 0755); err != nil {
+		return "", err
+	}
 
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
@@ -1081,7 +1090,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := ioutil.TempFile("", name)
+	w, err := os.Create(filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap"))
 	if err != nil {
 		return "", err
 	}
@@ -1216,21 +1225,12 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 	}
 
 	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-
-	// Create a temporary file only to get the unique path.
-	tmpfile, err := ioutil.TempFile("", targetSnapName)
-	if err != nil {
-		return "", err
-	}
-	targetSnapPath := tmpfile.Name()
-	if err = tmpfile.Close(); err != nil {
-		return "", err
-	}
+	targetSnapPath := filepath.Join(dirs.SnapPartialBlobDir, targetSnapName)
 
 	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
-	if err = cmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil {
 		os.Remove(targetSnapPath)
 		return "", err
 	}
@@ -1241,7 +1241,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
 func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	deltaInfo := &downloadInfo.Deltas[0]
-	workingDir, err := ioutil.TempDir("", name+"-deltas")
+	workingDir, err := ioutil.TempDir(dirs.SnapPartialBlobDir, "deltas-"+name)
 	if err != nil {
 		return "", err
 	}
@@ -1271,14 +1271,17 @@ type assertionSvcError struct {
 
 // Assertion retrivies the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	url, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
+	u, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
 	if err != nil {
 		return nil, err
 	}
+	v := url.Values{}
+	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+	u.RawQuery = v.Encode()
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    url,
+		URL:    u,
 		Accept: asserts.MediaType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)

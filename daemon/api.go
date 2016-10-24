@@ -722,7 +722,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, err
 	}
 
-	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, 0)
+	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, snapstate.Flags{})
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -750,18 +750,18 @@ var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
-	flags := snapstate.Flags(0)
+	flags := snapstate.Flags{}
 	if jailMode {
 		if devModeOS {
-			return 0, errNoJailMode
+			return flags, errNoJailMode
 		}
 		if devMode {
-			return 0, errModeConflict
+			return flags, errModeConflict
 		}
-		flags |= snapstate.JailMode
+		flags.JailMode = true
 	}
 	if devMode || devModeOS {
-		flags |= snapstate.DevMode
+		flags.DevMode = true
 	}
 
 	return flags, nil
@@ -851,7 +851,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 	if inst.IgnoreValidation {
-		flags |= snapstate.IgnoreValidation
+		flags.IgnoreValidation = true
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
@@ -1189,18 +1189,26 @@ out:
 		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
+	// we are in charge of the tempfile life cycle until we hand it off to the change
+	changeTriggered := false
+	// if you change this prefix, look for it in the tests
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
+	tempPath := tmpf.Name()
+
+	defer func() {
+		if !changeTriggered {
+			os.Remove(tempPath)
+		}
+	}()
+
 	if _, err := io.Copy(tmpf, snapBody); err != nil {
-		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
 	tmpf.Sync()
-
-	tempPath := tmpf.Name()
 
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
@@ -1268,6 +1276,10 @@ out:
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	ensureStateSoon(st)
+
+	// only when the unlock succeeds (as opposed to panicing) is the handoff done
+	// but this is good enough
+	changeTriggered = true
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1813,6 +1825,11 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		}
 		return false
 	}
+	// check that the signer of the assertion is one of the accepted ones
+	sysUserAuths := modelAs.SystemUserAuthority()
+	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
+	}
 	if len(su.Series()) > 0 && !contains(series, su.Series()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
@@ -1906,8 +1923,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if len(users) > 0 && !createData.ForceManaged {
-		return BadRequest("cannot create user: device already managed")
+
+	if !createData.ForceManaged {
+		if len(users) > 0 {
+			return BadRequest("cannot create user: device already managed")
+		}
+		if release.OnClassic {
+			return BadRequest("cannot create user: device is a classic system")
+		}
 	}
 
 	// special case: the user requested the creation of all known
@@ -1978,6 +2001,15 @@ func convertBuyError(err error) Response {
 			Result: &errorResult{
 				Message: err.Error(),
 				Kind:    errorKindNoPaymentMethods,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case store.ErrPaymentDeclined:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindPaymentDeclined,
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
