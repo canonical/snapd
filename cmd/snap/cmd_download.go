@@ -113,7 +113,10 @@ func (x *cmdDownload) Execute(args []string) error {
 	var authContext auth.AuthContext
 	var user *auth.UserState
 
-	sto := store.New(nil, authContext)
+	cfg := &store.Config{
+		PartialDownloadsDir: "", //cwd
+	}
+	sto := store.New(cfg, authContext)
 	// we always allow devmode for downloads
 	devMode := true
 

@@ -23,8 +23,8 @@ execute: |
     # have snap use the fakestore for assertions
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-    echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT
+    echo Running prepare-image as user
+    su -l -c "snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE
