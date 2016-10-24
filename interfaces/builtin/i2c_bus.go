@@ -28,15 +28,15 @@ import (
 	"strings"
 )
 
-// The type for i2c control interface
-type I2cControlInterface struct{}
+// The type for i2c bus interface
+type I2cBusInterface struct{}
 
-// Getter for the name of the i2c-control interface
-func (iface *I2cControlInterface) Name() string {
-	return "i2c-control"
+// Getter for the name of the i2c-bus interface
+func (iface *I2cBusInterface) Name() string {
+	return "i2c-bus"
 }
 
-func (iface *I2cControlInterface) String() string {
+func (iface *I2cBusInterface) String() string {
 	return iface.Name()
 }
 
@@ -46,7 +46,7 @@ func (iface *I2cControlInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *I2cBusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
@@ -75,7 +75,7 @@ func (iface *I2cControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // Checks and possibly modifies a plug
-func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *I2cBusInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -84,12 +84,12 @@ func (iface *I2cControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 // Returns snippet granted on install
-func (iface *I2cControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cBusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cBusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil, nil
@@ -112,20 +112,20 @@ func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 }
 
 // No extra permissions granted on connection
-func (iface *I2cControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cBusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // No permissions granted to plug permanently
-func (iface *I2cControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cBusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *I2cControlInterface) LegacyAutoConnect() bool {
+func (iface *I2cBusInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *I2cControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *I2cBusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }

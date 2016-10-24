@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type I2cControlInterfaceSuite struct {
+type I2cBusInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
@@ -52,18 +52,18 @@ type I2cControlInterfaceSuite struct {
 	testPlugPort1 *interfaces.Plug
 }
 
-var _ = Suite(&I2cControlInterfaceSuite{
-	iface: &builtin.I2cControlInterface{},
+var _ = Suite(&I2cBusInterfaceSuite{
+	iface: &builtin.I2cBusInterface{},
 })
 
-func (s *I2cControlInterfaceSuite) SetUpTest(c *C) {
+func (s *I2cBusInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
 type: os
 slots:
   test-port-1:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-0
 `, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
@@ -74,34 +74,34 @@ name: some-device
 type: gadget
 slots:
   test-udev-1:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-1
   test-udev-2:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-11
   test-udev-3:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-0
   test-udev-bad-value-1:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c
   test-udev-bad-value-2:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-a
   test-udev-bad-value-3:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-2a
   test-udev-bad-value-4:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/foo-0
   test-udev-bad-value-5:
-    interface: i2c-control
+    interface: i2c-bus
     path: /dev/i2c-foo
   test-udev-bad-value-6:
-    interface: i2c-control
+    interface: i2c-bus
     path: ""
   test-udev-bad-value-7:
-    interface: i2c-control
+    interface: i2c-bus
   test-udev-bad-interface-1:
     interface: other-interface
 `, nil)
@@ -122,25 +122,25 @@ slots:
 name: client-snap
 plugs:
   plug-for-port-1:
-    interface: i2c-control
+    interface: i2c-bus
 apps:
   app-accessing-1-port:
     command: foo
-    plugs: [i2c-control]
+    plugs: [i2c-bus]
 `, nil)
 	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
 }
 
-func (s *I2cControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "i2c-control")
+func (s *I2cBusInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "i2c-bus")
 }
 
-func (s *I2cControlInterfaceSuite) TestSanitizeBadSnapSlot(c *C) {
+func (s *I2cBusInterfaceSuite) TestSanitizeBadSnapSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.testSlot1)
-	c.Assert(err, ErrorMatches, "i2c-control slots only allowed on gadget snaps")
+	c.Assert(err, ErrorMatches, "i2c-bus slots only allowed on gadget snaps")
 }
 
-func (s *I2cControlInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
+func (s *I2cBusInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
 
 	err := s.iface.SanitizeSlot(s.testUdev1)
 	c.Assert(err, IsNil)
@@ -152,33 +152,33 @@ func (s *I2cControlInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *I2cControlInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
+func (s *I2cBusInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 
 	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
-	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+	c.Assert(err, ErrorMatches, "i2c-bus path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
-	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+	c.Assert(err, ErrorMatches, "i2c-bus path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue3)
-	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+	c.Assert(err, ErrorMatches, "i2c-bus path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue4)
-	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+	c.Assert(err, ErrorMatches, "i2c-bus path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue5)
-	c.Assert(err, ErrorMatches, "i2c-control path attribute must be a valid device node")
+	c.Assert(err, ErrorMatches, "i2c-bus path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue6)
-	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
+	c.Assert(err, ErrorMatches, "i2c-bus slot must have a path attribute")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue7)
-	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
+	c.Assert(err, ErrorMatches, "i2c-bus slot must have a path attribute")
 
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUdevBadInterface1) }, PanicMatches, `slot is not of interface "i2c-control"`)
+	c.Assert(func() { s.iface.SanitizeSlot(s.testUdevBadInterface1) }, PanicMatches, `slot is not of interface "i2c-bus"`)
 }
 
-func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+func (s *I2cBusInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"
 `)
 
@@ -187,7 +187,7 @@ func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
 
-func (s *I2cControlInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
+func (s *I2cBusInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet1 := []byte(`/dev/i2c-1 rw,
 `)
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
@@ -196,10 +196,10 @@ func (s *I2cControlInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 }
 
-func (s *I2cControlInterfaceSuite) TestAutoConnect(c *C) {
+func (s *I2cBusInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
 
-func (s *I2cControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+func (s *I2cBusInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
