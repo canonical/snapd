@@ -554,6 +554,17 @@ type requestOptions struct {
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) > 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		// preserve the range header accross redirects to the CDN
+		v := via[0].Header.Get("Range")
+		req.Header.Set("Range", v)
+
+		return nil
+	}
+
 	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
@@ -1090,9 +1101,18 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := os.Create(filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap"))
-	if err != nil {
-		return "", err
+	resume := int64(0)
+	target := filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap")
+	w, err := os.OpenFile(target, os.O_APPEND|os.O_WRONLY, 0644)
+	if os.IsNotExist(err) {
+		w, err = os.Create(target)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		if info, err := w.Stat(); err == nil {
+			resume = info.Size()
+		}
 	}
 	defer func() {
 		if cerr := w.Close(); cerr != nil && err == nil {
@@ -1109,7 +1129,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	if err := download(name, url, user, s, w, pbar); err != nil {
+	if err := download(name, url, user, s, w, resume, pbar); err != nil {
 		return "", err
 	}
 
@@ -1120,7 +1140,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1129,6 +1149,12 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    storeURL,
+	}
+
+	if resume > 0 {
+		reqOptions.ExtraHeaders = map[string]string{
+			"Range": fmt.Sprintf("bytes=%d-", resume),
+		}
 	}
 
 	var resp *http.Response
@@ -1151,7 +1177,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		}
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 206 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
@@ -1202,7 +1228,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, url, user, s, w, pbar)
+	err = download(deltaName, url, user, s, w, 0, pbar)
 	if err != nil {
 		return "", err
 	}
