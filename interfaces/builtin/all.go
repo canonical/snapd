@@ -32,7 +32,7 @@ var allInterfaces = []interfaces.Interface{
 	&DockerSupportInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
-	&I2cControlInterface{},
+	&I2cBusInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdSupportInterface{},
