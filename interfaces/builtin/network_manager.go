@@ -141,6 +141,12 @@ dbus (send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
+dbus(receive, send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.hostname1
+    member={Set,SetStatic}Hostname
+    peer=(label=unconfined),
 
 # Sleep monitor inside NetworkManager needs this
 dbus (send)
@@ -204,6 +210,7 @@ sendmmsg
 sendmsg
 sendto
 setsockopt
+sethostname
 shutdown
 socketpair
 socket
