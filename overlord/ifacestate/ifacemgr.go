@@ -77,13 +77,19 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
+	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
+		plugSnap, plugName, slotSnap, slotName)
+	connectInterface := s.NewTask("connect", summary)
+
+	initialContext := map[string]interface{}{"connect-task": connectInterface.ID(),}
+
 	plugHookSetup := &hookstate.HookSetup{
 		Snap:     plugSnap,
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
-	summary := fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
-	collectPlugAttr := hookstate.HookTask(s, summary, plugHookSetup, nil)
+	summary = fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
+	collectPlugAttr := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
@@ -91,11 +97,8 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
-	collectSlotAttr := hookstate.HookTask(s, summary, slotHookSetup, nil)
+	collectSlotAttr := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
 
-	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
-		plugSnap, plugName, slotSnap, slotName)
-	connectInterface := s.NewTask("connect", summary)
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	connectInterface.WaitFor(collectPlugAttr)
