@@ -5,6 +5,7 @@ environment:
     GADGET: /tmp/root/gadget
 prepare: |
     mkdir -p $ROOT
+    chown test:test $ROOT
 restore:
     rm -rf $ROOT
 execute: |
