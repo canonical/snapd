@@ -22,10 +22,10 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"github.com/snapcore/snapd/interfaces"
 	"path/filepath"
 	"regexp"
-
-	"github.com/snapcore/snapd/interfaces"
+	"strings"
 )
 
 // The type for i2c control interface
@@ -105,8 +105,7 @@ func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		const udevRule string = `KERNEL="%s", TAG+="snap_%s_%s"`
 		var udevSnippet bytes.Buffer
 		for appName := range plug.Apps {
-			fName := filepath.Base(path)
-			rule := fmt.Sprintf(udevRule, fName, plug.Snap.Name(), appName)
+			rule := fmt.Sprintf(udevRule, strings.TrimPrefix(path, "/dev/"), plug.Snap.Name(), appName)
 			udevSnippet.WriteString(fmt.Sprintf("%s\n", rule))
 		}
 		return udevSnippet.Bytes(), nil

@@ -175,12 +175,11 @@ func (s *I2cControlInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	err = s.iface.SanitizeSlot(s.testUdevBadValue7)
 	c.Assert(err, ErrorMatches, "i2c-control slot must have a path attribute")
 
-	err = s.iface.SanitizeSlot(s.testUdevBadInterface1)
-	c.Assert(err, PanicMatches, `slot is not of interface "i2c-control"`)
+	c.Assert(func() { s.iface.SanitizeSlot(s.testUdevBadInterface1) }, PanicMatches, `slot is not of interface "i2c-control"`)
 }
 
 func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	expectedSnippet1 := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
+	expectedSnippet1 := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"\n`)
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
