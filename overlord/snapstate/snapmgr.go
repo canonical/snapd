@@ -46,27 +46,13 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
-type SnapSetupFlags Flags
-
-const (
-	// flags that are only used by SnapSetup grow downwards
-
-	// SnapSetupFlagRevert flags the SnapSetup as coming from a revert
-	SnapSetupFlagRevert SnapSetupFlags = 0x40000000 >> iota
-)
-
-func (f SnapSetupFlags) Revert() bool {
-	return f&SnapSetupFlagRevert != 0
-}
-
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
 
-	Flags SnapSetupFlags `json:"flags,omitempty"`
+	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
 
@@ -93,27 +79,6 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
-// DevMode returns true if the snap is being installed in developer mode.
-func (ss *SnapSetup) DevMode() bool {
-	return Flags(ss.Flags).DevMode()
-}
-
-func (ss *SnapSetup) JailMode() bool {
-	return Flags(ss.Flags).JailMode()
-}
-
-func (ss *SnapSetup) DevModeAllowed() bool {
-	return Flags(ss.Flags).DevModeAllowed()
-}
-
-// TryMode returns true if the snap is being installed in try mode directly from a directory.
-func (ss *SnapSetup) TryMode() bool {
-	return ss.Flags&TryMode != 0
-}
-
-// SnapStateFlags are flags stored in SnapState.
-type SnapStateFlags Flags
-
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
@@ -122,9 +87,9 @@ type SnapState struct {
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
-	Current snap.Revision  `json:"current"`
-	Channel string         `json:"channel,omitempty"`
-	Flags   SnapStateFlags `json:"flags,omitempty"`
+	Current snap.Revision `json:"current"`
+	Channel string        `json:"channel,omitempty"`
+	Flags
 }
 
 // Type returns the type of the snap or an error.
@@ -248,52 +213,6 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(cur.RealName, cur)
 }
 
-// DevMode returns true if the snap is installed in developer mode.
-func (snapst *SnapState) DevMode() bool {
-	return Flags(snapst.Flags).DevMode()
-}
-
-// SetDevMode sets/clears the DevMode flag in the SnapState.
-func (snapst *SnapState) SetDevMode(active bool) {
-	if active {
-		snapst.Flags |= DevMode
-	} else {
-		snapst.Flags &= ^DevMode
-	}
-}
-
-func (snapst *SnapState) JailMode() bool {
-	return Flags(snapst.Flags).JailMode()
-}
-
-// SetJailMode sets/clears the JailMode flag in the SnapState.
-func (snapst *SnapState) SetJailMode(active bool) {
-	if active {
-		snapst.Flags |= JailMode
-	} else {
-		snapst.Flags &= ^JailMode
-	}
-}
-
-func (snapst *SnapState) DevModeAllowed() bool {
-	return Flags(snapst.Flags).DevModeAllowed()
-}
-
-// TryMode returns true if the snap is installed in `try` mode as an
-// unpacked directory.
-func (snapst *SnapState) TryMode() bool {
-	return snapst.Flags&TryMode != 0
-}
-
-// SetTryMode sets/clears the TryMode flag in the SnapState.
-func (snapst *SnapState) SetTryMode(active bool) {
-	if active {
-		snapst.Flags |= TryMode
-	} else {
-		snapst.Flags &= ^TryMode
-	}
-}
-
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil
@@ -372,9 +291,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
+	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("cleanup", m.cleanup, nil)
+
+	// FIXME: drop the task entirely after a while
+	// (having this wart here avoids yet-another-patch)
+	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -732,7 +656,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, Flags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, ss.Flags); err != nil {
 		return err
 	}
 
@@ -752,14 +676,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
 
-	// cleanup the downloaded snap after it got installed
-	// in backend.SetupSnap.
-	//
-	// Note that we always remove the file because the
-	// way sideloading works currently is to always create
-	// a temporary file (see daemon/api.go:sideloadSnap()
-	if err := os.Remove(ss.SnapPath); err != nil {
-		logger.Noticef("Failed to cleanup %q: %s", err)
+	if !ss.Flags.KeepSnapPath {
+		if err := os.Remove(ss.SnapPath); err != nil {
+			logger.Noticef("Failed to cleanup %q: %s", err)
+		}
 	}
 
 	return nil
@@ -889,7 +809,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
-	} else if !ss.Flags.Revert() {
+	} else if !ss.Revert {
 		// remove the old candidate from the sequence, add it at the end
 		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
@@ -902,12 +822,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
-	oldTryMode := snapst.TryMode()
-	snapst.SetTryMode(ss.TryMode())
-	oldDevMode := snapst.DevMode()
-	snapst.SetDevMode(ss.DevMode())
-	oldJailMode := snapst.JailMode()
-	snapst.SetJailMode(ss.JailMode())
+	oldTryMode := snapst.TryMode
+	snapst.TryMode = ss.TryMode
+	oldDevMode := snapst.DevMode
+	snapst.DevMode = ss.DevMode
+	oldJailMode := snapst.JailMode
+	snapst.JailMode = ss.JailMode
 
 	newInfo, err := readInfo(ss.Name(), cand)
 	if err != nil {
@@ -1005,7 +925,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	isRevert := ss.Flags.Revert()
+	isRevert := ss.Revert
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	currentIndex := snapst.LastIndex(snapst.Current)
@@ -1023,9 +943,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
-	snapst.SetTryMode(oldTryMode)
-	snapst.SetDevMode(oldDevMode)
-	snapst.SetJailMode(oldJailMode)
+	snapst.TryMode = oldTryMode
+	snapst.DevMode = oldDevMode
+	snapst.JailMode = oldJailMode
 
 	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
@@ -1094,22 +1014,25 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
 	st.Lock()
 	defer st.Unlock()
 
+	if t.Status() != state.DoneStatus {
+		// it failed
+		return nil
+	}
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
-		return nil // cleanup should not return error
+		return err
 	}
 
 	info, err := snapst.CurrentInfo()
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
-		return nil
+		return err
 	}
 
 	m.backend.ClearTrashedData(info)
