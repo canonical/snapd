@@ -136,7 +136,7 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.*,
 
 # Allow access to hostname system service
-dbus (send)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
