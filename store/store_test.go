@@ -265,7 +265,6 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
-
 	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
@@ -284,6 +283,23 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadNotOK(c *C) {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		c.Check(url, Equals, "anon-url")
+		w.Write([]byte("hashsum should mismatch"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = "01234567.will.not.match"
+
+	_, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	c.Assert(err, ErrorMatches, "hashsum mismatch for .*: got .* but expected .*")
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {

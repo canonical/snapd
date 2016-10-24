@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1113,7 +1114,22 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		return "", err
 	}
 
-	return w.Name(), w.Sync()
+	if err := w.Sync(); err != nil {
+		return "", err
+	}
+
+	// check hash
+	fn := w.Name()
+	hexHash, _, err := osutil.FileDigest(fn, crypto.SHA3_384)
+	if err != nil {
+		return "", fmt.Errorf("cannot calculate hashsum for %s: %s", fn, err)
+	}
+	hash := fmt.Sprintf("%x", hexHash)
+	if downloadInfo.Sha3_384 != "" && hash != downloadInfo.Sha3_384 {
+		return "", fmt.Errorf("hashsum mismatch for %s: got %s but expected %s", fn, hash, downloadInfo.Sha3_384)
+	}
+
+	return fn, nil
 }
 
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
