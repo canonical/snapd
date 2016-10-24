@@ -96,8 +96,6 @@ func (iface *I2cControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		// No USB attributes for i2c so just go directly to
-		// considering the fixed node
 		cleanedPath := filepath.Clean(path)
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
