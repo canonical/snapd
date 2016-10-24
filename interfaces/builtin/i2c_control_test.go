@@ -179,7 +179,8 @@ func (s *I2cControlInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *I2cControlInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	expectedSnippet1 := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"\n`)
+	expectedSnippet1 := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"
+`)
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
