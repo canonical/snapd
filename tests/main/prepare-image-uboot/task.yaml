@@ -3,6 +3,8 @@ environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
+prepare: |
+    mkdir -p $ROOT
 restore:
     rm -rf $ROOT
 execute: |
