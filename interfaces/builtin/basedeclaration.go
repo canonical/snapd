@@ -249,7 +249,7 @@ slots:
   i2c-control:
     allow-installation:
       slot-snap-type:
-        - core
+        - gadget
     deny-auto-connection: true
   kernel-module-control:
     allow-installation:
