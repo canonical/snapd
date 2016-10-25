@@ -1,0 +1,137 @@
+summary: Check that the system-user assertion autoimport works on cold-plug
+
+backends: [qemu]
+
+systems: [ubuntu-16.04-64]
+
+kill-timeout: 6m
+
+warn-timeout: 2m
+
+details: |
+    The test uses a nested ubuntu-core image to check that the system-user
+    assertion is properly imported. We sign the model and system-user assertion
+    with the same key, so that the system-user assertion can be validated.
+
+environment:
+    SSH_PORT: 8022
+    USER: user1
+    PASSWORD: ubuntu
+    UNPACKD: /tmp/core-snap
+    IMAGE_HOME: /home/image
+
+prepare: |
+    apt install -y qemu genisoimage sshpass
+
+    # model and system-user assertions (signed by the same key)
+    cat > pc.model <<EOF
+    type: model
+    authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+    series: 16
+    brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+    model: pc
+    architecture: amd64
+    gadget: pc
+    kernel: pc-kernel
+    timestamp: 2016-09-16T15:03:21+00:00
+    sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
+
+    AcLBXAQAAQoABgUCV+JS/QAKCRCi4irWmF+hRWiBD/43ZWNoYff2lQXdmqAHGmfnCp13GqaSNBvf
+    rfOYw7rOoQK1FeAdijfzLfoBEaP+CfPB7WdenTQGRxwX2z1p8sSxPyD9eXjw/spzdhIh6/8lp8yC
+    4Dq3G9r9ySbokExwsV4XQnly9dWPzZP+DejxyroUFERsj3drEEI94b7aN/fUEYeqU1QEIOi+VCmT
+    t9iGV+fUYuk7UBIOOVqLmSKgqOw3NsmSjLbASsl4SsyQ3eMQoNs8hzCmp2N/IrwMXPoUu7Ivi/zZ
+    bOIiCGC1YPrWJzUZ4C/B89EiilOPHnk98Umr76tIM7X0EnS8cYnyuLx9hDczLC5a2uE0PC45rmZB
+    abjkTVea6i735RrE6Ffw/aWLMfp32vL7JOnOqkyzp/2g0IyYAyY3wvVea2IyWhI2wz532Es71gEa
+    MAu8jiWn3rncvQNf0j2eCzhg0ZJ7G0+Qe19D7heLCP+/tpt+kOYDT0o8+drezRMuIiU5JE4/sxan
+    YVRjpYzQPuNx13elAzJXy+24wnKMOwUuHCm25TMUPI1j/3Fw2xPqqYnkhkR6OaBF0ZuAxRYMUsWw
+    gKWGS2nim2+DVh2d4NbAQtYDVRqAm/jCY0180aZ9/G2iqk66pMGDW9Njy9Rl+YgXyyqn6PYpSt6r
+    v0ZF1XkDWGLaB2ohNugO6j8fp0MiKWs3WPWdnsXVIw==
+    EOF
+    cat > auto-import.assert <<"EOF"
+    type: system-user
+    authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+    revision: 1
+    brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+    email: snappy-dev@lists.launchpad.net
+    models:
+      - amd64
+      - pi2
+      - pi3
+      - dragonboard
+    name: user1
+    password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
+    series:
+      - 16
+    since: 2016-10-10T15:03:21+00:00
+    until: 2017-10-09T15:03:21+00:00
+    username: user1
+    sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
+
+    AcLBXAQAAQoABgUCWA8acQAKCRCi4irWmF+hRVC/EACD+mSpl5QMkzgcxQTlFbI+xSV0TkjLXEnl
+    fL4N4wD3ECs6CQlXPaO/C+4IN7jZLuMlIuwG3eGOYr4sDfm81sfv7jF5wIn9wJOBHHbJKUaBIuWK
+    eNrwe4rSmxoOMLATgKZXkg83hImc8EjQQ9zT5sBxh0d7Zbkhvos6tb5csH9zWl7+tLygcYduILfi
+    CFWNFJFZSPYcWsRw4Z2ywkKiXYKQ/0aej8ZrNdjXpKxa/V13a0BSlHa0YszZvebw+So0+zq9pU+U
+    ORfTJLDF6J/Uh6NGg3j4CuYudJAO02aAK4Sy/xTtNSpF+Dd6iZMlfvw33EcqLjL8SW3IpmxMiVpO
+    /Pm+c1nsV0OX/CIkeZZOwXCP5KrsvvNPh2oKdkmCiGtsx+avZIyzeYKVPaw4U9H9iL3I357IOl17
+    jkKYOPsOoPbVizPyZdaZJmde67jSqRsPC2a2akZQyPyBAkR4JFlxC+7vc04TXrcQHTyz1c3/CJPM
+    JgCsCtpzycikI1exY1zFsrWyJockl5ekdhdvK/U2HUtc5R9uWnbfR0zvd9d8YXMM0OO4NQpFKHYV
+    vHartUAlFPw14ZXgD3wuUiDGYgARz55elRcPwlU3qbYWDc8wQBglcFpGN1m8Wfyqm52LqmkSyv6u
+    TfGSVjBPnk1qNaTk1anLoyS3+8TpeyDOU9m6MJZhuw==
+    EOF
+
+    # modify the core snap so that it includes the new snapd
+    mkdir -p $IMAGE_HOME
+    unsquashfs -d $UNPACKD /var/lib/snapd/snaps/core_*.snap
+    dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+
+    # allow ssh root access for inspection
+    want_pw="$(grep ^ubuntu /etc/shadow)"
+    echo "$want_pw" > /tmp/new-shadow
+    sed -i 's/^ubuntu/root/' /tmp/new-shadow
+    tail -n +2 /etc/shadow >> /tmp/new-shadow
+    cp -v /tmp/new-shadow $UNPACKD/etc/shadow
+    cp -v /etc/passwd $UNPACKD/etc/passwd
+    sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
+
+    # build new core snap for the image
+    snapbuild $UNPACKD $IMAGE_HOME
+
+    # create ubuntu-core image
+    snap install --devmode --edge ubuntu-image
+    /snap/bin/ubuntu-image ./pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap --output ubuntu-core.img
+
+    # create assertion block device
+    genisoimage -volid cidata -joliet -rock -o assertions.disk auto-import.assert
+
+restore: |
+    if systemctl status nested-vm; then
+        systemctl stop nested-vm
+    fi
+    rm -f ubuntu-core.img assertions.disk pc.model auto-import.assertion /tmp/new-shadow
+    rm -rf $UNPACKD $IMAGE_HOME
+    apt remove -y qemu genisoimage sshpass
+
+execute: |
+    execute_remote_command(){
+        sshpass -p $PASSWORD ssh -p $SSH_PORT -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $USER@localhost "$*"
+    }
+
+    wait_for_ssh(){
+        retry=30
+        while ! execute_remote_command true; do
+            retry=$(( retry - 1 ))
+            if [ $retry -le 0 ]; then
+                echo "Timed out waiting for ssh. Aborting!"
+                exit 1
+            fi
+            sleep 10
+        done
+    }
+
+    systemd-run --unit nested-vm $(which qemu-system-$(uname -m)) -m 512 -nographic -snapshot -net nic,model=virtio -net user,hostfwd=tcp::"$SSH_PORT"-:22 ${PWD}/ubuntu-core.img -drive file=${PWD}/assertions.disk
+
+    wait_for_ssh
+
+    execute_remote_command echo hello
+
+    systemctl stop nested-vm
