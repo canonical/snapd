@@ -29,6 +29,8 @@ import (
 
 type collectAttrHandler struct{}
 
+type confirmConnectionHandler struct{}
+
 func (h *collectAttrHandler) Before() error {
 	return nil
 }
@@ -38,6 +40,18 @@ func (h *collectAttrHandler) Done() error {
 }
 
 func (h *collectAttrHandler) Error(err error) error {
+	return nil
+}
+
+func (h *confirmConnectionHandler) Before() error {
+	return nil
+}
+
+func (h *confirmConnectionHandler) Done() error {
+	return nil
+}
+
+func (h *confirmConnectionHandler) Error(err error) error {
 	return nil
 }
 
@@ -51,6 +65,16 @@ func setupHooks(hookMgr *hookstate.HookManager) {
 		return &collectAttrHandler{}
 	}
 
+	confirmPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return &confirmConnectionHandler{}
+	}
+
+	confirmSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return &confirmConnectionHandler{}
+	}
+
 	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), prepPlugGenerator)
 	hookMgr.Register(regexp.MustCompile("^prepare-slot-[a-zA-Z0-9_\\-]+$"), prepSlotGenerator)
+	hookMgr.Register(regexp.MustCompile("^confirm-plug-[a-zA-Z0-9_\\-]+$"), confirmPlugGenerator)
+	hookMgr.Register(regexp.MustCompile("^confirm-slot-[a-zA-Z0-9_\\-]+$"), confirmSlotGenerator)
 }
