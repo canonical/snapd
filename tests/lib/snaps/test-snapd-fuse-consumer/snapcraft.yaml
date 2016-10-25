@@ -11,7 +11,7 @@ apps:
 parts:
     create:
         plugin: python2
-        stage-packages: [python-fuse]
+        build-packages: [python-fuse]
     make:
         plugin: make
         source: .
