@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.2)
+policy_module(snappy,0.0.2.1)
 
 ########################################
 #
@@ -26,6 +26,10 @@ systemd_unit_file(snappy_unit_file_t)
 #
 # snappy local policy
 #
+
+# Allow transitions from init_t to snappy for sockets
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
