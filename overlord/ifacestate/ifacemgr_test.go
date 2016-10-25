@@ -165,6 +165,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -215,6 +216,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -247,6 +249,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -274,6 +277,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -315,6 +319,7 @@ slots:
 	s.mockSnap(c, consumerYaml)
 	s.mockSnapDecl(c, "producer", "producer-publisher", nil)
 	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -1190,6 +1195,8 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
+	_ = s.manager(c)
+
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
@@ -1228,6 +1235,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+
+	_ = s.manager(c)
 
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
