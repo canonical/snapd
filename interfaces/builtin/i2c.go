@@ -99,14 +99,8 @@ func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
 	case interfaces.SecurityUDev:
-		const udevRule string = `KERNEL="%s", TAG+="snap_%s_%s"`
 		const pathPrefix = "/dev/"
-		var udevSnippet bytes.Buffer
-		for appName := range plug.Apps {
-			rule := fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), plug.Snap.Name(), appName)
-			udevSnippet.WriteString(fmt.Sprintf("%s\n", rule))
-		}
-		return udevSnippet.Bytes(), nil
+		return udevSecurityTagSnippet(strings.TrimPrefix(path, pathPrefix), plug.Snap.Name(), plug.Apps), nil
 	}
 	return nil, nil
 }

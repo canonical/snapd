@@ -83,3 +83,15 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 	udevSnippet.WriteString("\n")
 	return udevSnippet.Bytes()
 }
+
+// Function to support creation of udev TAG snippet for all the apps bound
+// to a given slot.
+func udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]*snap.AppInfo) []byte {
+	var tagSnippet bytes.Buffer
+	const udevRule string = `KERNEL="%s", TAG+="snap_%s_%s"`
+	for appName := range apps {
+		tagSnippet.WriteString(fmt.Sprintf(udevRule, deviceNode, snapName, appName))
+		tagSnippet.WriteString("\n")
+	}
+	return tagSnippet.Bytes()
+}
