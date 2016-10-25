@@ -4,10 +4,6 @@ backends: [qemu]
 
 systems: [ubuntu-16.04-64]
 
-kill-timeout: 6m
-
-warn-timeout: 2m
-
 details: |
     The test uses a nested ubuntu-core image to check that the system-user
     assertion is properly imported. We sign the model and system-user assertion
@@ -80,7 +76,6 @@ prepare: |
     EOF
 
     # modify the core snap so that it includes the new snapd
-    mkdir -p $IMAGE_HOME
     unsquashfs -d $UNPACKD /var/lib/snapd/snaps/core_*.snap
     dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
 
@@ -94,6 +89,7 @@ prepare: |
     sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
 
     # build new core snap for the image
+    mkdir -p $IMAGE_HOME
     snapbuild $UNPACKD $IMAGE_HOME
 
     # create ubuntu-core image
@@ -133,5 +129,3 @@ execute: |
     wait_for_ssh
 
     execute_remote_command echo hello
-
-    systemctl stop nested-vm
