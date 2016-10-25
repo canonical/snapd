@@ -50,7 +50,7 @@ prepare: |
     brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
     email: snappy-dev@lists.launchpad.net
     models:
-      - amd64
+      - pc
       - pi2
       - pi3
       - dragonboard
@@ -63,16 +63,16 @@ prepare: |
     username: user1
     sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
 
-    AcLBXAQAAQoABgUCWA8acQAKCRCi4irWmF+hRVC/EACD+mSpl5QMkzgcxQTlFbI+xSV0TkjLXEnl
-    fL4N4wD3ECs6CQlXPaO/C+4IN7jZLuMlIuwG3eGOYr4sDfm81sfv7jF5wIn9wJOBHHbJKUaBIuWK
-    eNrwe4rSmxoOMLATgKZXkg83hImc8EjQQ9zT5sBxh0d7Zbkhvos6tb5csH9zWl7+tLygcYduILfi
-    CFWNFJFZSPYcWsRw4Z2ywkKiXYKQ/0aej8ZrNdjXpKxa/V13a0BSlHa0YszZvebw+So0+zq9pU+U
-    ORfTJLDF6J/Uh6NGg3j4CuYudJAO02aAK4Sy/xTtNSpF+Dd6iZMlfvw33EcqLjL8SW3IpmxMiVpO
-    /Pm+c1nsV0OX/CIkeZZOwXCP5KrsvvNPh2oKdkmCiGtsx+avZIyzeYKVPaw4U9H9iL3I357IOl17
-    jkKYOPsOoPbVizPyZdaZJmde67jSqRsPC2a2akZQyPyBAkR4JFlxC+7vc04TXrcQHTyz1c3/CJPM
-    JgCsCtpzycikI1exY1zFsrWyJockl5ekdhdvK/U2HUtc5R9uWnbfR0zvd9d8YXMM0OO4NQpFKHYV
-    vHartUAlFPw14ZXgD3wuUiDGYgARz55elRcPwlU3qbYWDc8wQBglcFpGN1m8Wfyqm52LqmkSyv6u
-    TfGSVjBPnk1qNaTk1anLoyS3+8TpeyDOU9m6MJZhuw==
+    AcLBXAQAAQoABgUCWA96EQAKCRCi4irWmF+hRS1MEACI9PPbuHOn3ydXZH4W4Hd/QiFsAGAN+rDK
+    zyhTuLxt0axGAXERIElibhiCzpzTrIg7g5/pUEmVELpJYQzvg1oSEGllrK85ODTDjgZr/jW2jITm
+    XN0mN3GOSimTvvQiAXF/pKGOBBAwHUojLt9FPM4WWPnwUq4wnkPVvTExgNrX5FOYtYvPG6YEejbK
+    B6AKcs0d66z72n+0R3JON35Cis7EhUap7myYZMulT5Qhox785XidNFS0qbmpOGX1llBNjmY8JlqS
+    DkktXryyU4lzNfCe8q1x2H84XZlD+bCRBlfSBA1+9aipLHl6PcaqeGyItmiX9+/xCtkQs96mYiNf
+    vxBDhw7BL6xS00lNt/RQwkHOVGcNhZTxhw5apYkMaCRjoRr0QKssRwLJMp67l2Obl57tkFbxRFZ+
+    Pi/zFWmxU3A0ns1N51D7ywaF4d6hRPs3kZNukz6pnwGOSRPNbEhwVwUHEvTTGxT3rvTPMe/63nFZ
+    heah8N+zToHS+ljzOfQc6hP01bjanz+lgYz+ZdJl3tletuCTjzhSp4voOBYemZMeVYz69SWlrPel
+    X1Ktv+zHg9xBfiXHUFKfcAJ8sQfrJqjjaNzmrx27s6o6l1x1mNd6ml3cPWo6ctecAZvSuQJSwwFq
+    EZTyBuW2tUoGqNuqlMDZdszMnIGlC6/UGvmEHp2GVw==
     EOF
 
     # modify the core snap so that it includes the new snapd
