@@ -361,7 +361,7 @@ var (
 		"docker-support":  []string{"core"},
 		"gpio":            []string{"core", "gadget"},
 		"hidraw":          []string{"core", "gadget"},
-		"i2c-bus":         []string{"gadget"},
+		"i2c":             []string{"core", "gadget"},
 		"lxd-support":     []string{"core"},
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
