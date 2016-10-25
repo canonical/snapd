@@ -382,7 +382,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(),
+		client:          newHTTPClient(10 * time.Second),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 	}
@@ -1149,7 +1149,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		// connections) that led us to an error (the default client is
 		// documented as not reusing the transport unless the body is
 		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(newHTTPClient(), reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(0), reqOptions, user)
 		if err != nil {
 			return err
 		}
