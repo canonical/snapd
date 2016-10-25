@@ -104,9 +104,8 @@ prepare: |
     genisoimage -volid cidata -joliet -rock -o assertions.disk auto-import.assert
 
 restore: |
-    if systemctl status nested-vm; then
-        systemctl stop nested-vm
-    fi
+    . $TESTSLIB/systemd.sh
+    systemd_stop_and_destroy_unit nested-vm
     rm -f ubuntu-core.img assertions.disk pc.model auto-import.assertion /tmp/new-shadow
     rm -rf $UNPACKD $IMAGE_HOME
     apt remove -y qemu genisoimage sshpass
@@ -128,7 +127,8 @@ execute: |
         done
     }
 
-    systemd-run --unit nested-vm $(which qemu-system-$(uname -m)) -m 512 -nographic -snapshot -net nic,model=virtio -net user,hostfwd=tcp::"$SSH_PORT"-:22 ${PWD}/ubuntu-core.img -drive file=${PWD}/assertions.disk
+    . $TESTSLIB/systemd.sh
+    systemd_create_and_start_unit nested-vm "$(which qemu-system-$(uname -m)) -m 512 -nographic -snapshot -net nic,model=virtio -net user,hostfwd=tcp::"$SSH_PORT"-:22 ${PWD}/ubuntu-core.img -drive file=${PWD}/assertions.disk,if=ide"
 
     wait_for_ssh
 
