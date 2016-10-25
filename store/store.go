@@ -554,18 +554,6 @@ type requestOptions struct {
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	// FIXME: find a better place for this?
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) > 10 {
-			return errors.New("stopped after 10 redirects")
-		}
-		// preserve the range header accross redirects to the CDN
-		v := via[0].Header.Get("Range")
-		req.Header.Set("Range", v)
-
-		return nil
-	}
-
 	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
@@ -1164,7 +1152,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		// connections) that led us to an error (the default client is
 		// documented as not reusing the transport unless the body is
 		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(), reqOptions, user)
 		if err != nil {
 			return err
 		}
