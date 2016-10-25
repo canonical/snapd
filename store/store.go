@@ -1114,15 +1114,11 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	if err != nil {
 		return "", err
 	}
-	fn := w.Name()
-	if err != nil {
-		return "", fmt.Errorf("cannot calculate hashsum for %s: %s", fn, err)
-	}
 	if downloadInfo.Sha3_384 != "" && hash != downloadInfo.Sha3_384 {
-		return "", fmt.Errorf("hashsum mismatch for %s: got %s but expected %s", fn, hash, downloadInfo.Sha3_384)
+		return "", fmt.Errorf("hashsum mismatch for %s: got %s but expected %s", w.Name(), hash, downloadInfo.Sha3_384)
 	}
 
-	return fn, w.Sync()
+	return w.Name(), w.Sync()
 }
 
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
