@@ -44,6 +44,10 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+	if hookManager != nil {
+		setupHooks(hookManager)
+	}
+
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
@@ -65,9 +69,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
-	if hookManager != nil {
-		setupHooks(hookManager)
-	}
 	return m, nil
 }
 
