@@ -39,13 +39,14 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		return nil, err
 	}
 
+	targetRevision := ss.Revision()
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
+		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
 	}
 
 	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.LastIndex(ss.Revision()) >= 0
+	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -122,6 +123,10 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
+			if si.Revision == targetRevision {
+				// but don't discard this one; its' the thing we're switching to!
+				continue
+			}
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
@@ -133,7 +138,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
-			if si.Revision == ss.Revision() {
+			if si.Revision == targetRevision {
 				// we do *not* want to removeInactiveRevision of this one
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]

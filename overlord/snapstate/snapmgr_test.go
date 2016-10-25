@@ -3681,6 +3681,11 @@ func (s *snapmgrTestSuite) TestSeqTotalPostRevertFailure(c *C) {
 	s.testTotalUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4, after: []int{1, 2}})
 }
 
+// 3d. manually requesting the one reverted away from
+func (s *snapmgrTestSuite) TestSeqRefreshPostRevertSameRevno(c *C) {
+	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 3, after: []int{1, 2, 3}})
+}
+
 // 4. a post-revert revert
 // 4a. that works
 func (s *snapmgrTestSuite) TestSeqRevertPostRevert(c *C) {
