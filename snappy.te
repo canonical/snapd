@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.2.1)
+policy_module(snappy,0.0.2.2)
 
 ########################################
 #
@@ -28,6 +28,7 @@ systemd_unit_file(snappy_unit_file_t)
 #
 
 # Allow transitions from init_t to snappy for sockets
+gen_require(` type init_t; type var_run_t; ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
