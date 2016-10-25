@@ -78,7 +78,7 @@ override_dh_install:
 	mkdir -p debian/golang-github-snapcore-snapd-dev/usr/share
 	cp -R debian/tmp/usr/share/gocode debian/golang-github-snapcore-snapd-dev/usr/share
 	# install udev stuff, must be installed before 80-udisks
-	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/70-snapd-autoimport.rules
+	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/66-snapd-autoimport.rules
 
 	# install binaries and needed files
 	install debian/tmp/usr/bin/snap -D debian/snapd/usr/bin/snap

@@ -71,7 +71,7 @@ func plugAppLabelExpr(plug *interfaces.Plug) []byte {
 }
 
 // Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int, usbProduct int, key string, data string) []byte {
+func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) []byte {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
 	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
 	const udevSuffix string = `, %s+="%s"`

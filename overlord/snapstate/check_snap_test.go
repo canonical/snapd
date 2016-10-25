@@ -48,7 +48,6 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	snapstate.CheckInterfaces = nil
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {
@@ -69,7 +68,7 @@ architectures:
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
 	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
@@ -89,7 +88,7 @@ assumes: [f1, f2]`
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -107,11 +106,11 @@ assumes: [common-data-dir]`
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 }
 
-func (s *checkSnapSuite) TestCheckSnapCheckInterfacesOK(c *C) {
+func (s *checkSnapSuite) TestCheckSnapCheckCallbackOK(c *C) {
 	const yaml = `name: foo
 version: 1.0`
 
@@ -123,24 +122,26 @@ version: 1.0`
 		info := snaptest.MockInfo(c, yaml, si)
 		return info, nil, nil
 	}
-	restore := snapstate.MockOpenSnapFile(openSnapFile)
-	defer restore()
+	r1 := snapstate.MockOpenSnapFile(openSnapFile)
+	defer r1()
 
-	checkInterfacesCalled := false
-	snapstate.CheckInterfaces = func(st *state.State, s *snap.Info) error {
+	checkCbCalled := false
+	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags) error {
 		c.Assert(s.Name(), Equals, "foo")
 		c.Assert(s.SnapID, Equals, "snap-id")
-		checkInterfacesCalled = true
+		checkCbCalled = true
 		return nil
 	}
+	r2 := snapstate.MockCheckSnapCallbacks([]snapstate.CheckSnapCallback{checkCb})
+	defer r2()
 
-	err := snapstate.CheckSnap(s.st, "snap-path", si, nil, 0)
+	err := snapstate.CheckSnap(s.st, "snap-path", si, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 
-	c.Check(checkInterfacesCalled, Equals, true)
+	c.Check(checkCbCalled, Equals, true)
 }
 
-func (s *checkSnapSuite) TestCheckSnapCheckInterfacesFail(c *C) {
+func (s *checkSnapSuite) TestCheckSnapCheckCallbackFail(c *C) {
 	const yaml = `name: foo
 version: 1.0`
 
@@ -153,13 +154,15 @@ version: 1.0`
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	fail := errors.New("bad interfaces")
-	snapstate.CheckInterfaces = func(st *state.State, s *snap.Info) error {
+	fail := errors.New("bad snap")
+	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags) error {
 		return fail
-
 	}
+	r2 := snapstate.MockCheckSnapCallbacks(nil)
+	defer r2()
+	snapstate.AddCheckSnapCallback(checkCb)
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 	c.Check(err, Equals, fail)
 }
 
@@ -171,7 +174,91 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: gadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "gadget-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapGadgetUpdateLocal(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: gadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	// no SnapID => local!
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapGadgetUpdateToUnassertedProhibited(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
@@ -199,9 +286,9 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
@@ -240,15 +327,54 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
 
-// FIXME: re-enable once we have the check again
-func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
-	c.Skip("gadget check disabled right now")
+func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibitedBySnapID(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
 
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: zgadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "zgadget-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
+}
+
+func (s *checkSnapSuite) TestCheckSnapGadgetNoPrior(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
 
@@ -271,9 +397,9 @@ version: 1
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
-	c.Check(err, ErrorMatches, "cannot find original gadget snap")
+	c.Check(err, IsNil)
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetCannotBeInstalledOnClassic(c *C) {
@@ -299,7 +425,7 @@ version: 1
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
 }
@@ -320,7 +446,91 @@ confinement: devmode
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
 	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
+}
+
+func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapKernelAdditionProhibitedBySnapID(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: zkernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "zkernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
+	st.Lock()
+	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }

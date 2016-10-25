@@ -31,6 +31,11 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
+            # FIXME restore of ubuntu-core does not properly reset
+            # boot variables and key snaps to their pristine state.
+            - ubuntu-core-16-64-fixme:
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
     qemu:
         systems:
             - ubuntu-16.04-64:
@@ -51,6 +56,7 @@ backends:
                 FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
+            echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-spread-users
             ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
@@ -88,13 +94,22 @@ prepare-each: |
     journalctl --rotate
     sleep .1
     journalctl --vacuum-time=1ms
+    dmesg -c > /dev/null
 
 debug-each: |
     journalctl -u snapd
+    dmesg | grep DENIED
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # check that we are not updating
+    . "$TESTSLIB/boot.sh"
+    if [ $(bootenv snap_mode) = "try" ]; then
+        echo "Ongoing reboot upgrade process, please try again when finished"
+        exit 1
+    fi
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
@@ -180,11 +195,13 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+    # Build fakedevicesvc.
+    go get ./tests/lib/fakedevicesvc
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-
+        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -202,6 +219,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
+        systems: [-ubuntu-core-16-64-fixme]
         restore:
             apt-get purge -y snapd || true
         restore-each: |
