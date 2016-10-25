@@ -98,10 +98,28 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	connectInterface := s.NewTask("connect", summary)
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.WaitFor(collectPlugAttr)
-	connectInterface.WaitFor(collectSlotAttr)
+	confirmPlugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "confirm-plug-" + plugName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
+	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, nil)
 
-	return state.NewTaskSet(collectPlugAttr, collectSlotAttr, connectInterface), nil
+	confirmSlotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "confirm-slot-" + slotName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
+	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, nil)
+
+	collectSlotAttr.WaitFor(collectPlugAttr)
+	connectInterface.WaitFor(collectSlotAttr)
+	confirmSlotConnection.WaitFor(connectInterface)
+	confirmPlugConnection.WaitFor(confirmSlotConnection)
+
+	return state.NewTaskSet(collectPlugAttr, collectSlotAttr, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
