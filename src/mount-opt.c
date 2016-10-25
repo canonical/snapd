@@ -85,6 +85,9 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_KERNMOUNT, kernmount);
 	F(MS_I_VERSION, iversion);
 	F(MS_STRICTATIME, strictatime);
+#ifndef MS_LAZYTIME
+#define MS_LAZYTIME (1<<25)
+#endif
 	F(MS_LAZYTIME, lazytime);
 #ifndef MS_NOSEC
 #define MS_NOSEC (1 << 28)
