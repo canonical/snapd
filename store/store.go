@@ -1092,12 +1092,9 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 
 	resume := int64(0)
 	target := filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap")
-	w, err := os.OpenFile(target, os.O_APPEND|os.O_WRONLY, 0644)
+	w, err := os.OpenFile(target, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		w, err = os.Create(target)
-		if err != nil {
-			return "", err
-		}
+		return "", err
 	}
 	if info, err := w.Stat(); err == nil {
 		resume = info.Size()
