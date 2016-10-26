@@ -22,6 +22,7 @@
 package ifacestate
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -45,7 +46,7 @@ func copyAttributesFromConnectTask(context *hookstate.Context) error {
 	st := context.State()
 	ts := st.Task(id)
 	if ts == nil {
-		panic("Failed to find connect-task")
+		fmt.Errorf("Failed to find connect-task")
 	}
 
 	var attrs map[string]string
@@ -77,7 +78,7 @@ func copyAttributesToConnectTask(context *hookstate.Context) error {
 		state := context.State()
 		ts := state.Task(id)
 		if ts == nil {
-			panic("Failed to find connect-task")
+			fmt.Errorf("Failed to find connect-task")
 		}
 		ts.Set("attributes", attrs)
 	}
