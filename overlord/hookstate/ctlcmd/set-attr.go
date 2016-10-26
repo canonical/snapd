@@ -21,15 +21,17 @@ package ctlcmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type setAttrCommand struct {
 	baseCommand
 
 	Positional struct {
-		ConfValues []string `positional-arg-name:"key=value" required:"1"`
+		AttrValues []string `positional-arg-name:"key=value" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -52,6 +54,27 @@ func (s *setAttrCommand) Execute(args []string) error {
 	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
+
+	context.Lock()
+	defer context.Unlock()
+
+	var attrs map[string]string
+	if err := context.Get("attributes", &attrs); err != nil {
+		if err == state.ErrNoState {
+			attrs = make(map[string]string)
+		} else {
+			return err
+		}
+	}
+
+	for _, attrValue := range s.Positional.AttrValues {
+		parts := strings.SplitN(attrValue, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), attrValue)
+		}
+		attrs[parts[0]] = parts[1]
+	}
+	s.context().Set("attributes", attrs)
 
 	return nil
 }
