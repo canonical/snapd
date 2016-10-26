@@ -35,9 +35,7 @@ snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif
 
 snap_confine_SOURCES = \
-	main.c \
-	sc-main.c \
-	sc-main.h \
+	snap-confine.c \
 	utils.c \
 	utils.h \
 	secure-getenv.c \
