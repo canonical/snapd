@@ -27,7 +27,10 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type collectAttrHandler struct{}
+type collectAttrHandler struct {
+	context *hookstate.Context
+	target string
+}
 
 type confirmConnectionHandler struct{}
 
@@ -36,6 +39,23 @@ func (h *collectAttrHandler) Before() error {
 }
 
 func (h *collectAttrHandler) Done() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+	attrs := h.context.Cached("attributes")
+
+	if attrs != nil {
+		var id string
+		err := h.context.Get("connect-task", &id)
+		if err != nil {
+			return err
+		}
+		state := h.context.State()
+		ts := state.Task(id)
+		if ts == nil {
+			panic("Failed to find connect-task")
+		}
+		ts.Set(h.target, attrs)
+	}
 	return nil
 }
 
@@ -58,11 +78,11 @@ func (h *confirmConnectionHandler) Error(err error) error {
 // SetupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
 	prepPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{}
+		return &collectAttrHandler{context: context, target: "plug-attributes"}
 	}
 
 	prepSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{}
+		return &collectAttrHandler{context: context, target: "slot-attributes"}
 	}
 
 	confirmPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
