@@ -64,7 +64,7 @@ const systemUserExample = "type: system-user\n" +
 func (s *systemUserSuite) SetUpTest(c *C) {
 	s.since = time.Now().Truncate(time.Second)
 	s.sinceLine = fmt.Sprintf("since: %s\n", s.since.Format(time.RFC3339))
-	s.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
+	s.until = time.Now().AddDate(1, 1, 0).Truncate(time.Second)
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
 
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
@@ -167,7 +167,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.untilLine, "until: \n", `"until" header should not be empty`},
 		{s.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
-		{s.untilLine, fmt.Sprintf("until: %s\n", s.since.AddDate(1, 0, 1).Format(time.RFC3339)), `'until' time cannot be more than 365 days in the future`},
+		{"models:\n  - frobinator\n", "", `'until' time cannot be more than 365 days in the future when no models are specified`},
 	}
 
 	for _, test := range invalidTests {
