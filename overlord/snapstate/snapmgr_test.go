@@ -4033,3 +4033,22 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	err = runHook.Get("hook-context", &m)
 	c.Assert(err, Equals, state.ErrNoState)
 }
+
+type canDisableSuite struct{}
+
+var _ = Suite(&canDisableSuite{})
+
+func (s *canDisableSuite) TestCanDisable(c *C) {
+	for _, tt := range []struct {
+		typ        snap.Type
+		canDisable bool
+	}{
+		{snap.TypeApp, true},
+		{snap.TypeGadget, false},
+		{snap.TypeKernel, false},
+		{snap.TypeOS, false},
+	} {
+		info := &snap.Info{Type: tt.typ}
+		c.Check(snapstate.CanDisable(info), Equals, tt.canDisable)
+	}
+}
