@@ -25,25 +25,50 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type collectAttrHandler struct {
 	context *hookstate.Context
-	target string
 }
 
 type confirmConnectionHandler struct{}
 
 func (h *collectAttrHandler) Before() error {
-	return nil
+	var id string
+
+	h.context.Lock()
+	defer h.context.Unlock()
+	err := h.context.Get("connect-task", &id)
+	if err != nil {
+		return err
+	}
+	st := h.context.State()
+	ts := st.Task(id)
+	if ts == nil {
+		panic("Failed to find connect-task")
+	}
+
+	var attrs map[string]string
+	err = ts.Get("attributes", &attrs)
+	if err == state.ErrNoState {
+		return nil
+	}
+
+	return err
 }
 
 func (h *collectAttrHandler) Done() error {
 	h.context.Lock()
 	defer h.context.Unlock()
-	attrs := h.context.Cached("attributes")
 
-	if attrs != nil {
+	var attrs map[string]string
+	err := h.context.Get("attributes", &attrs)
+	if err == state.ErrNoState {
+		return nil
+	}
+
+	if err != nil {
 		var id string
 		err := h.context.Get("connect-task", &id)
 		if err != nil {
@@ -54,7 +79,7 @@ func (h *collectAttrHandler) Done() error {
 		if ts == nil {
 			panic("Failed to find connect-task")
 		}
-		ts.Set(h.target, attrs)
+		ts.Set("attributes", attrs)
 	}
 	return nil
 }
@@ -78,11 +103,11 @@ func (h *confirmConnectionHandler) Error(err error) error {
 // SetupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
 	prepPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{context: context, target: "plug-attributes"}
+		return &collectAttrHandler{context: context}
 	}
 
 	prepSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{context: context, target: "slot-attributes"}
+		return &collectAttrHandler{context: context}
 	}
 
 	confirmPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
