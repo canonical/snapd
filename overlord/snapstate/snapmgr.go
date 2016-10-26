@@ -678,7 +678,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if !ss.Flags.KeepSnapPath {
 		if err := os.Remove(ss.SnapPath); err != nil {
-			logger.Noticef("Failed to cleanup %q: %s", err)
+			logger.Noticef("Failed to cleanup %q: %s", ss.SnapPath, err)
 		}
 	}
 
