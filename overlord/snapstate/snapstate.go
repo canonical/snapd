@@ -559,6 +559,14 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already disabled", name)
 	}
 
+	info, err := Info(s, name, snapst.Current)
+	if err != nil {
+		return nil, err
+	}
+	if !canDisable(info) {
+		return nil, fmt.Errorf("snap %q cannot be disabled", name)
+	}
+
 	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
@@ -611,6 +619,17 @@ func canRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	return true
+}
+
+// canDisable verifies that a snap can be deactivated.
+func canDisable(s *snap.Info) bool {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+		if importantSnapType == s.Type {
+			return false
+		}
+	}
 
 	return true
 }
