@@ -55,6 +55,12 @@ func (s *setAttrCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
+	// Make sure set-attr is only supported during the execution of prepare-[plug|slot] hooks
+	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
+		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))
+	}
+
 	context.Lock()
 	defer context.Unlock()
 
