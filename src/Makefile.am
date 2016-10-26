@@ -5,8 +5,6 @@ noinst_PROGRAMS += snap-confine-unit-tests
 endif
 
 system_shutdown_SOURCES = \
-	utils.c \
-	utils.h \
 	mountinfo.c \
 	mountinfo.h \
 	system-shutdown.c
