@@ -123,11 +123,11 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
-	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, nil)
+	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, initialContext)
 	confirmSlotConnection.WaitFor(connectInterface)
 
 	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
-	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, nil)
+	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, initialContext)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})

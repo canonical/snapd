@@ -32,18 +32,17 @@ type collectAttrHandler struct {
 	context *hookstate.Context
 }
 
-type confirmConnectionHandler struct{}
+type confirmConnectionHandler struct {
+	context *hookstate.Context
+}
 
-func (h *collectAttrHandler) Before() error {
+func copyAttributesFromConnectTask(context *hookstate.Context) error {
 	var id string
-
-	h.context.Lock()
-	defer h.context.Unlock()
-	err := h.context.Get("connect-task", &id)
+	err := context.Get("connect-task", &id)
 	if err != nil {
 		return err
 	}
-	st := h.context.State()
+	st := context.State()
 	ts := st.Task(id)
 	if ts == nil {
 		panic("Failed to find connect-task")
@@ -55,26 +54,27 @@ func (h *collectAttrHandler) Before() error {
 		return nil
 	}
 
+	if err == nil {
+		context.Set("attributes", attrs)
+	}
+
 	return err
 }
 
-func (h *collectAttrHandler) Done() error {
-	h.context.Lock()
-	defer h.context.Unlock()
-
+func copyAttributesToConnectTask(context *hookstate.Context) error {
 	var attrs map[string]string
-	err := h.context.Get("attributes", &attrs)
+	err := context.Get("attributes", &attrs)
 	if err == state.ErrNoState {
 		return nil
 	}
 
 	if err != nil {
 		var id string
-		err := h.context.Get("connect-task", &id)
+		err := context.Get("connect-task", &id)
 		if err != nil {
 			return err
 		}
-		state := h.context.State()
+		state := context.State()
 		ts := state.Task(id)
 		if ts == nil {
 			panic("Failed to find connect-task")
@@ -84,12 +84,27 @@ func (h *collectAttrHandler) Done() error {
 	return nil
 }
 
+
+func (h *collectAttrHandler) Before() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+	return copyAttributesFromConnectTask(h.context)
+}
+
+func (h *collectAttrHandler) Done() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+	return copyAttributesToConnectTask(h.context)
+}
+
 func (h *collectAttrHandler) Error(err error) error {
 	return nil
 }
 
 func (h *confirmConnectionHandler) Before() error {
-	return nil
+	h.context.Lock()
+	defer h.context.Unlock()
+	return copyAttributesFromConnectTask(h.context)
 }
 
 func (h *confirmConnectionHandler) Done() error {
@@ -111,11 +126,11 @@ func setupHooks(hookMgr *hookstate.HookManager) {
 	}
 
 	confirmPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &confirmConnectionHandler{}
+		return &confirmConnectionHandler{context: context}
 	}
 
 	confirmSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &confirmConnectionHandler{}
+		return &confirmConnectionHandler{context: context}
 	}
 
 	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), prepPlugGenerator)
