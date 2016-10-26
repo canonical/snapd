@@ -1,6 +1,6 @@
-%global commit0 6ed3a427705d157f533ea249e98d17b39ada7351
+%global commit0 b8dd711cfffcc9de4ac0576fa1d3d58c96196701
 %global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
-%global snapdate 20161017
+%global snapdate 20161025
 
 Name:           snappy-selinux
 Version:        0
@@ -43,11 +43,11 @@ install -m 0644 snappy.pp.bz2 %{buildroot}%{_datadir}/selinux/packages
 %selinux_relabel_pre
 
 %post
-%selinux_modules_install snappy.pp.bz2
+%selinux_modules_install %{_datadir}/selinux/packages/snappy.pp.bz2
 %selinux_relabel_post
 
 %postun
-%selinux_modules_uninstall snappy.pp.bz2
+%selinux_modules_uninstall snappy
 
 
 %files
