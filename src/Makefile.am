@@ -1,8 +1,17 @@
-libexec_PROGRAMS = snap-confine snap-discard-ns
+libexec_PROGRAMS = snap-confine snap-discard-ns system-shutdown
 noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine-unit-tests
 endif
+
+system_shutdown_SOURCES = \
+	utils.c \
+	utils.h \
+	mountinfo.c \
+	mountinfo.h \
+	system-shutdown.c
+system_shutdown_CFLAGS = -Wall -Werror -static $(AM_CFLAGS)
+system_shutdown_LDFLAGS = -static
 
 decode_mount_opts_SOURCES = \
 	decode-mount-opts.c \
