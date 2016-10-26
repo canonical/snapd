@@ -564,7 +564,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 	if !canDisable(info) {
-		return nil, fmt.Errorf("snap %q can not be disabled", name)
+		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
 	if err := checkChangeConflict(s, name, nil); err != nil {
