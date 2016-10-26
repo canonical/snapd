@@ -225,6 +225,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  eds:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
   firewall-control:
     allow-installation:
       slot-snap-type:

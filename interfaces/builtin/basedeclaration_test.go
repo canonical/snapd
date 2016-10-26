@@ -351,6 +351,7 @@ var (
 		"content":          {"app", "gadget"},
 		"dbus":             {"app"},
 		"docker-support":   {"core"},
+		"eds":		    {"core"},
 		"fwupd":            {"app"},
 		"gpio":             {"core", "gadget"},
 		"hidraw":           {"core", "gadget"},
