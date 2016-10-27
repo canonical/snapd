@@ -362,6 +362,7 @@ var (
 		"gpio":            []string{"core", "gadget"},
 		"hidraw":          []string{"core", "gadget"},
 		"lxd-support":     []string{"core"},
+		"media-hub":       []string{"app"},
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
 		"network-manager": []string{"app", "core"},
