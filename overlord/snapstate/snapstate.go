@@ -325,7 +325,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
 		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
-			// no multi-refresh for trymode nor devmode
+			// no auto-refresh for trymode nor devmode
 			continue
 		}
 
