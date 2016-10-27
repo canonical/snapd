@@ -1,0 +1,28 @@
+summary: Check that `snap connect` runs interface hooks
+
+prepare: |
+    echo "Build test hooks package"
+    snapbuild $TESTSLIB/snaps/basic-iface-hooks-consumer .
+    snapbuild $TESTSLIB/snaps/basic-iface-hooks-producer .
+    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
+    snap install --dangerous basic-iface-hooks-producer_1.0_all.snap
+
+restore: |
+    rm basic-iface-hooks-consumer_1.0_all.snap
+    rm basic-iface-hooks-producer_1.0_all.snap
+
+restore: |
+    rm basic-iface-hooks-consumer_1.0_all.snap
+    rm basic-iface-hooks-producer_1.0_all.snap
+
+execute: |
+    if ! output="$(snap connect basic-iface-hooks-consumer:foo basic-iface-hooks-producer:bar)"; then
+        echo "Failed to connect plug foo to slot bar"
+        exit 1
+    fi
+
+    expected_output="configure hook"
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected connect output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
