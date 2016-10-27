@@ -99,7 +99,7 @@ func (s *SectionName) Complete(match string) []flags.Completion {
 }
 
 type cmdFind struct {
-	Private    bool `long:"private"`
+	Private    bool        `long:"private"`
 	Section    SectionName `long:"section" optional:"yes"`
 	Positional struct {
 		Query string

@@ -28,12 +28,12 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestFindNothingFails(c *check.C) {
+func (s *SnapSuite) TestFindNothingDoesNotFails(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("it reached the server")
 	})
 	_, err := snap.Parser().ParseArgs([]string{"find"})
-	c.Assert(err, check.ErrorMatches, `you need to specify a query. Try.*`)
+	c.Assert(err, check.IsNil)
 }
 
 const findJSON = `
