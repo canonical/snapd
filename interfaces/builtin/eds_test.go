@@ -38,6 +38,9 @@ type EDSInterfaceSuite struct {
 	calendarAndContactPlug *interfaces.Plug
 	missingServicePlug     *interfaces.Plug
 	badServicePlug         *interfaces.Plug
+	calendarSyncPlug       *interfaces.Plug
+	contactSyncPlug        *interfaces.Plug
+	allPlug                *interfaces.Plug
 
 	slot             *interfaces.Slot
 	badInterfaceSlot *interfaces.Slot
@@ -65,6 +68,15 @@ plugs:
     eds-bad-service:
         interface: eds
         services: [badService]
+    eds-contact-sync:
+        interface: eds
+        services: [contact-sync]
+    eds-calendar-sync:
+        interface: eds
+        services: [calendar-sync]
+    eds-all:
+        interface: eds
+        services: [calendar, contact, calendar-sync, contact-sync]
 slots:
     eds-slot: eds
 `, &snap.SideInfo{})
@@ -72,6 +84,9 @@ slots:
 	s.contactPlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-contact"]}
 	s.calendarAndContactPlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-calendar-contact"]}
 	s.missingServicePlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-missing-service"]}
+	s.calendarSyncPlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-calendar-sync"]}
+	s.contactSyncPlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-contact-sync"]}
+	s.allPlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-all"]}
 	s.badServicePlug = &interfaces.Plug{PlugInfo: info.Plugs["eds-bad-service"]}
 	s.slot = &interfaces.Slot{SlotInfo: info.Slots["eds-slot"]}
 }
@@ -86,12 +101,18 @@ func (s *EDSInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *EDSInterfaceSuite) TestSanitizePlug(c *C) {
-	// Both CALENDAR, CONTACT and CALENDAR AND CONTACT plugs are accepted
+	// valid plugs
 	err := s.iface.SanitizePlug(s.calendarPlug)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizePlug(s.contactPlug)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizePlug(s.calendarAndContactPlug)
+	c.Assert(err, IsNil)
+	err = s.iface.SanitizePlug(s.calendarSyncPlug)
+	c.Assert(err, IsNil)
+	err = s.iface.SanitizePlug(s.contactSyncPlug)
+	c.Assert(err, IsNil)
+	err = s.iface.SanitizePlug(s.allPlug)
 	c.Assert(err, IsNil)
 
 	// Plugs without the "services" attribute are rejected.
@@ -126,24 +147,56 @@ func (s *EDSInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c 
 func (s *EDSInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	var calendarSnippet = []byte("path=/org/gnome/evolution/dataserver/CalendarFactory")
 	var contactSnippet = []byte("path=/org/gnome/evolution/dataserver/AddressBookFactory")
+	var calendarSyncSnippet = []byte("path=/com/canonical/SyncMonitor{,/**}")
+	var contactSyncSnippet = []byte("path=/synchronizer{,/**}")
 
 	// No contacts permissions for calendar plug
 	snippet, err := s.iface.ConnectedPlugSnippet(s.calendarPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, true)
 	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, false)
 
 	// No calendar permissions for contact plug
 	snippet, err = s.iface.ConnectedPlugSnippet(s.contactPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, false)
 	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, false)
 
 	// Both permissions
 	snippet, err = s.iface.ConnectedPlugSnippet(s.calendarAndContactPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, true)
 	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, false)
+
+	// only calendar sync
+	snippet, err = s.iface.ConnectedPlugSnippet(s.calendarSyncPlug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, false)
+
+	// only contact sync
+	snippet, err = s.iface.ConnectedPlugSnippet(s.contactSyncPlug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, false)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, true)
+
+	// all
+	snippet, err = s.iface.ConnectedPlugSnippet(s.allPlug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(bytes.Contains(snippet, calendarSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, contactSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, calendarSyncSnippet), Equals, true)
+	c.Assert(bytes.Contains(snippet, contactSyncSnippet), Equals, true)
 }
 
 func (s *EDSInterfaceSuite) TestLegacyAutoConnect(c *C) {

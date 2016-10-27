@@ -212,6 +212,26 @@ dbus (receive, send)
      peer=(label=unconfined),
 `)
 
+var edsCalendarSyncConnectedPlugAppArmor = []byte(`
+# LP: #1319546. Apps shouldn't talk directly to buteo, but allow it for
+# now for trusted apps until buteo is integrated with push
+# notifications.
+dbus (receive, send)
+     bus=session
+     path=/com/canonical/SyncMonitor{,/**}
+     peer=(label=unconfined),
+`)
+
+var edsContactsSyncConnectedPlugAppArmor = []byte(`
+# LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
+# now for trusted apps until sync-monitor is integrated with push
+# notifications.
+dbus (receive, send)
+     bus=session
+     path=/synchronizer{,/**}
+     peer=(label=unconfined),
+`)
+
 var edsPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the EDS service. Reserved because this
 # gives
@@ -278,7 +298,7 @@ var edsPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-var edsServices = []string{"calendar", "contact"}
+var edsServices = []string{"calendar", "calendar-sync", "contact", "contact-sync"}
 
 type EDSInterface struct{}
 
@@ -294,7 +314,7 @@ func (iface *EDSInterface) PlugServices(plug *interfaces.Plug) []string {
 	if attrs, ok := plug.Attrs["services"].([]interface{}); ok {
 		services := make([]string, len(attrs))
 		for i, attr := range attrs {
-		    services[i], ok = attr.(string)
+			services[i], ok = attr.(string)
 			if !ok {
 				return nil
 			}
@@ -315,9 +335,19 @@ func (iface *EDSInterface) ConnectedPlugSnippetByService(plug *interfaces.Plug) 
 			rule = append(rule, edsCalendarConnectedPlugAppArmor...)
 		}
 
+		index = sort.SearchStrings(services, "calendar-sync")
+		if index < len(services) && services[index] == "calendar-sync" {
+			rule = append(rule, edsCalendarSyncConnectedPlugAppArmor...)
+		}
+
 		index = sort.SearchStrings(services, "contact")
 		if index < len(services) && services[index] == "contact" {
 			rule = append(rule, edsContactsConnectedPlugAppArmor...)
+		}
+
+		index = sort.SearchStrings(services, "contact-sync")
+		if index < len(services) && services[index] == "contact-sync" {
+			rule = append(rule, edsContactsSyncConnectedPlugAppArmor...)
 		}
 
 		return rule
@@ -359,7 +389,7 @@ func (iface *EDSInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 
 func (iface *EDSInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+		panic(fmt.Sprintf("plug is not of interface %s", iface.Name()))
 	}
 
 	services := iface.PlugServices(plug)
