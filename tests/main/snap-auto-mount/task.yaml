@@ -23,7 +23,7 @@ prepare: |
     umount /mnt
 
     echo "Create new block device to trigger auto-import mount"
-    dmsetup -v --noudevsync --noudevrules create dm-ram0 --table '0 65536 linear /dev/ram0 0'
+    dmsetup -v --noudevsync --noudevrules create dm-ram0 --table "0 $(blockdev --getsize /dev/ram0) linear /dev/ram0 0"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
