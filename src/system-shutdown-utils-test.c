@@ -32,7 +32,22 @@ static void test_streq()
 	g_assert_true(streq("", ""));
 }
 
+static void test_endswith()
+{
+	g_assert_false(endswith("", NULL));
+	g_assert_false(endswith(NULL, ""));
+	g_assert_false(endswith(NULL, NULL));
+	g_assert_true(endswith("", ""));
+	g_assert_true(endswith("foobar", "bar"));
+	g_assert_true(endswith("foobar", "ar"));
+	g_assert_true(endswith("foobar", "r"));
+	g_assert_true(endswith("foobar", ""));
+	g_assert_false(endswith("foobar", "quux"));
+	g_assert_false(endswith("", "bar"));
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/system_shutdown/streq", test_streq);
+	g_test_add_func("/system_shutdown/endswith", test_endswith);
 }
