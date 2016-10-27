@@ -84,9 +84,23 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 	return formatPrice(price, currency)
 }
 
+type SectionName string
+
+func (s *SectionName) Complete(match string) []flags.Completion {
+	// TODO find a better scheme
+	cli := Client()
+	sections, _ := cli.GetSections()
+
+	ret := make([]flags.Completion, len(sections))
+	for _, s := range sections {
+		ret = append(ret, flags.Completion{Item: s})
+	}
+	return ret
+}
+
 type cmdFind struct {
 	Private    bool `long:"private"`
-	Section    string `long:"section" optional:"yes"`
+	Section    SectionName `long:"section" optional:"yes"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -107,7 +121,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
-		Section: x.Section,
+		Section: string(x.Section),
 		Query:   x.Positional.Query,
 	})
 }
@@ -119,10 +133,6 @@ func findSnaps(opts *client.FindOptions) error {
 		return err
 	}
 
-	sections, err := cli.GetSections()
-	for _, s := range sections {
-		fmt.Printf(s)
-	}
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
 		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
