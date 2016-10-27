@@ -66,7 +66,7 @@ var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)
 
 func checkVersion(version string) bool {
 	req := versionExp.FindStringSubmatch(version)
-	if req == nil {
+	if req == nil || req[0] != version {
 		return false
 	}
 

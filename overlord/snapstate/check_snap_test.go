@@ -97,6 +97,10 @@ var assumesTests = []struct {
 	version: "unknown",
 	error:   `.* unsupported features: snapdnono .*`,
 }, {
+	assumes: "[snapd2.15nono]",
+	version: "unknown",
+	error:   `.* unsupported features: snapd2.15nono .*`,
+}, {
 	assumes: "[snapd2.15]",
 	version: "2.15",
 }, {
