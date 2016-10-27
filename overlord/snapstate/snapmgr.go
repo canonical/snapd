@@ -238,7 +238,6 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		// the desired channel
 		Channel: channel,
 		DevMode: flags.DevModeAllowed(),
-		Block:   snapst.Block(),
 
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
@@ -347,13 +346,6 @@ func Store(s *state.State) StoreService {
 		return cachedStore
 	}
 	panic("internal error: needing the store before managers have initialized it")
-}
-
-func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
-	if revisionInSequence(snapst, revision) {
-		return fmt.Errorf("revision %s of snap %q already installed", revision, name)
-	}
-	return nil
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
