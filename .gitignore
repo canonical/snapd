@@ -4,6 +4,7 @@ src/snap-confine-unit-tests
 src/snap-confine.apparmor
 src/decode-mount-opts
 src/system-shutdown
+src/system-shutdown-unit-tests
 *~
 *.o
 
