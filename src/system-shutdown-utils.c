@@ -15,19 +15,20 @@
  *
  */
 
-#include <stdbool.h>		// bools
+#include <errno.h>		// errno, sys_errlist
+#include <fcntl.h>		// open
+#include <linux/loop.h>		// LOOP_CLR_FD
+#include <linux/major.h>
 #include <stdarg.h>		// va_*
+#include <stdbool.h>		// bools
+#include <stdio.h>		// fprintf, stderr
+#include <stdlib.h>		// exit
+#include <string.h>		// strcmp, strncmp
+#include <sys/ioctl.h>		// ioctl
 #include <sys/mount.h>		// umount
+#include <sys/reboot.h>		// reboot, RB_*
 #include <sys/stat.h>		// mkdir
 #include <unistd.h>		// getpid, close
-#include <string.h>		// strcmp, strncmp
-#include <stdlib.h>		// exit
-#include <stdio.h>		// fprintf, stderr
-#include <sys/ioctl.h>		// ioctl
-#include <linux/loop.h>		// LOOP_CLR_FD
-#include <sys/reboot.h>		// reboot, RB_*
-#include <fcntl.h>		// open
-#include <errno.h>		// errno, sys_errlist
 
 #include "mountinfo.h"
 
@@ -146,13 +147,13 @@ bool umount_all()
 				continue;
 			}
 
-			if (major != 0 && major != 7
+			if (major != 0 && major != LOOP_MAJOR
 			    && endswith(dir, "/writable")) {
 				had_writable = true;
 			}
 
 			if (umount(dir) == 0) {
-				if (major == 7) {
+				if (major == LOOP_MAJOR) {
 					detach_loop(src);
 				}
 
