@@ -1,8 +1,2 @@
 name: basic-iface-hooks-producer
 version: 1.0
-slots:
-    bar:
-        interface: content
-        content: y
-        read:
-            - /usr

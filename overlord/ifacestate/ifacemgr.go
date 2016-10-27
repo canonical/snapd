@@ -98,7 +98,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s, %s"), slotSnap, slotName, prepareSlotHookSetup.Hook)
+	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
 	initialContext := map[string]interface{}{"connect-task": connectInterface.ID()}
 	prepareSlotAttr := hookstate.HookTask(s, summary, prepareSlotHookSetup, initialContext)
 

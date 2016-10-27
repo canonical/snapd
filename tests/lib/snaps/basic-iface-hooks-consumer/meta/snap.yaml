@@ -1,7 +1,2 @@
 name: basic-iface-hooks-consumer
 version: 1.0
-plugs:
-    foo:
-        interface: content
-        target: import
-        content: x
