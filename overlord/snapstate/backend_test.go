@@ -230,6 +230,10 @@ func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState)
 	panic("Never expected fakeStore.Assertion to be called")
 }
 
+func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
+	panic("Sections called")
+}
+
 type fakeSnappyBackend struct {
 	ops fakeOps
 

@@ -153,7 +153,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 
 		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
-
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden

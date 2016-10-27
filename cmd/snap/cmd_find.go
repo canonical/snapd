@@ -86,6 +86,7 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 
 type cmdFind struct {
 	Private    bool `long:"private"`
+	Section    string `long:"section" optional:"yes"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -96,6 +97,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
+		"section": i18n.G("Restrict the search to a given section name"),
 	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
@@ -103,13 +105,9 @@ func (x *cmdFind) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	if x.Positional.Query == "" {
-		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
-	}
-
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
+		Section: x.Section,
 		Query:   x.Positional.Query,
 	})
 }
@@ -121,6 +119,10 @@ func findSnaps(opts *client.FindOptions) error {
 		return err
 	}
 
+	sections, err := cli.GetSections()
+	for _, s := range sections {
+		fmt.Printf(s)
+	}
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
 		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
