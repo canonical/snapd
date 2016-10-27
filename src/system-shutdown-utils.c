@@ -15,12 +15,13 @@
  *
  */
 
+#include "system-shutdown-utils.h"
+
 #include <errno.h>		// errno, sys_errlist
 #include <fcntl.h>		// open
 #include <linux/loop.h>		// LOOP_CLR_FD
 #include <linux/major.h>
 #include <stdarg.h>		// va_*
-#include <stdbool.h>		// bools
 #include <stdio.h>		// fprintf, stderr
 #include <stdlib.h>		// exit
 #include <string.h>		// strcmp, strncmp
