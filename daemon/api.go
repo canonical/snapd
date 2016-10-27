@@ -492,7 +492,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	results[0] = (*json.RawMessage)(&data)
 
 	meta := &Meta{
-		Sources:           []string{"store"},
+		Sources: []string{"store"},
 	}
 
 	return SyncResponse(results, meta)

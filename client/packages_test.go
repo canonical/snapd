@@ -43,7 +43,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "select": []string{"refresh"},
+		"q": []string{""}, "section": []string{""}, "select": []string{"refresh"},
 	})
 }
 
@@ -125,13 +125,13 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
-	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo&section=")
 }
 
 func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo", Prefix: true})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
-	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A&section=") // 2A is `*`
 }
 
 func (cs *clientSuite) TestClientFindOne(c *check.C) {
