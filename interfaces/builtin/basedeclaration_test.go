@@ -138,6 +138,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":        true,
 		"gsettings":              true,
+		"lxd-client":             true,
 		"mir":                    true,
 		"network":                true,
 		"network-bind":           true,

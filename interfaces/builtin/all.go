@@ -34,7 +34,7 @@ var allInterfaces = []interfaces.Interface{
 	&HidrawInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
-	&LxdInterface{},
+	&LxdClientInterface{},
 	&LxdSupportInterface{},
 	&MirInterface{},
 	&ModemManagerInterface{},
