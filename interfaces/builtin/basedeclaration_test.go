@@ -360,6 +360,7 @@ var (
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"media-hub":               {"app"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
