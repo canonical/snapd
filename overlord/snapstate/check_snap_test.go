@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -74,40 +75,93 @@ architectures:
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
-func (s *checkSnapSuite) TestCheckSnapInstallMissingAssumes(c *C) {
-	const yaml = `name: foo
-version: 1.0
-assumes: [f1, f2]`
+var assumesTests = []struct {
+	version string
+	assumes string
+	classic bool
+	error   string
+}{{
+	assumes: "[common-data-dir]",
+}, {
+	assumes: "[f1, f2]",
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core snap\)`,
+}, {
+	assumes: "[f1, f2]",
+	classic: true,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to update snapd and refresh the core snap\)`,
+}, {
+	assumes: "[snapd2.15]",
+	version: "unknown",
+}, {
+	assumes: "[snapdnono]",
+	version: "unknown",
+	error:   `.* unsupported features: snapdnono .*`,
+}, {
+	assumes: "[snapd2.15]",
+	version: "2.15",
+}, {
+	assumes: "[snapd2.15]",
+	version: "2.15.1",
+}, {
+	assumes: "[snapd2.15]",
+	version: "2.15+git",
+}, {
+	assumes: "[snapd2.15]",
+	version: "2.16",
+}, {
+	assumes: "[snapd2.15.1]",
+	version: "2.16",
+}, {
+	assumes: "[snapd2.15.2]",
+	version: "2.16.1",
+}, {
+	assumes: "[snapd3]",
+	version: "3.1",
+}, {
+	assumes: "[snapd2.16]",
+	version: "2.15",
+	error:   `.* unsupported features: snapd2\.16 .*`,
+}, {
+	assumes: "[snapd2.15.1]",
+	version: "2.15",
+	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}, {
+	assumes: "[snapd2.15.1]",
+	version: "2.15.0",
+	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}}
 
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
-
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
-	}
-	restore := snapstate.MockOpenSnapFile(openSnapFile)
+func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
+	restore := cmd.MockVersion("2.15")
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
-}
-
-func (s *checkSnapSuite) TestCheckSnapInstallProvidedAssumes(c *C) {
-	const yaml = `name: foo
-version: 1.0
-assumes: [common-data-dir]`
-
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
-
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
-	}
-	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	restore = release.MockOnClassic(false)
 	defer restore()
 
-	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
-	c.Check(err, IsNil)
+	for _, test := range assumesTests {
+		cmd.Version = test.version
+		if cmd.Version == "" {
+			cmd.Version = "2.15"
+		}
+		release.OnClassic = test.classic
+
+		yaml := fmt.Sprintf("name: foo\nversion: 1.0\nassumes: %s\n", test.assumes)
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, nil, nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+		err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
+		if test.error != "" {
+			c.Check(err, ErrorMatches, test.error)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
 }
 
 func (s *checkSnapSuite) TestCheckSnapCheckCallbackOK(c *C) {
