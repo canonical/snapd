@@ -25,10 +25,6 @@ import (
 
 const lxdClientConnectedPlugAppArmor = `
 # Description: Can access commands and socket from the 'lxd' snap.
-# Commands
-/snap/bin/lxd ux,
-/snap/bin/lxd.lxc ux,
-# Socket
 /var/snap/lxd/common/lxd/unix.socket rw,
 `
 

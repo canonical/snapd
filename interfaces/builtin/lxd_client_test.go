@@ -84,8 +84,6 @@ func (s *LxdClientInterfaceSuite) TestUsedSecuritySystems(c *C) {
 func (s *LxdClientInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "/snap/bin/lxd ux,\n")
-	c.Check(string(snippet), testutil.Contains, "/snap/bin/lxd.lxc ux,\n")
 	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 

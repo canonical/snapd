@@ -358,6 +358,7 @@ var (
 		// other
 		"bool-file":       []string{"core", "gadget"},
 		"browser-support": []string{"core"},
+		"lxd-client":      []string{"core"},
 		"content":         []string{"app", "gadget"},
 		"docker-support":  []string{"core"},
 		"gpio":            []string{"core", "gadget"},
