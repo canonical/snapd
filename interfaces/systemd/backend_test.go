@@ -139,7 +139,7 @@ func (s *backendSuite) TestRenderSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
 		"foo.service": &osutil.FileState{
-			Content: []byte("[Service]\nExecStart=/bin/true\n"),
+			Content: []byte("[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=multi-user.target\n"),
 			Mode:    0644,
 		},
 	})
@@ -158,6 +158,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	// the service was also started (whee)
 	c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "daemon-reload"},
+		{"systemctl", "--root", dirs.GlobalRootDir, "enable", "snap.samba.interface.foo.service"},
 		{"systemctl", "start", "snap.samba.interface.foo.service"},
 	})
 }
@@ -176,9 +177,10 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
 		calls := s.systemctlCmd.Calls()
-		c.Check(calls[0], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.foo.service"})
+		c.Check(calls[0], DeepEquals, []string{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"})
+		c.Check(calls[1], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.foo.service"})
 		for i, call := range calls {
-			if i > 0 && i < len(calls)-1 {
+			if i > 1 && i < len(calls)-2 {
 				c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"})
 			}
 		}
@@ -210,9 +212,10 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	// The bar service should have been stopped
 	calls := s.systemctlCmd.Calls()
 	c.Check(calls[0], DeepEquals, []string{"systemctl", "daemon-reload"})
-	c.Check(calls[1], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.bar.service"})
+	c.Check(calls[1], DeepEquals, []string{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.bar.service"})
+	c.Check(calls[2], DeepEquals, []string{"systemctl", "stop", "snap.samba.interface.bar.service"})
 	for i, call := range calls {
-		if i > 1 {
+		if i > 2 {
 			c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"})
 		}
 	}

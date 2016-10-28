@@ -59,5 +59,6 @@ func (s *Service) String() string {
 	if s.ExecStop != "" {
 		fmt.Fprintf(&buf, "ExecStop=%s\n", s.ExecStop)
 	}
+	fmt.Fprintf(&buf, "[Install]\nWantedBy=multi-user.target\n")
 	return buf.String()
 }

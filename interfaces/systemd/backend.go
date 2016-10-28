@@ -78,17 +78,21 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-	// Start any new services
+	// Start and enable any new services
 	for _, service := range changed {
-		err := systemd.Start(service)
-		if err != nil {
+		if err := systemd.Enable(service); err != nil {
+			logger.Noticef("cannot enable service %q: %s", service, err)
+		}
+		if err := systemd.Start(service); err != nil {
 			logger.Noticef("cannot start service %q: %s", service, err)
 		}
 	}
-	// Stop any removed services
+	// Disable and stop any removed services
 	for _, service := range removed {
-		err := systemd.Stop(service, 10*time.Second)
-		if err != nil {
+		if err := systemd.Disable(service); err != nil {
+			logger.Noticef("cannot disable service %q: %s", service, err)
+		}
+		if err := systemd.Stop(service, 10*time.Second); err != nil {
 			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}
@@ -101,8 +105,10 @@ func (b *Backend) Remove(snapName string) error {
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
-		err := systemd.Stop(service, 10*time.Second)
-		if err != nil {
+		if err := systemd.Disable(service); err != nil {
+			logger.Noticef("cannot disable service %q: %s", service, err)
+		}
+		if err := systemd.Stop(service, 10*time.Second); err != nil {
 			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}

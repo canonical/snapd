@@ -31,15 +31,15 @@ var _ = Suite(&snippetSuite{})
 
 func (s *snippetSuite) TestString(c *C) {
 	service1 := systemd.Service{ExecStart: "/bin/true"}
-	c.Assert(service1.String(), Equals, "[Service]\nExecStart=/bin/true\n")
+	c.Assert(service1.String(), Equals, "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=multi-user.target\n")
 	service2 := systemd.Service{Type: "oneshot"}
-	c.Assert(service2.String(), Equals, "[Service]\nType=oneshot\n")
+	c.Assert(service2.String(), Equals, "[Service]\nType=oneshot\n[Install]\nWantedBy=multi-user.target\n")
 	service3 := systemd.Service{RemainAfterExit: true}
-	c.Assert(service3.String(), Equals, "[Service]\nRemainAfterExit=yes\n")
+	c.Assert(service3.String(), Equals, "[Service]\nRemainAfterExit=yes\n[Install]\nWantedBy=multi-user.target\n")
 	service4 := systemd.Service{RemainAfterExit: false}
-	c.Assert(service4.String(), Equals, "[Service]\n")
+	c.Assert(service4.String(), Equals, "[Service]\n[Install]\nWantedBy=multi-user.target\n")
 	service5 := systemd.Service{ExecStop: "/bin/true"}
-	c.Assert(service5.String(), Equals, "[Service]\nExecStop=/bin/true\n")
+	c.Assert(service5.String(), Equals, "[Service]\nExecStop=/bin/true\n[Install]\nWantedBy=multi-user.target\n")
 	service6 := systemd.Service{Description: "ohai"}
-	c.Assert(service6.String(), Equals, "[Unit]\nDescription=ohai\n[Service]\n")
+	c.Assert(service6.String(), Equals, "[Unit]\nDescription=ohai\n[Service]\n[Install]\nWantedBy=multi-user.target\n")
 }
