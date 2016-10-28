@@ -1,3 +1,19 @@
 #!/bin/sh
 
-echo "confirm-plug-foo"
+echo "Getting attributes from confirm-plug-foo hook"
+
+if ! output=$(snapctl get-attr target); then
+    echo "Expected snapctl get-attr to be able to read the value of 'target' attribute"
+    exit 1
+fi
+
+expected_output="slottarget"
+if "$output" -ne "$expected_output"; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+if snapctl set-attr target=slottarget; then
+    echo "Expected snapctl set-attr to fail when run from confirm-plug hook"
+    exit 1
+fi

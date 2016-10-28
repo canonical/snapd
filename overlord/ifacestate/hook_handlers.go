@@ -70,18 +70,20 @@ func copyAttributesToConnectTask(context *hookstate.Context) error {
 	}
 
 	if err != nil {
-		var id string
-		err := context.Get("connect-task", &id)
-		if err != nil {
-			return err
-		}
-		state := context.State()
-		ts := state.Task(id)
-		if ts == nil {
-			return fmt.Errorf("Failed to find connect-task")
-		}
-		ts.Set("attributes", attrs)
+		return err
 	}
+
+	var id string
+	err = context.Get("connect-task", &id)
+	if err != nil {
+		return err
+	}
+	state := context.State()
+	ts := state.Task(id)
+	if ts == nil {
+		return fmt.Errorf("Failed to find connect-task")
+	}
+	ts.Set("attributes", attrs)
 	return nil
 }
 

@@ -16,13 +16,6 @@ restore: |
     rm basic-iface-hooks-producer_1.0_all.snap
 
 execute: |
-    if ! output="$(snap connect basic-iface-hooks-consumer:foo basic-iface-hooks-producer:bar)"; then
-        echo "Failed to connect plug foo to slot bar"
-        exit 1
-    fi
+    echo "Test that snap connect with plug and slot hooks succeeds"
 
-    expected_output="configure hook"
-    if [ "$output" != "$expected_output" ]; then
-        echo "Expected connect output to be '$expected_output', but it was '$output'"
-        exit 1
-    fi
+    snap connect basic-iface-hooks-consumer:foo basic-iface-hooks-producer:bar

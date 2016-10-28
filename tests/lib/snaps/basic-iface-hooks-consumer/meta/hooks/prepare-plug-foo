@@ -1,3 +1,19 @@
 #!/bin/sh
 
-echo "prepare-plug-foo"
+echo "Setting and getting attribute value from prepare-plug-foo hook"
+
+if ! snapctl set-attr target=plugtarget; then
+    echo "Expected snapctl set-attr to be able to set the value of 'target' attribute"
+    exit 1
+fi
+
+if ! output=$(snapctl get-attr target); then
+    echo "Expected snapctl get-attr to be able to read the value of 'target' attribute"
+    exit 1
+fi
+
+expected_output="plugtarget"
+if "$output" -ne "$expected_output"; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
