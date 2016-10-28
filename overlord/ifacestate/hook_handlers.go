@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/logger"
 )
 
 type collectAttrHandler struct {
@@ -89,7 +88,6 @@ func copyAttributesToConnectTask(context *hookstate.Context) error {
 }
 
 func (h *collectAttrHandler) Before() error {
-	logger.Debugf("collect attr handler !!!")
 	h.context.Lock()
 	defer h.context.Unlock()
 	return copyAttributesFromConnectTask(h.context)
