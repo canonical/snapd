@@ -79,8 +79,7 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 	var attrs map[string]interface{}
 	var err error
 
-	err = snapstate.Get(s, plugSnap, &snapst)
-	if err != nil {
+	if err = snapstate.Get(s, plugSnap, &snapst); err != nil {
 		return nil, err
 	}
 
