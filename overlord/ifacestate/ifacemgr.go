@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
-
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -70,6 +70,42 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
 	return m, nil
+}
+
+func initialConnectAttributes(s *state.State, plugSnap string, plugName string, slotSnap string, slotName string) (map[string]interface{}, error) {
+	// Combine attributes from plug and slot, store them in connect task.
+	// They will serve as initial attributes for the prepare- hooks.
+	var snapst snapstate.SnapState
+	var attrs map[string]interface{}
+	var err error
+
+	err = snapstate.Get(s, plugSnap, &snapst)
+	if err != nil {
+		return nil, err
+	}
+
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+	if plug, ok := snapInfo.Slots[plugName]; ok {
+		attrs = plug.Attrs
+	}
+
+	if err = snapstate.Get(s, slotSnap, &snapst); err != nil {
+		return nil, err
+	}
+	snapInfo, err = snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+	if slot, ok := snapInfo.Slots[slotName]; ok {
+		for k, v := range slot.Attrs {
+			attrs[k] = v
+		}
+	}
+
+	return attrs, err
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -132,9 +168,13 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.WaitFor(prepareSlotAttr)
+
+	attrs, _ := initialConnectAttributes(s, plugSnap, plugName, slotSnap, slotName)
+
+	connectInterface.Set("attributes", attrs)
 	connectInterface.Set("confirm-plug-task", confirmPlugConnection.ID())
 	connectInterface.Set("confirm-slot-task", confirmSlotConnection.ID())
+	connectInterface.WaitFor(prepareSlotAttr)
 
 	return state.NewTaskSet(preparePlugAttr, prepareSlotAttr, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
 }
