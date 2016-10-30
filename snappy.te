@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.3)
+policy_module(snappy,0.0.4)
 
 ########################################
 #
@@ -35,6 +35,21 @@ filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.so
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
 
+# Allow snapd to read DNS config
+gen_require(` type net_conf_t; ')
+allow snappy_t net_conf_t:file { getattr read };
+allow snappy_t net_conf_t:lnk_file { read };
+
+# Allow snapd to read sysctl files
+gen_require(` type sysctl_net_t; ')
+allow snappy_t sysctl_net_t:dir search;
+allow snappy_t sysctl_net_t:file { open read };
+
+# Allow snapd to read/write systemd units for managing snaps
+gen_require(` type systemd_unit_file_t; ')
+allow snappy_t systemd_unit_file_t:dir { read search };
+allow snappy_t systemd_unit_file_t:file { getattr open read write };
+
 # Read l10n files?
 miscfiles_read_localization(snappy_t)
 
@@ -55,8 +70,13 @@ allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
 allow snappy_t self:fifo_file rw_fifo_file_perms;
 allow snappy_t self:unix_stream_socket create_stream_socket_perms;
 allow snappy_t self:tcp_socket create_stream_socket_perms;
+allow snappy_t self:udp_socket create_stream_socket_perms;
 allow snappy_t self:unix_dgram_socket create_socket_perms;
 allow snappy_t self:capability2 block_suspend;
+
+# snapd needs to check for ipv6 support
+gen_require(` type node_t; ')
+allow snappy_t node_t:tcp_socket node_bind;
 
 corenet_all_recvfrom_unlabeled(snappy_t)
 corenet_all_recvfrom_netlabel(snappy_t)
