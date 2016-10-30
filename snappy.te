@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.4)
+policy_module(snappy,0.0.4.1)
 
 ########################################
 #
@@ -37,7 +37,7 @@ read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
 
 # Allow snapd to read DNS config
 gen_require(` type net_conf_t; ')
-allow snappy_t net_conf_t:file { getattr read };
+allow snappy_t net_conf_t:file { getattr open read };
 allow snappy_t net_conf_t:lnk_file { read };
 
 # Allow snapd to read sysctl files
@@ -45,10 +45,11 @@ gen_require(` type sysctl_net_t; ')
 allow snappy_t sysctl_net_t:dir search;
 allow snappy_t sysctl_net_t:file { open read };
 
-# Allow snapd to read/write systemd units for managing snaps
-gen_require(` type systemd_unit_file_t; ')
-allow snappy_t systemd_unit_file_t:dir { read search };
-allow snappy_t systemd_unit_file_t:file { getattr open read write };
+# Allow snapd to read/write systemd units and use systemctl for managing snaps
+gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
+allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
+allow snappy_t systemd_unit_file_t:file { getattr open read write create rename };
+allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr open read };
 
 # Read l10n files?
 miscfiles_read_localization(snappy_t)
