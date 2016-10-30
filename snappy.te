@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.2.2)
+policy_module(snappy,0.0.3)
 
 ########################################
 #
@@ -69,5 +69,7 @@ corenet_tcp_sendrecv_http_cache_port(snappy_t)
 corenet_tcp_connect_http_cache_port(snappy_t)
 
 # snapd has its own internal DNS resolver
+corenet_tcp_sendrecv_dns_port(snappy_t)
+corenet_udp_sendrecv_dns_port(snappy_t)
 corenet_tcp_connect_dns_port(snappy_t)
 corenet_sendrecv_dns_client_packets(snappy_t)
