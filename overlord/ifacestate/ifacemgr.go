@@ -174,7 +174,9 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 
 	attrs, _ := initialConnectAttributes(s, plugSnap, plugName, slotSnap, slotName)
 
-	connectInterface.Set("attributes", attrs)
+	if attrs != nil {
+		connectInterface.Set("attributes", attrs)
+	}
 	connectInterface.Set("confirm-plug-task", confirmPlugConnection.ID())
 	connectInterface.Set("confirm-slot-task", confirmSlotConnection.ID())
 	connectInterface.WaitFor(prepareSlotAttr)
