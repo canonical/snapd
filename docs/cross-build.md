@@ -17,7 +17,7 @@ With that, `go build` will produce binaries for armhf. E.g.,
 As usual, for one-off commands you can simply prepend the environment
 to the command, e.g.
 
-    GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc go build -o snappy_armhf github.com/snapcore/snapd/cmd/snappy
+    GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc go build -o snappy_armhf github.com/snapcore/snapd/cmd/snap
 
 
 # arm64
