@@ -47,25 +47,14 @@ func (b *Backend) Name() string {
 	return "systemd"
 }
 
-func stopAndDisableAllRemovedServices(systemd sysd.Systemd, glob string, content map[string]*osutil.FileState) error {
-	dir, err := os.Open(dirs.SnapServicesDir)
+func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
+	paths, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
-	file, err := dir.Readdir(-1)
-	if err != nil {
-		return nil
-	}
-	for _, file := range file {
-		if matched, err := filepath.Match(glob, file.Name()); err != nil || !matched {
-			continue
-		}
-		if !file.Mode().IsRegular() {
-			continue
-		}
-		service := file.Name()
-		if _, ok := content[service]; !ok {
+	for _, path := range paths {
+		service := filepath.Base(path)
+		if content[service] == nil {
 			if err := systemd.DisableNow(service); err != nil {
 				logger.Noticef("cannot disable service %q: %s", service, err)
 			}
@@ -102,7 +91,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	// We need to be carefully here and stop all removed service units before
 	// we remove their files as otherwise systemd is not able to disable/stop
 	// them anymore.
-	if err := stopAndDisableAllRemovedServices(systemd, glob, content); err != nil {
+	if err := disableRemovedServices(systemd, dir, glob, content); err != nil {
 		logger.Noticef("cannot stop removed services: %s", err)
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
@@ -113,7 +102,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-	// Start and enable or restart any new or changed services
+	// Ensure the service is running right now and on reboots
 	for _, service := range changed {
 		if err := systemd.Enable(service); err != nil {
 			logger.Noticef("cannot enable service %q: %s", service, err)
