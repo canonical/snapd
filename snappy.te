@@ -13,6 +13,11 @@ init_daemon_domain(snappy_t, snappy_exec_t)
 type snappy_config_t;
 files_config_file(snappy_config_t)
 
+type snappy_home_t;
+typealias snappy_home_t alias { user_snappy_home_t staff_snappy_home_t sysadm_snappy_home_t };
+typealias snappy_home_t alias { auditadm_snappy_home_t secadm_snappy_home_t };
+userdom_user_home_content(snappy_home_t)
+
 type snappy_var_lib_t;
 files_type(snappy_var_lib_t)
 
