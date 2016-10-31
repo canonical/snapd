@@ -60,7 +60,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
-	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
+	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	return m, nil
