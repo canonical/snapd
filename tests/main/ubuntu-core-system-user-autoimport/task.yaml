@@ -1,5 +1,7 @@
 summary: Check cold-plug system-user autoimport
 
+systems: [ubuntu-core-16-64]
+
 details: |
     After the ubuntu-core is prepared we end with a system-user
     assertion ready to be autoimported in a block device. This
