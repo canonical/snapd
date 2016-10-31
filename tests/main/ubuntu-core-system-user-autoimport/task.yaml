@@ -14,7 +14,7 @@ execute: |
     fi
 
     echo "Ensure there are ssh keys imported"
-    grep ssh-rsa /home/user1/.ssh/authorized_keys
+    grep "ssh-rsa.*autoimported-user1" /home/user1/.ssh/authorized_keys
 
     echo "Ensure the user is a sudo user"
     sudo -u user1 sudo true
