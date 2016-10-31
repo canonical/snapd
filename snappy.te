@@ -91,7 +91,7 @@ manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 
 logging_send_syslog_msg(snappy_t);
 
-allow snappy_t self:capability { chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
+allow snappy_t self:capability { dac_override chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
 allow snappy_t self:tun_socket relabelto;
 allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
 
