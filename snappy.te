@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.5)
+policy_module(snappy,0.0.6)
 
 ########################################
 #
@@ -65,6 +65,12 @@ allow snappy_t NetworkManager_var_run_t:dir search;
 gen_require(` type sysctl_net_t; ')
 allow snappy_t sysctl_net_t:dir search;
 allow snappy_t sysctl_net_t:file { open read };
+
+# Allow snapd to manage D-Bus config files for snaps
+gen_require(` type dbusd_etc_t; ')
+allow snappy_t dbusd_etc_t:dir { getattr open read search };
+allow snappy_t dbusd_etc_t:file { getattr open read write create rename unlink };
+allow snappy_t dbusd_etc_t:lnk_file { read };
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
