@@ -130,6 +130,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":       true,
 		"home":          true,
+		"lxd-client":    true,
 		"lxd-support":   true,
 		"snapd-control": true,
 	}
@@ -138,7 +139,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":        true,
 		"gsettings":              true,
-		"lxd-client":             true,
 		"mir":                    true,
 		"network":                true,
 		"network-bind":           true,
@@ -180,6 +180,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"content":     true,
 		"home":        true,
+		"lxd-client":  true,
 		"lxd-support": true,
 	}
 

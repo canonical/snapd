@@ -75,10 +75,6 @@ func (s *LxdClientInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *LxdClientInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
@@ -87,17 +83,10 @@ func (s *LxdClientInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 
-func (s *LxdClientInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "setsockopt\n")
-	c.Check(string(snippet), testutil.Contains, "bind\n")
-}
-
 func (s *LxdClientInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
 
 func (s *LxdClientInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, false)
 }

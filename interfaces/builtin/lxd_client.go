@@ -28,12 +28,6 @@ const lxdClientConnectedPlugAppArmor = `
 /var/snap/lxd/common/lxd/unix.socket rw,
 `
 
-const lxdClientConnectedPlugSecComp = `
-# Description: Can manage socket to use the 'lxd' API.
-setsockopt
-bind
-`
-
 type LxdClientInterface struct{}
 
 func (iface *LxdClientInterface) Name() string {
@@ -49,7 +43,7 @@ func (iface *LxdClientInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slo
 	case interfaces.SecurityAppArmor:
 		return []byte(lxdClientConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return []byte(lxdClientConnectedPlugSecComp), nil
+		return nil, nil
 	}
 	return nil, nil
 }
@@ -59,7 +53,7 @@ func (iface *LxdClientInterface) PermanentSlotSnippet(slot *interfaces.Slot, sec
 	case interfaces.SecurityAppArmor:
 		return []byte(lxdClientConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return []byte(lxdClientConnectedPlugSecComp), nil
+		return nil, nil
 	}
 	return nil, nil
 }
@@ -77,9 +71,9 @@ func (iface *LxdClientInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *LxdClientInterface) LegacyAutoConnect() bool {
-	return true
+	return false
 }
 
 func (iface *LxdClientInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	return true
+	return false
 }

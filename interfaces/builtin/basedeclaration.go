@@ -276,7 +276,6 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: false
   lxd-support:
     allow-installation:
       slot-snap-type:
