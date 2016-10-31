@@ -24,7 +24,7 @@ execute: |
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT
+    su -c "snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE

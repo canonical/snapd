@@ -104,7 +104,7 @@ func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (s *apiBaseSuite) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
 	panic("Download not expected to be called")
 }
 
