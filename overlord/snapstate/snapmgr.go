@@ -79,6 +79,10 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
+func (ss *SnapSetup) MountFile() string {
+	return snap.MountFile(ss.Name(), ss.Revision())
+}
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
@@ -427,10 +431,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.MountFile(), &storeInfo.DownloadInfo, meter, user)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.MountFile(), ss.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err

@@ -320,11 +320,6 @@ var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
-	deltaDirs, _ := filepath.Glob(filepath.Join(dirs.SnapPartialBlobDir, "deltas-*"))
-	for _, dir := range deltaDirs {
-		os.RemoveAll(dir)
-	}
-
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -1073,11 +1068,7 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
-	if err := os.MkdirAll(dirs.SnapPartialBlobDir, 0755); err != nil {
-		return "", err
-	}
-
+func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 	}
@@ -1090,7 +1081,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := os.Create(filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap"))
+	w, err := os.Create(targetFn + ".partial")
 	if err != nil {
 		return "", err
 	}
@@ -1113,7 +1104,13 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		return "", err
 	}
 
-	return w.Name(), w.Sync()
+	if err := w.Sync(); err != nil {
+		return "", err
+	}
+
+	// FIXME: only rename if hash matches
+
+	return targetFn, os.Rename(w.Name(), targetFn)
 }
 
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
@@ -1225,7 +1222,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 	}
 
 	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-	targetSnapPath := filepath.Join(dirs.SnapPartialBlobDir, targetSnapName)
+	targetSnapPath := targetSnapName + ".partial"
 
 	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
@@ -1241,7 +1238,8 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
 func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	deltaInfo := &downloadInfo.Deltas[0]
-	workingDir, err := ioutil.TempDir(dirs.SnapPartialBlobDir, "deltas-"+name)
+	// use /var/tmp here because it is not on a tmpfs
+	workingDir, err := ioutil.TempDir("/var/tmp", "deltas-"+name)
 	if err != nil {
 		return "", err
 	}
