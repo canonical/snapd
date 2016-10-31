@@ -46,6 +46,10 @@ gen_require(` type net_conf_t; ')
 allow snappy_t net_conf_t:file { getattr open read };
 allow snappy_t net_conf_t:lnk_file { read };
 
+# When managed by NetworkManager, DNS config is in its rundata
+gen_require(` type NetworkManager_var_run_t; ')
+allow snappy_t NetworkManager_var_run_t:dir search;
+
 # Allow snapd to read sysctl files
 gen_require(` type sysctl_net_t; ')
 allow snappy_t sysctl_net_t:dir search;
