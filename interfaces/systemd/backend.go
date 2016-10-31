@@ -25,6 +25,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -43,6 +45,33 @@ type Backend struct{}
 // Name returns the name of the backend.
 func (b *Backend) Name() string {
 	return "systemd"
+}
+
+func stopAndDisableAllRemovedServices(systemd sysd.Systemd, glob string, content map[string]*osutil.FileState) error {
+	dir, err := os.Open(dirs.SnapServicesDir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	file, err := dir.Readdir(-1)
+	if err != nil {
+		return nil
+	}
+	for _, file := range file {
+		if matched, err := filepath.Match(glob, file.Name()); err != nil || !matched {
+			continue
+		}
+		if !file.Mode().IsRegular() {
+			continue
+		}
+		service := file.Name()
+		if _, ok := content[service]; !ok {
+			if err := systemd.DisableNow(service); err != nil {
+				logger.Noticef("cannot disable service %q: %s", service, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
@@ -68,8 +97,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
 	glob := interfaces.InterfaceServiceName(snapName, "*")
-	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+
 	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	// We need to be carefully here and stop all removed service units before
+	// we remove their files as otherwise systemd is not able to disable/stop
+	// them anymore.
+	if err := stopAndDisableAllRemovedServices(systemd, glob, content); err != nil {
+		logger.Noticef("cannot stop removed services: %s", err)
+	}
+	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
 	if len(changed) > 0 || len(removed) > 0 {
 		err := systemd.DaemonReload()
@@ -79,14 +115,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	}
 	// Start and enable any new services
 	for _, service := range changed {
-		if err := systemd.EnableNow(service); err != nil {
+		if err := systemd.Enable(service); err != nil {
 			logger.Noticef("cannot enable service %q: %s", service, err)
 		}
-	}
-	// Disable and stop any removed services
-	for _, service := range removed {
-		if err := systemd.DisableNow(service); err != nil {
-			logger.Noticef("cannot disable service %q: %s", service, err)
+		if err := systemd.Restart(service, 10*time.Second); err != nil {
+			logger.Noticef("cannot restart service %q: %s", service, err)
 		}
 	}
 	return errEnsure
