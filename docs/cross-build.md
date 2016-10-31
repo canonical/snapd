@@ -11,7 +11,7 @@ And then set up your environment:
 
 With that, `go build` will produce binaries for armhf. E.g.,
 
-    go build -o snappy_armhf github.com/snapcore/snapd/cmd/snappy
+    go build -o snappy_armhf github.com/snapcore/snapd/cmd/snap
 
 
 As usual, for one-off commands you can simply prepend the environment
@@ -32,4 +32,4 @@ Setup the environment:
 
 And then run:
 
-    go build -o snappy_arm64 github.com/snapcore/snapd/cmd/snappy
+    go build -o snappy_arm64 github.com/snapcore/snapd/cmd/snap
