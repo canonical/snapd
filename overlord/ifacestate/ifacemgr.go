@@ -87,8 +87,10 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 	if err != nil {
 		return nil, err
 	}
-	if plug, ok := snapInfo.Slots[plugName]; ok {
+	if plug, ok := snapInfo.Plugs[plugName]; ok {
 		attrs = plug.Attrs
+	} else {
+		return nil, fmt.Errorf("Snap %q has no plug named %q", plugSnap, plugName)
 	}
 
 	if err = snapstate.Get(s, slotSnap, &snapst); err != nil {
@@ -102,6 +104,8 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 		for k, v := range slot.Attrs {
 			attrs[k] = v
 		}
+	} else {
+		return nil, fmt.Errorf("Snap %q has no slot named %q", slotSnap, slotName)
 	}
 
 	return attrs, err
