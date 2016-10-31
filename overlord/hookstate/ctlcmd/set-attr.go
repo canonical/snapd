@@ -64,10 +64,10 @@ func (s *setAttrCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
-	var attrs map[string]string
+	var attrs map[string]interface{}
 	if err := context.Get("attributes", &attrs); err != nil {
 		if err == state.ErrNoState {
-			attrs = make(map[string]string)
+			attrs = make(map[string]interface{})
 		} else {
 			return err
 		}
