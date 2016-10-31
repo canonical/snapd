@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.4.1)
+policy_module(snappy,0.0.5)
 
 ########################################
 #
@@ -34,6 +34,12 @@ filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.so
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
+
+# Allow snapd to read its own homedir data
+manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
+manage_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
+manage_lnk_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
+userdom_search_user_home_dirs(snappy_t)
 
 # Allow snapd to read DNS config
 gen_require(` type net_conf_t; ')
