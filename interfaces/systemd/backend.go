@@ -113,11 +113,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-	// Start and enable any new services
+	// Start and enable or restart any new or changed services
 	for _, service := range changed {
 		if err := systemd.Enable(service); err != nil {
 			logger.Noticef("cannot enable service %q: %s", service, err)
 		}
+		// If we have a new service here which isn't started yet the restart
+		// operation will start it.
 		if err := systemd.Restart(service, 10*time.Second); err != nil {
 			logger.Noticef("cannot restart service %q: %s", service, err)
 		}

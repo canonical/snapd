@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
+
+	sysd "github.com/snapcore/snapd/systemd"
 )
 
 type backendSuite struct {
@@ -147,6 +149,15 @@ func (s *backendSuite) TestRenderSnippet(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	devMode := false
+	prevctlCmd := sysd.SystemctlCmd
+	var sysdLog [][]string
+	sysd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return []byte{}, nil
+	}
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
 	}
@@ -156,10 +167,14 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	_, err := os.Stat(service)
 	c.Check(err, IsNil)
 	// the service was also started (whee)
-	c.Check(s.systemctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--root", dirs.GlobalRootDir, "--now", "enable", "snap.samba.interface.foo.service"},
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", dirs.GlobalRootDir, "enable", "snap.samba.interface.foo.service"},
+		{"stop", "snap.samba.interface.foo.service"},
+		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
+		{"start", "snap.samba.interface.foo.service"},
 	})
+	sysd.SystemctlCmd = prevctlCmd
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
@@ -209,8 +224,8 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
 	// The bar service should have been stopped
 	calls := s.systemctlCmd.Calls()
-	c.Check(calls[0], DeepEquals, []string{"systemctl", "daemon-reload"})
-	c.Check(calls[1], DeepEquals, []string{"systemctl", "--root", dirs.GlobalRootDir, "--now", "disable", "snap.samba.interface.bar.service"})
+	c.Check(calls[0], DeepEquals, []string{"systemctl", "--root", dirs.GlobalRootDir, "--now", "disable", "snap.samba.interface.bar.service"})
+	c.Check(calls[1], DeepEquals, []string{"systemctl", "daemon-reload"})
 	for i, call := range calls {
 		if i > 1 {
 			c.Check(call, DeepEquals, []string{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"})
