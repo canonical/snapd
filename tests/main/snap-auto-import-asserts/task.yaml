@@ -18,12 +18,17 @@ prepare: |
     mount /dev/ram0 /mnt
     cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
 
+    # there's currently a system user created on first boot, we'll remove the state that denotes this
+    cp /var/lib/snapd/state.json ./state.json.back
+    sed -i 's/"users":\[[^]]*\]/"users":null/ ' /var/lib/snapd/state.json
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     umount /mnt
+    mv ./state.json.back /var/lib/snapd/state.json
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
