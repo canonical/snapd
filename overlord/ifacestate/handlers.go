@@ -170,7 +170,6 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	// Get snap.Info from bits handed by the snap manager.
 	ss, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
