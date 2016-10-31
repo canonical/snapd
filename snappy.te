@@ -37,6 +37,12 @@ gen_require(` type init_t; type var_run_t; ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
+# Allow snapd to read SSL cert store
+gen_require(` type cert_t; ')
+allow snappy_t cert_t:dir search;
+allow snappy_t cert_t:file { getattr open read };
+allow snappy_t cert_t:lnk_file read;
+
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
 
