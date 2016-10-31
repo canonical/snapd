@@ -49,7 +49,7 @@ func copyAttributesFromConnectTask(context *hookstate.Context) error {
 		return fmt.Errorf("Failed to find connect-task")
 	}
 
-	var attrs map[string]interface{}
+	var attrs map[string]string
 	err = ts.Get("attributes", &attrs)
 	if err == state.ErrNoState {
 		return nil
@@ -63,7 +63,7 @@ func copyAttributesFromConnectTask(context *hookstate.Context) error {
 }
 
 func copyAttributesToConnectTask(context *hookstate.Context) error {
-	var attrs map[string]interface{}
+	var attrs map[string]string
 	err := context.Get("attributes", &attrs)
 	if err == state.ErrNoState {
 		return nil
