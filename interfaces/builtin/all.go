@@ -34,6 +34,7 @@ var allInterfaces = []interfaces.Interface{
 	&GpioInterface{},
 	&HidrawInterface{},
 	&I2cInterface{},
+	&HistoryInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdInterface{},
