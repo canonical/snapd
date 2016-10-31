@@ -3,7 +3,7 @@ systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 prepare: |
     # there's currently a system user created on first boot, we'll remove the state that denotes this
     cp /var/lib/snapd/state.json ./state.json.back
-    sed -i 's/"users":\[[^]]*\]/"users":null/ ' /var/lib/snapd/state.json
+    sed -i 's/"users":\[[^]]*\]/"users":null/' /var/lib/snapd/state.json
 
 restore: |
     # meh, deluser has no --extrausers support
