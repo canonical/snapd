@@ -1,0 +1,18 @@
+summary: Check cold-plug system-user autoimport
+
+details: |
+    After the ubuntu-core is prepared we end with a system-user
+    assertion ready to be autoimported in a block device. This
+    test checks that the creation took place after the first boot.
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Ensure there are ssh keys imported"
+    grep ssh-rsa /home/user1/.ssh/authorized_keys
+
+    echo "Ensure the user is a sudo user"
+    sudo -u user1 sudo true
