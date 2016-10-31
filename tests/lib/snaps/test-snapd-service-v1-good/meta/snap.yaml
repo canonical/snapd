@@ -1,0 +1,7 @@
+name: test-snapd-service
+version: 1.0
+apps:
+ service:
+  command: bin/true
+  daemon: oneshot
+  restart-condition: never
