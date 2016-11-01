@@ -1,5 +1,5 @@
 # This file is sourced by Xsession(5), not executed.
-# Add additionnal the additonal snappy desktop path
+# Add the additional snappy desktop path
 
 if [ -z "$XDG_DATA_DIRS" ]; then
     # 60x11-common_xdg_path does not always set XDG_DATA_DIRS

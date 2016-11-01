@@ -351,11 +351,11 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	os.Setenv("SNAP_ARCH", "PDP-7")
 	defer os.Unsetenv("SNAP_NAME")
 	defer os.Unsetenv("SNAP_ARCH")
-	// but unreleated stuff is ok
+	// but unrelated stuff is ok
 	os.Setenv("SNAP_THE_WORLD", "YES")
 	defer os.Unsetenv("SNAP_THE_WORLD")
 
-	// and ensure those SNAP_ vars get overriden
+	// and ensure those SNAP_ vars get overridden
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})

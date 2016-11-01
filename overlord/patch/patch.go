@@ -69,7 +69,7 @@ func Apply(s *state.State) error {
 		}
 		err := applyOne(patch, s, level)
 		if err != nil {
-			logger.Noticef("Cannnot patch: %v", err)
+			logger.Noticef("Cannot patch: %v", err)
 			return fmt.Errorf("cannot patch system state from level %d to %d: %v", level, level+1, err)
 		}
 		level++
