@@ -647,6 +647,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewChange("install", "...") },
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
+		func() { st.NewLane() },
 	}
 
 	reads := []func(){
@@ -659,7 +660,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
 		func() { st.Prune(time.Hour, time.Hour) },
-		func() { st.NumTask() },
+		func() { st.TaskCount() },
 	}
 
 	for i, f := range reads {
@@ -737,7 +738,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t3.Status(), Equals, state.DoStatus)
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
-	c.Check(st.NumTask(), Equals, 3)
+	c.Check(st.TaskCount(), Equals, 3)
 }
 
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {
