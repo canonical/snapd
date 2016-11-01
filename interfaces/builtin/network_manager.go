@@ -75,6 +75,7 @@ network packet,
 # it.
 /run/NetworkManager/ w,
 /run/NetworkManager/{,**} r,
+/run/NetworkManager/dhcp/{,**} w,
 
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
