@@ -70,11 +70,10 @@ network packet,
 /run/udev/data/* r,
 
 # Allow access to configuration files generated on the fly
-# from netplan
-/run/NetworkManager/{,**} r,
-
-# Allow writing dhcp files to a well-known system location
-/run/NetworkManager/dhcp/{,**} w,
+# from netplan and let NetworkManager store its DHCP leases
+# in the dhcp subdirectory so that console-conf can access
+# it.
+/run/NetworkManager/{,**} rw,
 
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
