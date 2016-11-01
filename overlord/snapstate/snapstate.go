@@ -432,6 +432,8 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 			}
 			return nil, nil, err
 		}
+		ts.JoinLane(st.NewLane())
+
 		updated = append(updated, update.Name())
 		tasksets = append(tasksets, ts)
 	}
