@@ -118,10 +118,10 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		switch v.Bootloader {
 		case "":
 			return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
-		case "grub", "u-boot":
+		case "grub", "u-boot", "fastboot":
 			foundBootloader = true
 		default:
-			return nil, fmt.Errorf(errorFormat, "bootloader must be either grub or u-boot")
+			return nil, fmt.Errorf(errorFormat, "bootloader must be either grub, u-boot or fastboot")
 		}
 	}
 	if !foundBootloader {
