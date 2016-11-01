@@ -18,23 +18,24 @@ prepare: |
     mount /dev/ram0 /mnt
     cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
 
-    # there's currently a system user created on first boot, we'll remove the state that denotes this
-    cp /var/lib/snapd/state.json ./state.json.back
-    sed -i 's/"users":\[[^]]*\]/"users":null/' /var/lib/snapd/state.json
-
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     umount /mnt
-    mv ./state.json.back /var/lib/snapd/state.json
+    . $TESTSLIB/state.sh
+    restore_state
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+    # there's currently a system user created on first boot, we'll remove the state that denotes this
+    . $TESTSLIB/state.sh
+    remove_users_from_state
+
     echo "`snap auto-import` imports assertions from the mounted ramdisk"
     snap auto-import
     snap known account-key | grep "name: test-store"
