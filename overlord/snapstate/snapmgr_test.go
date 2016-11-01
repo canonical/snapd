@@ -787,7 +787,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_42.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
@@ -797,7 +797,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_42.snap",
 			revno: snap.R(42),
 		},
 		{
@@ -855,7 +855,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
-		SnapPath: "downloaded-snap-path",
+		SnapPath: "/var/lib/snapd/snaps/some-snap_42.snap",
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -938,7 +938,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -948,7 +948,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -1014,7 +1014,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel: "some-channel",
 		UserID:  s.user.ID,
 
-		SnapPath: "downloaded-snap-path",
+		SnapPath: "/var/lib/snapd/snaps/some-snap_11.snap",
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -1104,7 +1104,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -1114,7 +1114,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -1263,7 +1263,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -1273,7 +1273,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -2992,7 +2992,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
@@ -3002,7 +3002,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
