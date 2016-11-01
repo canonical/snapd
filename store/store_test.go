@@ -57,7 +57,7 @@ type remoteRepoTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
+	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) (string, error)
 	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
@@ -265,11 +265,10 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
-
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
-		return nil
+		return "sha3", nil
 	}
 
 	snap := &snap.Info{}
@@ -286,14 +285,31 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(string(content), Equals, "I was downloaded")
 }
 
+func (t *remoteRepoTestSuite) TestDownloadNotOK(c *C) {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+		c.Check(url, Equals, "anon-url")
+		w.Write([]byte("hashsum should mismatch"))
+		return "sha3", nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = "01234567.will.not.match"
+
+	_, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	c.Assert(err, ErrorMatches, "hashsum mismatch for .*: got .* but expected .*")
+}
+
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
 
 		w.Write([]byte("I was downloaded"))
-		return nil
+		return "sha3", nil
 	}
 
 	snap := &snap.Info{}
@@ -311,11 +327,11 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte("I was downloaded"))
-		return nil
+		return "sha3", nil
 	}
 
 	snap := &snap.Info{}
@@ -334,9 +350,9 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 		tmpfile = w.(*os.File)
-		return fmt.Errorf("uh, it failed")
+		return "", fmt.Errorf("uh, it failed")
 	}
 
 	snap := &snap.Info{}
@@ -353,12 +369,12 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
 		c.Assert(err, IsNil)
-		return nil
+		return "sha3", nil
 	}
 
 	snap := &snap.Info{}
@@ -385,7 +401,8 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	c.Assert(download("foo", mockServer.URL, nil, theStore, &buf, nil), IsNil)
+	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
 }
@@ -401,7 +418,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
@@ -419,7 +436,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
@@ -444,7 +461,7 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta", Sha3_384: "sha3"},
 		},
 	},
 	expectedContent: "snap-content-via-delta",
@@ -458,7 +475,7 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta", Sha3_384: "sha3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
@@ -471,8 +488,8 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
-			{AnonDownloadURL: "delta-url-2", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta", Sha3_384: "sha3"},
+			{AnonDownloadURL: "delta-url-2", Format: "xdelta", Sha3_384: "sha3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
@@ -486,15 +503,15 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 	for _, testCase := range deltaTests {
 
 		downloadIndex := 0
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 			if testCase.downloads[downloadIndex].error {
 				downloadIndex++
-				return errors.New("Bang")
+				return "", errors.New("Bang")
 			}
 			c.Check(url, Equals, testCase.downloads[downloadIndex].url)
 			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
 			downloadIndex++
-			return nil
+			return "sha3", nil
 		}
 		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
@@ -504,7 +521,6 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			w.Write([]byte("snap-content-via-delta"))
 			return w.Name(), nil
 		}
-
 		path, err := t.store.Download("foo", &testCase.info, nil, nil)
 
 		c.Assert(err, IsNil)
@@ -526,7 +542,7 @@ var downloadDeltaTests = []struct {
 	// An unauthenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26, Sha3_384: "sha3"},
 		},
 	},
 	authenticated: false,
@@ -537,7 +553,7 @@ var downloadDeltaTests = []struct {
 	// An authenticated request downloads the authenticated delta url.
 	info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26, Sha3_384: "sha3"},
 		},
 	},
 	authenticated: true,
@@ -549,7 +565,7 @@ var downloadDeltaTests = []struct {
 	// A local authenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26, Sha3_384: "sha3"},
 		},
 	},
 	authenticated: true,
@@ -562,8 +578,8 @@ var downloadDeltaTests = []struct {
 	// though this may be handled in the future.
 	info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
-			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25, Sha3_384: "sha3"},
+			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26, Sha3_384: "sha3"},
 		},
 	},
 	authenticated: false,
@@ -574,8 +590,8 @@ var downloadDeltaTests = []struct {
 	// If the supported format isn't available, an error is returned.
 	info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
-			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26, Sha3_384: "sha3"},
+			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26, Sha3_384: "sha3"},
 		},
 	},
 	authenticated: false,
@@ -591,7 +607,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 
 	for _, testCase := range downloadDeltaTests {
 		t.store.deltaFormat = testCase.format
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
 			expectedUser := t.user
 			if testCase.useLocalUser {
 				expectedUser = t.localUser
@@ -601,7 +617,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			}
 			c.Check(user, Equals, expectedUser)
 			c.Check(url, Equals, testCase.expectedURL)
-			return nil
+			return "sha3", nil
 		}
 
 		downloadDir, err := ioutil.TempDir("", "")
