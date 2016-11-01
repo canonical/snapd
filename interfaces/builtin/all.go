@@ -79,6 +79,7 @@ var allInterfaces = []interfaces.Interface{
 	NewShutdownInterface(),
 	NewTimeControlInterface(),
 	NewLibvirtInterface(),
+	NewRealsenseInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
