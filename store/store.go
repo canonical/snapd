@@ -382,7 +382,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(),
+		client:          newHTTPClient(10 * time.Second),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 	}
@@ -1090,9 +1090,14 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := os.Create(filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap"))
+	resume := int64(0)
+	target := filepath.Join(dirs.SnapPartialBlobDir, downloadInfo.Sha3_384+".snap")
+	w, err := os.OpenFile(target, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return "", err
+	}
+	if info, err := w.Stat(); err == nil {
+		resume = info.Size()
 	}
 	defer func() {
 		if cerr := w.Close(); cerr != nil && err == nil {
@@ -1109,7 +1114,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	if err := download(name, url, user, s, w, pbar); err != nil {
+	if err := download(name, url, user, s, w, resume, pbar); err != nil {
 		return "", err
 	}
 
@@ -1120,7 +1125,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1131,6 +1136,12 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		URL:    storeURL,
 	}
 
+	if resume > 0 {
+		reqOptions.ExtraHeaders = map[string]string{
+			"Range": fmt.Sprintf("bytes=%d-", resume),
+		}
+	}
+
 	var resp *http.Response
 	for _, n := range downloadBackoffs {
 		// we do *not* want to reuse the client between iterations in
@@ -1138,7 +1149,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		// connections) that led us to an error (the default client is
 		// documented as not reusing the transport unless the body is
 		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(0), reqOptions, user)
 		if err != nil {
 			return err
 		}
@@ -1151,7 +1162,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		}
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 206 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
@@ -1202,7 +1213,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, url, user, s, w, pbar)
+	err = download(deltaName, url, user, s, w, 0, pbar)
 	if err != nil {
 		return "", err
 	}

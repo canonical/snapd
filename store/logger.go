@@ -20,6 +20,7 @@
 package store
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -85,13 +86,24 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	return debugflag(flags)
 }
 
-// returns a new http.Client with a LoggedTransport and a Timeout
-func newHTTPClient() *http.Client {
+// returns a new http.Client with a LoggedTransport, a Timeout and preservation
+// of range requests accross redirects
+func newHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Transport: &LoggedTransport{
 			Transport: http.DefaultTransport,
 			Key:       "SNAPD_DEBUG_HTTP",
 		},
-		Timeout: 10 * time.Second,
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			// preserve the range header accross redirects
+			// to the CDN
+			v := via[0].Header.Get("Range")
+			req.Header.Set("Range", v)
+			return nil
+		},
 	}
 }
