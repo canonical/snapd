@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.6)
+policy_module(snappy,0.0.7)
 
 ########################################
 #
@@ -17,6 +17,9 @@ type snappy_home_t;
 typealias snappy_home_t alias { user_snappy_home_t staff_snappy_home_t sysadm_snappy_home_t };
 typealias snappy_home_t alias { auditadm_snappy_home_t secadm_snappy_home_t };
 userdom_user_home_content(snappy_home_t)
+
+type snappy_var_t;
+files_type(snappy_var_t)
 
 type snappy_var_lib_t;
 files_type(snappy_var_lib_t)
@@ -75,8 +78,12 @@ allow snappy_t dbusd_etc_t:lnk_file { read };
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
 allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
-allow snappy_t systemd_unit_file_t:file { getattr open read write create rename };
+allow snappy_t systemd_unit_file_t:file { getattr open read write create rename unlink };
 allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to mount snaps
+gen_require(` type mount_exec_t; ')
+allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
 
 # Read l10n files?
 miscfiles_read_localization(snappy_t)
@@ -88,6 +95,9 @@ manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_dirs_pattern(snappy_t, snappy_var_t, snappy_var_t)
+manage_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
 
 logging_send_syslog_msg(snappy_t);
 
