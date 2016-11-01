@@ -48,6 +48,7 @@ type Task struct {
 	data      customData
 	waitTasks []string
 	haltTasks []string
+	lanes     []int
 	log       []string
 	change    string
 
@@ -79,6 +80,7 @@ type marshalledTask struct {
 	Data      map[string]*json.RawMessage `json:"data,omitempty"`
 	WaitTasks []string                    `json:"wait-tasks,omitempty"`
 	HaltTasks []string                    `json:"halt-tasks,omitempty"`
+	Lanes     []int                       `json:"lanes,omitempty"`
 	Log       []string                    `json:"log,omitempty"`
 	Change    string                      `json:"change"`
 
@@ -109,6 +111,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		Data:      t.data,
 		WaitTasks: t.waitTasks,
 		HaltTasks: t.haltTasks,
+		Lanes:     t.lanes,
 		Log:       t.log,
 		Change:    t.change,
 
@@ -142,6 +145,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.data = custData
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
+	t.lanes = unmarshalled.Lanes
 	t.log = unmarshalled.Log
 	t.change = unmarshalled.Change
 	t.spawnTime = unmarshalled.SpawnTime
@@ -381,6 +385,22 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
+}
+
+// Lanes returns the lanes the task is in.
+func (t *Task) Lanes() []int {
+	t.state.reading()
+	if len(t.lanes) == 0 {
+		return []int{0}
+	}
+	return t.lanes
+}
+
+// JoinLane registers the task in the provided lane. Tasks in different lanes
+// abort independently on errors. See Change.AbortLane for details.
+func (t *Task) JoinLane(lane int) {
+	t.state.writing()
+	t.lanes = append(t.lanes, lane)
 }
 
 // At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is supressed.
