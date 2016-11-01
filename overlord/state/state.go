@@ -87,6 +87,7 @@ type State struct {
 
 	lastTaskId   int
 	lastChangeId int
+	lastLaneId   int
 
 	backend Backend
 	data    customData
@@ -146,6 +147,7 @@ type marshalledState struct {
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
+	LastLaneId   int `json:"last-lane-id"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -158,6 +160,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
+		LastLaneId:   s.lastLaneId,
 	})
 }
 
@@ -174,6 +177,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.tasks = unmarshalled.Tasks
 	s.lastChangeId = unmarshalled.LastChangeId
 	s.lastTaskId = unmarshalled.LastTaskId
+	s.lastLaneId = unmarshalled.LastLaneId
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -281,6 +285,13 @@ func (s *State) NewChange(kind, summary string) *Change {
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
 	return chg
+}
+
+// NewLane creates a new lane in the state.
+func (s *State) NewLane() int {
+	s.writing()
+	s.lastLaneId++
+	return s.lastLaneId
 }
 
 // Changes returns all changes currently known to the state.
