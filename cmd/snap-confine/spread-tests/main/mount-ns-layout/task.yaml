@@ -1,0 +1,24 @@
+summary: This task ensures that the mount namespace has a given layout
+prepare: |
+    snap install snapd-hacker-toolbelt
+execute: |
+    snapd-hacker-toolbelt.busybox true
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | ./process.py > observed.json
+    if [ -e /snap/core/current ]; then
+        cmp observed.json expected.classic.core.json
+    else
+        cmp observed.json expected.classic.ubuntu-core.json
+    fi
+debug: |
+    if [ -e /snap/core/current ]; then
+        diff -u observed.json expected.classic.core.json || :
+    else
+        diff -u observed.json expected.classic.ubuntu-core.json || :
+    fi
+    apt-get install pastebinit
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | pastebinit
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -f observed.json

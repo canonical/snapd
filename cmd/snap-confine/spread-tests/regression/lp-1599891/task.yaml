@@ -1,0 +1,9 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1599891
+# This is blacklisted on debian because debian doesn't use apparmor yet
+systems: [-debian-8]
+execute: |
+    snap_confine=$(realpath $(which ubuntu-core-launcher))
+    echo "Seeing that snap-confine is in $snap_confine"
+
+    echo "I also see a corresponding apparmor profile"
+    grep -F -q "$snap_confine (enforce)"  "/sys/kernel/security/apparmor/profiles"

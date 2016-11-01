@@ -1,0 +1,17 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1606277 
+# This is blacklisted on debian because debian doesn't use apparmor yet
+systems: [-debian-8]
+details: |
+    A missing bind mount for /var/log prevents access to system log files
+    even if the log-observe interface is being used.
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap install snapd-hacker-toolbelt
+    echo "And having connected the log-observe interface"
+    snap connect snapd-hacker-toolbelt:log-observe ubuntu-core:log-observe
+execute: |
+    echo "We can now see a non-empty /var/log directory"
+    cd /
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox ls /var/log | wc -l)" != 0 ]
+restore: |
+    snap remove snapd-hacker-toolbelt
