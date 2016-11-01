@@ -23,3 +23,7 @@ execute: |
     ls classic_*.snap
     verify_asserts classic_*.assert
 
+    echo "Snap download can download snaps as user"
+    su -l -c "snap download hello-world" test
+    ls /home/test/hello-world_*.snap
+    verify_asserts /home/test/hello-world_*.assert

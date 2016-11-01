@@ -70,16 +70,17 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
+	partial, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
 	if err != nil {
 		return "", nil, err
 	}
-	defer os.Remove(tmpName)
 
 	baseName := filepath.Base(snap.MountFile())
 	targetPath = filepath.Join(targetDir, baseName)
-	if err := osutil.CopyFile(tmpName, targetPath, 0); err != nil {
-		return "", nil, err
+	if err := os.Rename(partial, targetPath); err != nil {
+		if err = osutil.CopyFile(partial, targetPath, 0); err != nil {
+			return "", nil, err
+		}
 	}
 
 	return targetPath, snap, nil
