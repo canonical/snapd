@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1100,27 +1101,31 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		url = downloadInfo.DownloadURL
 	}
 
-	if err := download(name, url, user, s, w, pbar); err != nil {
+	sha3_384, err := download(name, url, user, s, w, pbar)
+	if err != nil {
 		return "", err
 	}
 
-	if err := w.Sync(); err != nil {
+	if downloadInfo.Sha3_384 != "" && sha3_384 != downloadInfo.Sha3_384 {
+		// FIXME: find a better error message
+		return "", fmt.Errorf("hashsum mismatch for %s: got %s but expected %s", w.Name(), sha3_384, downloadInfo.Sha3_384)
+	}
+
+	if err := os.Rename(w.Name(), targetFn); err != nil {
 		return "", err
 	}
 
-	// FIXME: only rename if hash matches
-
-	return targetFn, os.Rename(w.Name(), targetFn)
+	return targetFn, w.Sync()
 }
 
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (sha3_384 string, err error) {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	reqOptions := &requestOptions{
@@ -1137,7 +1142,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		// read to EOF and closed, so this is a belt-and-braces thing).
 		r, err := s.doRequest(&http.Client{}, reqOptions, user)
 		if err != nil {
-			return err
+			return "", err
 		}
 		defer r.Body.Close()
 
@@ -1149,19 +1154,19 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
 	if resp.StatusCode != 200 {
-		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+		return "", &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
-	if pbar != nil {
-		pbar.Start(name, float64(resp.ContentLength))
-		mw := io.MultiWriter(w, pbar)
-		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished()
-	} else {
-		_, err = io.Copy(w, resp.Body)
+	if pbar == nil {
+		pbar = &progress.NullProgress{}
 	}
+	pbar.Start(name, float64(resp.ContentLength))
+	h := crypto.SHA3_384.New()
+	mw := io.MultiWriter(w, h, pbar)
+	_, err = io.Copy(mw, resp.Body)
+	pbar.Finished()
 
-	return err
+	return fmt.Sprintf("%x", h.Sum(nil)), err
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1199,12 +1204,16 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, url, user, s, w, pbar)
+	sha3_384, err := download(deltaName, url, user, s, w, pbar)
 	if err != nil {
 		return "", err
 	}
 
-	// TODO: Check sha3_384
+	if sha3_384 != deltaInfo.Sha3_384 {
+		// FIXME: find a better error message
+		return "", fmt.Errorf("hashsum mismatch for %s: got %s expected %s", deltaName, sha3_384, deltaInfo.Sha3_384)
+	}
+
 	return deltaPath, nil
 }
 
