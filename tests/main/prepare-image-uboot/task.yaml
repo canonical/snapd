@@ -3,12 +3,15 @@ environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
+prepare: |
+    mkdir -p $ROOT
+    chown test:test $ROOT
 restore:
     rm -rf $ROOT
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
     echo Creating model assertion
-    cat > model.assertion <<EOF
+    cat > $ROOT/model.assertion <<EOF
     type: model
     series: 16
     authority-id: my-brand
@@ -26,8 +29,8 @@ execute: |
     echo The unverified model assertion will not be copied into the image
     export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
 
-    echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
+    echo Running prepare-image as user
+    su -c "snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE

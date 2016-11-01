@@ -209,7 +209,9 @@ func createTestDevice() *auth.DeviceState {
 }
 
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
-	t.store = New(nil, nil)
+	cfg := DefaultConfig()
+	cfg.PartialDownloadsDir = c.MkDir()
+	t.store = New(cfg, nil)
 	t.origDownloadFunc = download
 	t.origBackoffs = downloadBackoffs
 	downloadBackoffs = []int{2, 5, 0}
@@ -272,12 +274,12 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	info := &snap.Info{}
+	info.RealName = "foo"
+	info.AnonDownloadURL = "anon-url"
+	info.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", snap.R(1), &info.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -296,12 +298,12 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	info := &snap.Info{}
+	info.RealName = "foo"
+	info.AnonDownloadURL = "anon-url"
+	info.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.user)
+	path, err := t.store.Download("foo", snap.R(1), &info.DownloadInfo, nil, t.user)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -318,12 +320,12 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	info := &snap.Info{}
+	info.RealName = "foo"
+	info.AnonDownloadURL = "anon-url"
+	info.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.localUser)
+	path, err := t.store.Download("foo", snap.R(1), &info.DownloadInfo, nil, t.localUser)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -339,12 +341,12 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 		return fmt.Errorf("uh, it failed")
 	}
 
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	info := &snap.Info{}
+	info.RealName = "foo"
+	info.AnonDownloadURL = "anon-url"
+	info.DownloadURL = "AUTH-URL"
 	// simulate a failed download
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", snap.R(1), &info.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -361,13 +363,13 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	info := &snap.Info{}
+	info.RealName = "foo"
+	info.AnonDownloadURL = "anon-url"
+	info.DownloadURL = "AUTH-URL"
 
 	// simulate a failed sync
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", snap.R(1), &info.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -496,7 +498,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			downloadIndex++
 			return nil
 		}
-		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+		applyDelta = func(name, partialDownlodsDir, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
 			w, err := ioutil.TempFile("", "")
 			defer w.Close()
@@ -505,7 +507,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			return w.Name(), nil
 		}
 
-		path, err := t.store.Download("foo", &testCase.info, nil, nil)
+		path, err := t.store.Download("foo", snap.R(1), &testCase.info, nil, nil)
 
 		c.Assert(err, IsNil)
 		defer os.Remove(path)
@@ -659,7 +661,7 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
 
-		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
+		snapPath, err := applyDelta(name, dirs.SnapPartialBlobDir, "/the/delta/path", &testCase.deltaInfo)
 
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		if testCase.error == "" {

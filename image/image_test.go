@@ -145,7 +145,7 @@ func (s *imageSuite) Snap(name, channel string, devmode bool, revision snap.Revi
 	return s.storeSnapInfo[name], nil
 }
 
-func (s *imageSuite) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+func (s *imageSuite) Download(name string, rev snap.Revision, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	return s.downloadedSnaps[name], nil
 }
 

@@ -102,7 +102,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(string, snap.Revision, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
 	panic("fakeStore.Download not expected")
 }
 
