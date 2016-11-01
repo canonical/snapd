@@ -647,6 +647,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewChange("install", "...") },
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
+		func() { st.NewLane() },
 	}
 
 	reads := []func(){

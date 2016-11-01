@@ -323,7 +323,6 @@ func (cs *changeSuite) TestMethodEntrance(c *C) {
 		func() { chg.AddTask(nil) },
 		func() { chg.AddAll(nil) },
 		func() { chg.UnmarshalJSON(nil) },
-		func() { chg.AddLane() },
 	}
 
 	reads := []func(){
@@ -335,7 +334,6 @@ func (cs *changeSuite) TestMethodEntrance(c *C) {
 		func() { chg.MarshalJSON() },
 		func() { chg.SpawnTime() },
 		func() { chg.ReadyTime() },
-		func() { chg.LaneCount() },
 	}
 
 	for i, f := range reads {
@@ -590,18 +588,4 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 
 		c.Assert(strings.Join(obtained, " "), Equals, strings.Join(expected, " "), Commentf("setup: %s", test.setup))
 	}
-}
-
-func (cs *changeSuite) TestAddLane(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("install", "...")
-
-	c.Assert(chg.LaneCount(), Equals, 0)
-	c.Assert(chg.AddLane(), Equals, 1)
-	c.Assert(chg.LaneCount(), Equals, 1)
-	c.Assert(chg.AddLane(), Equals, 2)
-	c.Assert(chg.LaneCount(), Equals, 2)
 }
