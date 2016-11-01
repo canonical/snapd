@@ -496,7 +496,7 @@ func (c *Change) Abort() {
 	c.abortTasks(tasks, make(map[int]bool))
 }
 
-// AbortLane aborts all tasks in the provided lanes and any tasks waiting on them,
+// AbortLanes aborts all tasks in the provided lanes and any tasks waiting on them,
 // except for tasks that are also in a healthy lane (not aborted, and not waiting
 // on aborted).
 func (c *Change) AbortLanes(lanes []int) {
