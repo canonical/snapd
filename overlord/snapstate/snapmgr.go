@@ -79,6 +79,10 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
+func (ss *SnapSetup) MountFile() string {
+	return snap.MountFile(ss.Name(), ss.Revision())
+}
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
@@ -410,7 +414,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var downloadedSnapFile string
+	targetFn := ss.MountFile()
 	if ss.DownloadInfo == nil {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -419,16 +423,17 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(ss.Name(), targetFn, &storeInfo.DownloadInfo, meter, user)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user)
+		err = theStore.Download(ss.Name(), targetFn, ss.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
 	}
 
-	ss.SnapPath = downloadedSnapFile
+	ss.SnapPath = targetFn
+
 	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
@@ -668,7 +673,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
 
-	if !ss.Flags.KeepSnapPath {
+	if ss.Flags.RemoveSnapPath {
 		if err := os.Remove(ss.SnapPath); err != nil {
 			logger.Noticef("Failed to cleanup %s: %s", ss.SnapPath, err)
 		}
