@@ -392,6 +392,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
 	t1.SetProgress("snap", 5, 10)
+	t1.JoinLane(42)
+	t1.JoinLane(43)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
@@ -439,6 +441,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	c.Assert(task0_1.Lanes(), DeepEquals, []int{42, 43})
 
 	task0_2 := tasks0[t2ID]
 	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
@@ -534,6 +538,8 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 	st.NewTask("download", "...")
 	st.NewTask("download", "...")
 
+	c.Assert(st.NewLane(), Equals, 1)
+
 	// implicit checkpoint
 	st.Unlock()
 
@@ -549,6 +555,9 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+
+	c.Assert(st2.NewLane(), Equals, 2)
+
 }
 
 func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
@@ -647,6 +656,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewChange("install", "...") },
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
+		func() { st.NewLane() },
 	}
 
 	reads := []func(){

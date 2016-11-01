@@ -471,20 +471,6 @@ func (c *Change) Tasks() []*Task {
 	return c.state.tasksIn(c.taskIDs)
 }
 
-// AddLane adds a new lane ID in the change.
-func (c *Change) AddLane() int {
-	c.state.writing()
-	c.lanes++
-	return c.lanes
-}
-
-// LaneCount returns the number of lane IDs registered with the change.
-// Registered lanes may not be used on tasks currently in the change.
-func (c *Change) LaneCount() int {
-	c.state.reading()
-	return c.lanes
-}
-
 // Abort flags the change for cancellation, whether in progress or not.
 // Cancellation will proceed at the next ensure pass.
 func (c *Change) Abort() {
