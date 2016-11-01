@@ -57,7 +57,7 @@ type remoteRepoTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) (string, error)
+	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
@@ -266,10 +266,10 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
-		return "sha3", nil
+		return nil
 	}
 
 	snap := &snap.Info{}
@@ -288,13 +288,13 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
 
 		w.Write([]byte("I was downloaded"))
-		return "sha3", nil
+		return nil
 	}
 
 	snap := &snap.Info{}
@@ -313,11 +313,11 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte("I was downloaded"))
-		return "sha3", nil
+		return nil
 	}
 
 	snap := &snap.Info{}
@@ -337,9 +337,9 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
-		return "sha3", fmt.Errorf("uh, it failed")
+		return fmt.Errorf("uh, it failed")
 	}
 
 	snap := &snap.Info{}
@@ -356,12 +356,12 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
 		c.Assert(err, IsNil)
-		return "sha3", nil
+		return nil
 	}
 
 	snap := &snap.Info{}
@@ -388,7 +388,9 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	// keep tests happy
+	sha3 := ""
+	err := download("foo", sha3, mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
@@ -405,7 +407,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
@@ -423,7 +425,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	_, err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
@@ -489,16 +491,15 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 
 	for _, testCase := range deltaTests {
 		downloadIndex := 0
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			if testCase.downloads[downloadIndex].error {
 				downloadIndex++
-				return "", errors.New("Bang")
+				return errors.New("Bang")
 			}
 			c.Check(url, Equals, testCase.downloads[downloadIndex].url)
 			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
 			downloadIndex++
-			// no sha3 to make tests happy
-			return "", nil
+			return nil
 		}
 		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
@@ -601,7 +602,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 
 	for _, testCase := range downloadDeltaTests {
 		t.store.deltaFormat = testCase.format
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) (string, error) {
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			expectedUser := t.user
 			if testCase.useLocalUser {
 				expectedUser = t.localUser
@@ -611,7 +612,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			}
 			c.Check(user, Equals, expectedUser)
 			c.Check(url, Equals, testCase.expectedURL)
-			return "sha3", nil
+			return nil
 		}
 
 		downloadDir, err := ioutil.TempDir("", "")
