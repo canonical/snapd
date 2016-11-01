@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.8.1)
+policy_module(snappy,0.0.9)
 
 ########################################
 #
@@ -40,6 +40,16 @@ gen_require(` type init_t; type var_run_t; ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
+# Allow snapd to read init socket
+gen_require(` type init_t; ')
+allow snappy_t init_t:file { getattr open read };
+allow snappy_t init_t:lnk_file read;
+allow snappy_t init_t:unix_stream_socket connectto;
+
+# Allow snapd to read procfs
+gen_require(` type proc_t; ')
+allow snappy_t proc_t:file { getattr open read };
+
 # Allow snapd to read SSL cert store
 gen_require(` type cert_t; ')
 allow snappy_t cert_t:dir search;
@@ -76,9 +86,11 @@ allow snappy_t dbusd_etc_t:file { getattr open read write create rename unlink }
 allow snappy_t dbusd_etc_t:lnk_file { read };
 
 # Allow snapd to manage udev rules for snaps
-gen_require(` type udev_rules_t; ')
-allow snappy_t udev_rules_t:dir { getattr open read search };
+gen_require(` type udev_rules_t; type udev_exec_t; ')
+allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
 allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
+allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
+
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
@@ -100,6 +112,11 @@ miscfiles_read_localization(snappy_t)
 # Allow snapd to manage its socket files
 manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
+# Allow snapd to manage mounts
+gen_require(` type fs_t; type mount_var_run_t; ')
+allow snappy_t fs_t:filesystem { mount unmount };
+allow snappy_t mount_var_run_t:file { getattr setattr open read write };
+
 # Allow snapd to manage its persistent data
 manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
 manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
@@ -108,12 +125,16 @@ manage_dirs_pattern(snappy_t, snappy_var_t, snappy_var_t)
 manage_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
 manage_lnk_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
 
+# Grant snapd access to /tmp
+gen_require(` type tmp_t; ')
+allow snappy_t tmp_t:dir { getattr setattr add_name create read remove_name rmdir write };
+allow snappy_t tmp_t:file { getattr setattr create open unlink write };
+
 # Until we can figure out how to apply the label to mounted snaps,
 # we need to grant snapd access to "unlabeled files"
 gen_require(` type unlabeled_t; ')
 allow snappy_t unlabeled_t:dir { getattr search };
 allow snappy_t unlabeled_t:file { getattr open read };
-
 
 logging_send_syslog_msg(snappy_t);
 
