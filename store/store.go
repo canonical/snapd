@@ -1106,7 +1106,13 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := os.Create(filepath.Join(s.partialDownloadsDir, downloadInfo.Sha3_384+".snap"))
+	url := downloadInfo.AnonDownloadURL
+	if url == "" || hasStoreAuth(user) {
+		url = downloadInfo.DownloadURL
+	}
+
+	fn := name + "_" + filepath.Base(url) + ".partial"
+	w, err := os.Create(filepath.Join(s.partialDownloadsDir, fn))
 	if err != nil {
 		return "", err
 	}
@@ -1119,11 +1125,6 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 			path = ""
 		}
 	}()
-
-	url := downloadInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
-		url = downloadInfo.DownloadURL
-	}
 
 	if err := download(name, url, user, s, w, pbar); err != nil {
 		return "", err
