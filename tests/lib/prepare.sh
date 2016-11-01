@@ -130,6 +130,15 @@ setup_reflash_magic() {
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
 
+        # compile gpio-mockup module, put it in place and make it loadable at boot
+        apt install -y linux-headers-$(uname -r)
+        (
+            cd $TESTSLIB/fakegpio && make
+        )
+        cp $TESTSLIB/gpiomock/gpio-mockup.ko $UNPACKD/lib/modules/*/
+        echo "gpio-mockup gpio_mockup_ranges=-1,32,-1,32" | tee -a $UNPACKD/etc/modules
+
+        exit 1
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
