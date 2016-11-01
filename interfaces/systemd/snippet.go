@@ -43,7 +43,7 @@ func (s *Service) String() string {
 	var buf bytes.Buffer
 	if s.Description != "" {
 		buf.WriteString("[Unit]\n")
-		fmt.Fprintf(&buf, "Description=%s\n", s.Description)
+		fmt.Fprintf(&buf, "Description=%s\n\n", s.Description)
 	}
 	buf.WriteString("[Service]\n")
 	if s.Type != "" {
@@ -59,5 +59,6 @@ func (s *Service) String() string {
 	if s.ExecStop != "" {
 		fmt.Fprintf(&buf, "ExecStop=%s\n", s.ExecStop)
 	}
+	fmt.Fprintf(&buf, "\n[Install]\nWantedBy=multi-user.target\n")
 	return buf.String()
 }

@@ -146,8 +146,8 @@ func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
 			"snap.my-device.interface.gpio-100.service": map[string]interface{}{
 				"type":              "oneshot",
 				"remain-after-exit": true,
-				"exec-start":        `/bin/sh -c 'echo 100 > /sys/class/gpio/export'`,
-				"exec-stop":         `/bin/sh -c 'echo 100 > /sys/class/gpio/unexport'`,
+				"exec-start":        `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
+				"exec-stop":         `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
 			},
 		},
 	})
