@@ -463,6 +463,13 @@ func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 	}
 }
 
+// JoinLane adds all the tasks in the current taskset to the given lane
+func (ts *TaskSet) JoinLane(lane int) {
+	for _, t := range ts.tasks {
+		t.JoinLane(lane)
+	}
+}
+
 // Tasks returns the tasks in the task set.
 func (ts TaskSet) Tasks() []*Task {
 	// Return something mutable, just like every other Tasks method.
