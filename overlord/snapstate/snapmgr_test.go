@@ -289,6 +289,44 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 0)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1454,7 +1492,8 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	c.Check(ss.Flags, DeepEquals, flags.ForSnapSetup())
 }
 
-func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
+func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
+	// single updates should *not* set the block list
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -1476,7 +1515,87 @@ func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			Epoch:    "",
+			DevMode:  false,
+			Channel:  "some-channel",
+		},
+	})
+
+}
+
+func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
+	// multi-updates should *not* set the block list
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			DevMode:  false,
+		},
+	})
+
+}
+
+func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
+	//  update-all *should* set the block list
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, nil, s.user.ID)
+	c.Check(err, IsNil)
+	c.Check(updates, HasLen, 0)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
@@ -1484,10 +1603,8 @@ func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    "",
 			DevMode:  false,
 			Block:    []snap.Revision{snap.R(11)},
-			Channel:  "some-channel",
 		},
 	})
 
