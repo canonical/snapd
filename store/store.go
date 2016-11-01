@@ -1211,7 +1211,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 		return "", err
 	}
 
-	if sha3_384 != deltaInfo.Sha3_384 {
+	if deltaInfo.Sha3_384 != "" && sha3_384 != deltaInfo.Sha3_384 {
 		// FIXME: find a better error message
 		return "", fmt.Errorf("hashsum mismatch for %s: got %s expected %s", deltaName, sha3_384, deltaInfo.Sha3_384)
 	}
@@ -1272,7 +1272,7 @@ func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.
 		return err
 	}
 	sha3_384 := fmt.Sprintf("%x", bsha3_384)
-	if sha3_384 != downloadInfo.Sha3_384 {
+	if downloadInfo.Sha3_384 != "" && sha3_384 != downloadInfo.Sha3_384 {
 		// FIXME: find a better error message
 		return fmt.Errorf("hashsum mismatch for %s: got %s but expected %s", targetFn, sha3_384, downloadInfo.Sha3_384)
 	}
