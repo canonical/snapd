@@ -73,7 +73,8 @@ network packet,
 # from netplan and let NetworkManager store its DHCP leases
 # in the dhcp subdirectory so that console-conf can access
 # it.
-/run/NetworkManager/{,**} rw,
+/run/NetworkManager/ w,
+/run/NetworkManager/{,**} r,
 
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
