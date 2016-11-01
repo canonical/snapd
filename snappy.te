@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.10)
+policy_module(snappy,0.0.10.1)
 
 ########################################
 #
@@ -145,6 +145,7 @@ manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 # Allow snapd to manage mounts
 gen_require(` type fs_t; type mount_var_run_t; ')
 allow snappy_t fs_t:filesystem { mount unmount };
+allow snappy_t mount_var_run_t:dir search;
 allow snappy_t mount_var_run_t:file { getattr setattr open read write };
 
 # Allow snapd to manage its persistent data
@@ -168,7 +169,7 @@ allow snappy_t unlabeled_t:file { getattr open read };
 
 logging_send_syslog_msg(snappy_t);
 
-allow snappy_t self:capability { dac_override chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
+allow snappy_t self:capability { sys_admin dac_override chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
 allow snappy_t self:tun_socket relabelto;
 allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
 
