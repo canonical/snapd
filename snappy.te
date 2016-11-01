@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.9)
+policy_module(snappy,0.0.10)
 
 ########################################
 #
@@ -40,15 +40,30 @@ gen_require(` type init_t; type var_run_t; ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
 
+# Allow init_t to read snappy data
+allow init_t snappy_var_lib_t:dir read;
+
 # Allow snapd to read init socket
 gen_require(` type init_t; ')
 allow snappy_t init_t:file { getattr open read };
 allow snappy_t init_t:lnk_file read;
 allow snappy_t init_t:unix_stream_socket connectto;
 
+# Allow snapd to read file contexts
+gen_require(` type file_context_t; ')
+allow snappy_t file_context_t:dir search;
+allow snappy_t file_context_t:file { getattr open read };
+
 # Allow snapd to read procfs
 gen_require(` type proc_t; ')
 allow snappy_t proc_t:file { getattr open read };
+
+# Allow snapd to read sysfs
+gen_require(` type sysfs_t; ')
+allow snappy_t sysfs_t:dir read;
+allow snappy_t sysfs_t:file { getattr setattr open read write };
+allow snappy_t sysfs_t:lnk_file read;
+
 
 # Allow snapd to read SSL cert store
 gen_require(` type cert_t; ')
@@ -58,6 +73,12 @@ allow snappy_t cert_t:lnk_file read;
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
+
+# Allow snapd to read user home
+gen_require(` type home_root_t; type user_home_dir_t; ')
+allow snappy_t home_root_t:dir read;
+allow snappy_t user_home_dir_t:dir read;
+
 
 # Allow snapd to read its own homedir data
 manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
@@ -90,6 +111,12 @@ gen_require(` type udev_rules_t; type udev_exec_t; ')
 allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
 allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
 allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to manipulate udev
+gen_require(` type udev_t; type udev_var_run_t; ')
+allow snappy_t udev_t:unix_stream_socket connectto;
+allow snappy_t udev_var_run_t:file { getattr open read };
+allow snappy_t udev_var_run_t:sock_file { getattr open read write };
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
