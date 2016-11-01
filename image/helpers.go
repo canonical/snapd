@@ -45,7 +45,7 @@ type DownloadOptions struct {
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
 	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
-	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
+	Download(name string, rev snap.Revision, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
@@ -70,7 +70,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
 	pb := progress.NewTextProgress()
-	partial, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
+	partial, err := sto.Download(name, snap.Revision, &snap.DownloadInfo, pb, opts.User)
 	if err != nil {
 		return "", nil, err
 	}

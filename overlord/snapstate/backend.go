@@ -33,7 +33,7 @@ type StoreService interface {
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 
-	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
+	Download(string, snap.Revision, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 

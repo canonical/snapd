@@ -1087,9 +1087,9 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 
 // Download downloads the snap addressed by download info and returns its
 // filename.
-// The file is saved in temporary storage, and should be removed
+// The file is saved into the "partial" storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+func (s *Store) Download(name string, revision snap.Revision, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	if err := os.MkdirAll(s.partialDownloadsDir, 0755); err != nil {
 		return "", err
 	}
@@ -1111,7 +1111,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	fn := name + "_" + filepath.Base(url) + ".partial"
+	fn := snap.MountFile(name, revision) + ".partial"
 	w, err := os.Create(filepath.Join(s.partialDownloadsDir, fn))
 	if err != nil {
 		return "", err
