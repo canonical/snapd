@@ -1,10 +1,40 @@
-summary: Check that systemd units are benabled/disabled and gpio works after rebooting
+summary: Check that systemd units are enabled/disabled and gpio works after rebooting
 
 systems: [ubuntu-core-16-64]
+
+environment:
+    GPIO_MOCK_DIR: /tmp/gpio-mock
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    # install snap declaring a plug on the gpio slot
+    . $TESTSLIB/snaps.sh
+    install_local gpio-consumer
+
+    # prepare gpio mock device
+    mkdir -p $GPIO_MOCK_DIR
+    touch $GPIO_MOCK_DIR/gpio100
+    mount --bind $GPIO_MOCK_DIR /sys/class/gpio
+
+restore: |
+    umount /sys/class/gpio
+    rm -rf $GPIO_MOCK_DIR
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    snap interfaces | grep gpio
+
+    . "$TESTSLIB/names.sh"
+    snap connect gpio-consumer:gpio ${core_name}:gpio-pin
+
+    # check that the units are in place
+    [ -f /etc/systemd/system/snap.core.interface.gpio-100.service ]
+
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        REBOOT
+    fi
