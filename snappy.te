@@ -91,7 +91,6 @@ allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove
 allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
 allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
 
-
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
 allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
@@ -101,6 +100,10 @@ allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr 
 # Allow snapd to mount snaps
 gen_require(` type mount_exec_t; ')
 allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to execute unsquashfs
+gen_require(` type bin_t; ')
+allow snappy_t bin_t:file { execute execute_no_trans };
 
 # Allow snapd to get FUSE device attributes
 gen_require(` type fuse_device_t; ')
