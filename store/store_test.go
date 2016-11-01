@@ -209,7 +209,9 @@ func createTestDevice() *auth.DeviceState {
 }
 
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
-	t.store = New(nil, nil)
+	cfg := DefaultConfig()
+	cfg.PartialDownloadsDir = c.MkDir()
+	t.store = New(cfg, nil)
 	t.origDownloadFunc = download
 	t.origBackoffs = downloadBackoffs
 	downloadBackoffs = []int{2, 5, 0}
@@ -496,7 +498,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			downloadIndex++
 			return nil
 		}
-		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+		applyDelta = func(name, partialDownlodsDir, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
 			w, err := ioutil.TempFile("", "")
 			defer w.Close()
@@ -659,7 +661,7 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
 
-		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
+		snapPath, err := applyDelta(name, dirs.SnapPartialBlobDir, "/the/delta/path", &testCase.deltaInfo)
 
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		if testCase.error == "" {

@@ -123,7 +123,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	sto := makeStore(model)
+	sto := makeStore(model, opts)
 
 	if err := downloadUnpackGadget(sto, model, opts, local); err != nil {
 		return err
@@ -461,10 +461,11 @@ func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath str
 	return dst, osutil.CopyFile(snapPath, dst, 0)
 }
 
-func makeStore(model *asserts.Model) Store {
+func makeStore(model *asserts.Model, opts *Options) Store {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = model.Architecture()
 	cfg.Series = model.Series()
 	cfg.StoreID = model.Store()
+	cfg.PartialDownloadsDir = filepath.Join(opts.RootDir, "partial")
 	return store.New(cfg, nil)
 }
