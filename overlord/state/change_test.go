@@ -480,7 +480,19 @@ var abortLanesTests = []struct {
 		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{2, 3},
 		result: "*:hold",
-	}}
+	},
+
+	//                      => t21 (1) => t22 (1)
+	//                    /                       \
+	// t11 (1) => t12 (1)                           => t41 (4) => t42 (4)
+	//                    \                       /
+	//                      => t31 (1) => t32 (1)
+	{
+		setup:  "t41:error:4 t42:do:4 *:do:1",
+		abort:  []int{1},
+		result: "t41:error *:hold",
+	},
+}
 
 func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 
