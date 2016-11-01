@@ -324,8 +324,8 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
-		if snapst.TryMode || snapst.DevMode {
-			// no multi-refresh for trymode nor devmode
+		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+			// no auto-refresh for trymode nor devmode
 			continue
 		}
 
@@ -353,16 +353,21 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		stateByID[snapInfo.SnapID] = snapst
 
 		// get confinement preference from the snapstate
-		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
 			Channel: snapst.Channel,
 			DevMode: snapst.DevModeAllowed(),
-			Block:   snapst.Block(),
 
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
-		})
+		}
+
+		if len(names) == 0 {
+			candidateInfo.Block = snapst.Block()
+		}
+
+		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
 	theStore := Store(st)
@@ -410,10 +415,6 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
-		// XXX: this check goes away when update-to-local is done
-		if err := checkRevisionIsNew(update.Name(), snapst, update.Revision); err != nil {
-			continue
-		}
 
 		ss := &SnapSetup{
 			Channel:      snapst.Channel,
