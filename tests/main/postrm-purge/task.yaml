@@ -6,7 +6,7 @@ execute: |
     echo "When some snaps are installed"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
-    snap install hello-world
+    snap install test-snapd-thumbnail-consumer
 
     echo "And snapd is purged"
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
