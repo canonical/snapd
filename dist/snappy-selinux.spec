@@ -1,6 +1,6 @@
-%global commit0 daa87ed3b5324e040e426811683d7c38c7a7ae37
+%global commit0 6331fd4a058271b0246714bc6746ab1e7ce2aa09
 %global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
-%global snapdate 20161027
+%global snapdate 20161101
 
 Name:           snappy-selinux
 Version:        0
