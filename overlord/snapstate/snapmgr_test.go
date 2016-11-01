@@ -185,7 +185,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, 0, 0, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
@@ -205,7 +205,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
@@ -237,7 +237,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
@@ -260,7 +260,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
@@ -286,7 +286,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	ts := tts[0]
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
@@ -377,7 +377,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that we do not run any form of garbage-collection
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
@@ -406,7 +406,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 3)
-	c.Assert(s.state.NumTask(), Equals, 3)
+	c.Assert(s.state.TaskCount(), Equals, 3)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
@@ -431,7 +431,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 2)
-	c.Assert(s.state.NumTask(), Equals, 2)
+	c.Assert(s.state.TaskCount(), Equals, 2)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
@@ -619,7 +619,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
 
@@ -715,7 +715,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
 		"unlink-snap",
@@ -3937,7 +3937,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.NumTask(), Equals, 6*2)
+	c.Assert(s.state.TaskCount(), Equals, 6*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",

@@ -334,8 +334,9 @@ func (s *State) Task(id string) *Task {
 	return t
 }
 
-// NumTask returns the number of tasks that currently exist in the state (both linked or not yet linked to changes), useful for sanity checking.
-func (s *State) NumTask() int {
+// TaskCount returns the number of tasks that currently exist in the state,
+// whether linked to a change or not.
+func (s *State) TaskCount() int {
 	s.reading()
 	return len(s.tasks)
 }
