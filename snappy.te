@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.7)
+policy_module(snappy,0.0.8)
 
 ########################################
 #
@@ -75,6 +75,11 @@ allow snappy_t dbusd_etc_t:dir { getattr open read search };
 allow snappy_t dbusd_etc_t:file { getattr open read write create rename unlink };
 allow snappy_t dbusd_etc_t:lnk_file { read };
 
+# Allow snapd to manage udev rules for snaps
+gen_require(` type udev_rules_t; ')
+allow snappy_t udev_rules_t:dir { getattr open read search };
+allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
+
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
 allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
@@ -84,6 +89,10 @@ allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr 
 # Allow snapd to mount snaps
 gen_require(` type mount_exec_t; ')
 allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to get FUSE device attributes
+gen_require(` type fuse_device_t; ')
+allow snappy_t fuse_device_t:chr_file getattr;
 
 # Read l10n files?
 miscfiles_read_localization(snappy_t)
