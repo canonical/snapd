@@ -377,7 +377,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(10 * time.Second),
+		client:          newHTTPClient(10*time.Second, true),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 	}
@@ -1142,12 +1142,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 
 	var resp *http.Response
 	for _, n := range downloadBackoffs {
-		// we do *not* want to reuse the client between iterations in
-		// this case as it will have internal state (e.g. cached
-		// connections) that led us to an error (the default client is
-		// documented as not reusing the transport unless the body is
-		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(newHTTPClient(0), reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(0, false), reqOptions, user)
 		if err != nil {
 			return err
 		}
