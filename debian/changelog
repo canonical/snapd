@@ -10,6 +10,8 @@ snapd (2.16-1) UNRELEASED; urgency=medium
   * Remove govendor from gbp.conf, and import Ubuntu tarball as our
     orig.tar.gz (switching our packaging to non-native).
   * Add Uploaders.
+  * Drop lintian overrides not used in Debian because we dynamically link
+    against golang-yaml.v2.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
 
