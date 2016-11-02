@@ -23,10 +23,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 var (
-	httpClient = newHTTPClient()
+	httpClient = newHTTPClient(10 * time.Second)
 )
 
 type keysReply struct {
