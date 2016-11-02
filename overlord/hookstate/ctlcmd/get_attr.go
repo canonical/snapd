@@ -83,6 +83,13 @@ func (c *getAttrCommand) Execute(args []string) error {
 		}
 	}
 
+	if len(attrsToPrint) == 1 {
+		if val, ok := attrsToPrint[c.Positional.Attributes[0]].(string); ok {
+			c.printf("%s\n", val)
+			return nil
+		}
+	}
+
 	var bytes []byte
 	bytes, err = json.MarshalIndent(attrsToPrint, "", "\t")
 	if err != nil {
