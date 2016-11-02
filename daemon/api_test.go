@@ -104,7 +104,7 @@ func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (s *apiBaseSuite) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("Download not expected to be called")
 }
 
@@ -1556,7 +1556,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{}, false)
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{RemoveSnapPath: true}, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1566,8 +1566,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.Flags{}
-	flags.DevMode = true
+	flags := snapstate.Flags{DevMode: true, RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1587,7 +1586,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
-	flags := snapstate.Flags{}
+	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
@@ -1610,8 +1609,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{}
-	flags.JailMode = true
+	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -1720,7 +1718,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		return nil, nil
 	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
-		c.Check(flags, check.Equals, snapstate.Flags{})
+		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName:    "x",
 			SnapID:      "x-id",

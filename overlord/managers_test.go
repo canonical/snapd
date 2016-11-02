@@ -441,6 +441,7 @@ apps:
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
 	c.Check(info.Developer, Equals, "bar")
+	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
 
 	snapRev42, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": digest,

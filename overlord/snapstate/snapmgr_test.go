@@ -185,7 +185,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, 0, 0, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
@@ -205,7 +205,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
@@ -237,7 +237,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 2, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
@@ -260,7 +260,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
 func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
@@ -286,7 +286,45 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	ts := tts[0]
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
@@ -377,7 +415,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that we do not run any form of garbage-collection
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
@@ -406,7 +444,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 3)
-	c.Assert(s.state.NumTask(), Equals, 3)
+	c.Assert(s.state.TaskCount(), Equals, 3)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
@@ -431,7 +469,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 2)
-	c.Assert(s.state.NumTask(), Equals, 2)
+	c.Assert(s.state.TaskCount(), Equals, 2)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
@@ -619,7 +657,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
 
@@ -715,7 +753,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	ts, err := snapstate.Remove(s.state, "foo", snap.R(0))
 	c.Assert(err, IsNil)
 
-	c.Assert(s.state.NumTask(), Equals, len(ts.Tasks()))
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
 		"unlink-snap",
@@ -787,7 +825,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_42.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
@@ -797,7 +835,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_42.snap",
 			revno: snap.R(42),
 		},
 		{
@@ -855,7 +893,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
-		SnapPath: "downloaded-snap-path",
+		SnapPath: "/var/lib/snapd/snaps/some-snap_42.snap",
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -938,7 +976,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -948,7 +986,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -1014,7 +1052,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel: "some-channel",
 		UserID:  s.user.ID,
 
-		SnapPath: "downloaded-snap-path",
+		SnapPath: "/var/lib/snapd/snaps/some-snap_11.snap",
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
@@ -1104,7 +1142,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -1114,7 +1152,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -1263,7 +1301,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "some-snap-id",
@@ -1273,7 +1311,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -1454,7 +1492,8 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	c.Check(ss.Flags, DeepEquals, flags.ForSnapSetup())
 }
 
-func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
+func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
+	// single updates should *not* set the block list
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -1476,7 +1515,87 @@ func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			Epoch:    "",
+			DevMode:  false,
+			Channel:  "some-channel",
+		},
+	})
+
+}
+
+func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
+	// multi-updates should *not* set the block list
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			DevMode:  false,
+		},
+	})
+
+}
+
+func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
+	//  update-all *should* set the block list
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	})
+
+	updates, _, err := snapstate.UpdateMany(s.state, nil, s.user.ID)
+	c.Check(err, IsNil)
+	c.Check(updates, HasLen, 0)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
@@ -1484,10 +1603,8 @@ func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    "",
 			DevMode:  false,
 			Block:    []snap.Revision{snap.R(11)},
-			Channel:  "some-channel",
 		},
 	})
 
@@ -2992,7 +3109,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:   "open-snap-file",
-			name: "downloaded-snap-path",
+			name: "/var/lib/snapd/snaps/some-snap_11.snap",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
@@ -3002,7 +3119,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:    "setup-snap",
-			name:  "downloaded-snap-path",
+			name:  "/var/lib/snapd/snaps/some-snap_11.snap",
 			revno: snap.R(11),
 		},
 		{
@@ -3937,7 +4054,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.NumTask(), Equals, 6*2)
+	c.Assert(s.state.TaskCount(), Equals, 6*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
