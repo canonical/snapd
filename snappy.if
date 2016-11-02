@@ -67,6 +67,27 @@ interface(`snappy_read_config',`
 
 ########################################
 ## <summary>
+##	Create snappy content in the user home directory
+##	with an correct label.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`snappy_filetrans_home_content',`
+
+	gen_require(`
+		type snappy_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, snappy_home_t, dir, "snap")
+')
+
+
+########################################
+## <summary>
 ## Read snappy home directory content
 ## </summary>
 ## <param name="domain">
