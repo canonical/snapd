@@ -280,6 +280,12 @@ Example slot yaml:
         interface: dbus-app
         session:
         - org.some.name
+### dcdbas-control
+
+Can interact with the Dell Systems Management Base Driver which provides
+a sysfs interface for systems management software such as Dell OpenManage
+to perform system management interrupts and host control actions (system
+power cycle or power off after OS shutdown) on certain Dell systems.
 
 ### docker
 
@@ -464,6 +470,13 @@ access to configure serial port hardware.
        in range 0 <= vid <= 65535
     * path (slot): path where a symlink will be created to the device
     e.g. /dev/serial-port-mydevice
+
+### shutdown
+
+Can control the system power state and rebooting, powering off or halting the
+system.
+
+* Auto-Connect: no
 
 ### snapd-control
 

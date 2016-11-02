@@ -62,7 +62,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type apiSuite struct {
+type apiBaseSuite struct {
 	rsnaps            []*snap.Info
 	err               error
 	vars              map[string]string
@@ -78,9 +78,7 @@ type apiSuite struct {
 	restoreRelease    func()
 }
 
-var _ = check.Suite(&apiSuite{})
-
-func (s *apiSuite) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
+func (s *apiBaseSuite) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
@@ -88,48 +86,48 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, revision snap.Revisi
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	s.storeSearch = *search
 	s.user = user
 
 	return s.rsnaps, s.err
 }
 
-func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 	s.user = user
 
 	return s.rsnaps, s.err
 }
 
-func (s *apiSuite) SuggestedCurrency() string {
+func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (s *apiBaseSuite) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("Download not expected to be called")
 }
 
-func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
+func (s *apiBaseSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	s.buyOptions = options
 	s.user = user
 	return s.buyResult, s.err
 }
 
-func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
+func (s *apiBaseSuite) ReadyToBuy(user *auth.UserState) error {
 	s.user = user
 	return s.err
 }
 
-func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
+func (s *apiBaseSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Assertion not expected to be called")
 }
 
-func (s *apiSuite) muxVars(*http.Request) map[string]string {
+func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
-func (s *apiSuite) SetUpSuite(c *check.C) {
+func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
 	s.restoreRelease = release.MockReleaseInfo(&release.OS{
 		ID:        "ubuntu",
@@ -137,12 +135,12 @@ func (s *apiSuite) SetUpSuite(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TearDownSuite(c *check.C) {
+func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
 }
 
-func (s *apiSuite) SetUpTest(c *check.C) {
+func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
@@ -166,7 +164,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 }
 
-func (s *apiSuite) TearDownTest(c *check.C) {
+func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.restoreBackends()
 	snapstateInstall = snapstate.Install
@@ -178,7 +176,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
 }
 
-func (s *apiSuite) daemon(c *check.C) *Daemon {
+func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	if s.d != nil {
 		panic("called daemon() twice")
 	}
@@ -195,11 +193,11 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	return d
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+func (s *apiBaseSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
 }
 
-func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:    "funky-snap-id",
@@ -241,7 +239,7 @@ version: %s
 	return snapInfo
 }
 
-func (s *apiSuite) mkGadget(c *check.C, store string) {
+func (s *apiBaseSuite) mkGadget(c *check.C, store string) {
 	yamlText := fmt.Sprintf(`name: test
 version: 1
 type: gadget
@@ -250,6 +248,12 @@ gadget: {store: {id: %q}}
 	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
+
+type apiSuite struct {
+	apiBaseSuite
+}
+
+var _ = check.Suite(&apiSuite{})
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
@@ -1552,7 +1556,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{}, false)
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.Flags{RemoveSnapPath: true}, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1562,8 +1566,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.Flags{}
-	flags.DevMode = true
+	flags := snapstate.Flags{DevMode: true, RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1583,7 +1586,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
-	flags := snapstate.Flags{}
+	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
@@ -1606,8 +1609,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{}
-	flags.JailMode = true
+	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -1716,7 +1718,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		return nil, nil
 	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
-		c.Check(flags, check.Equals, snapstate.Flags{})
+		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName:    "x",
 			SnapID:      "x-id",
@@ -1763,9 +1765,14 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
+	// this is the prefix used for tempfiles for sideloading
+	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
+	glbBefore, _ := filepath.Glob(glob)
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
+	glbAfter, _ := filepath.Glob(glob)
+	c.Check(len(glbBefore), check.Equals, len(glbAfter))
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
@@ -3993,14 +4000,18 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 	}
 }
 
-type postCreateUserSuite struct {
-	apiSuite
+var _ = check.Suite(&postCreateUserSuite{})
 
-	mockUserHome string
+type postCreateUserSuite struct {
+	apiBaseSuite
+
+	mockUserHome    string
+	trustedRestorer func()
 }
 
 func (s *postCreateUserSuite) SetUpTest(c *check.C) {
-	s.apiSuite.SetUpTest(c)
+	s.apiBaseSuite.SetUpTest(c)
+	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.daemon(c)
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
@@ -4011,6 +4022,9 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 }
 
 func (s *postCreateUserSuite) TearDownTest(c *check.C) {
+	s.apiBaseSuite.TearDownTest(c)
+
+	s.trustedRestorer()
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
@@ -4027,6 +4041,9 @@ func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 }
 
 func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -4046,6 +4063,9 @@ func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 }
 
 func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -4104,47 +4124,62 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *ch
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
-func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
-	// this must be done very early
-	restorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
-
+func (s *postCreateUserSuite) setupSigner(accountID string) *assertstest.SigningDB {
 	st := s.d.overlord.State()
 
 	// create fake brand signature
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+	signerPrivKey, _ := assertstest.GenerateKey(752)
+	signerSigning := assertstest.NewSigningDB(accountID, signerPrivKey)
 
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
+	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
+		"account-id":   accountID,
 		"verification": "certified",
 	}, "")
-	s.storeSigning.Add(brandAcct)
+	s.storeSigning.Add(signerAcct)
+	assertAdd(st, signerAcct)
 
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
+	signerAccKey := assertstest.NewAccountKey(s.storeSigning, signerAcct, nil, signerPrivKey.PublicKey(), "")
+	s.storeSigning.Add(signerAccKey)
+	assertAdd(st, signerAccKey)
+
+	return signerSigning
+}
+
+func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
+	st := s.d.overlord.State()
+
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+
+	brandSigning := s.setupSigner("my-brand")
+	partnerSigning := s.setupSigner("partner")
+	unknownSigning := s.setupSigner("unknown")
+
+	signers := map[string]*assertstest.SigningDB{
+		"my-brand": brandSigning,
+		"partner":  partnerSigning,
+		"unknown":  unknownSigning,
+	}
 
 	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required-snap1"},
-		"timestamp":      time.Now().Format(time.RFC3339),
+		"series":                "16",
+		"authority-id":          "my-brand",
+		"brand-id":              "my-brand",
+		"model":                 "my-model",
+		"architecture":          "amd64",
+		"gadget":                "pc",
+		"kernel":                "pc-kernel",
+		"required-snaps":        []interface{}{"required-snap1"},
+		"system-user-authority": []interface{}{"my-brand", "partner"},
+		"timestamp":             time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 	model = model.(*asserts.Model)
 
 	// now add model related stuff to the system
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-	assertAdd(st, brandAcct)
-	assertAdd(st, brandAccKey)
 	assertAdd(st, model)
 
 	for _, suMap := range systemUsers {
-		su, err := brandSigning.Sign(asserts.SystemUserType, suMap, nil, "")
+		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
 		c.Assert(err, check.IsNil)
 		su = su.(*asserts.SystemUser)
 		// now add system-user assertion to the system
@@ -4158,26 +4193,63 @@ func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[stri
 	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
+}
 
-	return restorer
+var goodUser = map[string]interface{}{
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foo@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model", "other-model"},
+	"name":         "Boring Guy",
+	"username":     "guy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var partnerUser = map[string]interface{}{
+	"authority-id": "partner",
+	"brand-id":     "my-brand",
+	"email":        "p@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "Partner Guy",
+	"username":     "partnerguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var badUser = map[string]interface{}{
+	// bad user (not valid for this model)
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foobar@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"non-of-the-models-i-have"},
+	"name":         "Random Gal",
+	"username":     "gal",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var unknownUser = map[string]interface{}{
+	"authority-id": "unknown",
+	"brand-id":     "my-brand",
+	"email":        "x@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "XGuy",
+	"username":     "xguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
-	defer restorer()
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
@@ -4195,21 +4267,10 @@ func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 // nice to transform them into a table that is just the deltas, and
 // run on a loop.
 func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
-	defer restorer()
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
@@ -4248,40 +4309,22 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 }
 
 func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-		{
-			// bad user (not valid for this model)
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foobar@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"non-of-the-models-i-have"},
-			"name":         "Random Gal",
-			"username":     "gal",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
-	defer restorer()
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, badUser, unknownUser})
 
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		switch username {
+		case "guy":
+			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		case "partnerguy":
+			c.Check(opts.Gecos, check.Equals, "p@partner.com,Partner Guy")
+		default:
+			c.Logf("unexpected username %q", username)
+			c.Fail()
+		}
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		return nil
@@ -4297,41 +4340,57 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	// note that we get a list here instead of a single
 	// userResponseData item
-	expected := []userResponseData{
-		{Username: "guy"},
+	c.Check(rsp.Result, check.FitsTypeOf, []userResponseData{})
+	seen := map[string]bool{}
+	for _, u := range rsp.Result.([]userResponseData) {
+		seen[u.Username] = true
+		c.Check(u, check.DeepEquals, userResponseData{Username: u.Username})
 	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
+	c.Check(seen, check.DeepEquals, map[string]bool{
+		"guy":        true,
+		"partnerguy": true,
+	})
 
 	// ensure the user was added to the state
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
 	st.Unlock()
-	c.Check(users, check.HasLen, 1)
+	c.Check(users, check.HasLen, 2)
+}
+
+func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device is a classic system`)
 }
 
 func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
-	defer restorer()
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	st := s.d.overlord.State()
 	st.Lock()
@@ -4351,22 +4410,10 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErr
 }
 
 func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
-	defer restorer()
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	st := s.d.overlord.State()
 	st.Lock()

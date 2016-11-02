@@ -32,6 +32,9 @@ type Flags struct {
 	// Revert flags the SnapSetup as coming from a revert
 	Revert bool `json:"revert,omitempty"`
 
+	// RemoveSnapPath is used via InstallPath to flag that the file passed in is temporary and should be removed
+	RemoveSnapPath bool `json:"remove-snap-path,omitempty"`
+
 	// IgnoreValidation is set when the user requested as one-off
 	// to ignore refresh control validation.
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`

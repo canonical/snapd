@@ -45,6 +45,7 @@ var allInterfaces = []interfaces.Interface{
 	&PulseAudioInterface{},
 	&UDisks2Interface{},
 	&FwupdInterface{},
+	NewDcdbasControlInterface(),
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
@@ -76,6 +77,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewShutdownInterface(),
 	NewTimeControlInterface(),
 	NewLibvirtInterface(),
 }

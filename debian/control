@@ -21,26 +21,34 @@ Vcs-Git: https://github.com/snapcore/snapd.git
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
-Depends: ${misc:Depends}, golang-github-snapcore-snapd-dev
+Depends: golang-github-snapcore-snapd-dev, ${misc:Depends}
 Section: oldlibs
 Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
 
 Package: golang-github-snapcore-snapd-dev
 Architecture: all
-Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
-Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
+Breaks: golang-github-ubuntu-core-snappy-dev (<< 2.0.6),
+        golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
+Replaces: golang-github-ubuntu-core-snappy-dev (<< 2.0.6),
+          golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
 Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
 
 Package: snapd
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, adduser,
- squashfs-tools, gnupg1 | gnupg, systemd, snap-confine (>= 1.0.43), xdelta
+Depends: adduser,
+         gnupg1 | gnupg,
+         snap-confine (>= 1.0.43),
+         squashfs-tools,
+         systemd,
+         xdelta,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
+Conflicts: snap (<< 2013-11-29-1ubuntu1), snappy
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
@@ -54,14 +62,14 @@ Description: transitional dummy package
 
 Package: ubuntu-snappy-cli
 Architecture: all
-Depends: snapd,  ${misc:Depends}
+Depends: snapd, ${misc:Depends}
 Section: oldlibs
 Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
 
 Package: ubuntu-core-snapd-units
 Architecture: all
-Depends: snapd,  ${misc:Depends}
+Depends: snapd, ${misc:Depends}
 Section: oldlibs
 Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
