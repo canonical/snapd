@@ -32,7 +32,6 @@ var (
 
 	SnapMountDir              string
 	SnapBlobDir               string
-	SnapPartialBlobDir        string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
 	SnapAppArmorDir           string
@@ -114,7 +113,6 @@ func SetRootDir(rootdir string) {
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
-	SnapPartialBlobDir = filepath.Join(SnapBlobDir, "partial")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
 
