@@ -24,7 +24,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    umount /sys/class/gpio
+    umount /sys/class/gpio || true
     rm -rf $GPIO_MOCK_DIR
 
 execute: |
@@ -38,8 +38,9 @@ execute: |
         snap connect gpio-consumer:gpio ${core_name}:gpio-pin
     fi
 
-    # check that the units are in place
-    [ -f /etc/systemd/system/snap.core.interface.gpio-100.service ]
+    # check that the gpio unit service was run
+    expected="Unit snap.core.interface.gpio-100.service has finished starting up"
+    journalctl -xe --no-pager | grep "$expected"
 
     if [ "$SPREAD_REBOOT" = "0" ]; then
         REBOOT
