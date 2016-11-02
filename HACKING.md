@@ -48,7 +48,7 @@ flags are available using
     go help get
 
 At this point you will have the git local repository of the `snapd` source at
-`$GOPATH/github.com/snapcore/snapd`. The source for any
+`$GOPATH/src/github.com/snapcore/snapd`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
@@ -59,7 +59,7 @@ Dependencies are handled via `govendor`. Get it via:
 
 After a fresh checkout, move to the snapd source directory:
 
-    cd $GOPATH/github.com/snapcore/snapd
+    cd $GOPATH/src/github.com/snapcore/snapd
 
 And then, run:
 
