@@ -36,8 +36,12 @@ const realsenseConnectedPlugAppArmor = `
 /sys/devices/pci**/usb*/**/busnum r,
 /sys/devices/pci**/usb*/devnum r,
 /sys/devices/pci**/usb*/**/devnum r,
+/sys/devices/pci**/usb*/**/descriptors r,
 /sys/devices/pci**/usb*/**/modalias r,
 /sys/devices/pci**/usb*/**/bInterfaceNumber r,
+
+/run/udev/data/c189:[0-9]* r, # USB serial converters
+/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 `
 
 // NewRealsenseInterface returns a new "realsense" interface.
