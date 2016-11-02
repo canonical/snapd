@@ -12,6 +12,7 @@ snapd (2.16-1) UNRELEASED; urgency=medium
   * Add Uploaders.
   * Drop lintian overrides not used in Debian because we dynamically link
     against golang-yaml.v2.
+  * Bump standards-version, no changes required.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
 
