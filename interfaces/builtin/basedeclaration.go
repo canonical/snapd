@@ -196,6 +196,7 @@ slots:
     allow-installation:
       slot-snap-type:
         - app
+    deny-auto-connection: true
   dcdbas-control:
     allow-installation:
       slot-snap-type:
