@@ -202,10 +202,9 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
-	if err != nil {
-		return nil, err
-	}
+	// brand-id here can be different from authority-id,
+	// the code using the assertion must use the policy set
+	// by the model assertion system-user-authority header
 	email, err := checkNotEmptyString(assert.headers, "email")
 	if err != nil {
 		return nil, err
@@ -247,8 +246,10 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	if until.After(since.AddDate(1, 0, 0)) {
-		return nil, fmt.Errorf("'until' time cannot be more than 365 days in the future")
+
+	// "global" system-user assertion can only be valid for 1y
+	if len(models) == 0 && until.After(since.AddDate(1, 0, 0)) {
+		return nil, fmt.Errorf("'until' time cannot be more than 365 days in the future when no models are specified")
 	}
 
 	return &SystemUser{

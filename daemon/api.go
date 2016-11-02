@@ -1156,6 +1156,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
+	flags.RemoveSnapPath = true
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1189,18 +1190,26 @@ out:
 		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
+	// we are in charge of the tempfile life cycle until we hand it off to the change
+	changeTriggered := false
+	// if you change this prefix, look for it in the tests
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
+	tempPath := tmpf.Name()
+
+	defer func() {
+		if !changeTriggered {
+			os.Remove(tempPath)
+		}
+	}()
+
 	if _, err := io.Copy(tmpf, snapBody); err != nil {
-		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
 	tmpf.Sync()
-
-	tempPath := tmpf.Name()
 
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
@@ -1268,6 +1277,10 @@ out:
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	ensureStateSoon(st)
+
+	// only when the unlock succeeds (as opposed to panicing) is the handoff done
+	// but this is good enough
+	changeTriggered = true
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1808,6 +1821,11 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		}
 		return false
 	}
+	// check that the signer of the assertion is one of the accepted ones
+	sysUserAuths := modelAs.SystemUserAuthority()
+	if len(sysUserAuths) > 0 && !contains(su.AuthorityID(), sysUserAuths) {
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
+	}
 	if len(su.Series()) > 0 && !contains(series, su.Series()) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
@@ -1901,8 +1919,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if len(users) > 0 && !createData.ForceManaged {
-		return BadRequest("cannot create user: device already managed")
+
+	if !createData.ForceManaged {
+		if len(users) > 0 {
+			return BadRequest("cannot create user: device already managed")
+		}
+		if release.OnClassic {
+			return BadRequest("cannot create user: device is a classic system")
+		}
 	}
 
 	// special case: the user requested the creation of all known

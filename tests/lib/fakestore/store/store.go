@@ -20,6 +20,7 @@
 package store
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,14 @@ import (
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(418)
 	fmt.Fprintf(w, "I'm a teapot")
+}
+
+func hexify(in string) string {
+	bs, err := base64.RawURLEncoding.DecodeString(in)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("%x", bs)
 }
 
 // Store is our snappy software store implementation
@@ -229,6 +238,7 @@ type detailsReplyJSON struct {
 	DownloadURL     string `json:"download_url"`
 	Version         string `json:"version"`
 	Revision        int    `json:"revision"`
+	DownloadDigest  string `json:"download_sha3_384"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -276,6 +286,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		Version:         essInfo.Version,
 		Revision:        essInfo.Revision,
+		DownloadDigest:  hexify(essInfo.Digest),
 	}
 
 	// use indent because this is a development tool, output
@@ -393,6 +404,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         essInfo.Version,
 				Revision:        essInfo.Revision,
+				DownloadDigest:  hexify(essInfo.Digest),
 			})
 		}
 	}
@@ -444,6 +456,16 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
+func isAssertNotFound(err error) bool {
+	if err == asserts.ErrNotFound {
+		return true
+	}
+	if _, ok := err.(*store.AssertionNotFoundError); ok {
+		return true
+	}
+	return false
+}
+
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
 	a, err := bs.Get(assertType, primaryKey, assertType.MaxSupportedFormat())
 	if err == asserts.ErrNotFound && s.assertFallback {
@@ -481,7 +503,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	a, err := s.retrieveAssertion(bs, typ, comps[1:])
-	if err == asserts.ErrNotFound {
+	if isAssertNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		w.Write([]byte(`{"status": 404}`))

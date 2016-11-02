@@ -86,6 +86,13 @@ var bluezPermanentSlotAppArmor = []byte(`
       bus=system
       path=/org/bluez{,/**}
       interface=org.freedesktop.DBus.**,
+
+  # Allow access to hostname system service
+  dbus (receive, send)
+      bus=system
+      path=/org/freedesktop/hostname1
+      interface=org.freedesktop.DBus.Properties
+      peer=(label=unconfined),
 `)
 
 var bluezConnectedPlugAppArmor = []byte(`

@@ -564,14 +564,9 @@ func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	snapName := plug.Snap.Name()
-	devName := plug.Snap.Developer
-	// The docker-support interface can only by used with the docker
-	// project and Canonical
-	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
-		return fmt.Errorf("docker-support interface is reserved for the upstream docker project")
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
-
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")

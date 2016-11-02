@@ -92,4 +92,7 @@ func (m *DeviceManager) SetBootOkRan(b bool) {
 	m.bootOkRan = b
 }
 
-var ImportAssertionsFromSeed = importAssertionsFromSeed
+var (
+	ImportAssertionsFromSeed = importAssertionsFromSeed
+	CheckGadgetOrKernel      = checkGadgetOrKernel
+)

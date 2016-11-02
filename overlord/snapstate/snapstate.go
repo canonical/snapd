@@ -39,17 +39,14 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		return nil, err
 	}
 
-	if ss.SnapPath == "" && ss.Channel == "" {
-		ss.Channel = "stable"
-	}
-
+	targetRevision := ss.Revision()
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
+		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
 	}
 
 	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.LastIndex(ss.Revision()) >= 0
+	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -126,6 +123,10 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
+			if si.Revision == targetRevision {
+				// but don't discard this one; its' the thing we're switching to!
+				continue
+			}
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
@@ -137,7 +138,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
-			if si.Revision == ss.Revision() {
+			if si.Revision == targetRevision {
 				// we do *not* want to removeInactiveRevision of this one
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]
@@ -265,6 +266,10 @@ func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, er
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
+	if channel == "" {
+		channel = "stable"
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -319,8 +324,8 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
-		if snapst.TryMode || snapst.DevMode {
-			// no multi-refresh for trymode nor devmode
+		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+			// no auto-refresh for trymode nor devmode
 			continue
 		}
 
@@ -348,16 +353,21 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		stateByID[snapInfo.SnapID] = snapst
 
 		// get confinement preference from the snapstate
-		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
 			Channel: snapst.Channel,
 			DevMode: snapst.DevModeAllowed(),
-			Block:   snapst.Block(),
 
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
-		})
+		}
+
+		if len(names) == 0 {
+			candidateInfo.Block = snapst.Block()
+		}
+
+		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
 	theStore := Store(st)
@@ -405,10 +415,6 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
-		// XXX: this check goes away when update-to-local is done
-		if err := checkRevisionIsNew(update.Name(), snapst, update.Revision); err != nil {
-			continue
-		}
 
 		ss := &SnapSetup{
 			Channel:      snapst.Channel,
@@ -427,6 +433,8 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 			}
 			return nil, nil, err
 		}
+		ts.JoinLane(st.NewLane())
+
 		updated = append(updated, update.Name())
 		tasksets = append(tasksets, ts)
 	}
@@ -523,16 +531,13 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	ss := &SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: snapst.Current,
-		},
+		SideInfo: snapst.CurrentSideInfo(),
 	}
 
 	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), ss.Name(), snapst.Current))
 	prepareSnap.Set("snap-setup", &ss)
 
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system%s"), ss.Name(), snapst.Current))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), ss.Name(), snapst.Current))
 	linkSnap.Set("snap-setup", &ss)
 	linkSnap.WaitFor(prepareSnap)
 
@@ -555,6 +560,14 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 	if !snapst.Active {
 		return nil, fmt.Errorf("snap %q already disabled", name)
+	}
+
+	info, err := Info(s, name, snapst.Current)
+	if err != nil {
+		return nil, err
+	}
+	if !canDisable(info) {
+		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
 	if err := checkChangeConflict(s, name, nil); err != nil {
@@ -609,6 +622,17 @@ func canRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	return true
+}
+
+// canDisable verifies that a snap can be deactivated.
+func canDisable(s *snap.Info) bool {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+		if importantSnapType == s.Type {
+			return false
+		}
+	}
 
 	return true
 }
@@ -909,6 +933,11 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 // CoreInfo finds the current OS snap's info.
 func CoreInfo(s *state.State) (*snap.Info, error) {
 	return infoForType(s, snap.TypeOS)
+}
+
+// KernelInfo finds the current kernel snap's info.
+func KernelInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeKernel)
 }
 
 // InstallMany installs everything from the given list of names.

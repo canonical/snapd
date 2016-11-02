@@ -38,6 +38,8 @@ type systemUserSuite struct {
 	since     time.Time
 	sinceLine string
 
+	modelsLine string
+
 	systemUserStr string
 }
 
@@ -47,8 +49,7 @@ const systemUserExample = "type: system-user\n" +
 	"email: foo@example.com\n" +
 	"series:\n" +
 	"  - 16\n" +
-	"models:\n" +
-	"  - frobinator\n" +
+	"MODELSLINE\n" +
 	"name: Nice Guy\n" +
 	"username: guy\n" +
 	"password: $6$salt$hash\n" +
@@ -66,9 +67,10 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 	s.sinceLine = fmt.Sprintf("since: %s\n", s.since.Format(time.RFC3339))
 	s.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
-
+	s.modelsLine = "models:\n  - frobinator\n"
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
+	s.systemUserStr = strings.Replace(s.systemUserStr, "MODELSLINE\n", s.modelsLine, 1)
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
@@ -138,7 +140,6 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: canonical\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: canonical\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"brand-id: canonical\n", "brand-id: something-else\n", `authority-id and brand-id must match, system-user assertions are expected to be signed by the brand: "canonical" != "something-else"`},
 		{"email: foo@example.com\n", "", `"email" header is mandatory`},
 		{"email: foo@example.com\n", "email: \n", `"email" header should not be empty`},
 		{"email: foo@example.com\n", "email: <alice!example.com>\n", `"email" header must be a RFC 5322 compliant email address: mail: missing @ in addr-spec`},
@@ -168,7 +169,6 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.untilLine, "until: \n", `"until" header should not be empty`},
 		{s.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
-		{s.untilLine, fmt.Sprintf("until: %s\n", s.since.AddDate(1, 0, 1).Format(time.RFC3339)), `'until' time cannot be more than 365 days in the future`},
 	}
 
 	for _, test := range invalidTests {
@@ -176,4 +176,25 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
+}
+
+func (s *systemUserSuite) TestUntilNoModels(c *C) {
+	// no models is good for <1y
+	su := strings.Replace(s.systemUserStr, s.modelsLine, "", -1)
+	_, err := asserts.Decode([]byte(su))
+	c.Check(err, IsNil)
+
+	// but invalid for more than one year
+	oneYearPlusOne := time.Now().AddDate(1, 0, 1).Truncate(time.Second)
+	su = strings.Replace(su, s.untilLine, fmt.Sprintf("until: %s\n", oneYearPlusOne.Format(time.RFC3339)), -1)
+	_, err = asserts.Decode([]byte(su))
+	c.Check(err, ErrorMatches, systemUserErrPrefix+"'until' time cannot be more than 365 days in the future when no models are specified")
+}
+
+func (s *systemUserSuite) TestUntilWithModels(c *C) {
+	// with models it can be valid forever
+	oneYearPlusOne := time.Now().AddDate(10, 0, 1).Truncate(time.Second)
+	su := strings.Replace(s.systemUserStr, s.untilLine, fmt.Sprintf("until: %s\n", oneYearPlusOne.Format(time.RFC3339)), -1)
+	_, err := asserts.Decode([]byte(su))
+	c.Check(err, IsNil)
 }

@@ -79,6 +79,10 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
+func (ss *SnapSetup) MountFile() string {
+	return snap.MountFile(ss.Name(), ss.Revision())
+}
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
@@ -238,7 +242,6 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		// the desired channel
 		Channel: channel,
 		DevMode: flags.DevModeAllowed(),
-		Block:   snapst.Block(),
 
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
@@ -291,9 +294,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
+	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("cleanup", m.cleanup, nil)
+
+	// FIXME: drop the task entirely after a while
+	// (having this wart here avoids yet-another-patch)
+	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -342,13 +350,6 @@ func Store(s *state.State) StoreService {
 		return cachedStore
 	}
 	panic("internal error: needing the store before managers have initialized it")
-}
-
-func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
-	if revisionInSequence(snapst, revision) {
-		return fmt.Errorf("revision %s of snap %q already installed", revision, name)
-	}
-	return nil
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -413,7 +414,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var downloadedSnapFile string
+	targetFn := ss.MountFile()
 	if ss.DownloadInfo == nil {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -422,16 +423,17 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(ss.Name(), targetFn, &storeInfo.DownloadInfo, meter, user)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user)
+		err = theStore.Download(ss.Name(), targetFn, ss.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
 	}
 
-	ss.SnapPath = downloadedSnapFile
+	ss.SnapPath = targetFn
+
 	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
@@ -671,14 +673,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
 
-	// cleanup the downloaded snap after it got installed
-	// in backend.SetupSnap.
-	//
-	// Note that we always remove the file because the
-	// way sideloading works currently is to always create
-	// a temporary file (see daemon/api.go:sideloadSnap()
-	if err := os.Remove(ss.SnapPath); err != nil {
-		logger.Noticef("Failed to cleanup %q: %s", err)
+	if ss.Flags.RemoveSnapPath {
+		if err := os.Remove(ss.SnapPath); err != nil {
+			logger.Noticef("Failed to cleanup %s: %s", ss.SnapPath, err)
+		}
 	}
 
 	return nil
@@ -1013,22 +1011,25 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
 	st.Lock()
 	defer st.Unlock()
 
+	if t.Status() != state.DoneStatus {
+		// it failed
+		return nil
+	}
+
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
-		return nil // cleanup should not return error
+		return err
 	}
 
 	info, err := snapst.CurrentInfo()
 	if err != nil {
-		t.Errorf("cannot clean up: %v", err)
-		return nil
+		return err
 	}
 
 	m.backend.ClearTrashedData(info)

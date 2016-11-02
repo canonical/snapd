@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -882,4 +883,57 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 	}
 
 	return a.(*asserts.Serial), nil
+}
+
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+	kind := ""
+	var currentInfo func(*state.State) (*snap.Info, error)
+	var getName func(*asserts.Model) string
+	switch snapInfo.Type {
+	case snap.TypeGadget:
+		kind = "gadget"
+		currentInfo = snapstate.GadgetInfo
+		getName = (*asserts.Model).Gadget
+	case snap.TypeKernel:
+		kind = "kernel"
+		currentInfo = snapstate.KernelInfo
+		getName = (*asserts.Model).Kernel
+	default:
+		// not a relevant check
+		return nil
+	}
+
+	if release.OnClassic {
+		// for the time being
+		return fmt.Errorf("cannot install a %s snap on classic", kind)
+	}
+
+	currentSnap, err := currentInfo(st)
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	}
+	if currentSnap != nil {
+		// already installed, snapstate takes care
+		return nil
+	}
+	// first installation of a gadget/kernel
+
+	model, err := Model(st)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot install %s without model assertion", kind)
+	}
+	if err != nil {
+		return err
+	}
+
+	expectedName := getName(model)
+	if snapInfo.Name() != expectedName {
+		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.Name(), expectedName)
+	}
+
+	return nil
+}
+
+func init() {
+	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 }
