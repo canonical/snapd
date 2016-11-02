@@ -1073,7 +1073,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		return err
 	}
 	resume := int64(0)
-	w, err := os.OpenFile(targetFn+".partial", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	w, err := os.OpenFile(targetFn+".partial", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -1110,7 +1110,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1120,10 +1120,23 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		Method: "GET",
 		URL:    storeURL,
 	}
+	h := crypto.SHA3_384.New()
 
 	if resume > 0 {
 		reqOptions.ExtraHeaders = map[string]string{
 			"Range": fmt.Sprintf("bytes=%d-", resume),
+		}
+		// seed the sha3 with the already local file
+		seekStart := 0
+		if _, err := w.Seek(0, seekStart); err != nil {
+			return err
+		}
+		n, err := io.Copy(h, w)
+		if err != nil {
+			return err
+		}
+		if n != resume {
+			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
 		}
 	}
 
@@ -1155,14 +1168,13 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		pbar = &progress.NullProgress{}
 	}
 	pbar.Start(name, float64(resp.ContentLength))
-	h := crypto.SHA3_384.New()
 	mw := io.MultiWriter(w, h, pbar)
 	_, err = io.Copy(mw, resp.Body)
 	pbar.Finished()
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, sha3_384, actualSha3)
+		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
 
 	return err
