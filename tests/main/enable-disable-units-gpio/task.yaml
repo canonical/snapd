@@ -29,8 +29,10 @@ execute: |
         exit
     fi
 
-    . "$TESTSLIB/names.sh"
-    snap connect gpio-consumer:gpio ${core_name}:gpio-pin
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        . "$TESTSLIB/names.sh"
+        snap connect gpio-consumer:gpio ${core_name}:gpio-pin
+    fi
 
     # check that the units are in place
     [ -f /etc/systemd/system/snap.core.interface.gpio-100.service ]
