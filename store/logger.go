@@ -56,6 +56,7 @@ func (f debugflag) debugBody() bool {
 type LoggedTransport struct {
 	Transport http.RoundTripper
 	Key       string
+	body      bool
 }
 
 // RoundTrip is from the http.RoundTripper interface.
@@ -63,14 +64,14 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	flags := tr.getFlags()
 
 	if flags.debugRequest() {
-		buf, _ := httputil.DumpRequestOut(req, flags.debugBody())
+		buf, _ := httputil.DumpRequestOut(req, tr.body && flags.debugBody())
 		logger.Debugf("> %q", buf)
 	}
 
 	rsp, err := tr.Transport.RoundTrip(req)
 
 	if err == nil && flags.debugResponse() {
-		buf, _ := httputil.DumpResponse(rsp, flags.debugBody())
+		buf, _ := httputil.DumpResponse(rsp, tr.body && flags.debugBody())
 		logger.Debugf("< %q", buf)
 	}
 
@@ -88,11 +89,12 @@ func (tr *LoggedTransport) getFlags() debugflag {
 
 // returns a new http.Client with a LoggedTransport, a Timeout and preservation
 // of range requests accross redirects
-func newHTTPClient(timeout time.Duration) *http.Client {
+func newHTTPClient(timeout time.Duration, mayLogBody bool) *http.Client {
 	return &http.Client{
 		Transport: &LoggedTransport{
 			Transport: http.DefaultTransport,
 			Key:       "SNAPD_DEBUG_HTTP",
+			body:      mayLogBody,
 		},
 		Timeout: timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
