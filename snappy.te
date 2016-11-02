@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.10.2)
+policy_module(snappy,0.0.11)
 
 ########################################
 #
@@ -73,11 +73,6 @@ allow snappy_t cert_t:lnk_file read;
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
-
-# Allow snapd to read user home
-gen_require(` type home_root_t; type user_home_dir_t; ')
-allow snappy_t home_root_t:dir read;
-allow snappy_t user_home_dir_t:dir read;
 
 # Allow snapd to manage snaps' homedir data
 manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
