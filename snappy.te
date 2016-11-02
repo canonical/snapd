@@ -79,12 +79,12 @@ gen_require(` type home_root_t; type user_home_dir_t; ')
 allow snappy_t home_root_t:dir read;
 allow snappy_t user_home_dir_t:dir read;
 
-
-# Allow snapd to read its own homedir data
+# Allow snapd to manage snaps' homedir data
 manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
 manage_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
 manage_lnk_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
 userdom_search_user_home_dirs(snappy_t)
+userdom_user_home_dir_filetrans(snappy_t, snappy_home_t, dir, "snap")
 
 # Allow snapd to read DNS config
 gen_require(` type net_conf_t; ')
