@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -257,6 +258,9 @@ const loginJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
+	if arch.UbuntuArchitecture() == "ppc64el" {
+		c.Skip("ioctl not working on ppc64el")
+	}
 
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
@@ -321,6 +325,10 @@ const buySnapPaymentDeclinedJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
+	if arch.UbuntuArchitecture() == "ppc64el" {
+		c.Skip("ioctl not working on ppc64el")
+	}
+
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
