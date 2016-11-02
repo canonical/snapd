@@ -1,9 +1,14 @@
-snapd (2.16+1) UNRELEASED; urgency=medium
+snapd (2.16-1) UNRELEASED; urgency=medium
 
+  [ Michael Hudson-Doyle ]
   * New upstream release.
   * Import gopkg.in/cheggaaa/pb.v1 rather than github.com/cheggaaa/pb.
   * Switch to unconditional conflict against `snap` (Closes: #826884)
   * Update Vcs-Git and Vcs-Browser to point to alioth. 
+
+  [ Steve Langasek ]
+  * Remove govendor from gbp.conf, and import Ubuntu tarball as our
+    orig.tar.gz (switching our packaging to non-native).
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
 
