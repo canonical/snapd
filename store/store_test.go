@@ -21,6 +21,7 @@ package store
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,7 +56,7 @@ type remoteRepoTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.Writer, int64, progress.Meter) error
+	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
@@ -264,7 +265,7 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
@@ -288,7 +289,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	partialContentStr := "partial content "
 
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("was downloaded"))
@@ -314,7 +315,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
@@ -339,7 +340,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte("I was downloaded"))
@@ -363,7 +364,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	}
@@ -382,7 +383,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, resume int64, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -413,7 +414,7 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	defer mockServer.Close()
 
 	theStore := New(&Config{}, nil)
-	var buf bytes.Buffer
+	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
 	err := download("foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
@@ -432,7 +433,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	defer mockServer.Close()
 
 	theStore := New(&Config{}, nil)
-	var buf bytes.Buffer
+	var buf SillyBuffer
 	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
@@ -450,12 +451,79 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	defer mockServer.Close()
 
 	theStore := New(&Config{}, nil)
-	var buf bytes.Buffer
+	var buf SillyBuffer
 	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
+}
+
+// SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
+// (bytes does not implement an ReadWriteSeeker)
+type SillyBuffer struct {
+	buf [1024]byte
+	pos int64
+	end int64
+}
+
+func NewSillyBufferString(s string) *SillyBuffer {
+	sb := &SillyBuffer{
+		pos: int64(len(s)),
+		end: int64(len(s)),
+	}
+	copy(sb.buf[0:], []byte(s))
+	return sb
+}
+func (sb *SillyBuffer) Read(b []byte) (n int, err error) {
+	if sb.pos >= int64(sb.end) {
+		return 0, io.EOF
+	}
+	n = copy(b, sb.buf[sb.pos:sb.end])
+	sb.pos += int64(n)
+	return n, nil
+}
+func (sb *SillyBuffer) Seek(offset int64, whence int) (int64, error) {
+	if whence != 0 {
+		panic("only io.SeekStart implemented in SillyBuffer")
+	}
+	if offset < 0 || offset > int64(sb.end) {
+		return 0, fmt.Errorf("seek out of bounds: %d", offset)
+	}
+	sb.pos = offset
+	return sb.pos, nil
+}
+func (sb *SillyBuffer) Write(p []byte) (n int, err error) {
+	n = copy(sb.buf[sb.pos:], p)
+	sb.pos += int64(n)
+	if sb.pos > sb.end {
+		sb.end = sb.pos
+	}
+	return n, nil
+}
+func (sb *SillyBuffer) String() string {
+	return string(sb.buf[0:sb.pos])
+}
+
+func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	buf := NewSillyBufferString("some ")
+	// calc the expected hash
+	h := crypto.SHA3_384.New()
+	h.Write([]byte("some data"))
+	sha3 := fmt.Sprintf("%x", h.Sum(nil))
+	err := download("foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil)
+	c.Check(err, IsNil)
+	c.Check(buf.String(), Equals, "some data")
+	c.Check(n, Equals, 1)
 }
 
 type downloadBehaviour []struct {
