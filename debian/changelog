@@ -1,4 +1,4 @@
-snapd (2.16-1) UNRELEASED; urgency=medium
+snapd (2.16-1) unstable; urgency=medium
 
   [ Michael Hudson-Doyle ]
   * New upstream release.
@@ -15,7 +15,7 @@ snapd (2.16-1) UNRELEASED; urgency=medium
   * Bump standards-version, no changes required.
   * Add/fix various lintian overrides.
 
- -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
+ -- Steve Langasek <vorlon@debian.org>  Wed, 02 Nov 2016 12:14:52 +0000
 
 snapd (2.16) xenial; urgency=medium
 
