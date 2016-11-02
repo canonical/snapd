@@ -9,6 +9,7 @@ snapd (2.16-1) UNRELEASED; urgency=medium
   [ Steve Langasek ]
   * Remove govendor from gbp.conf, and import Ubuntu tarball as our
     orig.tar.gz (switching our packaging to non-native).
+  * Add Uploaders.
 
  -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 19 Oct 2016 12:09:56 +1300
 

@@ -2,6 +2,9 @@ Source: snapd
 Section: devel
 Priority: optional
 Maintainer: Steve Langasek <vorlon@debian.org>
+Uploaders: Michael Hudson-Doyle <michael.hudson@ubuntu.com>,
+	Zygmunt Krynicki <me@zygoon.pl>,
+	Luke Faraone <lfaraone@debian.org>
 Build-Depends: bash-completion,
                debhelper (>= 9),
                dh-golang (>=1.7),
