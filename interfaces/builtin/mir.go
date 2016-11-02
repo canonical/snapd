@@ -57,6 +57,7 @@ open
 getsockopt
 recvmsg
 sendmsg
+recvfrom
 `)
 
 var mirConnectedSlotAppArmor = []byte(`
