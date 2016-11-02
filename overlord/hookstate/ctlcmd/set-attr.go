@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -64,10 +65,10 @@ func (s *setAttrCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
-	var attrs map[string]string
+	var attrs map[string]interface{}
 	if err := context.Get("attributes", &attrs); err != nil {
 		if err == state.ErrNoState {
-			attrs = make(map[string]string)
+			attrs = make(map[string]interface{})
 		} else {
 			return err
 		}
@@ -78,7 +79,14 @@ func (s *setAttrCommand) Execute(args []string) error {
 		if len(parts) != 2 {
 			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), attrValue)
 		}
-		attrs[parts[0]] = parts[1]
+
+		var value interface{}
+		err := json.Unmarshal([]byte(parts[1]), &value)
+		if err != nil {
+			// Not valid JSON, save the string as-is
+			value = parts[1]
+		}
+		attrs[parts[0]] = value
 	}
 	s.context().Set("attributes", attrs)
 

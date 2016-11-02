@@ -669,6 +669,7 @@ version: 1
 plugs:
  plug:
   interface: test
+  attr1: value1
  otherplug:
   interface: test2
 `
@@ -679,6 +680,7 @@ version: 1
 slots:
  slot:
   interface: test
+  attr2: value2
 `
 
 // The setup-profiles task will not auto-connect an plug that was previously

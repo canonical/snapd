@@ -5,4 +5,5 @@ slots:
         interface: content
         content: y
         read:
+            - /etc
             - /usr

@@ -62,7 +62,7 @@ func (c *getAttrCommand) Execute(args []string) error {
 	}
 
 	var err error
-	var attributes map[string]string
+	var attributes map[string]interface{}
 	context.Lock()
 	err = context.Get("attributes", &attributes)
 	context.Unlock()
@@ -74,7 +74,7 @@ func (c *getAttrCommand) Execute(args []string) error {
 		return err
 	}
 
-	attrsToPrint := make(map[string]string)
+	attrsToPrint := make(map[string]interface{})
 	for _, key := range c.Positional.Attributes {
 		if value, ok := attributes[key]; ok {
 			attrsToPrint[key] = value

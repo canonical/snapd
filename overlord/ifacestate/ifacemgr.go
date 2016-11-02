@@ -76,8 +76,8 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 	// Combine attributes from plug and slot, store them in connect task.
 	// They will serve as initial attributes for the prepare- hooks.
 	var snapst snapstate.SnapState
-	var attrs map[string]interface{}
 	var err error
+	attrs := make(map[string]interface{})
 
 	if err = snapstate.Get(s, plugSnap, &snapst); err != nil {
 		return nil, err
@@ -88,7 +88,9 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 		return nil, err
 	}
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		attrs = plug.Attrs
+		for k, v := range plug.Attrs {
+			attrs[k] = v
+		}
 	} else {
 		return nil, fmt.Errorf("Snap %q has no plug named %q", plugSnap, plugName)
 	}
