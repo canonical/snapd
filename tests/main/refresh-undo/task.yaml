@@ -28,4 +28,16 @@ execute: |
     fi
     echo "Then v2 is rolled back and v1 is started again"
     systemctl status snap.test-snapd-service.service.service|grep "status=0/SUCCESS"
-    systemctl status snap.test-snapd-service.service.service|grep "service v1"
+    echo "Wait for the service v1 output to appear"
+    retries=0
+    while ! systemctl status snap.test-snapd-service.service.service|grep "service v1"; do
+        # debug output
+        systemctl status snap.test-snapd-service.service.service||true
+        # retry
+        retries=$((retries+1))
+        if [ $retries -gt 20 ]; then
+            echo 'expected "service v1" output did not appear in systemctl status snap.test-snapd-service.service.service'
+            exit 1
+        fi
+        sleep 1
+    done
