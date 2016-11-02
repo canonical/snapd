@@ -5,3 +5,7 @@ snapd: non-standard-toplevel-dir snap/
 # Up for discussion whether we should use this directory on Debian, or
 # patch snap to use some different mountpoint; in the meantime, override.
 snapd: non-standard-dir-in-var snap/
+# snapd is a very special case which needs to tear out its self-managed
+# units on purge, we certainly would not be able to use the Debian
+# abstractions for this
+snapd: maintainer-script-calls-systemctl postrm:9
