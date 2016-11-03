@@ -1,5 +1,15 @@
 summary: Check that systemd units are enabled/disabled and gpio works after rebooting
 
+details: |
+    This test makes sure that the systemd snippet created by the gpio interface
+    is executed after a reboot.
+
+    It modifies the core snap to provide a gpio slot. Also, a mocked gpio node and the
+    required systemfs files (export and unexeport) are created as a bind mount. The test
+    expects that, after a snap declared a gpio plug is installed and connected, after
+    a reboot the systemd service tries to regenerate the gpio device node if it does not
+    find it.
+
 systems: [ubuntu-core-16-64]
 
 environment:
