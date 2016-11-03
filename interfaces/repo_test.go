@@ -1335,7 +1335,7 @@ func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
 }
 
 func snapNamesFor(snapInfoSet map[*snap.Info]bool) []string {
-	snapNames := make([]string, len(snapInfoSet))
+	snapNames := make([]string, 0, len(snapInfoSet))
 	for snap := range snapInfoSet {
 		snapNames = append(snapNames, snap.Name())
 	}
