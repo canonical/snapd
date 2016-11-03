@@ -123,14 +123,8 @@ var ReleaseInfo OS
 
 func init() {
 	ReleaseInfo = readOSRelease()
-	// Assume that we are running on Classic
-	OnClassic = true
-	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
-	// dpkg status file can be used as an indicator for a classic vs all-snap
-	// system.
-	if ReleaseInfo.ID == "ubuntu" {
-		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
-	}
+
+	OnClassic = (releaseInfo.ID != "ubuntu-core")
 }
 
 // MockOnClassic forces the process to appear inside a classic
