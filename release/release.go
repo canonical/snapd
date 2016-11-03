@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -124,7 +122,7 @@ var ReleaseInfo OS
 func init() {
 	ReleaseInfo = readOSRelease()
 
-	OnClassic = (releaseInfo.ID != "ubuntu-core")
+	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 }
 
 // MockOnClassic forces the process to appear inside a classic
