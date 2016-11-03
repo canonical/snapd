@@ -3,7 +3,7 @@ summary: Check that systemd units are enabled/disabled and gpio works after rebo
 systems: [ubuntu-core-16-64]
 
 environment:
-    GPIO_MOCK_DIR: /tmp/gpio-mock
+    GPIO_MOCK_DIR: /home/test/gpio-mock
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -17,8 +17,15 @@ prepare: |
     echo "And a mocked gpio device is in place"
     cat > /home/test/gpio-mock.sh <<-EOF
     #!/bin/sh
-    mkdir -p $GPIO_MOCK_DIR
-    touch $GPIO_MOCK_DIR/gpio100 $GPIO_MOCK_DIR/export $GPIO_MOCK_DIR/unexport
+    if [ ! -d "$GPIO_MOCK_DIR" ]; then
+        # the service has just been created
+        mkdir -p $GPIO_MOCK_DIR
+        touch $GPIO_MOCK_DIR/gpio100 $GPIO_MOCK_DIR/export $GPIO_MOCK_DIR/unexport
+    else
+        # after reboot, remove device node to test export
+        rm $GPIO_MOCK_DIR/gpio100
+        :> $GPIO_MOCK_DIR/export
+    fi
     mount --bind $GPIO_MOCK_DIR /sys/class/gpio
     EOF
     chmod a+x /home/test/gpio-mock.sh
@@ -61,6 +68,10 @@ execute: |
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Unit snap.core.interface.gpio-100.service has finished starting up"
     journalctl -xe --no-pager | grep "$expected"
+
+    if [ "$SPREAD_REBOOT" = "1" ]; then
+        cat $GPIO_MOCK_DIR/export | grep -P "^100$"
+    fi
 
     if [ "$SPREAD_REBOOT" = "0" ]; then
         REBOOT
