@@ -43,7 +43,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
-	attrs :=  make(map[string]interface{})
+	attrs := make(map[string]interface{})
 	attrs["foo"] = "bar"
 	attrs["baz"] = []string{"a", "b"}
 	contextData := map[string]interface{}{"attributes": attrs}
@@ -75,4 +75,3 @@ func (s *getAttrSuite) TestUnknownKey(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
-
