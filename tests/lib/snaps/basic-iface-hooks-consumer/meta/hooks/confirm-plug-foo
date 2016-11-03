@@ -7,7 +7,7 @@ if ! output=$(snapctl get-attr read); then
     exit 1
 fi
 
-expected_output="/etc"
+expected_output='["/etc", "/usr"]'
 if "$output" -ne "$expected_output"; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
