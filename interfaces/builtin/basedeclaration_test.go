@@ -130,7 +130,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":       true,
 		"home":          true,
-		"lxd-client":    true,
 		"lxd-support":   true,
 		"snapd-control": true,
 	}
@@ -180,7 +179,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"content":     true,
 		"home":        true,
-		"lxd":  true,
+		"lxd":         true,
 		"lxd-support": true,
 	}
 
@@ -372,7 +371,7 @@ var (
 		"serial-port":     []string{"core", "gadget"},
 		// snowflakes
 		"docker": nil,
-		"lxd": nil,
+		"lxd":    nil,
 	}
 )
 
