@@ -35,17 +35,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps map[*snap.Info]bool) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
-	for _, affectedSnapName := range affectedSnaps {
+	for affectedSnap := range affectedSnaps {
 		// the snap that triggered the change needs to be skipped
-		if affectedSnapName == affectingSnap {
+		if affectedSnap.Name() == affectingSnap {
 			continue
 		}
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+		if err := snapstate.Get(st, affectedSnap.Name(), &snapst); err != nil {
 			return err
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
@@ -115,6 +115,13 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
+
+	// Now find all snaps affected by any autoconnection to make sure
+	// their security is also setup
+	if err := m.repo.ConnectedSnaps(snapName, affectedSnaps); err != nil {
+		return err
+	}
+
 	if err := setupSnapSecurity(task, snapInfo, devModeAllowed, m.repo); err != nil {
 		return err
 	}
