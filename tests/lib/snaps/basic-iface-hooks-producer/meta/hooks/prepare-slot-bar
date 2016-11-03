@@ -9,7 +9,7 @@ if ! output=$(snapctl get-attr target); then
 fi
 
 expected_output="plugtarget"
-if "$output" -ne "$expected_output"; then
+if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
@@ -25,7 +25,7 @@ if ! output=$(snapctl get-attr target); then
 fi
 
 expected_output="slottarget"
-if "$output" -ne "$expected_output"; then
+if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
