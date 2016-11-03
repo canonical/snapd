@@ -133,6 +133,11 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -165,6 +170,12 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+	// verify initial attributes are present in connect task
+	var attrs map[string]interface{}
+	err = task.Get("attributes", &attrs)
+	c.Assert(err, IsNil)
+	c.Assert(attrs["attr1"], Equals, "value1")
+	c.Assert(attrs["attr2"], Equals, "value2")
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
