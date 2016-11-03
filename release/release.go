@@ -40,8 +40,10 @@ type OS struct {
 func (os *OS) ForceDevMode() bool {
 	switch os.ID {
 	case "neon":
-		fallthrough
+		return false
 	case "ubuntu":
+		return false
+	case "ubuntu-core":
 		return false
 	case "elementary":
 		switch os.VersionID {
