@@ -134,6 +134,8 @@ prepare: |
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
+        # stop and disable autorefresh
+        systemctl disable --now snapd.refresh.timer
         exit 0
     fi
 
