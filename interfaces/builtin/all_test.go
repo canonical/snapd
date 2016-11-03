@@ -46,6 +46,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.MprisInterface{})
 	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, Contains, &builtin.PulseAudioInterface{})
+	c.Check(all, Contains, &builtin.RealsenseInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
 	c.Check(all, Contains, &builtin.FwupdInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
@@ -76,6 +77,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
 	c.Check(all, DeepContains, builtin.NewKernelModuleControlInterface())
 	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
-	c.Check(all, DeepContains, builtin.NewRealsenseInterface())
 	c.Check(all, DeepContains, builtin.NewTimeControlInterface())
 }

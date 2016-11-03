@@ -20,35 +20,69 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const realsenseConnectedPlugAppArmor = `
-# Until we have proper device assignment, allow access to all cameras
-/dev/video[0-9]* rw,
+var realsensePermanentSlotUdev = []byte(`
+# RealSense UVC cameras (R200, F200, SR300 LR200, ZR300)
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0a80", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0a66", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0aa5", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0abf", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0acb", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0ad0", MODE:="0666", GROUP:="plugdev"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="04b4", MODE:="0666", GROUP:="plugdev"
+`)
 
-# Allow detection of cameras. Leaks plugged in USB device info
-/sys/bus/usb/devices/ r,
-/sys/devices/pci**/usb*/**/idVendor r,
-/sys/devices/pci**/usb*/**/idProduct r,
-/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
+type RealsenseInterface struct{}
 
-/sys/devices/pci**/usb*/**/busnum r,
-/sys/devices/pci**/usb*/devnum r,
-/sys/devices/pci**/usb*/**/devnum r,
-/sys/devices/pci**/usb*/**/descriptors r,
-/sys/devices/pci**/usb*/**/modalias r,
-/sys/devices/pci**/usb*/**/bInterfaceNumber r,
+// String returns the same value as Name().
+func (iface *RealsenseInterface) Name() string {
+	return "realsense"
+}
 
-/run/udev/data/c189:[0-9]* r, # USB serial converters
-/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
-`
-
-// NewRealsenseInterface returns a new "realsense" interface.
-func NewRealsenseInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "realsense",
-		connectedPlugAppArmor: realsenseConnectedPlugAppArmor,
-		reservedForOS:         true,
+func (iface *RealsenseInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
+	// NOTE: currently we don't check anything on the slot side.
+	return nil
+}
+
+func (iface *RealsenseInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+	}
+	// NOTE: currently we don't check anything on the plug side.
+	return nil
+}
+
+func (iface *RealsenseInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *RealsenseInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityUDev:
+		return realsensePermanentSlotUdev, nil
+	}
+	return nil, nil
+}
+
+func (iface *RealsenseInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+func (iface *RealsenseInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *RealsenseInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}
+
+func (iface *RealsenseInterface) LegacyAutoConnect() bool {
+	return false
 }

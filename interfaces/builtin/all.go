@@ -40,6 +40,7 @@ var allInterfaces = []interfaces.Interface{
 	&MprisInterface{},
 	&NetworkManagerInterface{},
 	&PppInterface{},
+	&RealsenseInterface{},
 	&SerialPortInterface{},
 	&PulseAudioInterface{},
 	&UDisks2Interface{},
@@ -79,7 +80,6 @@ var allInterfaces = []interfaces.Interface{
 	NewShutdownInterface(),
 	NewTimeControlInterface(),
 	NewLibvirtInterface(),
-	NewRealsenseInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

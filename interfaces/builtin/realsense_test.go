@@ -34,7 +34,7 @@ type RealsenseInterfaceSuite struct {
 }
 
 var _ = Suite(&RealsenseInterfaceSuite{
-	iface: builtin.NewRealsenseInterface(),
+	iface: &builtin.RealsenseInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -58,12 +58,6 @@ func (s *RealsenseInterfaceSuite) TestName(c *C) {
 func (s *RealsenseInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "realsense",
-		Interface: "realsense",
-	}})
-	c.Assert(err, ErrorMatches, "realsense slots are reserved for the operating system snap")
 }
 
 func (s *RealsenseInterfaceSuite) TestSanitizePlug(c *C) {
@@ -79,14 +73,14 @@ func (s *RealsenseInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *RealsenseInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	// permanent slots have a non-nil security snippet for udev
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *RealsenseInterfaceSuite) TestAutoConnect(c *C) {
-	iface := builtin.NewRealsenseInterface()
+	iface := &builtin.RealsenseInterface{}
 	// allow what declarations allowed
 	c.Check(iface.AutoConnect(nil, nil), Equals, true)
 }
