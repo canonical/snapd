@@ -8,15 +8,15 @@ prepare: |
     mkdir -p $SEED_DIR/assertions
     touch $SEED_DIR/seed.yaml
     # pretend to be not classic :)
-    mv /var/lib/dpkg/status /var/lib/dpkg/status.save
-
+    mv /etc/os-release /etc/os-release.save
+    cp $TESTSLIB/os-release.16 /etc/os-release
     echo Copy the needed assertions to /var/lib/snapd/
     cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
     cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
     cp $TESTSLIB/assertions/developer1-pc.model $SEED_DIR/assertions
     cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
 restore: |
-    mv /var/lib/dpkg/status.save /var/lib/dpkg/status
+    mv /etc/os-release.save /etc/os-release
     systemctl start snapd.service
 execute: |
     echo "Start the daemon with an empty state, this will make it import "
