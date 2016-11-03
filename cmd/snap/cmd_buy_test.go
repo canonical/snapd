@@ -257,9 +257,16 @@ const loginJson = `
 }
 `
 
+func archWithBrokenDevPtmx() error {
+	if arch.UbuntuArchitecture() == "ppc64el" || arch.UbuntuArchitecture() == "powerpc" {
+		return fmt.Errorf("/dev/ptmx ioctl not working on %s", arch.UbuntuArchitecture)
+	}
+	return nil
+}
+
 func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
-	if arch.UbuntuArchitecture() == "ppc64el" {
-		c.Skip("ioctl not working on ppc64el")
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
 	}
 
 	mockServer := &buyTestMockSnapServer{
@@ -325,8 +332,8 @@ const buySnapPaymentDeclinedJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
-	if arch.UbuntuArchitecture() == "ppc64el" {
-		c.Skip("ioctl not working on ppc64el")
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
 	}
 
 	mockServer := &buyTestMockSnapServer{
