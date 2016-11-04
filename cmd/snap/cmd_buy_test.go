@@ -258,7 +258,7 @@ const loginJson = `
 `
 
 func archWithBrokenDevPtmx() error {
-	if ubunArch := arch.UbuntuArchitecture(); ubuArch == "ppc64el" || ubuArch == "powerpc" {
+	if ubuArch := arch.UbuntuArchitecture(); ubuArch == "ppc64el" || ubuArch == "powerpc" {
 		return fmt.Errorf("/dev/ptmx ioctl not working on %s", ubuArch)
 	}
 	return nil
