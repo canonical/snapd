@@ -510,7 +510,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			return w.Name(), nil
 		}
 
-		path := filepath.Join(c.MkDir(), "downloaded-file")
+		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
 		err := t.store.Download("foo", path, &testCase.info, nil, nil)
 
 		c.Assert(err, IsNil)
