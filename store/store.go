@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -1069,6 +1070,18 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	if useDeltas() {
+		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+	}
+	if useDeltas() && len(downloadInfo.Deltas) == 1 {
+		err := s.downloadAndApplyDelta(name, targetFn, downloadInfo, pbar, user)
+		if err == nil {
+			return nil
+		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
 		return err
 	}
@@ -1226,6 +1239,43 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 	}
 
 	return targetSnapPath, nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (err error) {
+	deltaInfo := &downloadInfo.Deltas[0]
+	// use /var/tmp here because it is not on a tmpfs
+	workingDir, err := ioutil.TempDir("/var/tmp", "deltas-"+name)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(workingDir)
+
+	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
+	if err != nil {
+		return err
+	}
+
+	bsha3_384, _, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
+	if err != nil {
+		return err
+	}
+	sha3_384 := fmt.Sprintf("%x", bsha3_384)
+	if downloadInfo.Sha3_384 != "" && sha3_384 != downloadInfo.Sha3_384 {
+		return fmt.Errorf("sha3-384 mismatch after patching %s: got %s but expected %s", name, sha3_384, downloadInfo.Sha3_384)
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
+	if err := os.Rename(snapPath, targetFn); err != nil {
+		return osutil.CopyFile(snapPath, targetFn, 0)
+	}
+	return nil
 }
 
 type assertionSvcError struct {
