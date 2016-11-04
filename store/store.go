@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -174,6 +175,20 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+}
+
+func shouldRetryHttpResponse(resp *http.Response, attempt *retry.Attempt) bool {
+	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
+}
+
+func shouldRetryError(err error, attempt *retry.Attempt) bool {
+	if !attempt.More() {
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout()
+	}
+	return err == io.ErrUnexpectedEOF
 }
 
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(30*time.Second,
@@ -604,73 +619,6 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	}
 
 	return resp, err
-}
-
-type decodeFunc func(resp *http.Response) (error, bool)
-
-func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, retryStrategy retry.Strategy, decode decodeFunc) error {
-	for a := retry.Start(retryStrategy, nil); a.Next(); {
-		req, err := s.newRequest(reqOptions, user)
-		if err != nil {
-			return err
-		}
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-
-		if resp.StatusCode == 500 || resp.StatusCode == 503 {
-			if a.More() {
-				resp.Body.Close()
-				continue
-			}
-		}
-
-		wwwAuth := resp.Header.Get("WWW-Authenticate")
-		if resp.StatusCode == 401 {
-			refreshed := false
-			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-				// refresh user
-				err = s.refreshUser(user)
-				if err != nil {
-					return err
-				}
-				refreshed = true
-			}
-			if strings.Contains(wwwAuth, "refresh_device_session=1") {
-				// refresh device session
-				if s.authContext == nil {
-					return fmt.Errorf("internal error: no authContext")
-				}
-				device, err := s.authContext.Device()
-				if err != nil {
-					return err
-				}
-
-				err = s.refreshDeviceSession(device)
-				if err != nil {
-					return err
-				}
-				refreshed = true
-			}
-			if refreshed {
-				// close previous response and retry
-				// TODO: make this non-recursive or add a recursion limit
-				resp.Body.Close()
-				return s.retryRequest(client, reqOptions, user, retryStrategy, decode)
-			}
-		}
-
-		err, shouldRetry := decode(resp)
-		if shouldRetry && a.More() {
-			resp.Body.Close()
-			continue
-		}
-
-		return err
-	}
-	panic("unreachable")
 }
 
 // build a new http.Request with headers for the store
@@ -1525,38 +1473,52 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	err := s.retryRequest(s.client, reqOptions, user, defaultRetryStrategy, func(resp *http.Response) (error, bool) {
+
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(err, attempt) {
+				continue
+			}
+			return err
+		}
+
+		if shouldRetryHttpResponse(resp, attempt) {
+			resp.Body.Close()
+			continue
+		}
+
 		switch resp.StatusCode {
 		case http.StatusOK:
 			var customer storeCustomer
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&customer); err != nil {
-				return err, true
+				return err
 			}
 			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted, false
+				return ErrTOSNotAccepted
 			}
 			if !customer.HasPaymentMethod {
-				return ErrNoPaymentMethods, false
+				return ErrNoPaymentMethods
 			}
-			return nil, false
+			return nil
 		case http.StatusNotFound:
 			// Likely because user has no account registered on the pay server
-			return fmt.Errorf("cannot get customer details: server says no account exists"), false
+			return fmt.Errorf("cannot get customer details: server says no account exists")
 		case http.StatusUnauthorized:
-			return ErrInvalidCredentials, false
+			return ErrInvalidCredentials
 		default:
 			var errors storeErrors
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&errors); err != nil {
-				return err, false
+				return err
 			}
 			if len(errors.Errors) == 0 {
-				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode), false
+				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 			}
-			return &errors, false
+			return &errors
 		}
-	})
+	}
 
-	return err
+	return nil
 }
