@@ -39,7 +39,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rogpeppe/retry"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -49,6 +48,8 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+
+	"gopkg.in/retry.v1"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -175,14 +176,12 @@ type Store struct {
 	suggestedCurrency string
 }
 
-func defaultRetryStrategy() retry.Strategy {
-	return retry.LimitCount(6, retry.LimitTime(30*time.Second,
-		retry.Exponential{
-			Initial: 10 * time.Millisecond,
-			Factor:  1.67,
-		},
-	))
-}
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(30*time.Second,
+	retry.Exponential{
+		Initial: 10 * time.Millisecond,
+		Factor:  1.67,
+	},
+))
 
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
@@ -607,7 +606,6 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	return resp, err
 }
 
-
 type decodeFunc func(resp *http.Response) (error, bool)
 
 func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, retryStrategy retry.Strategy, decode decodeFunc) error {
@@ -665,11 +663,9 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		}
 
 		err, shouldRetry := decode(resp)
-		if shouldRetry {
-			if a.More() {
-				resp.Body.Close()
-				continue
-			}
+		if shouldRetry && a.More() {
+			resp.Body.Close()
+			continue
 		}
 
 		return err
@@ -1529,7 +1525,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	err := s.retryRequest(s.client, reqOptions, user, defaultRetryStrategy(), func (resp *http.Response) (error, bool) {
+	err := s.retryRequest(s.client, reqOptions, user, defaultRetryStrategy, func(resp *http.Response) (error, bool) {
 		switch resp.StatusCode {
 		case http.StatusOK:
 			var customer storeCustomer
