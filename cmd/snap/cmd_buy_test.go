@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -256,7 +257,17 @@ const loginJson = `
 }
 `
 
+func archWithBrokenDevPtmx() error {
+	if arch.UbuntuArchitecture() == "ppc64el" || arch.UbuntuArchitecture() == "powerpc" {
+		return fmt.Errorf("/dev/ptmx ioctl not working on %s", arch.UbuntuArchitecture)
+	}
+	return nil
+}
+
 func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
+	}
 
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
@@ -321,6 +332,10 @@ const buySnapPaymentDeclinedJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
+	}
+
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{

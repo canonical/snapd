@@ -86,6 +86,7 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 var (
 	CheckSnap            = checkSnap
 	CanRemove            = canRemove
+	CanDisable           = canDisable
 	CachedStore          = cachedStore
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )

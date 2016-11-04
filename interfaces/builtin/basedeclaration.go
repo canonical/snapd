@@ -192,6 +192,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  dcdbas-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   docker:
     allow-installation: false
     deny-connection: true

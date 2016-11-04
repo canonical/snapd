@@ -39,13 +39,14 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		return nil, err
 	}
 
+	targetRevision := ss.Revision()
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
+		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
 	}
 
 	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.LastIndex(ss.Revision()) >= 0
+	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -122,6 +123,10 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
+			if si.Revision == targetRevision {
+				// but don't discard this one; its' the thing we're switching to!
+				continue
+			}
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
@@ -133,7 +138,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
-			if si.Revision == ss.Revision() {
+			if si.Revision == targetRevision {
 				// we do *not* want to removeInactiveRevision of this one
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]
@@ -319,8 +324,8 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
-		if snapst.TryMode || snapst.DevMode {
-			// no multi-refresh for trymode nor devmode
+		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+			// no auto-refresh for trymode nor devmode
 			continue
 		}
 
@@ -348,16 +353,21 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		stateByID[snapInfo.SnapID] = snapst
 
 		// get confinement preference from the snapstate
-		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
 			Channel: snapst.Channel,
 			DevMode: snapst.DevModeAllowed(),
-			Block:   snapst.Block(),
 
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
-		})
+		}
+
+		if len(names) == 0 {
+			candidateInfo.Block = snapst.Block()
+		}
+
+		candidatesInfo = append(candidatesInfo, candidateInfo)
 	}
 
 	theStore := Store(st)
@@ -405,10 +415,6 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
-		// XXX: this check goes away when update-to-local is done
-		if err := checkRevisionIsNew(update.Name(), snapst, update.Revision); err != nil {
-			continue
-		}
 
 		ss := &SnapSetup{
 			Channel:      snapst.Channel,
@@ -427,6 +433,8 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 			}
 			return nil, nil, err
 		}
+		ts.JoinLane(st.NewLane())
+
 		updated = append(updated, update.Name())
 		tasksets = append(tasksets, ts)
 	}
@@ -554,6 +562,14 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already disabled", name)
 	}
 
+	info, err := Info(s, name, snapst.Current)
+	if err != nil {
+		return nil, err
+	}
+	if !canDisable(info) {
+		return nil, fmt.Errorf("snap %q cannot be disabled", name)
+	}
+
 	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
@@ -606,6 +622,17 @@ func canRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	return true
+}
+
+// canDisable verifies that a snap can be deactivated.
+func canDisable(s *snap.Info) bool {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+		if importantSnapType == s.Type {
+			return false
+		}
+	}
 
 	return true
 }
