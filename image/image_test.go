@@ -145,8 +145,8 @@ func (s *imageSuite) Snap(name, channel string, devmode bool, revision snap.Revi
 	return s.storeSnapInfo[name], nil
 }
 
-func (s *imageSuite) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
-	return s.downloadedSnaps[name], nil
+func (s *imageSuite) Download(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	return osutil.CopyFile(s.downloadedSnaps[name], targetFn, 0)
 }
 
 func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
