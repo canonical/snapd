@@ -15,13 +15,14 @@ environment:
     SUDO_USER: ""
     SUDO_UID: ""
     TRUST_TEST_KEYS: "true"
-    MANAGED_DEVICE: "false"
 
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         halt-timeout: 2h
         systems:
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -31,13 +32,11 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-            # FIXME restore of ubuntu-core does not properly reset
-            # boot variables and key snaps to their pristine state.
-            - ubuntu-core-16-64-fixme:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
     qemu:
         systems:
+            - ubuntu-14.04-64:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -56,7 +55,6 @@ backends:
                 FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
-            echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-spread-users
             ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
@@ -69,7 +67,6 @@ backends:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
-            MANAGED_DEVICE: "true"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
@@ -91,25 +88,16 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --rotate
+    journalctl --rotate || true
     sleep .1
-    journalctl --vacuum-time=1ms
-    dmesg -c > /dev/null
+    journalctl --vacuum-time=1ms || true
 
 debug-each: |
     journalctl -u snapd
-    dmesg | grep DENIED
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-
-    # check that we are not updating
-    . "$TESTSLIB/boot.sh"
-    if [ $(bootenv snap_mode) = "try" ]; then
-        echo "Ongoing reboot upgrade process, please try again when finished"
-        exit 1
-    fi
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
@@ -130,7 +118,7 @@ prepare: |
         if [ ! -f $GOPATH/bin/snapbuild ]; then
             mkdir -p $GOPATH/bin
             snap install --devmode --edge classic
-            classic "sudo apt update && apt install -y git golang-go build-essential"
+            classic "sudo apt update && apt install -y git golang-go"
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
@@ -141,16 +129,25 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
+    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
+         apt-get install -y software-properties-common
+         add-apt-repository ppa:thomas-voss/trusty
+         apt-get update
+         apt-get install -y --install-recommends linux-generic-lts-xenial
+         apt-get install -y cgroup-lite apparmor init-system-helpers libapparmor1 seccomp libseccomp2 sudo systemd util-linux
+         # TODO(tvoss): remove once we have found an appropriate
+         # place to ensure that / is mounted with the correct
+         # options.
+         mount --make-rshared /
+         # make sure that go is available in the path on trusty.
+         export PATH=/usr/lib/go-1.6/bin:${PATH}
+    fi
+
     apt-get purge -y snapd || true
     apt-get update
     # utilities
-    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
+    apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
 
-    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
-    # in trusty
-    add-apt-repository --update ppa:snappy-dev/image
-    # this should not be needed but apparently it is :/
-    apt-get update
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
@@ -161,9 +158,6 @@ prepare: |
     # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
     #        hits xenial-updates
     apt-get install -y snap-confine
-
-    # and remove the image PPA again
-    add-apt-repository --remove ppa:snappy-dev/image
 
     # increment version so upgrade can work
     dch -i "testing build"
@@ -195,13 +189,11 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
-    # Build fakedevicesvc.
-    go get ./tests/lib/fakedevicesvc
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
+
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -219,7 +211,6 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme]
         restore:
             apt-get purge -y snapd || true
         restore-each: |

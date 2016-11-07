@@ -13,7 +13,7 @@ case "$1" in
         fi
         # start required services
         if [ -d /run/systemd/system ]; then
-            systemctl enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
+            systemctl -f enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
             systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service
         fi
 esac

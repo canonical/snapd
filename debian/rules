@@ -49,7 +49,7 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 endif
 
 %:
-	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
+	dh $@ --buildsystem=golang --with=golang --fail-missing --builddirectory=_build
 
 override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
@@ -95,14 +95,13 @@ override_dh_install:
 	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
 	mkdir -p debian/snapd/etc
 	cp -R etc/X11 debian/snapd/etc
-	# we conditionally install snapd's systemd units
+	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/*.target debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
