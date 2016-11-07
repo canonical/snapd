@@ -180,7 +180,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"content":     true,
 		"home":        true,
-		"lxd-client":  true,
+		"lxd":  true,
 		"lxd-support": true,
 	}
 
@@ -359,7 +359,6 @@ var (
 		// other
 		"bool-file":       []string{"core", "gadget"},
 		"browser-support": []string{"core"},
-		"lxd-client":      []string{"core"},
 		"content":         []string{"app", "gadget"},
 		"docker-support":  []string{"core"},
 		"gpio":            []string{"core", "gadget"},
@@ -373,6 +372,7 @@ var (
 		"serial-port":     []string{"core", "gadget"},
 		// snowflakes
 		"docker": nil,
+		"lxd": nil,
 	}
 )
 
@@ -469,6 +469,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"fwupd":            true,
 		"location-control": true,
 		"location-observe": true,
+		"lxd":              true,
 		"mir":              true,
 		"modem-manager":    true,
 		"udisks2":          true,

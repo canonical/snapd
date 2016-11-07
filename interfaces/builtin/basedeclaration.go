@@ -272,10 +272,10 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  lxd-client:
-    allow-installation:
-      slot-snap-type:
-        - core
+  lxd:
+    allow-installation: false
+    deny-connection: true
+    deny-auto-connection: true
   lxd-support:
     allow-installation:
       slot-snap-type:

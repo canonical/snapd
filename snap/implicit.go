@@ -37,7 +37,6 @@ var implicitSlots = []string{
 	"hardware-observe",
 	"locale-control",
 	"log-observe",
-	"lxd-client",
 	"lxd-support",
 	"mount-observe",
 	"network",
