@@ -171,7 +171,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		}
 		var udevSnippet bytes.Buffer
 		for appName := range plug.Apps {
-			tag := udevTagString(plug.Snap.Name(), appName)
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			udevSnippet.Write(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil

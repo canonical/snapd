@@ -89,7 +89,7 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 // @param snapName is the name of the snap
 // @param appName is the name of the application
 // @return string "snap_<snap name>_<app name>"
-func udevTagString(snapName string, appName string) string {
+func udevSnapSecurityName(snapName string, appName string) string {
 	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
 }
 
