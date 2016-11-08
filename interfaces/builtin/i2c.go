@@ -131,7 +131,7 @@ func udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]
 	var tagSnippet bytes.Buffer
 	const udevRule string = `KERNEL="%s", TAG+="%s"`
 	for appName := range apps {
-		tag := udevSecurityTagSnippet(snapName, appName)
+		tag := udevSnapSecurityName(snapName, appName)
 		tagSnippet.WriteString(fmt.Sprintf(udevRule, deviceNode, tag))
 		tagSnippet.WriteString("\n")
 	}
