@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -42,8 +40,10 @@ type OS struct {
 func (os *OS) ForceDevMode() bool {
 	switch os.ID {
 	case "neon":
-		fallthrough
+		return false
 	case "ubuntu":
+		return false
+	case "ubuntu-core":
 		return false
 	case "elementary":
 		switch os.VersionID {
@@ -123,14 +123,8 @@ var ReleaseInfo OS
 
 func init() {
 	ReleaseInfo = readOSRelease()
-	// Assume that we are running on Classic
-	OnClassic = true
-	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
-	// dpkg status file can be used as an indicator for a classic vs all-snap
-	// system.
-	if ReleaseInfo.ID == "ubuntu" {
-		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
-	}
+
+	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 }
 
 // MockOnClassic forces the process to appear inside a classic
