@@ -387,6 +387,22 @@ func (t *Task) HaltTasks() []*Task {
 	return t.state.tasksIn(t.haltTasks)
 }
 
+// Lanes returns the lanes the task is in.
+func (t *Task) Lanes() []int {
+	t.state.reading()
+	if len(t.lanes) == 0 {
+		return []int{0}
+	}
+	return t.lanes
+}
+
+// JoinLane registers the task in the provided lane. Tasks in different lanes
+// abort independently on errors. See Change.AbortLane for details.
+func (t *Task) JoinLane(lane int) {
+	t.state.writing()
+	t.lanes = append(t.lanes, lane)
+}
+
 // At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is suppressed.
 func (t *Task) At(when time.Time) {
 	t.state.writing()
