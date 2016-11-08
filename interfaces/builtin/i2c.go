@@ -20,8 +20,10 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -129,7 +131,7 @@ func udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]
 	var tagSnippet bytes.Buffer
 	const udevRule string = `KERNEL="%s", TAG+="%s"`
 	for appName := range apps {
-		tag := udevTagString(snapName, appName)
+		tag := udevSecurityTagSnippet(snapName, appName)
 		tagSnippet.WriteString(fmt.Sprintf(udevRule, deviceNode, tag))
 		tagSnippet.WriteString("\n")
 	}
