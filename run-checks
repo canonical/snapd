@@ -104,7 +104,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking spelling errors
     go get -u github.com/client9/misspell/cmd/misspell
     for file in $(ls . | grep -v 'vendor\|po'); do
-        $GOBIN/misspell -error -i auther $file
+        ${GOBIN:-$GOPATH/bin}/misspell -error -i auther $file
     done
 fi
 
