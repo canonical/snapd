@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	"strings"
 )
 
 type I2cInterfaceSuite struct {
@@ -203,12 +202,4 @@ func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *I2cInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
-
-func (s *I2cInterfaceSuite) TestUdevSecurityTagSnippet(c *C) {
-	expectedSnippet := []byte(`KERNEL="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"
-`)
-	snippet := s.iface.udevSecurityTagSnippet(strings.TrimPrefix(s.testUdev1.slot.Attrs["path"].(string), "/dev/"), s.testPlugPort1.Snap.Name(), s.testPlugPort1.Apps)
-	c.Assert(snippet, DeepEquals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, snippet))
-
 }
