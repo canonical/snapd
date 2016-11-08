@@ -485,6 +485,38 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	noconnect := map[string]bool{
+		"modem-manager":   true,
+		"network-manager": true,
+		"pulseaudio":      true,
+	}
+
+	for _, onClassic := range []bool{true, false} {
+		release.OnClassic = onClassic
+		for _, iface := range all {
+			if !noconnect[iface.Name()] {
+				continue
+			}
+			expected := onClassic
+			comm := Commentf(iface.Name())
+
+			// check base declaration
+			cand := s.connectCand(c, iface.Name(), "", "")
+			err := cand.Check()
+
+			if expected {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, NotNil, comm)
+			}
+		}
+	}
+}
 func (s *baseDeclSuite) TestSanity(c *C) {
 	all := builtin.Interfaces()
 
