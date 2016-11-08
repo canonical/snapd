@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/snap"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -100,8 +99,15 @@ func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 
 	case interfaces.SecurityUDev:
+		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"
-		return udevSecurityTagSnippet(strings.TrimPrefix(path, pathPrefix), plug.Snap.Name(), plug.Apps), nil
+		const udevRule string = `KERNEL="%s", TAG+="%s"`
+		for appName := range plug.Apps {
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+			tagSnippet.WriteString("\n")
+		}
+		return tagSnippet.Bytes(), nil
 	}
 	return nil, nil
 }
@@ -123,17 +129,4 @@ func (iface *I2cInterface) LegacyAutoConnect() bool {
 func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-// Function to support creation of udev TAG snippet for all the apps bound
-// to a given slot.
-func (iface *I2cInterface) udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]*snap.AppInfo) []byte {
-	var tagSnippet bytes.Buffer
-	const udevRule string = `KERNEL="%s", TAG+="%s"`
-	for appName := range apps {
-		tag := udevSnapSecurityName(snapName, appName)
-		tagSnippet.WriteString(fmt.Sprintf(udevRule, deviceNode, tag))
-		tagSnippet.WriteString("\n")
-	}
-	return tagSnippet.Bytes()
 }
