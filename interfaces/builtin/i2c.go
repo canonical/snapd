@@ -127,7 +127,7 @@ func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 
 // Function to support creation of udev TAG snippet for all the apps bound
 // to a given slot.
-func udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]*snap.AppInfo) []byte {
+func (iface *I2cInterface) udevSecurityTagSnippet(deviceNode string, snapName string, apps map[string]*snap.AppInfo) []byte {
 	var tagSnippet bytes.Buffer
 	const udevRule string = `KERNEL="%s", TAG+="%s"`
 	for appName := range apps {
