@@ -26,14 +26,15 @@ import (
 )
 
 const lxdConnectedPlugAppArmor = `
-# Description: Can access commands and socket from the 'lxd' snap.
+# Description: allow access to the LXD daemon socket. This gives privileged
+# access to the system via LXD's socket API.
+
 /var/snap/lxd/common/lxd/unix.socket rw,
 `
 
 const lxdConnectedPlugSecComp = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
-# Usage: reserved
 
 shutdown
 `

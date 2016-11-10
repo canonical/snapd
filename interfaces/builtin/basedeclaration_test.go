@@ -179,7 +179,6 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"content":     true,
 		"home":        true,
-		"lxd":         true,
 		"lxd-support": true,
 	}
 
@@ -433,6 +432,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err := ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+
+	// test lxd specially
+	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {

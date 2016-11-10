@@ -75,12 +75,21 @@ func (s *LxdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *LxdInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
+func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
+}
+
+func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Check(string(snippet), testutil.Contains, "shutdown\n")
 }
 
 func (s *LxdInterfaceSuite) TestLegacyAutoConnect(c *C) {
@@ -88,5 +97,6 @@ func (s *LxdInterfaceSuite) TestLegacyAutoConnect(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
+	// allow what declarations allowed
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
