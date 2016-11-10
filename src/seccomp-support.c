@@ -536,14 +536,6 @@ void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 	debug("host arch (kernel) is '%d'", host_arch);
 	debug("native arch (userspace) is '%d'", native_arch);
 
-	// remove the SCMP_ARCH_NATIVE and add the native_arch. We do this so
-	// we can compare native_arch with host_arch below (since
-	// SCMP_ARCH_NATIVE != seccomp_arch_native())
-	if (seccomp_arch_remove(ctx, SCMP_ARCH_NATIVE) < 0)
-		die("seccomp_arch_remove(..., SCMP_ARCH_NATIVE) failed");
-	if (seccomp_arch_add(ctx, native_arch) < 0)
-		die("seccomp_arch_add(..., native_arch) failed");
-
 	// For architectures that support a compat architecure, when the
 	// kernel and userspace match, add the compat arch, otherwise add
 	// the kernel arch to support 64bit kernels with 32bit userspace.
