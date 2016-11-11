@@ -2680,6 +2680,23 @@ var readyToBuyTests = []struct {
 		},
 	},
 	{
+		// A user account that has no payment method and has not accepted the TOS
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-10-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": false,
+  "has_payment_method": false
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "no payment methods")
+		},
+	},
+	{
 		// No user account exists
 		Input: func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusNotFound)
