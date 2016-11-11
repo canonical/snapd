@@ -524,6 +524,8 @@ uint32_t get_hostarch(void)
 	else if (strncmp(uts.machine, "s390x", 5) == 0)
 		return SCMP_ARCH_S390X;
 
+	// Just return the seccomp userspace native arch if we can't detect the
+	// kernel host arch.
 	return seccomp_arch_native();
 }
 
@@ -538,7 +540,8 @@ void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 
 	// For architectures that support a compat architecure, when the
 	// kernel and userspace match, add the compat arch, otherwise add
-	// the kernel arch to support 64bit kernels with 32bit userspace.
+	// the kernel arch to support the kerne's arch (eg, 64bit kernels with
+	// 32bit userspace).
 	if (host_arch == native_arch) {
 		switch (host_arch) {
 		case SCMP_ARCH_X86_64:
