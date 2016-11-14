@@ -305,28 +305,28 @@ dbus (send)
 
 dbus (send)
     bus=session
-    path=/StatusNotifierWatcher
+    path=/{StatusNotifierWatcher,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierWatcher
     member=RegisterStatusNotifierItem
-    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (send)
     bus=session
-    path=/StatusNotifierItem
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
     bus=session
-    path=/StatusNotifierItem/menu
+    path=/{StatusNotifierItem/menu,org/ayatana/NotificationItem/*/Menu}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/StatusNotifierItem{,/menu}
+    path=/{StatusNotifierItem,StatusNotifierItem/menu,org/ayatana/NotificationItem/**}
     interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
     member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
@@ -344,6 +344,13 @@ dbus (receive)
     interface=org.freedesktop.Notifications
     member=NotificationClosed
     peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/ayatana/NotificationItem/*
+    interface=org.kde.StatusNotifierItem
+    member=XAyatanaNew*
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 # unity launcher
 dbus (send)
