@@ -1,0 +1,7 @@
+[Unit]
+Description=Remount /snap with shared namespaces
+Before=local-fs.target
+
+[Service]
+ExecStart=/bin/mount -o bind,make-rshared /snap /snap
+ExecStop=/bin/umount -l /snap

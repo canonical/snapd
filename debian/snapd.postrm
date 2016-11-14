@@ -43,7 +43,7 @@ if [ "$1" = "purge" ]; then
             # opportunistic remove (may fail if there are still revisions left
             for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/snap" "/var/snap"; do
                 if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty $d
+                    rmdir --ignore-fail-on-non-empty $d || true
                 fi
             done
         fi

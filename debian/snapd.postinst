@@ -14,6 +14,6 @@ case "$1" in
         # start required services
         if [ -d /run/systemd/system ]; then
             systemctl -f enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
-            systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service
+            systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service snapd-mount.service
         fi
 esac
