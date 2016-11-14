@@ -1,3 +1,13 @@
+snapd (2.17.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1637215:
+    - release: os-release on core has changed
+    - tests: /dev/ptmx does not work on powerpc, skip here
+    - docs: moved to github.com/snapcore/snapd/wiki (#2258)
+    - debian: golang is not installable on powerpc, use golang-any
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Nov 2016 18:13:10 +0200
+
 snapd (2.17) xenial; urgency=medium
 
   * New upstream release, LP: #1637215:
