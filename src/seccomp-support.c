@@ -540,7 +540,7 @@ void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 
 	// For architectures that support a compat architecure, when the
 	// kernel and userspace match, add the compat arch, otherwise add
-	// the kernel arch to support the kerne's arch (eg, 64bit kernels with
+	// the kernel arch to support the kernel's arch (eg, 64bit kernels with
 	// 32bit userspace).
 	if (host_arch == native_arch) {
 		switch (host_arch) {
