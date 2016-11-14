@@ -354,6 +354,7 @@ var (
 		"gpio":             {"core", "gadget"},
 		"hidraw":           {"core", "gadget"},
 		"i2c":              {"core", "gadget"},
+                "iio":              {"core", "gadget"},
 		"location-control": {"app"},
 		"location-observe": {"app"},
 		"lxd-support":      {"core"},
