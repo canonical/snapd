@@ -266,6 +266,12 @@ slots:
         - gadget
         - core
     deny-auto-connection: true
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
