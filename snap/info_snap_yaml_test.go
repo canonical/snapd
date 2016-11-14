@@ -1390,7 +1390,7 @@ apps:
 }
 
 // classic confinement
-func (s *YamlSuite ) TestClassicConfinement(c *C) {
+func (s *YamlSuite) TestClassicConfinement(c *C) {
 	y := []byte(`
 name: foo
 confinement: classic
