@@ -61,6 +61,7 @@ var implicitSlots = []string{
 }
 
 var implicitClassicSlots = []string{
+	"avahi-observe",
 	"browser-support",
 	"cups-control",
 	"gsettings",
