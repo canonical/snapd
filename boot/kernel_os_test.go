@@ -204,3 +204,22 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
 }
+
+func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := &snap.Info{}
+	info.Type = snap.TypeKernel
+	info.RealName = "krnl"
+	info.Revision = snap.R(40)
+
+	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
+
+	err := boot.SetNextBoot(info)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snap_kernel": "krnl_40.snap",
+	})
+}

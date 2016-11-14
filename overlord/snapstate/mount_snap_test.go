@@ -58,7 +58,7 @@ func (s *mountSnapSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func (s *mountSnapSuite) TestDoMountSnapRemovesSnaps(c *C) {
+func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
@@ -80,7 +80,7 @@ func (s *mountSnapSuite) TestDoMountSnapRemovesSnaps(c *C) {
 	s.snapmgr.Ensure()
 	s.snapmgr.Wait()
 
-	c.Assert(osutil.FileExists(testSnap), Equals, false)
+	c.Assert(osutil.FileExists(testSnap), Equals, true)
 }
 
 func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {

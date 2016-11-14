@@ -75,8 +75,17 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 		return nil
 	}
 
-	// FIXME: cp.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, targetPath)
+	// try to (hard)link the file, but go on to trying to copy it
+	// if it fails for whatever reason
+	//
+	// link(2) returns EPERM on filesystems that don't support
+	// hard links (like vfat), so checking the error here doesn't
+	// make sense vs just trying to copy it.
+	if err := os.Link(s.path, targetPath); err == nil {
+		return nil
+	}
+
+	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
 var runCommandWithOutput = func(args ...string) ([]byte, error) {

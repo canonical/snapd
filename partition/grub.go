@@ -63,28 +63,41 @@ func (g *grub) envFile() string {
 	return filepath.Join(g.Dir(), "grubenv")
 }
 
-func (g *grub) GetBootVar(name string) (string, error) {
+func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
+	out := map[string]string{}
+
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
 	output, err := runCommand(grubEnvCmd, g.envFile(), "list")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadString(output); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return cfg.Get("", name)
+	for _, name := range names {
+		v, err := cfg.Get("", name)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = v
+	}
+
+	return out, nil
 }
 
-func (g *grub) SetBootVar(name, value string) error {
+func (g *grub) SetBootVars(values map[string]string) error {
 	// note that strings are not quoted since because
-	// RunCommand() does not use a shell and thus adding quotes
+	// runCommand does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
-	arg := fmt.Sprintf("%s=%s", name, value)
-	_, err := runCommand(grubEnvCmd, g.envFile(), "set", arg)
+	args := []string{grubEnvCmd, g.envFile(), "set"}
+	for k, v := range values {
+		args = append(args, fmt.Sprintf("%s=%s", k, v))
+	}
+	_, err := runCommand(args...)
 	return err
 }

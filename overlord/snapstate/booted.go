@@ -64,19 +64,13 @@ func UpdateBootRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	bv := "snap_kernel"
-	kernelSnap, err := bootloader.GetBootVar(bv)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-	bv = "snap_core"
-	osSnap, err := bootloader.GetBootVar(bv)
+	m, err := bootloader.GetBootVars("snap_kernel", "snap_core")
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	var tsAll []*state.TaskSet
-	for _, snapNameAndRevno := range []string{kernelSnap, osSnap} {
+	for _, snapNameAndRevno := range []string{m["snap_kernel"], m["snap_core"]} {
 		name, rev, err := nameAndRevnoFromSnap(snapNameAndRevno)
 		if err != nil {
 			logger.Noticef("cannot parse %q: %s", snapNameAndRevno, err)
@@ -90,7 +84,7 @@ func UpdateBootRevisions(st *state.State) error {
 		if rev != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, name, rev, Flags(0))
+			ts, err := RevertToRevision(st, name, rev, Flags{})
 			if err != nil {
 				return err
 			}

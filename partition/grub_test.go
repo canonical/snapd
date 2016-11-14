@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 
@@ -74,9 +75,10 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommand = mockGrubEditenvList
 
 	g := newGrub()
-	v, err := g.GetBootVar(bootmodeVar)
+	v, err := g.GetBootVars(bootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "regular")
+	c.Check(v, HasLen, 1)
+	c.Check(v[bootmodeVar], Equals, "regular")
 }
 
 func (s *PartitionTestSuite) TestSetBootVer(c *C) {
@@ -88,9 +90,17 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 	}
 
 	g := newGrub()
-	err := g.SetBootVar("key", "value")
-	c.Assert(err, IsNil)
-	c.Assert(cmds, DeepEquals, [][]string{
-		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value"},
+	err := g.SetBootVars(map[string]string{
+		"k1": "v1",
+		"k2": "v2",
 	})
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 1)
+	c.Check(cmds[0][0:3], DeepEquals, []string{
+		"/usr/bin/grub-editenv", g.(*grub).envFile(), "set",
+	})
+	// need to sort, its coming from a slice
+	kwargs := cmds[0][3:]
+	sort.Strings(kwargs)
+	c.Check(kwargs, DeepEquals, []string{"k1=v1", "k2=v2"})
 }

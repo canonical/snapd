@@ -68,6 +68,16 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
+// MountFile returns the path where the snap file that is mounted is installed.
+func MountFile(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
+}
+
+// ScopedSecurityTag returns the snap-specific, scope specific, security tag.
+func ScopedSecurityTag(snapName, scopeName, suffix string) string {
+	return fmt.Sprintf("snap.%s.%s.%s", snapName, scopeName, suffix)
+}
+
 // SecurityTag returns the snap-specific security tag.
 func SecurityTag(snapName string) string {
 	return fmt.Sprintf("snap.%s", snapName)
@@ -80,13 +90,13 @@ func AppSecurityTag(snapName, appName string) string {
 
 // HookSecurityTag returns the hook-specific security tag.
 func HookSecurityTag(snapName, hookName string) string {
-	return fmt.Sprintf("%s.hook.%s", SecurityTag(snapName), hookName)
+	return ScopedSecurityTag(snapName, "hook", hookName)
 }
 
 // NoneSecurityTag returns the security tag for interfaces that
 // are not associated to an app or hook in the snap.
 func NoneSecurityTag(snapName, uniqueName string) string {
-	return fmt.Sprintf("%s.none.%s", SecurityTag(snapName), uniqueName)
+	return ScopedSecurityTag(snapName, "none", uniqueName)
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -182,7 +192,7 @@ func (s *Info) MountDir() string {
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Revision))
+	return MountFile(s.Name(), s.Revision)
 }
 
 // HooksDir returns the directory containing the snap's hooks.
