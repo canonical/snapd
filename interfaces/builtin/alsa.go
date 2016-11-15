@@ -26,6 +26,8 @@ const alsaConnectedPlugAppArmor = `
 
 /dev/snd/  r,
 /dev/snd/* rw,
+
+/run/udev/data/c116:[0-9]* r, # alsa
 `
 
 func NewAlsaInterface() interfaces.Interface {

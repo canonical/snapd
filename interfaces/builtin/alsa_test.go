@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type AlsaInterfaceSuite struct {
@@ -83,6 +84,7 @@ func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "/dev/snd/* rw,")
 }
 
 func (s *AlsaInterfaceSuite) TestLegacyAutoConnect(c *C) {
