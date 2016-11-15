@@ -60,7 +60,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 	return nil
 }
 
-func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
@@ -74,6 +74,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
+	return m.setupProfilesForSnap(task, tomb, snapInfo, ss.DevModeAllowed())
+}
+
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, devModeAllowed bool) error {
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
@@ -111,14 +115,14 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, snapInfo, devModeAllowed, m.repo); err != nil {
 		return err
 	}
 
 	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
 }
 
-func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -130,6 +134,10 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 	snapName := snapSetup.Name()
 
+	return m.removeProfilesForSnap(task, tomb, snapName)
+}
+
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -155,6 +163,38 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	return nil
+}
+
+func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ss, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+	snapName := ss.Name()
+
+	// Get the name from SnapSetup and use it to find the current SideInfo
+	// about the snap, if there is one.
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		// The snap was not installed before so undo should remove security profiles.
+		return m.removeProfilesForSnap(task, tomb, snapName)
+	} else {
+		// The snap was installed before so undo should setup the old security profiles.
+		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
+		if err != nil {
+			return err
+		}
+		return m.setupProfilesForSnap(task, tomb, snapInfo, snapst.DevMode)
+	}
 }
 
 func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error {
