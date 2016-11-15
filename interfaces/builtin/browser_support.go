@@ -51,6 +51,9 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
+
+# Webkit uses a particular SHM names # LP: 1578217
+owner /{dev,run}/shm/WK2SharedMemory.* rw,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
