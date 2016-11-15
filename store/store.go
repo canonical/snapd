@@ -1072,8 +1072,11 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
 		return err
 	}
-	resume := int64(0)
-	w, err := os.OpenFile(targetFn+".partial", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+	w, err := os.OpenFile(targetFn+".partial", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	resume, err := w.Seek(0, os.SEEK_END)
 	if err != nil {
 		return err
 	}
@@ -1085,9 +1088,6 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 			os.Remove(w.Name())
 		}
 	}()
-	if info, err := w.Stat(); err == nil {
-		resume = info.Size()
-	}
 
 	url := downloadInfo.AnonDownloadURL
 	if url == "" || hasStoreAuth(user) {
