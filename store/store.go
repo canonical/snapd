@@ -377,9 +377,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(10*time.Second, true),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+
+		client: newHTTPClient(&httpClientOpts{
+			Timeout:    10 * time.Second,
+			MayLogBody: true,
+		}),
 	}
 }
 
@@ -1142,7 +1146,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 
 	var resp *http.Response
 	for _, n := range downloadBackoffs {
-		r, err := s.doRequest(newHTTPClient(0, false), reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
 			return err
 		}

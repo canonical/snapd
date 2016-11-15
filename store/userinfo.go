@@ -27,7 +27,10 @@ import (
 )
 
 var (
-	httpClient = newHTTPClient(10*time.Second, true)
+	httpClient = newHTTPClient(&httpClientOpts{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+	})
 )
 
 type keysReply struct {
