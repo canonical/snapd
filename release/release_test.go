@@ -138,6 +138,7 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{id: "opensuse", devmode: true},
 		{id: "rhel", devmode: true},
 		{id: "ubuntu", devmode: false},
+		{id: "ubuntu-core", devmode: false},
 	}
 	for _, distro := range distros {
 		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
