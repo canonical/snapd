@@ -3,5 +3,6 @@ Description=Remount /snap with shared namespaces
 Before=local-fs.target
 
 [Service]
-ExecStart=/bin/mount -o bind,make-rshared /snap /snap
+ExecStart=/bin/sh -c 'set -x; mkdir -p /snap && mount --rbind /snap /snap && mount --make-rshared /snap'
 ExecStop=/bin/umount -l /snap
+RemainAfterExit=yes
