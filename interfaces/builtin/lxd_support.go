@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -68,13 +66,6 @@ func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 }
 
 func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	snapName := plug.Snap.Name()
-	devName := plug.Snap.Developer
-	if snapName != "lxd" {
-		return fmt.Errorf("lxd-support plug reserved (snap name '%s' != 'lxd')", snapName)
-	} else if devName != "canonical" {
-		return fmt.Errorf("lxd-support interface is reserved for the upstream LXD project")
-	}
 	return nil
 }
 

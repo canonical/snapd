@@ -91,76 +91,9 @@ func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugDockerDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "docker"},
-		},
-		Name:      "docker",
-		Interface: "docker-support",
-	}})
+func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
+	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
-}
-
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugCanonicalDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "docker",
-		Interface: "docker-support",
-	}})
-	c.Assert(err, IsNil)
-}
-
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugOtherDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "docker",
-			SideInfo:      snap.SideInfo{Developer: "notdocker"},
-		},
-		Name:      "docker",
-		Interface: "docker-support",
-	}})
-	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
-}
-
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerDockerDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "docker"},
-		},
-		Name:      "notdocker",
-		Interface: "docker-support",
-	}})
-	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
-}
-
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerCanonicalDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "notdocker",
-		Interface: "docker-support",
-	}})
-	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
-}
-
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerOtherDev(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notdocker",
-			SideInfo:      snap.SideInfo{Developer: "notdocker"},
-		},
-		Name:      "notdocker",
-		Interface: "docker-support",
-	}})
-	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {

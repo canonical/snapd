@@ -22,11 +22,11 @@ package store
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,6 +34,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1067,23 +1068,13 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
-
-	if useDeltas() {
-		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
+		return err
 	}
-	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
-		if err == nil {
-			return snapPath, nil
-		}
-		// We revert to normal downloads if there is any error.
-		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
-	}
-
-	w, err := ioutil.TempFile("", name)
+	w, err := os.Create(targetFn + ".partial")
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer func() {
 		if cerr := w.Close(); cerr != nil && err == nil {
@@ -1091,7 +1082,6 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		}
 		if err != nil {
 			os.Remove(w.Name())
-			path = ""
 		}
 	}()
 
@@ -1100,18 +1090,23 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	if err := download(name, url, user, s, w, pbar); err != nil {
-		return "", err
+	err = download(name, downloadInfo.Sha3_384, url, user, s, w, pbar)
+	if err != nil {
+		return err
 	}
 
-	return w.Name(), w.Sync()
+	if err := os.Rename(w.Name(), targetFn); err != nil {
+		return err
+	}
+
+	return w.Sync()
 }
 
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1146,13 +1141,18 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
-	if pbar != nil {
-		pbar.Start(name, float64(resp.ContentLength))
-		mw := io.MultiWriter(w, pbar)
-		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished()
-	} else {
-		_, err = io.Copy(w, resp.Body)
+	if pbar == nil {
+		pbar = &progress.NullProgress{}
+	}
+	pbar.Start(name, float64(resp.ContentLength))
+	h := crypto.SHA3_384.New()
+	mw := io.MultiWriter(w, h, pbar)
+	_, err = io.Copy(mw, resp.Body)
+	pbar.Finished()
+
+	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+	if sha3_384 != "" && sha3_384 != actualSha3 {
+		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, sha3_384, actualSha3)
 	}
 
 	return err
@@ -1193,12 +1193,11 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, url, user, s, w, pbar)
+	err = download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
 	if err != nil {
 		return "", err
 	}
 
-	// TODO: Check sha3_384
 	return deltaPath, nil
 }
 
@@ -1216,50 +1215,17 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 	}
 
 	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-
-	// Create a temporary file only to get the unique path.
-	tmpfile, err := ioutil.TempFile("", targetSnapName)
-	if err != nil {
-		return "", err
-	}
-	targetSnapPath := tmpfile.Name()
-	if err = tmpfile.Close(); err != nil {
-		return "", err
-	}
+	targetSnapPath := targetSnapName + ".partial"
 
 	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
-	if err = cmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil {
 		os.Remove(targetSnapPath)
 		return "", err
 	}
 
 	return targetSnapPath, nil
-}
-
-// downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
-	deltaInfo := &downloadInfo.Deltas[0]
-	workingDir, err := ioutil.TempDir("", name+"-deltas")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(workingDir)
-
-	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
-	if err != nil {
-		return "", err
-	}
-
-	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
-	if err != nil {
-		return "", err
-	}
-
-	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
-	return snapPath, nil
 }
 
 type assertionSvcError struct {
@@ -1271,14 +1237,17 @@ type assertionSvcError struct {
 
 // Assertion retrivies the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	url, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
+	u, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
 	if err != nil {
 		return nil, err
 	}
+	v := url.Values{}
+	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+	u.RawQuery = v.Encode()
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    url,
+		URL:    u,
 		Accept: asserts.MediaType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
