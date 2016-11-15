@@ -27,6 +27,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 	"github.com/snapcore/snapd/tests/lib/fakestore/store"
 )
@@ -36,12 +37,18 @@ var (
 	assertFallback  = flag.Bool("assert-fallback", false, "Fallback to the main online store for missing assertions")
 	topDir          = flag.String("dir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
-	addr            = flag.String("addr", "locahost:11028", "Store address")
+	addr            = flag.String("addr", "localhost:11028", "Store address")
 	https_proxy     = flag.String("https-proxy", "", "HTTPS proxy address")
 	http_proxy      = flag.String("http-proxy", "", "HTTP proxy address")
 )
 
 func main() {
+	if err := logger.SimpleSetup(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to activate logging: %v\n", err)
+		os.Exit(1)
+	}
+	logger.Debugf("fakestore starting")
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

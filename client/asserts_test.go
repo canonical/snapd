@@ -68,7 +68,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
 	cs.err = errors.New("fail")
 	_, err := cs.cli.Known("snap-build", nil)
-	c.Assert(err, ErrorMatches, "failed to query assertions: fail")
+	c.Assert(err, ErrorMatches, "failed to query assertions: cannot communicate with server: fail")
 }
 
 func (cs *clientSuite) TestClientAssertsJSONError(c *C) {

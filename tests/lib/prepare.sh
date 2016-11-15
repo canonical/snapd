@@ -106,6 +106,7 @@ setup_reflash_magic() {
         echo "$want_pw" > /tmp/new-shadow
         tail -n +2 /etc/shadow >> /tmp/new-shadow
         cp -v /tmp/new-shadow $UNPACKD/etc/shadow
+        cp -v /etc/passwd $UNPACKD/etc/passwd
 
         # ensure spread -reuse works in the core image as well
         if [ -e /.spread.yaml ]; then
@@ -114,9 +115,12 @@ setup_reflash_magic() {
 
         # we need the test user in the image
         # see the comment in spread.yaml about 12345
+        sed -i "s/^test.*$//" $UNPACKD/etc/{shadow,passwd}
         chroot $UNPACKD addgroup --quiet --gid 12345 test
         chroot $UNPACKD adduser --quiet --no-create-home --uid 12345 --gid 12345 --disabled-password --gecos '' test
         echo 'test ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-test-user
+
+        echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-ubuntu-user
 
         # modify sshd so that we can connect as root
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
@@ -250,9 +254,10 @@ prepare_all_snap() {
     echo "Wait for firstboot change to be ready"
     while ! snap changes | grep "Done"; do
         snap changes || true
+        snap change 1 || true
         sleep 1
     done
- 
+
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
     for name in $gadget_name $kernel_name $core_name; do

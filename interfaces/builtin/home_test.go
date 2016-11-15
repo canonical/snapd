@@ -24,7 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -86,18 +85,8 @@ func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
+func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
 	iface := builtin.NewHomeInterface()
-	c.Check(iface.LegacyAutoConnect(), Equals, true)
+	// allow what declarations allowed
 	c.Check(iface.AutoConnect(nil, nil), Equals, true)
-}
-
-func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-	iface := builtin.NewHomeInterface()
-	c.Check(iface.LegacyAutoConnect(), Equals, false)
-	c.Check(iface.AutoConnect(nil, nil), Equals, false)
 }

@@ -1,0 +1,47 @@
+summary: Check that undo for snap refresh works
+
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+    GOOD_SNAP: xkcd-webserver
+    BAD_SNAP: test-snapd-tools
+
+prepare: |
+    . $TESTSLIB/store.sh
+
+    echo "Given two snaps are installed"
+    for snap in $GOOD_SNAP $BAD_SNAP; do
+        snap install $snap
+    done
+
+    echo "And the daemon is configured to point to the fake store"
+    setup_store fake $BLOB_DIR
+
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store fake $BLOB_DIR
+
+execute: |
+    echo "When the store is configured to make them refreshable"
+    fakestore -make-refreshable $GOOD_SNAP,$BAD_SNAP -dir $BLOB_DIR
+
+    echo "When a snap is broken"
+    echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap
+
+    echo "And a refresh is performed"
+    if snap refresh ; then
+        echo "snap refresh should fail but it did not, test is broken"
+        exit 1
+    fi
+
+    echo "Then the new version of the good snap got installed"
+    snap list | grep -Pq "${GOOD_SNAP}.*?fake1"
+
+    echo "But the bad snap did not get updated"
+    snap list | grep -P "${BAD_SNAP}"|grep -v "fake"
+
+    echo "Verify the snap change"
+    snap change 4 |grep "Undone.*Download snap \"${BAD_SNAP}\""
+    snap change 4 |grep "Done.*Download snap \"${GOOD_SNAP}\""
+    snap change 4 |grep "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"

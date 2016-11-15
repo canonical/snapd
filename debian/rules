@@ -120,7 +120,7 @@ override_dh_install:
 	mkdir -p debian/golang-github-snapcore-snapd-dev/usr/share
 	cp -R debian/tmp/usr/share/gocode debian/golang-github-snapcore-snapd-dev/usr/share
 	# install udev stuff, must be installed before 80-udisks
-	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/70-snapd-autoimport.rules
+	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/66-snapd-autoimport.rules
 
 	# install binaries and needed files
 	install debian/tmp/usr/bin/snap -D debian/snapd/usr/bin/snap
@@ -130,7 +130,9 @@ override_dh_install:
 	install --mode=0644 data/completion/snap -D debian/snapd/usr/share/bash-completion/completions/snap
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
-	cp -R share/locale debian/snapd/usr/share
+	if [ -d share/locale ]; then \
+		cp -R share/locale debian/snapd/usr/share; \
+	fi
 	# etc/profile.d contains the PATH extension for snap packages
 	mkdir -p debian/snapd/etc
 	cp -R etc/profile.d debian/snapd/etc

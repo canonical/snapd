@@ -56,18 +56,18 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 
 	u := newUboot()
 	c.Assert(u, NotNil)
-	err := u.SetBootVar("snap_mode", "")
-	c.Assert(err, IsNil)
-	err = u.SetBootVar("snap_core", "4")
+	err := u.SetBootVars(map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
 	c.Assert(err, IsNil)
 
-	v, err := u.GetBootVar(bootmodeVar)
+	m, err := u.GetBootVars("snap_mode", "snap_core")
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "")
-
-	v, err = u.GetBootVar("snap_core")
-	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "4")
+	c.Assert(m, DeepEquals, map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
 }
 
 func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
@@ -97,7 +97,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	// note that we set to the same var as above
-	err = u.SetBootVar("snap_ab", "b")
+	err = u.SetBootVars(map[string]string{"snap_ab": "b"})
 	c.Assert(err, IsNil)
 
 	env, err = uenv.Open(envFile)
@@ -113,22 +113,22 @@ func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	u := newUboot()
-	err := u.SetBootVar("key", "value")
+	err := u.SetBootVars(map[string]string{"key": "value"})
 	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVar("key")
+	content, err := u.GetBootVars("key")
 	c.Assert(err, IsNil)
-	c.Assert(content, Equals, "value")
+	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
 }
 
 func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	u := newUboot()
-	err := u.SetBootVar("key2", "value2")
+	err := u.SetBootVars(map[string]string{"key2": "value2"})
 	c.Assert(err, IsNil)
 
-	content, err := u.GetBootVar("key2")
+	content, err := u.GetBootVars("key2")
 	c.Assert(err, IsNil)
-	c.Assert(content, Equals, "value2")
+	c.Assert(content, DeepEquals, map[string]string{"key2": "value2"})
 }
