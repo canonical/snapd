@@ -22,7 +22,7 @@ package builtin
 import "github.com/snapcore/snapd/interfaces"
 
 const avahiObserveConnectedPlugAppArmor = `
-# Description: allows domain browsing, service browsing and sevice resolving
+# Description: allows domain browsing, service browsing and service resolving
 
 #include <abstractions/dbus-strict>
 dbus (send)
@@ -106,7 +106,7 @@ dbus (receive)
 `
 
 const avahiObserveConnectedPlugSecComp = `
-# Description: allows domain browsing, service browsing and sevice resolving
+# Description: allows domain browsing, service browsing and service resolving
 
 # dbus
 connect
