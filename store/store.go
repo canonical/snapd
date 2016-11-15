@@ -1180,7 +1180,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+		return fmt.Errorf("store returned unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
 
 	url := deltaInfo.AnonDownloadURL
@@ -1201,7 +1201,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	}
 
 	if deltaInfo.Format != "xdelta" {
-		return fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
 
 	partialTargetPath := targetPath + ".partial"
@@ -1236,7 +1236,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
-	_, deltaName := filepath.Split(deltaPath)
+	deltaName := filepath.Base(deltaPath)
 
 	w, err := os.Create(deltaPath)
 	if err != nil {

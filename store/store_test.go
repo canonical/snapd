@@ -656,7 +656,7 @@ var applyDeltaTests = []struct {
 	// An error is returned if the format is not supported.
 	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
 	currentRevision: 24,
-	error:           "unsupported delta format \"nodelta\"",
+	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta currently)",
 }}
 
 func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
