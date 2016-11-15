@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	httpClient = newHTTPClient(10 * time.Second)
+	httpClient = newHTTPClient(10*time.Second, true)
 )
 
 type keysReply struct {
