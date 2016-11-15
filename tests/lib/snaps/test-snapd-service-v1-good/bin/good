@@ -1,3 +1,4 @@
 #!/bin/sh
 
-echo "service v1"
+echo "service v1"|nc -l localhost 12345
+
