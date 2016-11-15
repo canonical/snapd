@@ -1,0 +1,31 @@
+summary: Upgrade the core snap a few times and ensure no GC happens
+
+systems:
+    - ubuntu-core-16-64-fixme
+    - ubuntu-core-16-arm-64
+    - ubuntu-core-16-arm-32
+
+debug: |
+    . $TESTSLIB/boot.sh
+    bootenv
+    ls /var/lib/snapd/snaps
+
+execute: |
+    . $TESTSLIB/names.sh
+    . $TESTSLIB/boot.sh
+
+    echo "Get the current running core snap"
+    cur=$(bootenv snap_core)
+
+    echo "Install a bunch more core packages"
+    for i in $(seq 5); do
+        snap install --dangerous /var/lib/snapd/snaps/$cur
+    done
+
+    echo "And verify that we did not garbage collect the current core"
+    if [ ! -e /var/lib/snapd/snaps/$cur ]; then
+        echo "The current core snap is no longer installed"
+        exit 1
+    fi
+
+    # FIXME: ensure that snap_try_core is set to the correct version
