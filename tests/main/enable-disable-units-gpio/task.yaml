@@ -34,7 +34,7 @@ prepare: |
     else
         # after reboot, remove device node to test export
         rm $GPIO_MOCK_DIR/gpio100
-        :> $GPIO_MOCK_DIR/export
+        truncate -s 0 $GPIO_MOCK_DIR/export
     fi
     mount --bind $GPIO_MOCK_DIR /sys/class/gpio
     EOF
