@@ -47,7 +47,10 @@ func (f debugflag) debugResponse() bool {
 	return f&DebugResponse != 0
 }
 
-func (f debugflag) debugBody() bool {
+func (f debugflag) debugBody(contentType string) bool {
+	if contentType == "application/octet-stream" {
+		return false
+	}
 	return f&DebugBody != 0
 }
 
@@ -63,14 +66,14 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	flags := tr.getFlags()
 
 	if flags.debugRequest() {
-		buf, _ := httputil.DumpRequestOut(req, flags.debugBody())
+		buf, _ := httputil.DumpRequestOut(req, flags.debugBody(req.Header.Get("Content-Type")))
 		logger.Debugf("> %q", buf)
 	}
 
 	rsp, err := tr.Transport.RoundTrip(req)
 
 	if err == nil && flags.debugResponse() {
-		buf, _ := httputil.DumpResponse(rsp, flags.debugBody())
+		buf, _ := httputil.DumpResponse(rsp, flags.debugBody(rsp.Header.Get("Content-Type")))
 		logger.Debugf("< %q", buf)
 	}
 
