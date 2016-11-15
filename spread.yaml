@@ -200,6 +200,12 @@ prepare: |
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
 
+restore: |
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # start and enable autorefresh
+        systemctl enable --now snapd.refresh.timer
+    fi
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
