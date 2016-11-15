@@ -123,7 +123,7 @@ func NewAvahiObserveInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "avahi-observe",
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
-		connectedPlugSecComp: avahiObserveConnectedPlugSecComp,
+		connectedPlugSecComp:  avahiObserveConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           true, // allow what declarations allowed
 	}
