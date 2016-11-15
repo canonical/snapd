@@ -87,16 +87,25 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	return debugflag(flags)
 }
 
+type httpClientOpts struct {
+	Timeout    time.Duration
+	MayLogBody bool
+}
+
 // returns a new http.Client with a LoggedTransport, a Timeout and preservation
 // of range requests accross redirects
-func newHTTPClient(timeout time.Duration, mayLogBody bool) *http.Client {
+func newHTTPClient(opts *httpClientOpts) *http.Client {
+	if opts == nil {
+		opts = &httpClientOpts{}
+	}
+
 	return &http.Client{
 		Transport: &LoggedTransport{
 			Transport: http.DefaultTransport,
 			Key:       "SNAPD_DEBUG_HTTP",
-			body:      mayLogBody,
+			body:      opts.MayLogBody,
 		},
-		Timeout: timeout,
+		Timeout: opts.Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) > 10 {
 				return errors.New("stopped after 10 redirects")
