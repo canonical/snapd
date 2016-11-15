@@ -30,7 +30,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -501,13 +500,11 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			downloadIndex++
 			return nil
 		}
-		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			w, err := ioutil.TempFile("", "")
-			defer w.Close()
-			c.Check(err, IsNil)
-			w.Write([]byte("snap-content-via-delta"))
-			return w.Name(), nil
+			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
+			c.Assert(err, IsNil)
+			return nil
 		}
 
 		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
@@ -527,7 +524,7 @@ var downloadDeltaTests = []struct {
 	useLocalUser  bool
 	format        string
 	expectedURL   string
-	expectedPath  string
+	expectError   bool
 }{{
 	// An unauthenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
@@ -539,7 +536,7 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "xdelta",
 	expectedURL:   "anon-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// An authenticated request downloads the authenticated delta url.
 	info: snap.DownloadInfo{
@@ -552,7 +549,7 @@ var downloadDeltaTests = []struct {
 	useLocalUser:  false,
 	format:        "xdelta",
 	expectedURL:   "auth-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// A local authenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
@@ -565,7 +562,7 @@ var downloadDeltaTests = []struct {
 	useLocalUser:  true,
 	format:        "xdelta",
 	expectedURL:   "anon-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// An error is returned if more than one matching delta is returned by the store,
 	// though this may be handled in the future.
@@ -579,7 +576,7 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "xdelta",
 	expectedURL:   "",
-	expectedPath:  "",
+	expectError:   true,
 }, {
 	// If the supported format isn't available, an error is returned.
 	info: snap.DownloadInfo{
@@ -592,7 +589,7 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "bsdiff",
 	expectedURL:   "",
-	expectedPath:  "",
+	expectError:   true,
 }}
 
 func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
@@ -612,12 +609,13 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			}
 			c.Check(user, Equals, expectedUser)
 			c.Check(url, Equals, testCase.expectedURL)
+			w.Write([]byte("I was downloaded"))
 			return nil
 		}
 
-		downloadDir, err := ioutil.TempDir("", "")
+		w, err := ioutil.TempFile("", "")
 		c.Assert(err, IsNil)
-		defer os.RemoveAll(downloadDir)
+		defer os.Remove(w.Name())
 
 		authedUser := t.user
 		if testCase.useLocalUser {
@@ -627,14 +625,15 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		deltaPath, err := t.store.downloadDelta("snapname", downloadDir, &testCase.info, nil, authedUser)
+		err = t.store.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
 
-		if testCase.expectedPath == "" {
-			c.Assert(deltaPath, Equals, "")
+		if testCase.expectError {
 			c.Assert(err, NotNil)
 		} else {
 			c.Assert(err, IsNil)
-			c.Assert(deltaPath, Equals, path.Join(downloadDir, testCase.expectedPath))
+			content, err := ioutil.ReadFile(w.Name())
+			c.Assert(err, IsNil)
+			c.Assert(string(content), Equals, "I was downloaded")
 		}
 	}
 }
@@ -670,14 +669,15 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
 
-		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
+		targetPath := "/the/target/path"
+		err = applyDelta(name, "/the/delta/path", &testCase.deltaInfo, targetPath, "")
 
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		if testCase.error == "" {
-			err := os.Remove(snapPath)
+			err := os.Remove(currentSnapPath)
 			c.Assert(err == nil || os.IsNotExist(err), Equals, true)
 			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
-				{"xdelta", "patch", "/the/delta/path", currentSnapPath, snapPath},
+				{"xdelta", "patch", "/the/delta/path", currentSnapPath, targetPath + ".partial"},
 			})
 		} else {
 			c.Assert(err, NotNil)

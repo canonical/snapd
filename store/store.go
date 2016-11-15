@@ -1171,106 +1171,96 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.Writer, pbar progress.Meter, user *auth.UserState) error {
 
 	if len(downloadInfo.Deltas) != 1 {
-		return "", errors.New("store returned more than one download delta")
+		return errors.New("store returned more than one download delta")
 	}
 
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+		return fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
 	}
-
-	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
-
-	w, err := os.Create(path.Join(downloadDir, deltaName))
-	if err != nil {
-		return "", err
-	}
-	deltaPath := w.Name()
-	defer func() {
-		if cerr := w.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-		if err != nil {
-			os.Remove(w.Name())
-			deltaPath = ""
-		}
-	}()
 
 	url := deltaInfo.AnonDownloadURL
 	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
-	if err != nil {
-		return "", err
-	}
-
-	return deltaPath, nil
+	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
-var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
 	if !osutil.FileExists(snapPath) {
-		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
+		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
 	if deltaInfo.Format != "xdelta" {
-		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+		return fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
 	}
 
-	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-	targetSnapPath := targetSnapName + ".partial"
+	partialTargetPath := targetPath + ".partial"
 
-	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, partialTargetPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err := cmd.Run(); err != nil {
-		os.Remove(targetSnapPath)
-		return "", err
-	}
-
-	return targetSnapPath, nil
-}
-
-// downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (err error) {
-	deltaInfo := &downloadInfo.Deltas[0]
-	workingDir := filepath.Dir(targetFn)
-
-	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
-	if err != nil {
+		os.Remove(partialTargetPath)
 		return err
 	}
-	defer os.Remove(deltaPath)
 
-	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	snapFromDeltaPath, err := applyDelta(name, deltaPath, deltaInfo)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(snapFromDeltaPath)
-
-	bsha3_384, _, err := osutil.FileDigest(snapFromDeltaPath, crypto.SHA3_384)
+	bsha3_384, _, err := osutil.FileDigest(partialTargetPath, crypto.SHA3_384)
 	if err != nil {
 		return err
 	}
 	sha3_384 := fmt.Sprintf("%x", bsha3_384)
-	if downloadInfo.Sha3_384 != "" && sha3_384 != downloadInfo.Sha3_384 {
-		return fmt.Errorf("sha3-384 mismatch after patching %s: got %s but expected %s", name, sha3_384, downloadInfo.Sha3_384)
+	if targetSha3_384 != "" && sha3_384 != targetSha3_384 {
+		os.Remove(partialTargetPath)
+		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
 	}
 
-	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapFromDeltaPath, downloadInfo.Size-deltaInfo.Size)
-	if err := os.Rename(snapFromDeltaPath, targetFn); err != nil {
-		return osutil.CopyFile(snapFromDeltaPath, targetFn, 0)
+	if err := os.Rename(partialTargetPath, targetPath); err != nil {
+		return osutil.CopyFile(partialTargetPath, targetPath, 0)
 	}
+
+	return nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	deltaInfo := &downloadInfo.Deltas[0]
+
+	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetFn, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
+	_, deltaName := filepath.Split(deltaPath)
+
+	w, err := os.Create(deltaPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		os.Remove(deltaPath)
+	}()
+
+	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	err = applyDelta(name, deltaPath, deltaInfo, targetFn, downloadInfo.Sha3_384)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
 	return nil
 }
 
