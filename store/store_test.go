@@ -664,25 +664,42 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		name := "foo"
 		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
 		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+		targetSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.deltaInfo.ToRevision)
+		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
 		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
 		c.Assert(err, IsNil)
 		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
-
-		targetPath := "/the/target/path"
-		err = applyDelta(name, "/the/delta/path", &testCase.deltaInfo, targetPath, "")
-
-		c.Assert(os.Remove(currentSnapPath), IsNil)
+		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
+		err = ioutil.WriteFile(deltaPath, nil, 0644)
+		c.Assert(err, IsNil)
+		// When testing a case where the call to the external xdelta is successful,
+		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err := os.Remove(currentSnapPath)
-			c.Assert(err == nil || os.IsNotExist(err), Equals, true)
+			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		err = applyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+
+		if testCase.error == "" {
+			c.Assert(err, IsNil)
 			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
-				{"xdelta", "patch", "/the/delta/path", currentSnapPath, targetPath + ".partial"},
+				{"xdelta", "patch", deltaPath, currentSnapPath, targetSnapPath + ".partial"},
 			})
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
+			c.Assert(os.Remove(targetSnapPath), IsNil)
 		} else {
 			c.Assert(err, NotNil)
 			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
 		}
+		//err := os.Remove(currentSnapPath)
+		//c.Assert(err == nil || os.IsNotExist(err), Equals, true)
+		c.Assert(os.Remove(currentSnapPath), IsNil)
+		c.Assert(os.Remove(deltaPath), IsNil)
 	}
 }
 
