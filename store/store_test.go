@@ -696,8 +696,6 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
 			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
 		}
-		//err := os.Remove(currentSnapPath)
-		//c.Assert(err == nil || os.IsNotExist(err), Equals, true)
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		c.Assert(os.Remove(deltaPath), IsNil)
 	}
