@@ -68,7 +68,7 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
-// MountFile returns the path to the snap file with the given name and revision.
+// MountFile returns the path where the snap file that is mounted is installed.
 func MountFile(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
 }

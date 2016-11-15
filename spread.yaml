@@ -56,6 +56,7 @@ backends:
                 FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
+            echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-spread-users
             ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
@@ -105,7 +106,7 @@ prepare: |
 
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
-    if [ $(bootenv snap_mode) = "try" ]; then
+    if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
