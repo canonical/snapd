@@ -1068,15 +1068,15 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
-	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
+func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
 	if useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 	}
 	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		err := s.downloadAndApplyDelta(name, targetFn, downloadInfo, pbar, user)
+		err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
 		if err == nil {
 			return nil
 		}
@@ -1084,7 +1084,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	w, err := os.Create(targetFn + ".partial")
+	w, err := os.Create(targetPath + ".partial")
 	if err != nil {
 		return err
 	}
@@ -1107,7 +1107,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		return err
 	}
 
-	if err := os.Rename(w.Name(), targetFn); err != nil {
+	if err := os.Rename(w.Name(), targetPath); err != nil {
 		return err
 	}
 
@@ -1232,10 +1232,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 }
 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
 	deltaInfo := &downloadInfo.Deltas[0]
 
-	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetFn, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
+	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	_, deltaName := filepath.Split(deltaPath)
 
 	w, err := os.Create(deltaPath)
@@ -1255,7 +1255,7 @@ func (s *Store) downloadAndApplyDelta(name, targetFn string, downloadInfo *snap.
 	}
 
 	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	err = applyDelta(name, deltaPath, deltaInfo, targetFn, downloadInfo.Sha3_384)
+	err = applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384)
 	if err != nil {
 		return err
 	}
