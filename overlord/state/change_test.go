@@ -20,10 +20,13 @@
 package state_test
 
 import (
-	. "gopkg.in/check.v1"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
-	"time"
+
+	. "gopkg.in/check.v1"
 )
 
 type changeSuite struct{}
@@ -383,5 +386,206 @@ func (cs *changeSuite) TestAbort(c *C) {
 		default:
 			c.Assert(t.Status(), Equals, s)
 		}
+	}
+}
+
+// Task wait order:
+//
+//             => t21 => t22
+//           /               \
+// t11 => t12                 => t41 => t42
+//           \               /
+//             => t31 => t32
+//
+// setup and result lines are <task>:<status>[:<lane>,...]
+//
+// "*" as task name means "all remaining".
+//
+var abortLanesTests = []struct {
+	setup  string
+	abort  []int
+	result string
+}{
+
+	// Some basics.
+	{
+		setup:  "*:do",
+		abort:  []int{},
+		result: "*:do",
+	}, {
+		setup:  "*:do",
+		abort:  []int{1},
+		result: "*:do",
+	}, {
+		setup:  "*:do",
+		abort:  []int{0},
+		result: "*:hold",
+	}, {
+		setup:  "t11:done t12:doing t22:do",
+		abort:  []int{0},
+		result: "t11:undo t12:abort t22:hold",
+	},
+
+	//                      => t21 (2) => t22 (2)
+	//                    /                       \
+	// t11 (1) => t12 (1)                           => t41 (4) => t42 (4)
+	//                    \                       /
+	//                      => t31 (3) => t32 (3)
+	{
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{0},
+		result: "*:do",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{1},
+		result: "*:hold",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{2},
+		result: "t21:hold t22:hold t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{3},
+		result: "t31:hold t32:hold t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{2, 3},
+		result: "t21:hold t22:hold t31:hold t32:hold t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{4},
+		result: "t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{5},
+		result: "*:do",
+	},
+
+	//                          => t21 (2) => t22 (2)
+	//                        /                       \
+	// t11 (2,3) => t12 (2,3)                           => t41 (4) => t42 (4)
+	//                        \                       /
+	//                          => t31 (3) => t32 (3)
+	{
+		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{2},
+		result: "t21:hold t22:hold t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{3},
+		result: "t31:hold t32:hold t41:hold t42:hold *:do",
+	}, {
+		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{2, 3},
+		result: "*:hold",
+	},
+
+	//                      => t21 (1) => t22 (1)
+	//                    /                       \
+	// t11 (1) => t12 (1)                           => t41 (4) => t42 (4)
+	//                    \                       /
+	//                      => t31 (1) => t32 (1)
+	{
+		setup:  "t41:error:4 t42:do:4 *:do:1",
+		abort:  []int{1},
+		result: "t41:error *:hold",
+	},
+}
+
+func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
+
+	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
+
+	for _, test := range abortLanesTests {
+		sb := &stateBackend{}
+		st := state.New(sb)
+		r := state.NewTaskRunner(st)
+		defer r.Stop()
+
+		st.Lock()
+		defer st.Unlock()
+
+		c.Assert(len(st.Tasks()), Equals, 0)
+
+		chg := st.NewChange("install", "...")
+		tasks := make(map[string]*state.Task)
+		for _, name := range names {
+			tasks[name] = st.NewTask("do", name)
+			chg.AddTask(tasks[name])
+		}
+		tasks["t12"].WaitFor(tasks["t11"])
+		tasks["t21"].WaitFor(tasks["t12"])
+		tasks["t22"].WaitFor(tasks["t21"])
+		tasks["t31"].WaitFor(tasks["t12"])
+		tasks["t32"].WaitFor(tasks["t31"])
+		tasks["t41"].WaitFor(tasks["t22"])
+		tasks["t41"].WaitFor(tasks["t32"])
+		tasks["t42"].WaitFor(tasks["t41"])
+
+		c.Logf("-----")
+		c.Logf("Testing setup: %s", test.setup)
+
+		statuses := make(map[string]state.Status)
+		for s := state.DefaultStatus; s <= state.ErrorStatus; s++ {
+			statuses[strings.ToLower(s.String())] = s
+		}
+
+		items := strings.Fields(test.setup)
+		seen := make(map[string]bool)
+		for i := 0; i < len(items); i++ {
+			item := items[i]
+			parts := strings.Split(item, ":")
+			if parts[0] == "*" {
+				for _, name := range names {
+					if !seen[name] {
+						parts[0] = name
+						items = append(items, strings.Join(parts, ":"))
+					}
+				}
+				continue
+			}
+			seen[parts[0]] = true
+			task := tasks[parts[0]]
+			task.SetStatus(statuses[parts[1]])
+			if len(parts) > 2 {
+				lanes := strings.Split(parts[2], ",")
+				for _, lane := range lanes {
+					n, err := strconv.Atoi(lane)
+					c.Assert(err, IsNil)
+					task.JoinLane(n)
+				}
+			}
+		}
+
+		c.Logf("Aborting with: %v", test.abort)
+
+		chg.AbortLanes(test.abort)
+
+		c.Logf("Expected result: %s", test.result)
+
+		seen = make(map[string]bool)
+		var expected = strings.Fields(test.result)
+		var obtained []string
+		for i := 0; i < len(expected); i++ {
+			item := expected[i]
+			parts := strings.Split(item, ":")
+			if parts[0] == "*" {
+				var expanded []string
+				for _, name := range names {
+					if !seen[name] {
+						parts[0] = name
+						expanded = append(expanded, strings.Join(parts, ":"))
+					}
+				}
+				expected = append(expected[:i], append(expanded, expected[i+1:]...)...)
+				i--
+				continue
+			}
+			name := parts[0]
+			seen[parts[0]] = true
+			obtained = append(obtained, name+":"+strings.ToLower(tasks[name].Status().String()))
+		}
+
+		c.Assert(strings.Join(obtained, " "), Equals, strings.Join(expected, " "), Commentf("setup: %s", test.setup))
 	}
 }

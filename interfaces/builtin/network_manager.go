@@ -70,10 +70,11 @@ network packet,
 /run/udev/data/* r,
 
 # Allow access to configuration files generated on the fly
-# from netplan
+# from netplan and let NetworkManager store its DHCP leases
+# in the dhcp subdirectory so that console-conf can access
+# it.
+/run/NetworkManager/ w,
 /run/NetworkManager/{,**} r,
-
-# Allow writing dhcp files to a well-known system location
 /run/NetworkManager/dhcp/{,**} w,
 
 # Needed by the ifupdown plugin to check which interfaces can
@@ -136,10 +137,16 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.*,
 
 # Allow access to hostname system service
-dbus (send)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+dbus(receive, send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.hostname1
+    member={Set,SetStatic}Hostname
     peer=(label=unconfined),
 
 # Sleep monitor inside NetworkManager needs this
@@ -204,6 +211,7 @@ sendmmsg
 sendmsg
 sendto
 setsockopt
+sethostname
 shutdown
 socketpair
 socket
