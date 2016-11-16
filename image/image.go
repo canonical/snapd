@@ -407,7 +407,7 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 	}
 
 	m := map[string]string{
-		"snap_mode":   "",
+		"snap_mode":       "",
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
 	}
