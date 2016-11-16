@@ -157,9 +157,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		expected := autoconnect[iface.Name()]
 		comm := Commentf(iface.Name())
 
-		// cross-check with past behavior
-		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
-
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
@@ -356,6 +353,7 @@ var (
 		"fwupd":            []string{"app"},
 		"gpio":             []string{"core", "gadget"},
 		"hidraw":           []string{"core", "gadget"},
+		"i2c":              []string{"core", "gadget"},
 		"location-control": []string{"app"},
 		"location-observe": []string{"app"},
 		"lxd-support":      []string{"core"},
@@ -363,12 +361,14 @@ var (
 		"modem-manager":    []string{"app", "core"},
 		"mpris":            []string{"app"},
 		"network-manager":  []string{"app", "core"},
+		"ofono":            []string{"app", "core"},
 		"ppp":              []string{"core"},
 		"pulseaudio":       []string{"app", "core"},
 		"serial-port":      []string{"core", "gadget"},
 		"udisks2":          []string{"app"},
 		// snowflakes
 		"docker": nil,
+		"lxd":    nil,
 	}
 )
 
@@ -430,6 +430,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err := ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+
+	// test lxd specially
+	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -465,6 +471,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"fwupd":            true,
 		"location-control": true,
 		"location-observe": true,
+		"lxd":              true,
 		"mir":              true,
 		"udisks2":          true,
 	}
