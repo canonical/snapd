@@ -147,10 +147,6 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 	panic("slot is not sanitized")
 }
 
-func (iface *BoolFileInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 // AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate and declaration-based checks allow.
