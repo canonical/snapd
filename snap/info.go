@@ -57,8 +57,8 @@ type PlaceInfo interface {
 	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 	CommonDataHomeDir() string
 
-	// XdgRuntimeDir returns the XDG_RUNTIME_DIR directories of the snap.
-	XdgRuntimeDir() string
+	// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+	XdgRuntimeDirs() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -233,13 +233,13 @@ func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
-// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory of the snap
+// UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
 func (s *Info) UserXdgRuntimeDir(euid int) string {
 	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
 }
 
-// XdgRuntimeDir returns the XDG_RUNTIME_DIR directories of the snap.
-func (s *Info) XdgRuntimeDir() string {
+// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 

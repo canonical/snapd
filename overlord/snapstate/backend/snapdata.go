@@ -99,7 +99,7 @@ func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
 	}
 
 	// then XDG_RUNTIME_DIRs for the users
-	foundXdg, err := filepath.Glob(snap.XdgRuntimeDir())
+	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
 	if err != nil {
 		return nil, err
 	}
