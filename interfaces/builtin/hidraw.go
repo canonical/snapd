@@ -171,16 +171,12 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		}
 		var udevSnippet bytes.Buffer
 		for appName := range plug.Apps {
-			tag := fmt.Sprintf("snap_%s_%s", plug.Snap.Name(), appName)
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			udevSnippet.Write(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
 	}
 	return nil, nil
-}
-
-func (iface *HidrawInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

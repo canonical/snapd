@@ -99,6 +99,5 @@ func NewNetworkBindInterface() interfaces.Interface {
 		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

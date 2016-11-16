@@ -67,6 +67,7 @@ var implicitClassicSlots = []string{
 	"libvirt",
 	"modem-manager",
 	"network-manager",
+	"ofono",
 	"optical-drive",
 	"pulseaudio",
 	"screen-inhibit-control",
