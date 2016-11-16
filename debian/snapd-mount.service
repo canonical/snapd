@@ -3,6 +3,8 @@ Description=Remount /snap with shared namespaces
 Before=local-fs.target
 
 [Service]
+Type=oneshot
+# XXX: this is a bit ugly, can we do it via a .mount unit? can we do it reliably?
 ExecStart=/bin/sh -c 'set -x; mkdir -p /snap && mount --rbind /snap /snap && mount --make-rshared /snap'
 ExecStop=/bin/umount -l /snap
 RemainAfterExit=yes
