@@ -192,7 +192,7 @@ snapd (2.17) xenial; urgency=medium
       declarations (#2027)
     - store: apply deltas if explicitly enabled (#2031)
     - tests: fix create-key/snap-sign test isolation (#2032)
-    - snap/implicit: don't restrict the camera iface to clasic (#2025)
+    - snap/implicit: don't restrict the camera iface to classic (#2025)
     - client, cmd: change buy command to match UX document (#2011)
     - coreconfig: nuke it. Also, ignore po/snappy.pot. (#2030)
     - store: download deltas if explicitly enabled (#2017)
