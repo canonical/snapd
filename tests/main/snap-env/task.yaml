@@ -25,7 +25,6 @@ execute: |
 
     echo "Enure that XDG environment variables are what we expect"
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
-    egrep -q '^XDG_SESSION_ID=1$' xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -eq 2
 debug: |
     cat *-vars.txt
