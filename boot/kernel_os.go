@@ -193,8 +193,7 @@ func InUse(name string, rev snap.Revision) bool {
 	}
 
 	for _, v := range m {
-		// FIXME: fugly code/behavior duplication
-		if v == fmt.Sprintf("%s_%s.snap", name, rev) {
+		if v == filepath.Base(snap.MountFile(name, rev)) {
 			return true
 		}
 	}
