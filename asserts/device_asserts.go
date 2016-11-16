@@ -30,8 +30,9 @@ import (
 // about the properties of a device model.
 type Model struct {
 	assertionBase
-	requiredSnaps []string
-	timestamp     time.Time
+	requiredSnaps    []string
+	sysUserAuthority []string
+	timestamp        time.Time
 }
 
 // BrandID returns the brand identifier. Same as the authority id.
@@ -74,6 +75,11 @@ func (mod *Model) RequiredSnaps() []string {
 	return mod.requiredSnaps
 }
 
+// SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
+func (mod *Model) SystemUserAuthority() []string {
+	return mod.sysUserAuthority
+}
+
 // Timestamp returns the time when the model assertion was issued.
 func (mod *Model) Timestamp() time.Time {
 	return mod.timestamp
@@ -113,6 +119,30 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
+var (
+	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$") // account ids look like snap-ids or are nice identifier
+)
+
+func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const name = "system-user-authority"
+	v, ok := headers[name]
+	if !ok {
+		return []string{brandID}, nil
+	}
+	switch x := v.(type) {
+	case string:
+		if x == "*" {
+			return nil, nil
+		}
+	case []interface{}:
+		lst, err := checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), validAccountID)
+		if err == nil {
+			return lst, nil
+		}
+	}
+	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+}
+
 var modelMandatory = []string{"architecture", "gadget", "kernel"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
@@ -143,6 +173,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))
+	if err != nil {
+		return nil, err
+	}
+
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -157,9 +192,10 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
-		assertionBase: assert,
-		requiredSnaps: reqSnaps,
-		timestamp:     timestamp,
+		assertionBase:    assert,
+		requiredSnaps:    reqSnaps,
+		sysUserAuthority: sysUserAuthority,
+		timestamp:        timestamp,
 	}, nil
 }
 

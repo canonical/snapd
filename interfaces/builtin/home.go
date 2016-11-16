@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/release"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
@@ -54,9 +53,7 @@ owner /run/user/[0-9]*/gvfs/*/** w,
 func NewHomeInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "home",
-		connectedPlugAppArmor:  homeConnectedPlugAppArmor,
-		reservedForOS:          true,
-		autoConnect:            release.OnClassic,
-		rejectAutoConnectPairs: !release.OnClassic,
+		connectedPlugAppArmor: homeConnectedPlugAppArmor,
+		reservedForOS:         true,
 	}
 }

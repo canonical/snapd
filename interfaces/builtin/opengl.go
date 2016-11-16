@@ -70,6 +70,5 @@ func NewOpenglInterface() interfaces.Interface {
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

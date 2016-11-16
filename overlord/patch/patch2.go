@@ -20,7 +20,6 @@
 package patch
 
 import (
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -29,42 +28,84 @@ func init() {
 	patches[2] = patch2
 }
 
-type OldSnapSetup struct {
-	Name     string        `json:"name,omitempty"`
-	Revision snap.Revision `json:"revision,omitempty"`
-	Channel  string        `json:"channel,omitempty"`
-	UserID   int           `json:"user-id,omitempty"`
-
-	Flags snapstate.SnapSetupFlags `json:"flags,omitempty"`
-
-	SnapPath string `json:"snap-path,omitempty"`
-
-	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
-	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+type patch2SideInfo struct {
+	RealName          string        `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID            string        `yaml:"snap-id" json:"snap-id"`
+	Revision          snap.Revision `yaml:"revision" json:"revision"`
+	Channel           string        `yaml:"channel,omitempty" json:"channel,omitempty"`
+	DeveloperID       string        `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
+	Developer         string        `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	EditedSummary     string        `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription string        `yaml:"description,omitempty" json:"description,omitempty"`
+	Size              int64         `yaml:"size,omitempty" json:"size,omitempty"`
+	Sha512            string        `yaml:"sha512,omitempty" json:"sha512,omitempty"`
+	Private           bool          `yaml:"private,omitempty" json:"private,omitempty"`
 }
 
-type OldSnapState struct {
-	SnapType string           `json:"type"` // Use Type and SetType
-	Sequence []*snap.SideInfo `json:"sequence"`
-	Active   bool             `json:"active,omitempty"`
+type patch2DownloadInfo struct {
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
+}
+
+type patch2Flags int
+
+type patch2SnapState struct {
+	SnapType string            `json:"type"` // Use Type and SetType
+	Sequence []*patch2SideInfo `json:"sequence"`
+	Active   bool              `json:"active,omitempty"`
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
-	Current   snap.Revision            `json:"current"`
-	Candidate *snap.SideInfo           `json:"candidate,omitempty"`
-	Channel   string                   `json:"channel,omitempty"`
-	Flags     snapstate.SnapStateFlags `json:"flags,omitempty"`
-
-	// incremented revision used for local installs
-	LocalRevision snap.Revision `json:"local-revision,omitempty"`
+	Current snap.Revision `json:"current"`
+	Channel string        `json:"channel,omitempty"`
+	Flags   patch2Flags   `json:"flags,omitempty"`
 }
 
-func setRealName(si *snap.SideInfo, name string) {
-	if si == nil {
-		return
+type patch2SnapSetup struct {
+	// FIXME: rename to RequestedChannel to convey the meaning better
+	Channel string `json:"channel,omitempty"`
+	UserID  int    `json:"user-id,omitempty"`
+
+	Flags patch2Flags `json:"flags,omitempty"`
+
+	SnapPath string `json:"snap-path,omitempty"`
+
+	DownloadInfo *patch2DownloadInfo `json:"download-info,omitempty"`
+	SideInfo     *patch2SideInfo     `json:"side-info,omitempty"`
+}
+
+func patch2SideInfoFromPatch1(oldInfo *patch1SideInfo, name string) *patch2SideInfo {
+	return &patch2SideInfo{
+		RealName:          name, // NOTE: OfficialName dropped
+		SnapID:            oldInfo.SnapID,
+		Revision:          oldInfo.Revision,
+		Channel:           oldInfo.Channel,
+		Developer:         oldInfo.Developer, // NOTE: no DeveloperID in patch1SideInfo
+		EditedSummary:     oldInfo.EditedSummary,
+		EditedDescription: oldInfo.EditedDescription,
+		Size:              oldInfo.Size,
+		Sha512:            oldInfo.Sha512,
+		Private:           oldInfo.Private,
 	}
-	if si.RealName == "" {
-		si.RealName = name
+}
+
+func patch2SequenceFromPatch1(oldSeq []*patch1SideInfo, name string) []*patch2SideInfo {
+	newSeq := make([]*patch2SideInfo, len(oldSeq))
+	for i, si := range oldSeq {
+		newSeq[i] = patch2SideInfoFromPatch1(si, name)
+	}
+
+	return newSeq
+}
+
+func patch2SnapStateFromPatch1(oldSnapState *patch1SnapState, name string) *patch2SnapState {
+	return &patch2SnapState{
+		SnapType: oldSnapState.SnapType,
+		Sequence: patch2SequenceFromPatch1(oldSnapState.Sequence, name),
+		Active:   oldSnapState.Active,
+		Current:  oldSnapState.Current,
+		Channel:  oldSnapState.Channel,
+		Flags:    patch2Flags(oldSnapState.Flags),
 	}
 }
 
@@ -73,21 +114,26 @@ func setRealName(si *snap.SideInfo, name string) {
 // - backfills SnapState.{Sequence,Candidate}.RealName if its missing
 func patch2(s *state.State) error {
 
-	var stateMap map[string]*OldSnapState
-	err := s.Get("snaps", &stateMap)
+	var oldStateMap map[string]*patch1SnapState
+	err := s.Get("snaps", &oldStateMap)
 	if err == state.ErrNoState {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	newStateMap := make(map[string]*patch2SnapState, len(oldStateMap))
+
+	for key, oldSnapState := range oldStateMap {
+		newStateMap[key] = patch2SnapStateFromPatch1(oldSnapState, key)
+	}
 
 	// migrate SnapSetup in all tasks:
 	//  - the new SnapSetup uses SideInfo, backfil from Candidate
 	//  - also move SnapSetup.{Name,Revision} into SnapSetup.SideInfo.{RealName,Revision}
-	var oldSS OldSnapSetup
-	var newSS snapstate.SnapSetup
+	var oldSS patch1SnapSetup
 	for _, t := range s.Tasks() {
+		var newSS patch2SnapSetup
 		err := t.Get("snap-setup", &oldSS)
 		if err == state.ErrNoState {
 			continue
@@ -97,16 +143,12 @@ func patch2(s *state.State) error {
 		}
 		// some things stay the same
 		newSS.Channel = oldSS.Channel
-		newSS.Flags = oldSS.Flags
+		newSS.Flags = patch2Flags(oldSS.Flags)
 		newSS.SnapPath = oldSS.SnapPath
-		newSS.DownloadInfo = oldSS.DownloadInfo
-		newSS.SideInfo = oldSS.SideInfo
 		// ... and some change
-		if newSS.SideInfo == nil {
-			newSS.SideInfo = &snap.SideInfo{}
-			if snapst, ok := stateMap[oldSS.Name]; ok && snapst.Candidate != nil {
-				newSS.SideInfo = snapst.Candidate
-			}
+		newSS.SideInfo = &patch2SideInfo{}
+		if snapst, ok := oldStateMap[oldSS.Name]; ok && snapst.Candidate != nil {
+			newSS.SideInfo = patch2SideInfoFromPatch1(snapst.Candidate, oldSS.Name)
 		}
 		if newSS.SideInfo.RealName == "" {
 			newSS.SideInfo.RealName = oldSS.Name
@@ -117,14 +159,7 @@ func patch2(s *state.State) error {
 		t.Set("snap-setup", &newSS)
 	}
 
-	// backfill snapstate.SnapState.{Sequence,Candidate} with RealName
-	// (if that is missing, was missing for e.g. sideloaded snaps)
-	for snapName, snapState := range stateMap {
-		for _, si := range snapState.Sequence {
-			setRealName(si, snapName)
-		}
-	}
-	s.Set("snaps", stateMap)
+	s.Set("snaps", newStateMap)
 
 	return nil
 }

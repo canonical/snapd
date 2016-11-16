@@ -102,7 +102,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -226,12 +226,12 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 	}))
 }
 
-func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
+func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string) {
 	sideInfoGadget := &snap.SideInfo{
 		RealName: "gadget",
 		Revision: snap.R(2),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -240,12 +240,12 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
 	})
 }
 
-func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string) {
+func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents string) {
 	sideInfoCore := &snap.SideInfo{
 		RealName: name,
 		Revision: snap.R(3),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoCore)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -277,7 +277,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -347,7 +347,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -412,7 +412,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -479,7 +479,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -570,7 +570,7 @@ type: gadget
 version: gadget
 hooks:
     prepare-device:
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -857,7 +857,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
 name: ubuntu-core
 type: os
 version: ubuntu-core
-`)
+`, "")
 
 	// have a model assertion
 	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
@@ -953,8 +953,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
-	bootloader.SetBootVar("snap_mode", "trying")
-	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -971,9 +973,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	mode, err := bootloader.GetBootVar("snap_mode")
+	m, err := bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
-	c.Assert(mode, Equals, "")
+	c.Assert(m, DeepEquals, map[string]string{"snap_mode": ""})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
@@ -984,9 +986,11 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	defer partition.ForceBootloader(nil)
 
 	// simulate that we have a new core_2, tried to boot it but that failed
-	bootloader.SetBootVar("snap_mode", "")
-	bootloader.SetBootVar("snap_try_core", "core_2.snap")
-	bootloader.SetBootVar("snap_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "",
+		"snap_try_core": "core_2.snap",
+		"snap_core":     "core_1.snap",
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1012,8 +1016,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	release.OnClassic = false
 
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.SetBootVar("snap_mode", "trying")
-	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
 	bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -1047,4 +1053,84 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
+}
+
+func (s *deviceMgrSuite) TestCheckGadget(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	gadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: gadget`, nil)
+
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
+
+	// install pc gadget
+	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: pc`, nil)
+	err = devicestate.CheckGadgetOrKernel(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCheckKernel(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	kernelInfo := snaptest.MockInfo(c, `type: kernel
+name: lnrk`, nil)
+
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
+
+	// install krnl kernel
+	krnlKernelInfo := snaptest.MockInfo(c, `type: kernel
+name: krnl`, nil)
+	err = devicestate.CheckGadgetOrKernel(s.state, krnlKernelInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
 }

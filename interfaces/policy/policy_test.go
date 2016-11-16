@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -70,6 +71,29 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - $PLUG_PUBLISHER_ID
+  plug-or:
+    allow-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
+  plug-on-classic-true:
+    allow-connection:
+      on-classic: true
+  plug-on-classic-distros:
+    allow-connection:
+      on-classic:
+        - ubuntu
+        - debian
+  plug-on-classic-false:
+    allow-connection:
+      on-classic: false
   auto-base-plug-allow: true
   auto-base-plug-not-allow:
     allow-auto-connection: false
@@ -83,6 +107,18 @@ plugs:
         p: P
   auto-base-plug-deny:
     deny-auto-connection: true
+  auto-plug-or:
+    allow-auto-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   install-plug-attr-ok:
     allow-installation:
       plug-attributes:
@@ -95,6 +131,21 @@ plugs:
     deny-installation:
       plug-attributes:
         attr: attrvalue
+  install-plug-or:
+    deny-installation:
+      -
+        plug-attributes:
+          p: P1
+      -
+        plug-snap-type:
+          - gadget
+        plug-attributes:
+          p: P2
+  install-plug-on-classic-distros:
+    allow-installation:
+      on-classic:
+        - ubuntu
+        - debian
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -120,6 +171,29 @@ slots:
     allow-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+  slot-or:
+    allow-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
+  slot-on-classic-true:
+    allow-connection:
+      on-classic: true
+  slot-on-classic-distros:
+    allow-connection:
+      on-classic:
+        - ubuntu
+        - debian
+  slot-on-classic-false:
+    allow-connection:
+      on-classic: false
   auto-base-slot-allow: true
   auto-base-slot-not-allow:
     allow-auto-connection: false
@@ -136,6 +210,18 @@ slots:
   auto-base-deny-snap-slot-allow: false
   auto-base-deny-snap-plug-allow: false
   auto-base-allow-snap-slot-not-allow: true
+  auto-slot-or:
+    allow-auto-connection:
+      -
+        slot-attributes:
+          s: S1
+        plug-attributes:
+          p: P1
+      -
+        slot-attributes:
+          s: S2
+        plug-attributes:
+          p: P2
   install-slot-coreonly:
     allow-installation:
       slot-snap-type:
@@ -152,6 +238,21 @@ slots:
     deny-installation:
       slot-attributes:
         have: true
+  install-slot-or:
+    deny-installation:
+      -
+        slot-attributes:
+          p: P1
+      -
+        slot-snap-type:
+          - gadget
+        slot-attributes:
+          p: P2
+  install-slot-on-classic-distros:
+    allow-installation:
+      on-classic:
+        - ubuntu
+        - debian
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -228,6 +329,62 @@ plugs:
    checked-slot-publisher-id:
 
    same-plug-publisher-id:
+
+   plug-or-p1-s1:
+     interface: plug-or
+     p: P1
+
+   plug-or-p2-s2:
+     interface: plug-or
+     p: P2
+
+   plug-or-p1-s2:
+     interface: plug-or
+     p: P1
+
+   auto-plug-or-p1-s1:
+     interface: auto-plug-or
+     p: P1
+
+   auto-plug-or-p2-s2:
+     interface: auto-plug-or
+     p: P2
+
+   auto-plug-or-p2-s1:
+     interface: auto-plug-or
+     p: P2
+
+   slot-or-p1-s1:
+     interface: slot-or
+     p: P1
+
+   slot-or-p2-s2:
+     interface: slot-or
+     p: P2
+
+   slot-or-p1-s2:
+     interface: slot-or
+     p: P1
+
+   auto-slot-or-p1-s1:
+     interface: auto-slot-or
+     p: P1
+
+   auto-slot-or-p2-s2:
+     interface: auto-slot-or
+     p: P2
+
+   auto-slot-or-p2-s1:
+     interface: auto-slot-or
+     p: P2
+
+   slot-on-classic-true:
+   slot-on-classic-distros:
+   slot-on-classic-false:
+
+   plug-on-classic-true:
+   plug-on-classic-distros:
+   plug-on-classic-false:
 `, nil)
 
 	s.slotSnap = snaptest.MockInfo(c, `
@@ -298,6 +455,62 @@ slots:
    checked-slot-publisher-id:
 
    same-slot-publisher-id:
+
+   plug-or-p1-s1:
+     interface: plug-or
+     s: S1
+
+   plug-or-p2-s2:
+     interface: plug-or
+     s: S2
+
+   plug-or-p1-s2:
+     interface: plug-or
+     s: S2
+
+   auto-plug-or-p1-s1:
+     interface: auto-plug-or
+     s: S1
+
+   auto-plug-or-p2-s2:
+     interface: auto-plug-or
+     s: S2
+
+   auto-plug-or-p2-s1:
+     interface: auto-plug-or
+     s: S1
+
+   slot-or-p1-s1:
+     interface: slot-or
+     s: S1
+
+   slot-or-p2-s2:
+     interface: slot-or
+     s: S2
+
+   slot-or-p1-s2:
+     interface: slot-or
+     s: S2
+
+   auto-slot-or-p1-s1:
+     interface: auto-slot-or
+     s: S1
+
+   auto-slot-or-p2-s2:
+     interface: auto-slot-or
+     s: S2
+
+   auto-slot-or-p2-s1:
+     interface: auto-slot-or
+     s: S1
+
+   slot-on-classic-true:
+   slot-on-classic-distros:
+   slot-on-classic-false:
+
+   plug-on-classic-true:
+   plug-on-classic-distros:
+   plug-on-classic-false:
 `, nil)
 
 	a, err = asserts.Decode([]byte(`type: snap-declaration
@@ -444,6 +657,12 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 		{"base-slot-not-allow-slots", `connection not allowed.*`},
 		{"base-plug-not-allow-plugs", `connection not allowed.*`},
 		{"base-slot-not-allow-plugs", `connection not allowed.*`},
+		{"plug-or-p1-s1", ""},
+		{"plug-or-p2-s2", ""},
+		{"plug-or-p1-s2", "connection not allowed by plug rule.*"},
+		{"slot-or-p1-s1", ""},
+		{"slot-or-p2-s2", ""},
+		{"slot-or-p1-s2", "connection not allowed by slot rule.*"},
 	}
 
 	for _, t := range tests {
@@ -477,6 +696,12 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 		{"auto-base-slot-not-allow-slots", `auto-connection not allowed.*`},
 		{"auto-base-plug-not-allow-plugs", `auto-connection not allowed.*`},
 		{"auto-base-slot-not-allow-plugs", `auto-connection not allowed.*`},
+		{"auto-plug-or-p1-s1", ""},
+		{"auto-plug-or-p2-s2", ""},
+		{"auto-plug-or-p2-s1", "auto-connection not allowed by plug rule.*"},
+		{"auto-slot-or-p1-s1", ""},
+		{"auto-slot-or-p2-s2", ""},
+		{"auto-slot-or-p2-s1", "auto-connection not allowed by slot rule.*"},
 	}
 
 	for _, t := range tests {
@@ -915,6 +1140,32 @@ type: gadget
 plugs:
   install-plug-gadget-only:
 `, ""},
+		{`name: install-gadget
+type: gadget
+plugs:
+  install-plug-or:
+     p: P2`, `installation denied by "install-plug-or" plug rule.*`},
+		{`name: install-snap
+plugs:
+  install-plug-or:
+     p: P1`, `installation denied by "install-plug-or" plug rule.*`},
+		{`name: install-snap
+plugs:
+  install-plug-or:
+     p: P3`, ""},
+		{`name: install-gadget
+type: gadget
+slots:
+  install-slot-or:
+     p: P2`, `installation denied by "install-slot-or" slot rule.*`},
+		{`name: install-snap
+slots:
+  install-slot-or:
+     p: P1`, `installation denied by "install-slot-or" slot rule.*`},
+		{`name: install-snap
+slots:
+  install-slot-or:
+     p: P3`, ""},
 	}
 
 	for _, t := range tests {
@@ -1029,6 +1280,144 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
 			c.Check(err, IsNil)
 		} else {
 			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestPlugOnClassicCheckConnection(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+	r2 := release.MockReleaseInfo(&release.ReleaseInfo)
+	defer r2()
+
+	tests := []struct {
+		distro string // "" => not classic
+		iface  string
+		err    string // "" => no error
+	}{
+		{"ubuntu", "plug-on-classic-true", ""},
+		{"", "plug-on-classic-true", `connection not allowed by plug rule of interface "plug-on-classic-true"`},
+		{"", "plug-on-classic-false", ""},
+		{"ubuntu", "plug-on-classic-false", "connection not allowed.*"},
+		{"ubuntu", "plug-on-classic-distros", ""},
+		{"debian", "plug-on-classic-distros", ""},
+		{"", "plug-on-classic-distros", "connection not allowed.*"},
+		{"other", "plug-on-classic-distros", "connection not allowed.*"},
+	}
+
+	for _, t := range tests {
+		if t.distro == "" {
+			release.OnClassic = false
+		} else {
+			release.OnClassic = true
+			release.ReleaseInfo = release.OS{
+				ID: t.distro,
+			}
+		}
+		cand := policy.ConnectCandidate{
+			Plug:            s.plugSnap.Plugs[t.iface],
+			Slot:            s.slotSnap.Slots[t.iface],
+			BaseDeclaration: s.baseDecl,
+		}
+		err := cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestSlotOnClassicCheckConnection(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+	r2 := release.MockReleaseInfo(&release.ReleaseInfo)
+	defer r2()
+
+	tests := []struct {
+		distro string // "" => not classic
+		iface  string
+		err    string // "" => no error
+	}{
+		{"ubuntu", "slot-on-classic-true", ""},
+		{"", "slot-on-classic-true", `connection not allowed by slot rule of interface "slot-on-classic-true"`},
+		{"", "slot-on-classic-false", ""},
+		{"ubuntu", "slot-on-classic-false", "connection not allowed.*"},
+		{"ubuntu", "slot-on-classic-distros", ""},
+		{"debian", "slot-on-classic-distros", ""},
+		{"", "slot-on-classic-distros", "connection not allowed.*"},
+		{"other", "slot-on-classic-distros", "connection not allowed.*"},
+	}
+
+	for _, t := range tests {
+		if t.distro == "" {
+			release.OnClassic = false
+		} else {
+			release.OnClassic = true
+			release.ReleaseInfo = release.OS{
+				ID: t.distro,
+			}
+		}
+		cand := policy.ConnectCandidate{
+			Plug:            s.plugSnap.Plugs[t.iface],
+			Slot:            s.slotSnap.Slots[t.iface],
+			BaseDeclaration: s.baseDecl,
+		}
+		err := cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestOnClassicInstallation(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+	r2 := release.MockReleaseInfo(&release.ReleaseInfo)
+	defer r2()
+
+	tests := []struct {
+		distro      string // "" => not classic
+		installYaml string
+		err         string // "" => no error
+	}{
+		{"", `name: install-snap
+slots:
+  install-slot-on-classic-distros:`, `installation not allowed by "install-slot-on-classic-distros" slot rule.*`},
+		{"debian", `name: install-snap
+slots:
+  install-slot-on-classic-distros:`, ""},
+		{"", `name: install-snap
+plugs:
+  install-plug-on-classic-distros:`, `installation not allowed by "install-plug-on-classic-distros" plug rule.*`},
+		{"debian", `name: install-snap
+plugs:
+  install-plug-on-classic-distros:`, ""},
+	}
+
+	for _, t := range tests {
+		if t.distro == "" {
+			release.OnClassic = false
+		} else {
+			release.OnClassic = true
+			release.ReleaseInfo = release.OS{
+				ID: t.distro,
+			}
+		}
+
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+		err := cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
 		}
 	}
 }
