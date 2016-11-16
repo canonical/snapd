@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 )
 
 const (
@@ -260,7 +259,5 @@ func init() {
 	TestStoreAccountKey = storeAccKey
 }
 
-// Inject includes the test trusted assertions in the system trusted set.
-func Inject() {
-	sysdb.InjectTrusted([]asserts.Assertion{TestRootAccount, TestRootAccountKey})
-}
+// Testing-only trusted assertions for injecting in the the system trusted set.
+var Trusted = []asserts.Assertion{TestRootAccount, TestRootAccountKey}
