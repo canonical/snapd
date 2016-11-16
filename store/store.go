@@ -1068,11 +1068,23 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
-	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
+func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
-	w, err := os.Create(targetFn + ".partial")
+	if useDeltas() {
+		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+	}
+	if useDeltas() && len(downloadInfo.Deltas) == 1 {
+		err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+		if err == nil {
+			return nil
+		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+	}
+
+	w, err := os.Create(targetPath + ".partial")
 	if err != nil {
 		return err
 	}
@@ -1095,7 +1107,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		return err
 	}
 
-	if err := os.Rename(w.Name(), targetFn); err != nil {
+	if err := os.Rename(w.Name(), targetPath); err != nil {
 		return err
 	}
 
@@ -1159,73 +1171,100 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.Writer, pbar progress.Meter, user *auth.UserState) error {
 
 	if len(downloadInfo.Deltas) != 1 {
-		return "", errors.New("store returned more than one download delta")
+		return errors.New("store returned more than one download delta")
 	}
 
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+		return fmt.Errorf("store returned unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
-
-	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
-
-	w, err := os.Create(path.Join(downloadDir, deltaName))
-	if err != nil {
-		return "", err
-	}
-	deltaPath := w.Name()
-	defer func() {
-		if cerr := w.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-		if err != nil {
-			os.Remove(w.Name())
-			deltaPath = ""
-		}
-	}()
 
 	url := deltaInfo.AnonDownloadURL
 	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
-	if err != nil {
-		return "", err
-	}
-
-	return deltaPath, nil
+	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
-var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
 	if !osutil.FileExists(snapPath) {
-		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
+		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
 	if deltaInfo.Format != "xdelta" {
-		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
 
-	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-	targetSnapPath := targetSnapName + ".partial"
+	partialTargetPath := targetPath + ".partial"
 
-	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, partialTargetPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err := cmd.Run(); err != nil {
-		os.Remove(targetSnapPath)
-		return "", err
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
+		return err
 	}
 
-	return targetSnapPath, nil
+	bsha3_384, _, err := osutil.FileDigest(partialTargetPath, crypto.SHA3_384)
+	if err != nil {
+		return err
+	}
+	sha3_384 := fmt.Sprintf("%x", bsha3_384)
+	if targetSha3_384 != "" && sha3_384 != targetSha3_384 {
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
+		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
+	}
+
+	if err := os.Rename(partialTargetPath, targetPath); err != nil {
+		return osutil.CopyFile(partialTargetPath, targetPath, 0)
+	}
+
+	return nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	deltaInfo := &downloadInfo.Deltas[0]
+
+	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
+	deltaName := filepath.Base(deltaPath)
+
+	w, err := os.Create(deltaPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		os.Remove(deltaPath)
+	}()
+
+	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	if err := applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
+	return nil
 }
 
 type assertionSvcError struct {
