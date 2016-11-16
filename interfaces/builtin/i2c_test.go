@@ -199,7 +199,3 @@ func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
-
-func (s *I2cInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
