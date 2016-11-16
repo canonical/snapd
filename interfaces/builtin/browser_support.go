@@ -261,10 +261,6 @@ func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug
 	return nil, nil
 }
 
-func (iface *BrowserSupportInterface) LegacyAutoConnect() bool {
-	return true
-}
-
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

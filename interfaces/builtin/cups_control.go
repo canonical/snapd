@@ -41,6 +41,5 @@ func NewCupsControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  cupsControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

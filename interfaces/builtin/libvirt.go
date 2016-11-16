@@ -43,7 +43,5 @@ func NewLibvirtInterface() interfaces.Interface {
 		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
 		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
 		reservedForOS:         true,
-		// cannot auto-connect, it grants too much power
-		autoConnect: false,
 	}
 }

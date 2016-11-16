@@ -179,10 +179,6 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 	return nil, nil
 }
 
-func (iface *HidrawInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
