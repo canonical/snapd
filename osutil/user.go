@@ -128,7 +128,11 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 var userCurrent = user.Current
 
-// RealUser finds the user behind a sudo invocation, if applicable and possible.
+// RealUser finds the user behind a sudo invocation when root, if applicable
+// and possible.
+//
+// Don't check SUDO_USER when not root and simply return the current uid
+// to properly support sudo'ing from root to a non-root user
 func RealUser() (*user.User, error) {
 	cur, err := userCurrent()
 	if err != nil {
