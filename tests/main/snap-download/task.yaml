@@ -9,9 +9,9 @@ execute: |
         grep "type: snap-revision" "$fn"
     }
     echo "Snap download can download snaps"
-    snap download hello-world
-    ls hello-world_*.snap
-    verify_asserts hello-world_*.assert
+    snap download test-snapd-control-consumer
+    ls test-snapd-control-consumer_*.snap
+    verify_asserts test-snapd-control-consumer_*.assert
 
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools

@@ -3158,12 +3158,12 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 name: name0
 version: 1.1
 description: |
-    Lots of text`, sideInfo11)
+    Lots of text`, "", sideInfo11)
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.2
 description: |
-    Lots of text`, sideInfo12)
+    Lots of text`, "", sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
@@ -3295,7 +3295,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 			RealName: x.snapName,
 			Revision: snap.R(2),
 		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
+		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), "", sideInfo)
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
 			SnapType: string(x.snapType),
 			Active:   true,
@@ -4088,7 +4088,7 @@ volumes:
 
 func (s *snapmgrTestSuite) prepareGadget(c *C) {
 	gadgetSideInfo := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	gadgetInfo := snaptest.MockSnap(c, "name: the-gadget\nversion: 1.0", gadgetSideInfo)
+	gadgetInfo := snaptest.MockSnap(c, "name: the-gadget\nversion: 1.0", "", gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
