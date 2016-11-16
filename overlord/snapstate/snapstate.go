@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -149,6 +150,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
+			if boot.InUse(ss.Name(), si.Revision) {
+				continue
+			}
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
