@@ -121,12 +121,20 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	refControl, err := checkStringList(assert.headers, "refresh-control")
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
 	}
 
+	var refControl []string
 	var plugRules map[string]*PlugRule
+	var slotRules map[string]*SlotRule
+
+	refControl, err = checkStringList(assert.headers, "refresh-control")
+	if err != nil {
+		return nil, err
+	}
+
 	plugs, err := checkMap(assert.headers, "plugs")
 	if err != nil {
 		return nil, err
@@ -142,7 +150,6 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	var slotRules map[string]*SlotRule
 	slots, err := checkMap(assert.headers, "slots")
 	if err != nil {
 		return nil, err
@@ -156,11 +163,6 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 			}
 			slotRules[iface] = slotRule
 		}
-	}
-
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
 	}
 
 	return &SnapDeclaration{

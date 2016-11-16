@@ -405,6 +405,11 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 	if len(snaps) == 0 || err != nil {
 		return fmt.Errorf("internal error: cannot find core/kernel snap")
 	}
+
+	m := map[string]string{
+		"snap_try_core":   "",
+		"snap_try_kernel": "",
+	}
 	for _, fn := range snaps {
 		bootvar := ""
 
@@ -421,10 +426,11 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 
 		if bootvar != "" {
 			name := filepath.Base(fn)
-			if err := bootloader.SetBootVar(bootvar, name); err != nil {
-				return err
-			}
+			m[bootvar] = name
 		}
+	}
+	if err := bootloader.SetBootVars(m); err != nil {
+		return err
 	}
 
 	return nil

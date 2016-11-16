@@ -29,6 +29,9 @@ const mountObserveConnectedPlugAppArmor = `
 # it gives privileged read access to mount arguments and should only be used
 # with trusted apps.
 # Usage: reserved
+
+/{,usr/}bin/df ixr,
+
 # Needed by 'df'. This is an information leak
 @{PROC}/mounts r,
 owner @{PROC}/@{pid}/mounts r,

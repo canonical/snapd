@@ -36,6 +36,8 @@ func (log) Notify(status string) {
 	logger.Noticef("patch 5: %s", status)
 }
 
+// patch5:
+//  - regenerate generated .service files
 func patch5(st *state.State) error {
 	log := log{}
 

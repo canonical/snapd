@@ -1,8 +1,9 @@
 snap
-var/lib/snapd/snaps
-var/lib/snapd/lib/gl
+usr/lib/snapd
+var/lib/snapd/auto-import
 var/lib/snapd/desktop
 var/lib/snapd/environment
 var/lib/snapd/firstboot
-usr/lib/snapd
+var/lib/snapd/lib/gl
+var/lib/snapd/snaps/partial
 var/snap

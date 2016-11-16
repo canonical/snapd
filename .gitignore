@@ -5,5 +5,5 @@ cmd/version_generated.go
 *~
 *.swp
 vendor/*/
-.spread-reuse.yaml
+.spread-reuse*.yaml
 po/snappy.pot

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "service v2"
+exit 1

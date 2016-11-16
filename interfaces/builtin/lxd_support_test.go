@@ -65,57 +65,9 @@ func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdFromCanonical(c *C) {
+func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
-}
-
-func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdFromCanonical(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notlxd",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(snap name 'notlxd' != 'lxd'\\)")
-}
-
-func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdNotFromCanonical(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "lxd",
-			SideInfo:      snap.SideInfo{Developer: "foo"},
-		},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}})
-	c.Assert(err, ErrorMatches, "lxd-support interface is reserved for the upstream LXD project")
-}
-
-func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdNotFromCanonical(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notlxd",
-			SideInfo:      snap.SideInfo{Developer: "foo"},
-		},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(snap name 'notlxd' != 'lxd'\\)")
-}
-
-func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdSideload(c *C) {
-	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "lxd",
-			SideInfo:      snap.SideInfo{Developer: ""},
-		},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}})
-	c.Assert(err, ErrorMatches, "lxd-support interface is reserved for the upstream LXD project")
 }
 
 func (s *LxdSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
@@ -139,10 +91,6 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Check(string(snippet), testutil.Contains, "@unrestricted\n")
-}
-
-func (s *LxdSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }
 
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
