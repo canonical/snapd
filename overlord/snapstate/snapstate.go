@@ -627,6 +627,11 @@ func canRemove(s *snap.Info, active bool) bool {
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
+	// never remove anything that is used for booting
+	if boot.InUse(s.Name(), s.Revision) {
+		return false
+	}
+
 	return true
 }
 
