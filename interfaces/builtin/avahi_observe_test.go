@@ -91,7 +91,3 @@ func (s *AvahiObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "sendto")
 }
-
-func (s *AvahiObserveInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
