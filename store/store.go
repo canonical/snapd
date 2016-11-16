@@ -1210,7 +1210,9 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err := cmd.Run(); err != nil {
-		os.Remove(partialTargetPath)
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
 		return err
 	}
 
@@ -1220,7 +1222,9 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	}
 	sha3_384 := fmt.Sprintf("%x", bsha3_384)
 	if targetSha3_384 != "" && sha3_384 != targetSha3_384 {
-		os.Remove(partialTargetPath)
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
 		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
 	}
 
@@ -1255,8 +1259,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	}
 
 	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	err = applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384)
-	if err != nil {
+	if err := applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
 		return err
 	}
 
