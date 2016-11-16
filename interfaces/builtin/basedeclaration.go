@@ -246,6 +246,12 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
