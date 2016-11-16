@@ -1,3 +1,9 @@
+snapd (2.17.1ubuntu1) trusty; urgency=medium
+
+  * Bump revision for PPA build.
+
+ -- Thomas Voß <thomas.voss@canonical.com>  Wed, 16 Nov 2016 12:55:48 +0100
+
 snapd (2.17.1) xenial; urgency=medium
 
   * New upstream release, LP: #1637215:
