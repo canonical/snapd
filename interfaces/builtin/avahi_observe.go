@@ -125,6 +125,5 @@ func NewAvahiObserveInterface() interfaces.Interface {
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  avahiObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false, // LegacyAutoConnect
 	}
 }
