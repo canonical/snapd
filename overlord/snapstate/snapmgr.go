@@ -315,6 +315,9 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
+	// health check
+	runner.AddHandler("health-check-static", m.doHealthCheckStatic, nil)
+
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -560,6 +563,19 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name(), snapst)
 	st.Unlock()
 	return nil
+}
+
+func (m *SnapManager) doHealthCheckStatic(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	ss, err := TaskSnapSetup(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.HealthCheckStatic(ss.Name(), ss.Revision())
 }
 
 // Ensure implements StateManager.Ensure.

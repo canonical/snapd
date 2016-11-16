@@ -63,6 +63,9 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 	DiscardSnapNamespace(snapName string) error
 
+	// health check
+	HealthCheckStatic(name string, rev snap.Revision) error
+
 	// testing helpers
 	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)

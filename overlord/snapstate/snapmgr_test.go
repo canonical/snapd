@@ -163,6 +163,7 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	}
 	expected = append(expected,
 		"run-hook",
+		"health-check-static",
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -214,6 +215,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		"link-snap",
 		"start-snap-services",
 		"run-hook",
+		"health-check-static",
 	})
 }
 
@@ -424,6 +426,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"link-snap",
 		"start-snap-services",
 		"run-hook",
+		"health-check-static",
 	})
 }
 
@@ -881,9 +884,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-3]
+	linkTask := ta[len(ta)-4]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
-	startTask := ta[len(ta)-2]
+	startTask := ta[len(ta)-3]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
 
 	// verify snap-setup in the task state
@@ -3898,13 +3901,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	var ss snapstate.SnapSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 6
+	i := len(tasks) - 7
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Check(ss.Revision(), Equals, si3.Revision)
 
-	i = len(tasks) - 4
+	i = len(tasks) - 5
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
