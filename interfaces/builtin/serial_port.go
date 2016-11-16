@@ -179,10 +179,6 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	return nil, nil
 }
 
-func (iface *SerialPortInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *SerialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

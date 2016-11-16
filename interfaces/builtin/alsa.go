@@ -35,6 +35,5 @@ func NewAlsaInterface() interfaces.Interface {
 		name: "alsa",
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           false, // LegacyAutoConnect
 	}
 }

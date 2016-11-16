@@ -157,9 +157,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		expected := autoconnect[iface.Name()]
 		comm := Commentf(iface.Name())
 
-		// cross-check with past behavior
-		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
-
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
