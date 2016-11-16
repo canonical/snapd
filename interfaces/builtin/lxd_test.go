@@ -25,62 +25,74 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type NetworkSetupObserveInterfaceSuite struct {
+type LxdInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkSetupObserveInterfaceSuite{
-	iface: builtin.NewNetworkSetupObserveInterface(),
+var _ = Suite(&LxdInterfaceSuite{
+	iface: &builtin.LxdInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-setup-observe",
-			Interface: "network-setup-observe",
+			Name:      "lxd",
+			Interface: "lxd",
 		},
 	},
+
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-setup-observe",
-			Interface: "network-setup-observe",
+			Snap: &snap.Info{
+				SuggestedName: "lxd",
+				SideInfo:      snap.SideInfo{Developer: "canonical"},
+			},
+			Name:      "lxd",
+			Interface: "lxd",
 		},
 	},
 })
 
-func (s *NetworkSetupObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-setup-observe")
+func (s *LxdInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "lxd")
 }
 
-func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-setup-observe",
-		Interface: "network-setup-observe",
-	}})
-	c.Assert(err, ErrorMatches, "network-setup-observe slots are reserved for the operating system snap")
 }
 
-func (s *NetworkSetupObserveInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network-setup-observe"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network-setup-observe"`)
-}
-
-func (s *NetworkSetupObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *LxdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+}
+
+func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
+}
+
+func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Check(string(snippet), testutil.Contains, "shutdown\n")
+}
+
+func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
+	// allow what declarations allowed
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }

@@ -1209,10 +1209,6 @@ func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
