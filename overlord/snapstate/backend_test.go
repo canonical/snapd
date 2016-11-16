@@ -418,6 +418,17 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) HealthCheckStatic(snapName string, rev snap.Revision) error {
+	// FIXME: update all tests
+	/*
+		f.ops = append(f.ops, fakeOp{
+			op:   "health-check-static",
+			name: snapName,
+		})
+	*/
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {

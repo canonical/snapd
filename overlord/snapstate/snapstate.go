@@ -179,6 +179,12 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	configSet.WaitAll(installSet)
 	installSet.AddAll(configSet)
 
+	// FIXME: move to a separate pkg?
+	healthCheck := s.NewTask("health-check-static", fmt.Sprintf("Static health check for %q", ss.Name()))
+	healthCheck.Set("snap-setup-task", prepare.ID())
+	healthCheck.WaitAll(configSet)
+	installSet.AddAll(state.NewTaskSet(healthCheck))
+
 	return installSet, nil
 }
 
