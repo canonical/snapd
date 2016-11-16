@@ -362,6 +362,7 @@ var (
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
 		"network-manager": []string{"app", "core"},
+		"ofono":           []string{"app", "core"},
 		"ppp":             []string{"core"},
 		"pulseaudio":      []string{"app", "core"},
 		"serial-port":     []string{"core", "gadget"},
