@@ -137,6 +137,7 @@ unix (bind)
      addr="@[0-9A-F]*._service_*",
 
 # Policy needed only when using the chrome/chromium setuid sandbox
+capability sys_ptrace,
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
 

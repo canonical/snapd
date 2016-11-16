@@ -69,6 +69,7 @@ capability,
 /dev/mapper/docker* rw,
 /dev/loop-control r,
 /dev/loop[0-9]* rw,
+/sys/devices/virtual/block/dm-[0-9]*/** r,
 mount,
 umount,
 
