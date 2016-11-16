@@ -34,7 +34,7 @@ execute: |
     echo "When we install v1"
     snap install --dangerous ${SNAP_FILE_GOOD}
     echo "The v1 service started correctly"
-    wait_for_service_status "Started Service for snap application test-snapd-service.service"
+    wait_for_service_status "service v1"
     
     echo "When we refresh to v2"
     if snap install --dangerous ${SNAP_FILE_BAD}; then
@@ -42,5 +42,4 @@ execute: |
        exit 1
     fi
     echo "Then v2 is rolled back and v1 is started again"
-    wait_for_service_status "Started Service for snap application test-snapd-service.service"
     wait_for_service_status "service v1"
