@@ -575,10 +575,6 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *DockerSupportInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
