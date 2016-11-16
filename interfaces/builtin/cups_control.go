@@ -29,6 +29,8 @@ const cupsControlConnectedPlugAppArmor = `
 `
 
 const cupsControlConnectedPlugSecComp = `
+recvfrom
+sendto
 setsockopt
 `
 
