@@ -500,6 +500,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	noconnect := map[string]bool{
 		"modem-manager":   true,
 		"network-manager": true,
+		"ofono":           true,
 		"pulseaudio":      true,
 	}
 
