@@ -86,7 +86,3 @@ func (s *AlsaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "/dev/snd/* rw,")
 }
-
-func (s *AlsaInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
