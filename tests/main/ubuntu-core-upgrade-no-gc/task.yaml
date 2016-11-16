@@ -19,7 +19,12 @@ execute: |
 
     echo "Install a bunch more core packages"
     for i in $(seq 5); do
+        next=$(bootenv snap_try_core)
         snap install --dangerous /var/lib/snapd/snaps/$cur
+        if [ "$next" = "$(bootenv snap_try_core)" ]; then
+            echo "The snap_try_core bootenv did not get updated"
+            exit 1
+        fi
     done
 
     echo "And verify that we did not garbage collect the current core"
@@ -28,4 +33,4 @@ execute: |
         exit 1
     fi
 
-    # FIXME: ensure that snap_try_core is set to the correct version
+
