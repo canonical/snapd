@@ -79,6 +79,5 @@ func NewTimeControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

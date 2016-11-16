@@ -28,6 +28,7 @@ import (
 )
 
 var implicitSlots = []string{
+	"alsa",
 	"bluetooth-control",
 	"dcdbas-control",
 	"docker-support",
@@ -67,6 +68,7 @@ var implicitClassicSlots = []string{
 	"libvirt",
 	"modem-manager",
 	"network-manager",
+	"ofono",
 	"optical-drive",
 	"pulseaudio",
 	"screen-inhibit-control",

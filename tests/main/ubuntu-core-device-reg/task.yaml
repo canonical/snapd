@@ -19,7 +19,9 @@ execute: |
     echo "Check we have a serial"
     snap known serial|grep "authority-id: canonical"
     snap known serial|grep "brand-id: canonical"
-    snap known serial|grep "model: pc"
+    if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+        snap known serial|grep "model: pc"
+    fi
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc

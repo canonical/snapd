@@ -30,7 +30,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -57,7 +56,7 @@ type remoteRepoTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
+	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
@@ -266,7 +265,7 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
@@ -277,7 +276,8 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -287,7 +287,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
@@ -301,7 +301,8 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.user)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, t.user)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -311,7 +312,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte("I was downloaded"))
@@ -323,7 +324,8 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.localUser)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, t.localUser)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -334,7 +336,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	}
@@ -344,16 +346,16 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
-	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -367,9 +369,9 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	// simulate a failed sync
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
-	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
@@ -385,7 +387,10 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	c.Assert(download("foo", mockServer.URL, nil, theStore, &buf, nil), IsNil)
+	// keep tests happy
+	sha3 := ""
+	err := download("foo", sha3, mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
 }
@@ -401,7 +406,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
@@ -419,7 +424,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
@@ -484,9 +489,8 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	for _, testCase := range deltaTests {
-
 		downloadIndex := 0
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			if testCase.downloads[downloadIndex].error {
 				downloadIndex++
 				return errors.New("Bang")
@@ -496,16 +500,15 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 			downloadIndex++
 			return nil
 		}
-		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			w, err := ioutil.TempFile("", "")
-			defer w.Close()
-			c.Check(err, IsNil)
-			w.Write([]byte("snap-content-via-delta"))
-			return w.Name(), nil
+			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
+			c.Assert(err, IsNil)
+			return nil
 		}
 
-		path, err := t.store.Download("foo", &testCase.info, nil, nil)
+		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
+		err := t.store.Download("foo", path, &testCase.info, nil, nil)
 
 		c.Assert(err, IsNil)
 		defer os.Remove(path)
@@ -521,10 +524,11 @@ var downloadDeltaTests = []struct {
 	useLocalUser  bool
 	format        string
 	expectedURL   string
-	expectedPath  string
+	expectError   bool
 }{{
 	// An unauthenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
 		},
@@ -532,10 +536,11 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "xdelta",
 	expectedURL:   "anon-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// An authenticated request downloads the authenticated delta url.
 	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
 		},
@@ -544,10 +549,11 @@ var downloadDeltaTests = []struct {
 	useLocalUser:  false,
 	format:        "xdelta",
 	expectedURL:   "auth-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// A local authenticated request downloads the anonymous delta url.
 	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
 		},
@@ -556,11 +562,12 @@ var downloadDeltaTests = []struct {
 	useLocalUser:  true,
 	format:        "xdelta",
 	expectedURL:   "anon-delta-url",
-	expectedPath:  "snapname_24_26_delta.xdelta",
+	expectError:   false,
 }, {
 	// An error is returned if more than one matching delta is returned by the store,
 	// though this may be handled in the future.
 	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
 			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
@@ -569,10 +576,11 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "xdelta",
 	expectedURL:   "",
-	expectedPath:  "",
+	expectError:   true,
 }, {
 	// If the supported format isn't available, an error is returned.
 	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
 			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
@@ -581,7 +589,7 @@ var downloadDeltaTests = []struct {
 	authenticated: false,
 	format:        "bsdiff",
 	expectedURL:   "",
-	expectedPath:  "",
+	expectError:   true,
 }}
 
 func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
@@ -591,7 +599,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 
 	for _, testCase := range downloadDeltaTests {
 		t.store.deltaFormat = testCase.format
-		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			expectedUser := t.user
 			if testCase.useLocalUser {
 				expectedUser = t.localUser
@@ -601,12 +609,13 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			}
 			c.Check(user, Equals, expectedUser)
 			c.Check(url, Equals, testCase.expectedURL)
+			w.Write([]byte("I was downloaded"))
 			return nil
 		}
 
-		downloadDir, err := ioutil.TempDir("", "")
+		w, err := ioutil.TempFile("", "")
 		c.Assert(err, IsNil)
-		defer os.RemoveAll(downloadDir)
+		defer os.Remove(w.Name())
 
 		authedUser := t.user
 		if testCase.useLocalUser {
@@ -616,14 +625,15 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		deltaPath, err := t.store.downloadDelta("snapname", downloadDir, &testCase.info, nil, authedUser)
+		err = t.store.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
 
-		if testCase.expectedPath == "" {
-			c.Assert(deltaPath, Equals, "")
+		if testCase.expectError {
 			c.Assert(err, NotNil)
 		} else {
 			c.Assert(err, IsNil)
-			c.Assert(deltaPath, Equals, path.Join(downloadDir, testCase.expectedPath))
+			content, err := ioutil.ReadFile(w.Name())
+			c.Assert(err, IsNil)
+			c.Assert(string(content), Equals, "I was downloaded")
 		}
 	}
 }
@@ -646,7 +656,7 @@ var applyDeltaTests = []struct {
 	// An error is returned if the format is not supported.
 	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
 	currentRevision: 24,
-	error:           "unsupported delta format \"nodelta\"",
+	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta currently)",
 }}
 
 func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
@@ -654,24 +664,40 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		name := "foo"
 		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
 		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+		targetSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.deltaInfo.ToRevision)
+		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
 		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
 		c.Assert(err, IsNil)
 		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
-
-		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
-
-		c.Assert(os.Remove(currentSnapPath), IsNil)
+		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
+		err = ioutil.WriteFile(deltaPath, nil, 0644)
+		c.Assert(err, IsNil)
+		// When testing a case where the call to the external xdelta is successful,
+		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err := os.Remove(snapPath)
-			c.Assert(err == nil || os.IsNotExist(err), Equals, true)
+			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		err = applyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+
+		if testCase.error == "" {
+			c.Assert(err, IsNil)
 			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
-				{"xdelta", "patch", "/the/delta/path", currentSnapPath, snapPath},
+				{"xdelta", "patch", deltaPath, currentSnapPath, targetSnapPath + ".partial"},
 			})
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
+			c.Assert(os.Remove(targetSnapPath), IsNil)
 		} else {
 			c.Assert(err, NotNil)
 			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
 		}
+		c.Assert(os.Remove(currentSnapPath), IsNil)
+		c.Assert(os.Remove(deltaPath), IsNil)
 	}
 }
 
@@ -2665,7 +2691,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -2677,7 +2703,7 @@ var buyTests = []struct {
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -2780,7 +2806,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 
 		buyOptions := &BuyOptions{
 			SnapID:   snap.SnapID,
-			SnapName: snap.Name(),
 			Currency: repo.SuggestedCurrency(),
 			Price:    snap.Prices[repo.SuggestedCurrency()],
 		}
@@ -2815,48 +2840,34 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no snap ID
 	result, err := repo.Buy(&BuyOptions{
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
-
-	// no name
-	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		Price:    1.0,
-		Currency: "USD",
-	}, t.user)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
+	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		SnapName: "snap name",
-		Price:    1.0,
+		SnapID: "snap ID",
+		Price:  1.0,
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, nil)
