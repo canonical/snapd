@@ -733,7 +733,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
-func (snapdcl *SnapDeveloper) Prerequisites() []*Ref {
+func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 	// TODO(matt):
 	// - publisher-id's account assertion, but currently same as authority-id.
 	// - developer account assertions?
