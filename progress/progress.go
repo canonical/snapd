@@ -26,6 +26,7 @@ import (
 	"unicode"
 
 	"github.com/cheggaaa/pb"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Meter is an interface to show progress to the user
@@ -194,5 +195,5 @@ func MakeProgressBar() Meter {
 var attachedToTerminal = func() bool {
 	fd := int(os.Stdin.Fd())
 
-	return isatty(fd)
+	return terminal.IsTerminal(fd)
 }
