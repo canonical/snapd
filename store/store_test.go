@@ -1577,9 +1577,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, nil)
-	_, err := repo.Find(&Search{}, nil)
-	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
+	_, err := repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
 	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user)
 	c.Check(err, Equals, ErrBadQuery)
