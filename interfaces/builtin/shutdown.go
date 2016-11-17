@@ -54,6 +54,5 @@ func NewShutdownInterface() interfaces.Interface {
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

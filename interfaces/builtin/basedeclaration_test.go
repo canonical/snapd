@@ -157,9 +157,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		expected := autoconnect[iface.Name()]
 		comm := Commentf(iface.Name())
 
-		// cross-check with past behavior
-		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
-
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
@@ -361,10 +358,12 @@ var (
 		"docker-support":  []string{"core"},
 		"gpio":            []string{"core", "gadget"},
 		"hidraw":          []string{"core", "gadget"},
+		"i2c":             []string{"core", "gadget"},
 		"lxd-support":     []string{"core"},
 		"mir":             []string{"app"},
 		"mpris":           []string{"app"},
 		"network-manager": []string{"app", "core"},
+		"ofono":           []string{"app", "core"},
 		"ppp":             []string{"core"},
 		"pulseaudio":      []string{"app", "core"},
 		"serial-port":     []string{"core", "gadget"},
