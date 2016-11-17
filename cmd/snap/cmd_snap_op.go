@@ -361,6 +361,10 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
+		fmt.Fprintf(Stderr, "snap is already installed")
+		return nil
+	}
 	if err != nil {
 		return err
 	}

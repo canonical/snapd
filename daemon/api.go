@@ -999,6 +999,16 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	msg, tsets, err := impl(&inst, state)
+	if _, ok := err.(*snap.AlreadyInstalledError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapAlreadyInstalled,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	if err != nil {
 		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}

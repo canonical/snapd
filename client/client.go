@@ -314,12 +314,13 @@ func (e *Error) Error() string {
 }
 
 const (
-	ErrorKindTwoFactorRequired = "two-factor-required"
-	ErrorKindTwoFactorFailed   = "two-factor-failed"
-	ErrorKindLoginRequired     = "login-required"
-	ErrorKindTermsNotAccepted  = "terms-not-accepted"
-	ErrorKindNoPaymentMethods  = "no-payment-methods"
-	ErrorKindPaymentDeclined   = "payment-declined"
+	ErrorKindTwoFactorRequired    = "two-factor-required"
+	ErrorKindTwoFactorFailed      = "two-factor-failed"
+	ErrorKindLoginRequired        = "login-required"
+	ErrorKindTermsNotAccepted     = "terms-not-accepted"
+	ErrorKindNoPaymentMethods     = "no-payment-methods"
+	ErrorKindPaymentDeclined      = "payment-declined"
+	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
