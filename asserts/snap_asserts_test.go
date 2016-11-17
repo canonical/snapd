@@ -1386,3 +1386,20 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
 	}
 }
+
+func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	headers := map[string]interface{}{
+		"authority-id": "dev-id1",
+		"publisher-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"timestamp":    sds.ts.Format(time.RFC3339),
+	}
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
+}

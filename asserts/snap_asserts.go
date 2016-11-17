@@ -722,10 +722,19 @@ func (snapdev *SnapDeveloper) Timestamp() time.Time {
 }
 
 func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+	_, err := db.Find(SnapDeclarationType, map[string]string{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		"series":  release.Series,
+		"snap-id": snapdev.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
+	}
+
 	// TODO(matt):
 	// - publisher-id has an acccount assertion.
 	// - each developer id has an acccount assertion.
-	// - snap-id?
+
 	return nil
 }
 
