@@ -102,12 +102,12 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := ValidateDBusBusName(name)
-		c.Assert(err, ErrorMatches, `invalid bus name: ".*"`)
+		c.Assert(err, ErrorMatches, `invalid DBus bus name: ".*"`)
 	}
 
 	// must not be empty
 	err := ValidateDBusBusName("")
-	c.Assert(err, ErrorMatches, `bus name must be set`)
+	c.Assert(err, ErrorMatches, `DBus bus name must be set`)
 
 	// must not exceed maximum length
 	longName := make([]byte, 256)
@@ -118,7 +118,7 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	longName[0] = 'a'
 	longName[1] = '.'
 	err = ValidateDBusBusName(string(longName))
-	c.Assert(err, ErrorMatches, `bus name is too long \(must be <= 255\)`)
+	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
 }
 
 // Plug.Ref works as expected
