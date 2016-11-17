@@ -395,6 +395,23 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf bytes.Buffer
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
+	c.Check(n, Equals, 1)
+}
+
 func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2877,8 +2894,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 }
 
 var readyToBuyTests = []struct {
-	Input func(w http.ResponseWriter)
-	Test  func(c *C, err error)
+	Input      func(w http.ResponseWriter)
+	Test       func(c *C, err error)
+	NumOfCalls int
 }{
 	{
 		// A user account the is ready for buying
@@ -2895,6 +2913,7 @@ var readyToBuyTests = []struct {
 		Test: func(c *C, err error) {
 			c.Check(err, IsNil)
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// A user account that hasn't accepted the TOS
@@ -2912,6 +2931,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "terms of service not accepted")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// A user account that has no payment method
@@ -2929,6 +2949,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "no payment methods")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// No user account exists
@@ -2940,6 +2961,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// An unknown set of errors occurs
@@ -2963,6 +2985,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
+		NumOfCalls: 6,
 	},
 }
 
@@ -2999,6 +3022,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 
 		err = repo.ReadyToBuy(t.user)
 		test.Test(c, err)
-		c.Check(purchaseServerGetCalled, Equals, 1)
+		c.Check(purchaseServerGetCalled, Equals, test.NumOfCalls)
 	}
 }
