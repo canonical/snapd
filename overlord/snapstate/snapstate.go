@@ -276,7 +276,7 @@ func Install(s *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 	if snapst.HasCurrent() {
-		return nil, fmt.Errorf("snap %q already installed", name)
+		return nil, &snap.AlreadyInstalledError{name}
 	}
 
 	snapInfo, err := snapInfo(s, name, channel, revision, userID, flags)

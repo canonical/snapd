@@ -509,3 +509,11 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 	}
 	return l[0], l[1]
 }
+
+type AlreadyInstalledError struct {
+	Snap string
+}
+
+func (e AlreadyInstalledError) Error() string {
+	return fmt.Sprintf("snap %q already installed", e.Snap)
+}
