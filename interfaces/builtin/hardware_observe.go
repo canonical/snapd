@@ -45,6 +45,14 @@ capability sys_rawio,
 # util-linux
 /{,usr/}bin/lscpu ixr,
 @{PROC}/bus/pci/devices r,
+
+# lsusb
+# Note: lsusb and its database have to be shipped in the snap if not on classic
+/{,usr/}bin/lsusb ixr,
+/var/lib/usbutils/usb.ids r,
+/dev/ r,
+/dev/bus/usb/{,**/} r,
+/etc/udev/udev.conf r,
 `
 
 // NewHardwareObserveInterface returns a new "hardware-observe" interface.

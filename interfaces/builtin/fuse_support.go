@@ -80,6 +80,5 @@ func NewFuseSupportInterface() interfaces.Interface {
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

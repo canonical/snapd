@@ -153,6 +153,16 @@ plugs:
     allow-installation: false
     deny-auto-connection: true
 slots:
+  alsa:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  avahi-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   bluetooth-control:
     allow-installation:
       slot-snap-type:
@@ -246,6 +256,12 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
@@ -271,6 +287,10 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  lxd:
+    allow-installation: false
+    deny-connection: true
     deny-auto-connection: true
   lxd-support:
     allow-installation:
@@ -327,6 +347,14 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
   opengl:
     allow-installation:
       slot-snap-type:
