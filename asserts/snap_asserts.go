@@ -731,9 +731,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
 	}
 
-	// TODO(matt):
-	// - publisher-id has an acccount assertion.
-	// - each developer id has an acccount assertion.
+	// TODO(matt): check each developer id has an acccount assertion.
 
 	return nil
 }
@@ -743,9 +741,7 @@ var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
-	// TODO(matt):
-	// - publisher-id's account assertion, but currently same as authority-id.
-	// - developer account assertions?
+	// TODO(matt): return developer account refs.
 	return nil
 }
 
