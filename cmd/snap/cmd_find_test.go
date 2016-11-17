@@ -100,7 +100,6 @@ func (s *SnapSuite) TestFind(c *check.C) {
 	maxfindRequest := len(findWhat)
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("aa")
 		if n < maxfindRequest {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
@@ -119,7 +118,6 @@ func (s *SnapSuite) TestFind(c *check.C) {
 	})
 
 	for _, what := range findWhat {
-		fmt.Println(what)
 		rest, err := snap.Parser().ParseArgs([]string{"find", what})
 
 		c.Assert(err, check.IsNil)
