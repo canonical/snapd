@@ -392,6 +392,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
+Options=ro,allow_other
 
 [Install]
 WantedBy=multi-user.target

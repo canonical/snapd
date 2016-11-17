@@ -39,7 +39,6 @@ type commonInterface struct {
 	connectedPlugSecComp   string
 	connectedPlugKMod      string
 	reservedForOS          bool
-	autoConnect            bool // OBSOLETE, only cross-check info atm
 	rejectAutoConnectPairs bool
 }
 
@@ -114,10 +113,6 @@ func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 // Slots don't get any per-connection security snippets.
 func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
-}
-
-func (iface *commonInterface) LegacyAutoConnect() bool {
-	return iface.autoConnect
 }
 
 // AutoConnect returns whether plug and slot should be implicitly

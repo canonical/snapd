@@ -7,10 +7,10 @@ restore: |
 
 execute: |
     echo "Checking missing email error"
-    expect -f missing_email_error.exp
+    expect -d -f missing_email_error.exp
 
     echo "Checking wrong password error"
-    expect -f unsuccessful_login.exp
+    expect -d -f unsuccessful_login.exp
 
     output=$(snap managed)
     if [ "$output" != "false" ]; then
@@ -20,7 +20,7 @@ execute: |
 
     if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
         echo "Checking successful login"
-        expect -f successful_login.exp
+        expect -d -f successful_login.exp
 
         output=$(snap managed)
         if [ "$output" != "system is managed" ]; then
