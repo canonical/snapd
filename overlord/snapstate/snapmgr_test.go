@@ -3814,7 +3814,7 @@ func (s *snapmgrTestSuite) TestSeqRevertPostRevertFailure(c *C) {
 	s.testRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
 
-// 4c. taht fails after link
+// 4c. that fails after link
 func (s *snapmgrTestSuite) TestSeqTotalRevertPostRevertFailure(c *C) {
 	s.testTotalRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
