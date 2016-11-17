@@ -202,10 +202,13 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  dbus-app:
+  dbus:
     allow-installation:
       slot-snap-type:
         - app
+    deny-connection:
+      slot-attributes:
+        name: .+
     deny-auto-connection: true
   dcdbas-control:
     allow-installation:
