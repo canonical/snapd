@@ -484,12 +484,15 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	results := make([]*json.RawMessage, 1)
-	data, err := json.Marshal(sections)
-	if err != nil {
-		return InternalError(err.Error())
+	results := make([]*json.RawMessage, 0, len(sections))
+	for _, section := range sections {
+		data, err := json.Marshal(section)
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results = append(results, &raw)
 	}
-	results[0] = (*json.RawMessage)(&data)
 
 	meta := &Meta{
 		Sources: []string{"store"},
