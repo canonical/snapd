@@ -49,6 +49,8 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.PulseAudioInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
 	c.Check(all, Contains, &builtin.FwupdInterface{})
+	c.Check(all, DeepContains, builtin.NewAlsaInterface())
+	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
 	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
