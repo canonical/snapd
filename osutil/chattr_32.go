@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build armhf 386
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +18,10 @@
  *
  */
 
-package strutil
+package osutil
 
-import (
-	"math/rand"
-	"time"
+const (
+	// these are actually _FS_IOC32 (i'm cheating)
+	_FS_IOC_GETFLAGS = uintptr(0x80046601)
+	_FS_IOC_SETFLAGS = uintptr(0x40046602)
 )
-
-func init() {
-	// golang does not init Seed() itself
-	rand.Seed(time.Now().UTC().UnixNano())
-}
-
-const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
-
-// MakeRandomString returns a random string of length length
-//
-// The vowels are omitted to avoid that words are created by pure
-// chance. Numbers are included.
-func MakeRandomString(length int) string {
-
-	out := ""
-	for i := 0; i < length; i++ {
-		out += string(letters[rand.Intn(len(letters))])
-	}
-
-	return out
-}

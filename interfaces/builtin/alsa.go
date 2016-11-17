@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,23 @@
  *
  */
 
-package strutil
+package builtin
 
-import (
-	"math/rand"
-	"time"
-)
+import "github.com/snapcore/snapd/interfaces"
 
-func init() {
-	// golang does not init Seed() itself
-	rand.Seed(time.Now().UTC().UnixNano())
-}
+const alsaConnectedPlugAppArmor = `
+# Description: Allow access to raw ALSA devices.
 
-const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
+/dev/snd/  r,
+/dev/snd/* rw,
 
-// MakeRandomString returns a random string of length length
-//
-// The vowels are omitted to avoid that words are created by pure
-// chance. Numbers are included.
-func MakeRandomString(length int) string {
+/run/udev/data/c116:[0-9]* r, # alsa
+`
 
-	out := ""
-	for i := 0; i < length; i++ {
-		out += string(letters[rand.Intn(len(letters))])
+func NewAlsaInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "alsa",
+		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
+		reservedForOS:         true,
 	}
-
-	return out
 }
