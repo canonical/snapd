@@ -903,7 +903,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	} else {
 		q.Set("q", searchTerm)
 	}
-	fmt.Println(search.Section)
 	q.Set("section", search.Section)
 
 	q.Set("confinement", "strict")
