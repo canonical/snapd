@@ -100,7 +100,7 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 }
 
 func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	dbusBusNames, err := iface.getBusNames(slot.Attrs)
+	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -108,29 +108,24 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	case interfaces.SecurityAppArmor:
 		snippets := bytes.NewBufferString("")
 
-		for bus, names := range dbusBusNames {
-			// common permanent slot policy
-			abstraction, err := getAppArmorAbstraction(bus)
-			if err != nil {
-				return nil, err
-			}
-			old := []byte("###DBUS_BIND_ABSTRACTION###")
-			new := []byte(abstraction)
-			snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
+		// common permanent slot policy
+		abstraction, err := getAppArmorAbstraction(bus)
+		if err != nil {
+			return nil, err
+		}
+		old := []byte("###DBUS_BIND_ABSTRACTION###")
+		new := []byte(abstraction)
+		snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
+		snippets.Write(snippet)
+
+		// well-known DBus name-specific permanent slot policy
+		snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
+		snippets.Write(snippet)
+
+		if release.OnClassic {
+			// classic-only policy
+			snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
 			snippets.Write(snippet)
-
-			for _, name := range names {
-				// well-known DBus name-specific permanent slot
-				// policy
-				snippet := getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
-				snippets.Write(snippet)
-
-				if release.OnClassic {
-					// classic-only policy
-					snippet := getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
-					snippets.Write(snippet)
-				}
-			}
 		}
 		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
 		return snippets.Bytes(), nil
@@ -144,35 +139,45 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	return nil, nil
 }
 
-// Obtain yaml-specified DBus well-known names by bus
-func (iface *DbusInterface) getBusNames(attribs map[string]interface{}) (map[string][]string, error) {
-	busNames := make(map[string][]string)
+// Obtain yaml-specified bus well-known name
+func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
+	bus := ""
+	name := ""
 	for attr := range attribs {
-		bus := attr
-		if bus != "session" && bus != "system" {
-			return nil, fmt.Errorf("bus must be one of 'session' or 'system'")
+		if attr != "bus" && attr != "name" {
+			return "", "", fmt.Errorf("unknown attribute '%s'", attr)
 		}
-		busNamesList, ok := attribs[bus].([]interface{})
+
+		raw, ok := attribs[attr]
 		if !ok {
-			return nil, fmt.Errorf("bus attribute is not a list")
+			return "", "", fmt.Errorf("cannot find attribute %q", attr)
+		}
+		val, ok := raw.(string)
+		if !ok {
+			return "", "", fmt.Errorf("element %v for '%s' is not a string", raw, attr)
 		}
 
-		for _, item := range busNamesList {
-			busName, ok := item.(string)
-			if !ok {
-				return nil, fmt.Errorf("session element is not a string")
+		if attr == "bus" {
+			bus = val
+			if bus != "session" && bus != "system" {
+				return "", "", fmt.Errorf("bus '%s' must be one of 'session' or 'system'", bus)
 			}
-
-			err := interfaces.ValidateDBusBusName(busName)
+		} else if attr == "name" {
+			name = val
+			err := interfaces.ValidateDBusBusName(name)
 			if err != nil {
-				return nil, err
+				return "", "", err
 			}
-
-			busNames[bus] = append(busNames[bus], busName)
 		}
 	}
 
-	return busNames, nil
+	if bus == "" {
+		return "", "", fmt.Errorf("required attribute 'bus' not specified")
+	} else if name == "" {
+		return "", "", fmt.Errorf("required attribute 'name' not specified")
+	}
+
+	return bus, name, nil
 }
 
 // Determine AppArmor dbus abstraction to use based on bus
@@ -217,7 +222,7 @@ func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 
-	_, err := iface.getBusNames(plug.Attrs)
+	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }
 
@@ -226,12 +231,8 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	_, err := iface.getBusNames(slot.Attrs)
+	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
-}
-
-func (iface *DbusInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 // Since we only implement the permanent slot side, this is meaningless but

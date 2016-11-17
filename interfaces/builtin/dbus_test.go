@@ -31,11 +31,11 @@ import (
 
 type DbusInterfaceSuite struct {
 	testutil.BaseTest
-	iface           interfaces.Interface
-	slot            *interfaces.Slot
-	plug            *interfaces.Plug
-	testSessionSlot *interfaces.Slot
-	testSystemSlot  *interfaces.Slot
+	iface       interfaces.Interface
+	sessionPlug *interfaces.Plug
+	systemPlug  *interfaces.Plug
+	sessionSlot *interfaces.Slot
+	systemSlot  *interfaces.Slot
 }
 
 var _ = Suite(&DbusInterfaceSuite{
@@ -46,36 +46,44 @@ func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: test-dbus
 slots:
-  test-slot:
+  test-session-slot:
     interface: dbus
-    session:
-    - org.test-slot
-  test-session:
+    bus: session
+    name: org.test-session-slot
+  test-system-slot:
     interface: dbus
-    session:
-    - org.test-session1
-    - org.test-session2
-  test-system:
+    bus: system
+    name: org.test-system-slot
+
+plugs:
+  test-session-plug:
     interface: dbus
-    system:
-    - org.test-system
+    bus: session
+    name: org.test-session-plug
+  test-system-plug:
+    interface: dbus
+    bus: system
+    name: org.test-system-plug
 
 apps:
-  test-provider:
-    slots:
-    - test-slot
   test-session-provider:
     slots:
-    - test-session
+    - test-session-slot
   test-system-provider:
     slots:
-    - test-system
+    - test-system-slot
+  test-session-consumer:
+    plugs:
+    - test-session-plug
+  test-system-consumer:
+    plugs:
+    - test-system-plug
 `))
 	c.Assert(err, IsNil)
-	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["test-plug"]}
-	s.slot = &interfaces.Slot{SlotInfo: info.Slots["test-slot"]}
-	s.testSessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session"]}
-	s.testSystemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system"]}
+	s.sessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session-slot"]}
+	s.systemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system-slot"]}
+	s.sessionPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-session-plug"]}
+	s.systemPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-system-plug"]}
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
@@ -83,13 +91,13 @@ func (s *DbusInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
+	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	snippet, err = s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *DbusInterfaceSuite) TestGetBusNamesSession(c *C) {
@@ -98,9 +106,8 @@ version: 1.0
 slots:
  dbus-slot:
   interface: dbus
-  session:
-  - org.dbus-snap.session-1
-  - org.dbus-snap.session-2
+  bus: session
+  name: org.dbus-snap.session-1
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -117,9 +124,8 @@ version: 1.0
 slots:
  dbus-slot:
   interface: dbus
-  system:
-  - org.dbus-snap.system-1
-  - org.dbus-snap.system-2
+  bus: system
+  name: org.dbus-snap.system-1
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -136,8 +142,8 @@ version: 1.0
 slots:
  dbus-slot:
   interface: dbus
-  system:
-  - org.dbus-snap.foo.bar.baz.n0rf_qux
+  bus: system
+  name: org.dbus-snap.foo.bar.baz.n0rf_qux
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -154,8 +160,8 @@ version: 1.0
 slots:
  dbus-slot:
   interface: dbus
-  nonexistent:
-  - org.dbus-snap
+  bus: nonexistent
+  name: org.dbus-snap
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -164,7 +170,43 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
 	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "bus must be one of 'session' or 'system'")
+	c.Assert(err, ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
+}
+
+func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+plugs:
+ dbus-plug:
+  interface: dbus
+  bus: system
+  name: org.dbus-snap.system
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+plugs:
+ dbus-plug:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
@@ -173,9 +215,26 @@ version: 1.0
 slots:
  dbus-slot:
   interface: dbus
-  session:
-  - org.dbus-snap.system-1
-  - org.dbus-snap.system-2
+  bus: system
+  name: org.dbus-snap.system
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotSession(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+slots:
+ dbus-slot:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -187,7 +246,7 @@ slots:
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -198,40 +257,38 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=system\n    path=/org/freedesktop/DBus\n    interface=org.freedesktop.DBus\n    member=\"{Request,Release}Name\"\n    peer=(name=org.freedesktop.DBus, label=unconfined),\n")
 
 	// verify individual bind rules
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session1,\n")
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session2,\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session-slot,\n")
 
 	// verify individual path in rules
-	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session1{,/**}\"\n")
-	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session2{,/**}\"\n")
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session-slot{,/**}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
 	// verify classic rule not present
-	c.Check(string(snippet), Not(testutil.Contains), "# allow unconfined clients talk to org.test-session1 on classic\n")
+	c.Check(string(snippet), Not(testutil.Contains), "# allow unconfined clients talk to org.test-session-slot on classic\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
 	// verify classic rule
-	c.Check(string(snippet), testutil.Contains, "# allow unconfined clients talk to org.test-session1 on classic\n")
+	c.Check(string(snippet), testutil.Contains, "# allow unconfined clients talk to org.test-session-slot on classic\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.testSystemSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PermanentSlotSnippet(s.systemSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -239,21 +296,16 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 	c.Check(string(snippet), testutil.Contains, "#include <abstractions/dbus-strict>\n")
 
 	// verify bind rule
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=system\n    name=org.test-system,\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=system\n    name=org.test-system-slot,\n")
 
 	// verify path in rule
-	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system{,/**}\"\n")
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system-slot{,/**}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecuritySecComp)
+	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
-}
-
-func (s *DbusInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	iface := &builtin.DbusInterface{}
-	c.Check(iface.LegacyAutoConnect(), Equals, false)
 }
