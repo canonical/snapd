@@ -91,54 +91,6 @@ func (iface *DbusInterface) Name() string {
 	return "dbus"
 }
 
-func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	bus, name, err := iface.getAttribs(slot.Attrs)
-	if err != nil {
-		return nil, err
-	}
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippets := bytes.NewBufferString("")
-
-		// common permanent slot policy
-		abstraction, err := getAppArmorAbstraction(bus)
-		if err != nil {
-			return nil, err
-		}
-		old := []byte("###DBUS_BIND_ABSTRACTION###")
-		new := []byte(abstraction)
-		snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
-		snippets.Write(snippet)
-
-		// well-known DBus name-specific permanent slot policy
-		snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
-		snippets.Write(snippet)
-
-		if release.OnClassic {
-			// classic-only policy
-			snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
-			snippets.Write(snippet)
-		}
-		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
-		return snippets.Bytes(), nil
-	case interfaces.SecuritySecComp:
-		return []byte(dbusPermanentSlotSecComp), nil
-	}
-	return nil, nil
-}
-
-func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 // Obtain yaml-specified bus well-known name
 func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
 	bus := ""
@@ -215,6 +167,54 @@ func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte
 	snippet = bytes.Replace(snippet, old, new, -1)
 
 	return snippet
+}
+
+func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		snippets := bytes.NewBufferString("")
+
+		// common permanent slot policy
+		abstraction, err := getAppArmorAbstraction(bus)
+		if err != nil {
+			return nil, err
+		}
+		old := []byte("###DBUS_BIND_ABSTRACTION###")
+		new := []byte(abstraction)
+		snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
+		snippets.Write(snippet)
+
+		// well-known DBus name-specific permanent slot policy
+		snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
+		snippets.Write(snippet)
+
+		if release.OnClassic {
+			// classic-only policy
+			snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
+			snippets.Write(snippet)
+		}
+		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
+		return snippets.Bytes(), nil
+	case interfaces.SecuritySecComp:
+		return []byte(dbusPermanentSlotSecComp), nil
+	}
+	return nil, nil
+}
+
+func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
 }
 
 func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {
