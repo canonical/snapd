@@ -146,24 +146,12 @@ prepare: |
     # utilities
     apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
 
-    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
-    # in trusty
-    add-apt-repository --update ppa:snappy-dev/image
-    # this should not be needed but apparently it is :/
-    apt-get update
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
     go get -u github.com/kardianos/govendor
     govendor sync
-
-    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
-    #        hits xenial-updates
-    apt-get install -y snap-confine
-
-    # and remove the image PPA again
-    add-apt-repository --remove ppa:snappy-dev/image
 
     # increment version so upgrade can work
     dch -i "testing build"
