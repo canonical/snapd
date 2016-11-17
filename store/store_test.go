@@ -424,6 +424,12 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+type nopeSeeker struct{ io.ReadWriter }
+
+func (nopeSeeker) Seek(int64, int) (int64, error) {
+	return -1, errors.New("what is this, quidditch?")
+}
+
 func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -435,7 +441,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, -1, nil)
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
 	c.Check(n, Equals, 1)
