@@ -177,11 +177,11 @@ type Store struct {
 	suggestedCurrency string
 }
 
-func shouldRetryHttpResponse(resp *http.Response, attempt *retry.Attempt) bool {
+func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
 }
 
-func shouldRetryError(err error, attempt *retry.Attempt) bool {
+func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
@@ -191,7 +191,7 @@ func shouldRetryError(err error, attempt *retry.Attempt) bool {
 	return err == io.ErrUnexpectedEOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(30*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
 	retry.Exponential{
 		Initial: 10 * time.Millisecond,
 		Factor:  1.67,
@@ -1477,13 +1477,13 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		resp, err := s.doRequest(s.client, reqOptions, user)
 		if err != nil {
-			if shouldRetryError(err, attempt) {
+			if shouldRetryError(attempt, err) {
 				continue
 			}
 			return err
 		}
 
-		if shouldRetryHttpResponse(resp, attempt) {
+		if shouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
 		}
