@@ -83,3 +83,12 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 	udevSnippet.WriteString("\n")
 	return udevSnippet.Bytes()
 }
+
+// Function to create an udev TAG, essentially the cgroup name for
+// the snap application.
+// @param snapName is the name of the snap
+// @param appName is the name of the application
+// @return string "snap_<snap name>_<app name>"
+func udevSnapSecurityName(snapName string, appName string) string {
+	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
+}

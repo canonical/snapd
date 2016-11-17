@@ -99,7 +99,3 @@ func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `recvfrom`)
 }
-
-func (s *ShutdownInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
