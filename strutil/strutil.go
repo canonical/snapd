@@ -33,7 +33,7 @@ const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 
 // MakeRandomString returns a random string of length length
 //
-// The vowels are omited to avoid that words are created by pure
+// The vowels are omitted to avoid that words are created by pure
 // chance. Numbers are included.
 func MakeRandomString(length int) string {
 

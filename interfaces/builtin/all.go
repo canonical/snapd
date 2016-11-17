@@ -48,6 +48,7 @@ var allInterfaces = []interfaces.Interface{
 	&SerialPortInterface{},
 	&UDisks2Interface{},
 	NewAlsaInterface(),
+	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
 	NewCameraInterface(),
 	NewCupsControlInterface(),
