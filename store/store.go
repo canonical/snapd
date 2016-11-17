@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -1149,7 +1150,12 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		}
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		break
+	case http.StatusUnauthorized:
+		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
+	default:
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
