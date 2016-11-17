@@ -188,8 +188,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
-	r1 := release.MockOnClassic(true)
-	defer r1()
+	restore := release.MockOnClassic(true)
+	defer restore()
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
@@ -493,6 +493,9 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 }
 
 func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	all := builtin.Interfaces()
 
 	// connecting with these interfaces needs to be allowed on
@@ -525,6 +528,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		}
 	}
 }
+
 func (s *baseDeclSuite) TestSanity(c *C) {
 	all := builtin.Interfaces()
 
