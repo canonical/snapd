@@ -403,7 +403,7 @@ func (t *Task) JoinLane(lane int) {
 	t.lanes = append(t.lanes, lane)
 }
 
-// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is supressed.
+// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is suppressed.
 func (t *Task) At(when time.Time) {
 	t.state.writing()
 	iszero := when.IsZero()
