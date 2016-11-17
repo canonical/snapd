@@ -29,7 +29,7 @@ import (
 )
 
 // Split this out since we only need these rules once per app
-const dbusAppPermanentSlotAppArmorShared = `
+const dbusPermanentSlotAppArmorShared = `
 # Description: Allow owning a name on DBus public bus
 
 #include <abstractions/###DBUS_BIND_ABSTRACTION###>
@@ -51,7 +51,7 @@ dbus (send)
 `
 
 // These rules are needed for each well-known name for the app
-const dbusAppPermanentSlotAppArmorIndividual = `
+const dbusPermanentSlotAppArmorIndividual = `
 # bind to a well-known DBus name: ###DBUS_BIND_NAME###
 dbus (bind)
     bus=###DBUS_BIND_BUS###
@@ -69,7 +69,7 @@ dbus (send)
     peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
-const dbusAppPermanentSlotAppArmorIndividualClassic = `
+const dbusPermanentSlotAppArmorIndividualClassic = `
 # allow unconfined clients talk to ###DBUS_BIND_NAME### on classic
 dbus (receive)
     bus=###DBUS_BIND_BUS###
@@ -77,7 +77,7 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const dbusAppPermanentSlotSecComp = `
+const dbusPermanentSlotSecComp = `
 # Description: Allow owning a name on DBus public bus
 getsockname
 recvmsg
@@ -85,22 +85,22 @@ sendmsg
 sendto
 `
 
-type DbusAppInterface struct{}
+type DbusInterface struct{}
 
-func (iface *DbusAppInterface) Name() string {
-	return "dbus-app"
+func (iface *DbusInterface) Name() string {
+	return "dbus"
 }
 
-func (iface *DbusAppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *DbusAppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	dbusAppBusNames, err := iface.getBusNames(slot.Attrs)
+func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	dbusBusNames, err := iface.getBusNames(slot.Attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	case interfaces.SecurityAppArmor:
 		snippets := bytes.NewBufferString("")
 
-		for bus, names := range dbusAppBusNames {
+		for bus, names := range dbusBusNames {
 			// common permanent slot policy
 			abstraction, err := getAppArmorAbstraction(bus)
 			if err != nil {
@@ -116,18 +116,18 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 			}
 			old := []byte("###DBUS_BIND_ABSTRACTION###")
 			new := []byte(abstraction)
-			snippet := bytes.Replace([]byte(dbusAppPermanentSlotAppArmorShared), old, new, -1)
+			snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
 			snippets.Write(snippet)
 
 			for _, name := range names {
 				// well-known DBus name-specific permanent slot
 				// policy
-				snippet := getAppArmorIndividualSnippet([]byte(dbusAppPermanentSlotAppArmorIndividual), bus, name)
+				snippet := getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
 				snippets.Write(snippet)
 
 				if release.OnClassic {
 					// classic-only policy
-					snippet := getAppArmorIndividualSnippet([]byte(dbusAppPermanentSlotAppArmorIndividualClassic), bus, name)
+					snippet := getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
 					snippets.Write(snippet)
 				}
 			}
@@ -135,17 +135,17 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
-		return []byte(dbusAppPermanentSlotSecComp), nil
+		return []byte(dbusPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
 
-func (iface *DbusAppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // Obtain yaml-specified DBus well-known names by bus
-func (iface *DbusAppInterface) getBusNames(attribs map[string]interface{}) (map[string][]string, error) {
+func (iface *DbusInterface) getBusNames(attribs map[string]interface{}) (map[string][]string, error) {
 	busNames := make(map[string][]string)
 	for attr := range attribs {
 		bus := attr
@@ -212,7 +212,7 @@ func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte
 	return snippet
 }
 
-func (iface *DbusAppInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -221,7 +221,7 @@ func (iface *DbusAppInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return err
 }
 
-func (iface *DbusAppInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -230,13 +230,13 @@ func (iface *DbusAppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *DbusAppInterface) LegacyAutoConnect() bool {
+func (iface *DbusInterface) LegacyAutoConnect() bool {
 	return false
 }
 
 // Since we only implement the permanent slot side, this is meaningless but
 // we have to supply the method, so set it to something safe.
-func (iface *DbusAppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
