@@ -698,3 +698,65 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	builtinBaseDeclaration = a.(*BaseDeclaration)
 	return nil
 }
+
+// SnapDeveloper holds a snap-developer assertion, defining the developers who
+// can collaborate on a snap while it's owned by a specific publisher.
+type SnapDeveloper struct {
+	assertionBase
+	timestamp time.Time
+}
+
+// PublisherID returns the publisher's account id.
+func (snapdev *SnapDeveloper) PublisherID() string {
+	return snapdev.HeaderString("publisher-id")
+}
+
+// SnapID returns the snap id of the snap.
+func (snapdev *SnapDeveloper) SnapID() string {
+	return snapdev.HeaderString("snap-id")
+}
+
+// Timestamp returns the time when the snap-developer assertion was created.
+func (snapdev *SnapDeveloper) Timestamp() time.Time {
+	return snapdev.timestamp
+}
+
+func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+	// TODO(matt):
+	// - publisher-id has an acccount assertion.
+	// - each developer id has an acccount assertion.
+	// - snap-id?
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*SnapDeveloper)(nil)
+
+// Prerequisites returns references to this snap-developer's prerequisite assertions.
+func (snapdcl *SnapDeveloper) Prerequisites() []*Ref {
+	// TODO(matt):
+	// - publisher-id's account assertion, but currently same as authority-id.
+	// - developer account assertions?
+	return nil
+}
+
+func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
+	// authority-id and publisher-id must match
+	authorityID := assert.AuthorityID()
+	publisherID := assert.HeaderString("publisher-id")
+	if publisherID != authorityID {
+		return nil, fmt.Errorf("authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: %q != %q", authorityID, publisherID)
+	}
+
+	// TODO(matt): `developers` header
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SnapDeveloper{
+		assertionBase: assert,
+		timestamp:     timestamp,
+	}, nil
+}

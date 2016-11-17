@@ -40,6 +40,7 @@ var (
 	_ = Suite(&snapRevSuite{})
 	_ = Suite(&validationSuite{})
 	_ = Suite(&baseDeclSuite{})
+	_ = Suite(&snapDevSuite{})
 )
 
 type snapDeclSuite struct {
@@ -1322,5 +1323,66 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 	for _, t := range tests {
 		err := asserts.InitBuiltinBaseDeclaration([]byte(t.headers))
 		c.Check(err, ErrorMatches, t.err, Commentf(t.headers))
+	}
+}
+
+type snapDevSuite struct {
+	ts     time.Time
+	tsLine string
+}
+
+func (sds *snapDevSuite) SetUpSuite(c *C) {
+	sds.ts = time.Now().Truncate(time.Second).UTC()
+	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
+}
+
+func (sds *snapDevSuite) TestDecodeOK(c *C) {
+	encoded := "type: snap-developer\n" +
+		"authority-id: dev-id1\n" +
+		"publisher-id: dev-id1\n" +
+		"snap-id: snap-id-1\n" +
+		sds.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeveloperType)
+	snapDev := a.(*asserts.SnapDeveloper)
+	c.Check(snapDev.AuthorityID(), Equals, "dev-id1")
+	c.Check(snapDev.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDev.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDev.Timestamp(), Equals, sds.ts)
+}
+
+const (
+	snapDevErrPrefix = "assertion snap-developer: "
+)
+
+func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
+	encoded := "type: snap-developer\n" +
+		"authority-id: dev-id1\n" +
+		"publisher-id: dev-id1\n" +
+		"snap-id: snap-id-1\n" +
+		sds.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
+		{"publisher-id: dev-id1\n", "publisher-id: dev-id2\n", `authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: \"dev-id1\" != \"dev-id2\"`},
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
+		{sds.tsLine, "", `"timestamp" header is mandatory`},
+		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
 	}
 }
