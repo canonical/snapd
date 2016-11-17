@@ -88,7 +88,3 @@ func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
-
-func (s *BluetoothControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
