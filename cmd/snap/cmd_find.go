@@ -87,10 +87,9 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 type SectionName string
 
 func (s *SectionName) Complete(match string) []flags.Completion {
-	// TODO find a better scheme
+	// TODO cache the result
 	cli := Client()
 	sections, _ := cli.GetSections()
-
 	ret := make([]flags.Completion, len(sections))
 	for _, s := range sections {
 		ret = append(ret, flags.Completion{Item: s})

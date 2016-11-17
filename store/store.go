@@ -966,17 +966,14 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
-	fmt.Println("ddd 11")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	fmt.Println("ddd ", resp.StatusCode)
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "search")
 	}
 
-	fmt.Println("ddd 1d1")
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
 	}
@@ -987,7 +984,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	if err := dec.Decode(&sectionData); err != nil {
 		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
 	}
-
 	var sectionNames []string
 	for _, s := range sectionData.Payload.Sections {
 		sectionNames = append(sectionNames, s.Name)

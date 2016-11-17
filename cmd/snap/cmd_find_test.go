@@ -28,14 +28,6 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestFindNothingDoesNotFails(c *check.C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatalf("it reached the server")
-	})
-	_, err := snap.Parser().ParseArgs([]string{"find"})
-	c.Assert(err, check.IsNil)
-}
-
 const findJSON = `
 {
   "type": "sync",
@@ -103,27 +95,45 @@ const findJSON = `
 
 func (s *SnapSuite) TestFind(c *check.C) {
 	n := 0
+	findWhat := []string{"hello", ""}
+
+	maxfindRequest := len(findWhat)
+
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
+		fmt.Println("aa")
+		if n < maxfindRequest {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			if q.Get("q") == "" {
+				v, ok := q["section"]
+				c.Check(ok, check.Equals, true)
+				c.Check(v, check.DeepEquals, []string{""})
+			}
 			fmt.Fprintln(w, findJSON)
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		} else {
+			c.Fatalf("expected to get %d requests, now on %d", maxfindRequest, n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
+
+	for _, what := range findWhat {
+		fmt.Println(what)
+		rest, err := snap.Parser().ParseArgs([]string{"find", what})
+
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{})
+
+		c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
 hello +2.10 +canonical +- +GNU Hello, the "hello world" snap
 hello-world +6.1 +canonical +- +Hello world example
 hello-huge +1.0 +noise +- +a really big snap
 `)
-	c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.Stderr(), check.Equals, "")
+
+		s.ResetStdStreams()
+	}
 }
 
 const findHelloJSON = `
