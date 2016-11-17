@@ -22,6 +22,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -394,6 +395,23 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf bytes.Buffer
+	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
+	c.Check(n, Equals, 1)
+}
+
 func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -433,6 +451,271 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 type downloadBehaviour []struct {
 	url   string
 	error bool
+}
+
+var deltaTests = []struct {
+	downloads       downloadBehaviour
+	info            snap.DownloadInfo
+	expectedContent string
+}{{
+	// The full snap is not downloaded, but rather the delta
+	// is downloaded and applied.
+	downloads: downloadBehaviour{
+		{url: "delta-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	expectedContent: "snap-content-via-delta",
+}, {
+	// If there is an error during the delta download, the
+	// full snap is downloaded as per normal.
+	downloads: downloadBehaviour{
+		{error: true},
+		{url: "full-snap-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	expectedContent: "full-snap-url-content",
+}, {
+	// If more than one matching delta is returned by the store
+	// we ignore deltas and do the full download.
+	downloads: downloadBehaviour{
+		{url: "full-snap-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url-2", Format: "xdelta"},
+		},
+	},
+	expectedContent: "full-snap-url-content",
+}}
+
+func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range deltaTests {
+		downloadIndex := 0
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			if testCase.downloads[downloadIndex].error {
+				downloadIndex++
+				return errors.New("Bang")
+			}
+			c.Check(url, Equals, testCase.downloads[downloadIndex].url)
+			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
+			downloadIndex++
+			return nil
+		}
+		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
+			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
+			c.Assert(err, IsNil)
+			return nil
+		}
+
+		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
+		err := t.store.Download("foo", path, &testCase.info, nil, nil)
+
+		c.Assert(err, IsNil)
+		defer os.Remove(path)
+		content, err := ioutil.ReadFile(path)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, testCase.expectedContent)
+	}
+}
+
+var downloadDeltaTests = []struct {
+	info          snap.DownloadInfo
+	authenticated bool
+	useLocalUser  bool
+	format        string
+	expectedURL   string
+	expectError   bool
+}{{
+	// An unauthenticated request downloads the anonymous delta url.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "xdelta",
+	expectedURL:   "anon-delta-url",
+	expectError:   false,
+}, {
+	// An authenticated request downloads the authenticated delta url.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: true,
+	useLocalUser:  false,
+	format:        "xdelta",
+	expectedURL:   "auth-delta-url",
+	expectError:   false,
+}, {
+	// A local authenticated request downloads the anonymous delta url.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: true,
+	useLocalUser:  true,
+	format:        "xdelta",
+	expectedURL:   "anon-delta-url",
+	expectError:   false,
+}, {
+	// An error is returned if more than one matching delta is returned by the store,
+	// though this may be handled in the future.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
+			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "xdelta",
+	expectedURL:   "",
+	expectError:   true,
+}, {
+	// If the supported format isn't available, an error is returned.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "bsdiff",
+	expectedURL:   "",
+	expectError:   true,
+}}
+
+func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range downloadDeltaTests {
+		t.store.deltaFormat = testCase.format
+		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			expectedUser := t.user
+			if testCase.useLocalUser {
+				expectedUser = t.localUser
+			}
+			if !testCase.authenticated {
+				expectedUser = nil
+			}
+			c.Check(user, Equals, expectedUser)
+			c.Check(url, Equals, testCase.expectedURL)
+			w.Write([]byte("I was downloaded"))
+			return nil
+		}
+
+		w, err := ioutil.TempFile("", "")
+		c.Assert(err, IsNil)
+		defer os.Remove(w.Name())
+
+		authedUser := t.user
+		if testCase.useLocalUser {
+			authedUser = t.localUser
+		}
+		if !testCase.authenticated {
+			authedUser = nil
+		}
+
+		err = t.store.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
+
+		if testCase.expectError {
+			c.Assert(err, NotNil)
+		} else {
+			c.Assert(err, IsNil)
+			content, err := ioutil.ReadFile(w.Name())
+			c.Assert(err, IsNil)
+			c.Assert(string(content), Equals, "I was downloaded")
+		}
+	}
+}
+
+var applyDeltaTests = []struct {
+	deltaInfo       snap.DeltaInfo
+	currentRevision uint
+	error           string
+}{{
+	// A supported delta format can be applied.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "",
+}, {
+	// An error is returned if the expected current snap does not exist on disk.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 23,
+	error:           "snap \"foo\" revision 24 not found",
+}, {
+	// An error is returned if the format is not supported.
+	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta currently)",
+}}
+
+func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
+	for _, testCase := range applyDeltaTests {
+		name := "foo"
+		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
+		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+		targetSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.deltaInfo.ToRevision)
+		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
+		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
+		c.Assert(err, IsNil)
+		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
+		err = ioutil.WriteFile(deltaPath, nil, 0644)
+		c.Assert(err, IsNil)
+		// When testing a case where the call to the external xdelta is successful,
+		// simulate the resulting .partial.
+		if testCase.error == "" {
+			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		err = applyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+
+		if testCase.error == "" {
+			c.Assert(err, IsNil)
+			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
+				{"xdelta", "patch", deltaPath, currentSnapPath, targetSnapPath + ".partial"},
+			})
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
+			c.Assert(os.Remove(targetSnapPath), IsNil)
+		} else {
+			c.Assert(err, NotNil)
+			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
+			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
+		}
+		c.Assert(os.Remove(currentSnapPath), IsNil)
+		c.Assert(os.Remove(deltaPath), IsNil)
+	}
 }
 
 func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
@@ -2425,7 +2708,7 @@ var buyTests = []struct {
 		buyErrorCode:      "invalid-field",
 		buyErrorMessage:   "invalid price specified",
 		price:             5.99,
-		expectedError:     "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
+		expectedError:     "cannot buy snap: bad request: store reported an error: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
@@ -2437,7 +2720,7 @@ var buyTests = []struct {
 		snapID:            "invalid snap ID",
 		price:             0.99,
 		currency:          "EUR",
-		expectedError:     "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
+		expectedError:     "cannot buy snap: server says not found (snap got removed?)",
 	},
 	{
 		// failure due to "Purchase failed"
@@ -2540,7 +2823,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 
 		buyOptions := &BuyOptions{
 			SnapID:   snap.SnapID,
-			SnapName: snap.Name(),
 			Currency: repo.SuggestedCurrency(),
 			Price:    snap.Prices[repo.SuggestedCurrency()],
 		}
@@ -2575,48 +2857,34 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no snap ID
 	result, err := repo.Buy(&BuyOptions{
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
-
-	// no name
-	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		Price:    1.0,
-		Currency: "USD",
-	}, t.user)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: snap ID missing")
 
 	// no price
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Currency: "USD",
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
+	c.Check(err.Error(), Equals, "cannot buy snap: invalid expected price")
 
 	// no currency
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		SnapName: "snap name",
-		Price:    1.0,
+		SnapID: "snap ID",
+		Price:  1.0,
 	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
+	c.Check(err.Error(), Equals, "cannot buy snap: currency missing")
 
 	// no user
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
 	}, nil)
@@ -2626,8 +2894,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 }
 
 var readyToBuyTests = []struct {
-	Input func(w http.ResponseWriter)
-	Test  func(c *C, err error)
+	Input      func(w http.ResponseWriter)
+	Test       func(c *C, err error)
+	NumOfCalls int
 }{
 	{
 		// A user account the is ready for buying
@@ -2644,6 +2913,7 @@ var readyToBuyTests = []struct {
 		Test: func(c *C, err error) {
 			c.Check(err, IsNil)
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// A user account that hasn't accepted the TOS
@@ -2661,6 +2931,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "terms of service not accepted")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// A user account that has no payment method
@@ -2678,6 +2949,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "no payment methods")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// No user account exists
@@ -2689,6 +2961,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// An unknown set of errors occurs
@@ -2712,6 +2985,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
+		NumOfCalls: 6,
 	},
 }
 
@@ -2748,6 +3022,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 
 		err = repo.ReadyToBuy(t.user)
 		test.Test(c, err)
-		c.Check(purchaseServerGetCalled, Equals, 1)
+		c.Check(purchaseServerGetCalled, Equals, test.NumOfCalls)
 	}
 }

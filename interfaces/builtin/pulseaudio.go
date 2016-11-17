@@ -72,9 +72,12 @@ owner @{PROC}/@{pid}/exe r,
 # Audio related
 @{PROC}/asound/devices r,
 @{PROC}/asound/card** r,
+
+# Should use the alsa interface instead
 /dev/snd/pcm* rw,
 /dev/snd/control* rw,
 /dev/snd/timer r,
+
 /sys/**/sound/** r,
 
 # For udev
@@ -158,10 +161,6 @@ func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
 
 func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *PulseAudioInterface) LegacyAutoConnect() bool {
-	return true
 }
 
 func (iface *PulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
