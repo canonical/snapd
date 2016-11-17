@@ -193,14 +193,14 @@ func ValidateName(name string) error {
 // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
 func ValidateDBusBusName(busName string) error {
 	if len(busName) == 0 {
-		return fmt.Errorf("bus name must be set")
+		return fmt.Errorf("DBus bus name must be set")
 	} else if len(busName) > 255 {
-		return fmt.Errorf("bus name is too long (must be <= 255)")
+		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
 	}
 
 	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
 	if !validBusName.MatchString(busName) {
-		return fmt.Errorf("invalid bus name: %q", busName)
+		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
 }
