@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -49,6 +50,8 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+
+	"gopkg.in/retry.v1"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -174,6 +177,27 @@ type Store struct {
 	mu                sync.Mutex
 	suggestedCurrency string
 }
+
+func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
+	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
+}
+
+func shouldRetryError(attempt *retry.Attempt, err error) bool {
+	if !attempt.More() {
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout()
+	}
+	return err == io.ErrUnexpectedEOF
+}
+
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+	retry.Exponential{
+		Initial: 10 * time.Millisecond,
+		Factor:  1.67,
+	},
+))
 
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
@@ -1483,40 +1507,52 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return err
 		}
-		if !customer.LatestTOSAccepted {
-			return ErrTOSNotAccepted
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
-		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethods
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var customer storeCustomer
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&customer); err != nil {
+				return err
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
+			}
+			if !customer.HasPaymentMethod {
+				return ErrNoPaymentMethods
+			}
+			return nil
+		case http.StatusNotFound:
+			// Likely because user has no account registered on the pay server
+			return fmt.Errorf("cannot get customer details: server says no account exists")
+		case http.StatusUnauthorized:
+			return ErrInvalidCredentials
+		default:
+			var errors storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errors); err != nil {
+				return err
+			}
+			if len(errors.Errors) == 0 {
+				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+			}
+			return &errors
 		}
-		return nil
-	case http.StatusNotFound:
-		// Likely because user has no account registered on the pay server
-		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
-		return ErrInvalidCredentials
-	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
-		if len(errors.Errors) == 0 {
-			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-		}
-		return &errors
 	}
+
+	return nil
 }
