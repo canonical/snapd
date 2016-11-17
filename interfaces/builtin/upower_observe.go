@@ -88,6 +88,5 @@ func NewUPowerObserveInterface() interfaces.Interface {
 		connectedPlugAppArmor: upowerObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  upowerObserveConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }
