@@ -238,6 +238,8 @@ var (
 	TestRootAccountKey asserts.Assertion
 	// here for convenience, does not need to be in the trusted set
 	TestStoreAccountKey asserts.Assertion
+	// Testing-only trusted assertions for injecting in the the system trusted set.
+	Trusted []asserts.Assertion
 )
 
 func init() {
@@ -257,7 +259,5 @@ func init() {
 	TestRootAccount = acct
 	TestRootAccountKey = accKey
 	TestStoreAccountKey = storeAccKey
+	Trusted = []asserts.Assertion{TestRootAccount, TestRootAccountKey}
 }
-
-// Testing-only trusted assertions for injecting in the the system trusted set.
-var Trusted = []asserts.Assertion{TestRootAccount, TestRootAccountKey}
