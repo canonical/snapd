@@ -6,6 +6,7 @@ reset_classic() {
     systemctl stop snapd.service snapd.socket
 
     # purge all state
+    sh -x ${SPREAD_PATH}/debian/snapd.prerm
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
     # extra purge
     rm -rvf /var/snap
@@ -28,7 +29,7 @@ reset_classic() {
             systemctl start $unit
         done
     fi
-    systemctl start snapd.socket
+    systemctl start snapd-mount.service snapd.socket
 
     # wait for snapd listening
     while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
