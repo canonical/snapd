@@ -444,6 +444,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  usb-raw:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   x11:
     allow-installation:
       slot-snap-type:
