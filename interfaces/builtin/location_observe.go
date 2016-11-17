@@ -281,10 +281,6 @@ func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error
 	return nil
 }
 
-func (iface *LocationObserveInterface) LegacyAutoConnect() bool {
-	return false
-}
-
 func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

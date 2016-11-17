@@ -84,9 +84,3 @@ func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
-
-func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
-	iface := builtin.NewHomeInterface()
-	// allow what declarations allowed
-	c.Check(iface.AutoConnect(nil, nil), Equals, true)
-}

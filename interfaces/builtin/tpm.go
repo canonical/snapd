@@ -33,6 +33,5 @@ func NewTpmInterface() interfaces.Interface {
 		name: "tpm",
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }
