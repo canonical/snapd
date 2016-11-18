@@ -381,7 +381,7 @@ func mustWait(t *Task) bool {
 	return false
 }
 
-// wait expectes to be called with th r.mu lock held
+// wait expects to be called with th r.mu lock held
 func (r *TaskRunner) wait() {
 	for len(r.tombs) > 0 {
 		for _, t := range r.tombs {

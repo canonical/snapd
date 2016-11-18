@@ -57,6 +57,7 @@ hooks:
     configure:
     prepare-device:
 `
+var snapContents = ""
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -83,7 +84,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.change.AddTask(s.task)
 
 	sideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml, sideInfo)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfo)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
