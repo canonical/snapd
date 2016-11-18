@@ -237,7 +237,7 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		new := slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippet)
+		//fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippet)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusConnectedPlugSecComp), nil
@@ -270,7 +270,7 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 			// classic-only policy
 			snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
 		}
-		fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
+		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
 		return snippet.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
@@ -292,7 +292,7 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 		new := plugAppLabelExpr(plug)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippet)
+		//fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippet)
 		return snippet, nil
 	}
 	return nil, nil
