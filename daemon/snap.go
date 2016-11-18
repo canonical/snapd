@@ -82,7 +82,7 @@ type aboutSnap struct {
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
-func allLocalSnapInfos(st *state.State, verbose bool) ([]aboutSnap, error) {
+func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -97,7 +97,7 @@ func allLocalSnapInfos(st *state.State, verbose bool) ([]aboutSnap, error) {
 		var infos []*snap.Info
 		var info *snap.Info
 		var err error
-		if verbose {
+		if all {
 			for _, seq := range snapState.Sequence {
 				info, err = snap.ReadInfo(seq.RealName, seq)
 				if err != nil {

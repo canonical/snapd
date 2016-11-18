@@ -277,7 +277,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 // show what has been done
 func showDone(names []string, op string) error {
 	cli := Client()
-	snaps, err := cli.List(names, false)
+	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
 	}
@@ -604,7 +604,7 @@ func (x *cmdTry) Execute([]string) error {
 	name = snapName
 
 	// show output as speced
-	snaps, err := cli.List([]string{name}, false)
+	snaps, err := cli.List([]string{name}, nil)
 	if err != nil {
 		return err
 	}
@@ -706,7 +706,7 @@ func (x *cmdRevert) Execute(args []string) error {
 	}
 
 	// show output as speced
-	snaps, err := cli.List([]string{name}, false)
+	snaps, err := cli.List([]string{name}, nil)
 	if err != nil {
 		return err
 	}
