@@ -515,6 +515,10 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 func refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.Refresh(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNoUpdateAvailable {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}

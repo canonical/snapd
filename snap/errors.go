@@ -40,3 +40,11 @@ func (e NotInstalledError) Error() string {
 	}
 	return fmt.Sprintf("revision %s of snap %q is not installed", e.Rev, e.Snap)
 }
+
+type NoUpdateAvailableError struct {
+	Snap string
+}
+
+func (e NoUpdateAvailableError) Error() string {
+	return fmt.Sprintf("snap %q has no updates available", e.Snap)
+}

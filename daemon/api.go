@@ -991,6 +991,16 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			Status: http.StatusBadRequest,
 		}, nil)
 	}
+	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapNoUpdateAvailable,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 }
 
