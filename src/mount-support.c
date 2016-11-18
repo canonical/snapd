@@ -495,11 +495,9 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		die("cannot perform operation: mount --make-rslave %s",
 		    SC_HOSTFS_DIR);
 	}
-	// Detach the hostfs version of sysfs. Some software may want to inspect
-	// the mount table to look for a particular filesystem. If that said
-	// software unlucklily picks the hostfs "version" of. The prominent example
-	// is docker and the related bug is LP:# 1626019. The "wrong" version of
-	// sysfs is denied by the apparmor profile and docker misbehaves.
+	// Detach the redundant hostfs version of sysfs since it shows up in the
+	// mount table and software inspecting the mount table may become confused
+	// (eg, docker and LP:# 162601).
 	must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
 	debug("performing operation: umount --lazy %s", src);
 	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
