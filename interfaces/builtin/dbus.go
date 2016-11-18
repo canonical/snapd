@@ -32,7 +32,7 @@ import (
 const dbusPermanentSlotAppArmorShared = `
 # Description: Allow owning a name on DBus public bus
 
-#include <abstractions/###DBUS_BIND_ABSTRACTION###>
+#include <abstractions/###DBUS_ABSTRACTION###>
 
 # register on DBus
 dbus (send)
@@ -51,29 +51,30 @@ dbus (send)
 `
 
 // These rules are needed for each well-known name for the app
-const dbusPermanentSlotAppArmorIndividual = `
-# bind to a well-known DBus name: ###DBUS_BIND_NAME###
+const dbusPermanentSlotAppArmor = `
+# bind to a well-known DBus name: ###DBUS_NAME###
 dbus (bind)
-    bus=###DBUS_BIND_BUS###
-    name=###DBUS_BIND_NAME###,
+    bus=###DBUS_BUS###
+    name=###DBUS_NAME###,
 
 # Allow us to talk to dbus-daemon
 dbus (receive)
-    bus=###DBUS_BIND_BUS###
-    path=###DBUS_BIND_PATH###
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
     peer=(name=org.freedesktop.DBus, label=unconfined),
 dbus (send)
-    bus=###DBUS_BIND_BUS###
-    path=###DBUS_BIND_PATH###
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
-const dbusPermanentSlotAppArmorIndividualClassic = `
-# allow unconfined clients talk to ###DBUS_BIND_NAME### on classic
+const dbusPermanentSlotAppArmorClassic = `
+# allow unconfined clients talk to ###DBUS_NAME### on classic
 dbus (receive)
-    bus=###DBUS_BIND_BUS###
-    path=###DBUS_BIND_PATH###
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
+    interface=###DBUS_INTERFACE###
     peer=(label=unconfined),
 `
 
@@ -83,6 +84,22 @@ getsockname
 recvmsg
 sendmsg
 sendto
+`
+
+const dbusConnectedSlotAppArmor = `
+# allow snaps to introspect us. This allows clients to see all the interfaces
+# supported by the service, but only use the specified interface.
+dbus (receive)
+    bus=###DBUS_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+# allow snaps to ###DBUS_NAME###
+dbus (receive)
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
+    interface=###DBUS_INTERFACE###
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 type DbusInterface struct{}
@@ -146,24 +163,34 @@ func getAppArmorAbstraction(bus string) (string, error) {
 }
 
 // Calculate individual snippet policy based on bus and name
-func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte {
-	old := []byte("###DBUS_BIND_BUS###")
+func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
+	old := []byte("###DBUS_BUS###")
 	new := []byte(bus)
 	snippet := bytes.Replace(policy, old, new, -1)
 
-	old = []byte("###DBUS_BIND_NAME###")
+	old = []byte("###DBUS_NAME###")
 	new = []byte(name)
 	snippet = bytes.Replace(snippet, old, new, -1)
 
-	// convert name to AppArmor dbus path (eg org.foo' to '/org/foo{,/**}')
+	// convert name to AppArmor dbus path (eg 'org.foo' to '/org/foo{,/**}')
 	dot_re := regexp.MustCompile("\\.")
-	var path_buf bytes.Buffer
-	path_buf.WriteString(`"/`)
-	path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
-	path_buf.WriteString(`{,/**}"`)
+	var pathBuf bytes.Buffer
+	pathBuf.WriteString(`"/`)
+	pathBuf.WriteString(dot_re.ReplaceAllString(name, "/"))
+	pathBuf.WriteString(`{,/**}"`)
 
-	old = []byte("###DBUS_BIND_PATH###")
-	new = path_buf.Bytes()
+	old = []byte("###DBUS_PATH###")
+	new = pathBuf.Bytes()
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	// convert name to AppArmor dbus interface (eg, 'org.foo' to 'org.foo{,.*}')
+	var ifaceBuf bytes.Buffer
+	ifaceBuf.WriteString(`"`)
+	ifaceBuf.WriteString(name)
+	ifaceBuf.WriteString(`{,.*}"`)
+
+	old = []byte("###DBUS_INTERFACE###")
+	new = ifaceBuf.Bytes()
 	snippet = bytes.Replace(snippet, old, new, -1)
 
 	return snippet
@@ -184,29 +211,26 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippets := bytes.NewBufferString("")
+		snippet := bytes.NewBufferString("")
 
 		// common permanent slot policy
 		abstraction, err := getAppArmorAbstraction(bus)
 		if err != nil {
 			return nil, err
 		}
-		old := []byte("###DBUS_BIND_ABSTRACTION###")
+		old := []byte("###DBUS_ABSTRACTION###")
 		new := []byte(abstraction)
-		snippet := bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1)
-		snippets.Write(snippet)
+		snippet.Write(bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1))
 
 		// well-known DBus name-specific permanent slot policy
-		snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividual), bus, name)
-		snippets.Write(snippet)
+		snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name))
 
 		if release.OnClassic {
 			// classic-only policy
-			snippet = getAppArmorIndividualSnippet([]byte(dbusPermanentSlotAppArmorIndividualClassic), bus, name)
-			snippets.Write(snippet)
+			snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
 		}
-		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
-		return snippets.Bytes(), nil
+		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
+		return snippet.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
 	}
@@ -214,6 +238,25 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		//snippet := bytes.NewBufferString("")
+
+		// well-known DBus name-specific connected slot policy
+		snippet := getAppArmorSnippet([]byte(dbusConnectedSlotAppArmor), bus, name)
+
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+
+		fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippet)
+		return snippet, nil
+	}
 	return nil, nil
 }
 
