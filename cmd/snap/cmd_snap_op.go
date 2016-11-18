@@ -205,8 +205,17 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
+	seen := make(map[string]bool)
 	for _, name := range removed {
 		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s not installed\n"), name)
+		}
 	}
 
 	return nil
@@ -416,7 +425,22 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		return showDone(installed, "install")
+		if err := showDone(installed, "install"); err != nil {
+			return err
+		}
+	}
+
+	// show skipped
+	seen := make(map[string]bool)
+	for _, name := range installed {
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+		}
 	}
 
 	return nil
