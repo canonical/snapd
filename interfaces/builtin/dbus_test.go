@@ -131,16 +131,13 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	// TODO
-	/*
-	snippet, err = s.iface.ConnectedPlugSnippet(s.sessionPlug, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.sessionPlug, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	*/
 }
 
 func (s *DbusInterfaceSuite) TestValidSessionBusName(c *C) {
