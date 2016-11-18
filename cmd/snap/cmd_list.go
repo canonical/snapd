@@ -39,6 +39,8 @@ type cmdList struct {
 	Positional struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
+
+	Verbose bool `short:"v" long:"verbose"`
 }
 
 func init() {
@@ -56,12 +58,12 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return listSnaps(x.Positional.Snaps)
+	return listSnaps(x.Positional.Snaps, x.Verbose)
 }
 
-func listSnaps(names []string) error {
+func listSnaps(names []string, verbose bool) error {
 	cli := Client()
-	snaps, err := cli.List(names)
+	snaps, err := cli.List(names, verbose)
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
