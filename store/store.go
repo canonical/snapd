@@ -192,7 +192,7 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF
 }
 
-var DefaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
 	retry.Exponential{
 		Initial: 10 * time.Millisecond,
 		Factor:  1.67,
@@ -1042,7 +1042,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	for attempt := retry.Start(DefaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method:      "POST",
 			URL:         s.bulkURI,
@@ -1550,7 +1550,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	for attempt := retry.Start(DefaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		resp, err := s.doRequest(s.client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {

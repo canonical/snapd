@@ -53,6 +53,7 @@ import (
 )
 
 type remoteRepoTestSuite struct {
+	testutil.BaseTest
 	store     *Store
 	logbuf    *bytes.Buffer
 	user      *auth.UserState
@@ -2035,13 +2036,12 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
-	var originalStrategy = DefaultRetryStrategy
-	DefaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(1*time.Second,
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 10 * time.Millisecond,
 			Factor:  1.67,
 		},
-	))
+	)))
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -2072,7 +2072,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
 	c.Assert(n, Equals, 1)
-	DefaultRetryStrategy = originalStrategy
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
