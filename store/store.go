@@ -1334,36 +1334,47 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u.RawQuery = v.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: asserts.MediaType,
 		}
-		return nil, respToError(resp, "fetch assertion")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(&svcErr); err != nil {
+					return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
+				}
+				if svcErr.Status == 404 {
+					return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+			return nil, respToError(resp, "fetch assertion")
+		}
+
+		// and decode assertion
+		dec := asserts.NewDecoder(resp.Body)
+		return dec.Decode()
+	}
+	panic("unreachable")
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
