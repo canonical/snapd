@@ -71,7 +71,7 @@ dbus (send)
 
 const dbusPermanentSlotAppArmorClassic = `
 # allow unconfined clients talk to ###DBUS_NAME### on classic
-dbus (receive)
+dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
     interface=###DBUS_INTERFACE###
@@ -95,11 +95,34 @@ dbus (receive)
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # allow snaps to ###DBUS_NAME###
-dbus (receive)
+dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
     interface=###DBUS_INTERFACE###
     peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
+const dbusConnectedPlugAppArmor = `
+# allow snaps to introspect us. This allows clients to see all the interfaces
+# supported by the service, but only use the specified interface.
+dbus (send)
+    bus=###DBUS_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# allow snaps to ###DBUS_NAME###
+dbus (receive, send)
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
+    interface=###DBUS_INTERFACE###
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const dbusConnectedPlugSecComp = `
+getsockname
+recvmsg
+sendmsg
+sendto
 `
 
 type DbusInterface struct{}
@@ -201,6 +224,24 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 }
 
 func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		// well-known DBus name-specific connected plug policy
+		snippet := getAppArmorSnippet([]byte(dbusConnectedPlugAppArmor), bus, name)
+
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+		fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippet)
+		return snippet, nil
+	case interfaces.SecuritySecComp:
+		return []byte(dbusConnectedPlugSecComp), nil
+	}
 	return nil, nil
 }
 
@@ -229,7 +270,7 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 			// classic-only policy
 			snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
 		}
-		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
+		fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
 		return snippet.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
@@ -244,15 +285,12 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		//snippet := bytes.NewBufferString("")
-
 		// well-known DBus name-specific connected slot policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedSlotAppArmor), bus, name)
 
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
 		snippet = bytes.Replace(snippet, old, new, -1)
-
 
 		fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippet)
 		return snippet, nil
