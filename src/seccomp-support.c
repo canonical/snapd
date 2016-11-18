@@ -501,29 +501,35 @@ static void preprocess_filter(FILE * f, struct preprocess *p)
 	return;
 }
 
+static uint32_t uts_machine_to_seccomp_arch(const char *uts_machine)
+{
+	if (strcmp(uts_machine, "i686") == 0)
+		return SCMP_ARCH_X86;
+	else if (strcmp(uts_machine, "x86_64") == 0)
+		return SCMP_ARCH_X86_64;
+	else if (strncmp(uts_machine, "armv7", 5) == 0)
+		return SCMP_ARCH_ARM;
+	else if (strncmp(uts_machine, "aarch64", 7) == 0)
+		return SCMP_ARCH_AARCH64;
+	else if (strncmp(uts_machine, "ppc64le", 7) == 0)
+		return SCMP_ARCH_PPC64LE;
+	else if (strncmp(uts_machine, "ppc64", 5) == 0)
+		return SCMP_ARCH_PPC64;
+	else if (strncmp(uts_machine, "ppc", 3) == 0)
+		return SCMP_ARCH_PPC;
+	else if (strncmp(uts_machine, "s390x", 5) == 0)
+		return SCMP_ARCH_S390X;
+	return 0;
+}
+
 static uint32_t get_hostarch(void)
 {
 	struct utsname uts;
 	if (uname(&uts) < 0)
 		die("uname() failed");
-
-	if (strcmp(uts.machine, "i686") == 0)
-		return SCMP_ARCH_X86;
-	else if (strcmp(uts.machine, "x86_64") == 0)
-		return SCMP_ARCH_X86_64;
-	else if (strncmp(uts.machine, "armv7", 5) == 0)
-		return SCMP_ARCH_ARM;
-	else if (strncmp(uts.machine, "aarch64", 7) == 0)
-		return SCMP_ARCH_AARCH64;
-	else if (strncmp(uts.machine, "ppc64le", 7) == 0)
-		return SCMP_ARCH_PPC64LE;
-	else if (strncmp(uts.machine, "ppc64", 5) == 0)
-		return SCMP_ARCH_PPC64;
-	else if (strncmp(uts.machine, "ppc", 3) == 0)
-		return SCMP_ARCH_PPC;
-	else if (strncmp(uts.machine, "s390x", 5) == 0)
-		return SCMP_ARCH_S390X;
-
+	uint32_t arch = uts_machine_to_seccomp_arch(uts.machine);
+	if (arch > 0)
+		return arch;
 	// Just return the seccomp userspace native arch if we can't detect the
 	// kernel host arch.
 	return seccomp_arch_native();
