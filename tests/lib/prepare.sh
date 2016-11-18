@@ -237,7 +237,9 @@ EOF
         # deactivate swap
         swapoff -a
         # create new primary partition occupying all the /dev/sdb disk
-        echo -e "o\nn\np\n1\n\n\nw" | fdisk /dev/sdb
+        sfdisk /dev/sdb <<EOF
+;
+EOF
 
         # format new partition
         mkfs.ext4 /dev/sdb1
