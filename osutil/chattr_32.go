@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build withtestkeys
+// +build armhf 386
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,13 +18,10 @@
  *
  */
 
-package assertstate
+package osutil
 
-import (
-	"github.com/snapcore/snapd/asserts/systestkeys"
+const (
+	// these are actually _FS_IOC32 (i'm cheating)
+	_FS_IOC_GETFLAGS = uintptr(0x80046601)
+	_FS_IOC_SETFLAGS = uintptr(0x40046602)
 )
-
-// init will inject the test trusted assertions when this module build tag "withtestkeys" is defined.
-func init() {
-	systestkeys.Inject()
-}
