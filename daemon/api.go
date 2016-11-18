@@ -618,7 +618,9 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State())
+	fmt.Println("xxxx", r.URL.Query().Get("verbose"))
+	verbose := (r.URL.Query().Get("verbose") == "1")
+	found, err := allLocalSnapInfos(c.d.overlord.State(), verbose)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
