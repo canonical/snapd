@@ -943,14 +943,18 @@ func KernelInfo(s *state.State) (*snap.Info, error) {
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, len(names))
+	installed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for i, name := range names {
+	for _, name := range names {
 		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.AlreadyInstalledError); ok {
+			continue
+		}
 		if err != nil {
 			return nil, nil, err
 		}
-		installed[i] = name
+		installed = append(installed, name)
 		tasksets = append(tasksets, ts)
 	}
 
@@ -960,14 +964,18 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
-	removed := make([]string, len(names))
+	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for i, name := range names {
+	for _, name := range names {
 		ts, err := Remove(st, name, snap.R(0))
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			continue
+		}
 		if err != nil {
 			return nil, nil, err
 		}
-		removed[i] = name
+		removed = append(removed, name)
 		tasksets = append(tasksets, ts)
 	}
 
