@@ -100,7 +100,7 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *DbusInterfaceSuite) TestGetBusNamesSession(c *C) {
+func (s *DbusInterfaceSuite) TestValidSessionBusName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
 slots:
@@ -118,7 +118,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *DbusInterfaceSuite) TestGetBusNamesSystem(c *C) {
+func (s *DbusInterfaceSuite) TestValidSystemBusName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
 slots:
@@ -136,7 +136,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *DbusInterfaceSuite) TestGetBusNamesFull(c *C) {
+func (s *DbusInterfaceSuite) TestValidFullBusName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
 slots:
@@ -154,7 +154,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *DbusInterfaceSuite) TestGetBusNamesNonexistentBus(c *C) {
+func (s *DbusInterfaceSuite) TestNonexistentBusName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
 slots:
