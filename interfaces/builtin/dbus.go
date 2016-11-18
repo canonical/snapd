@@ -252,14 +252,14 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 
 		snippets := bytes.NewBufferString("")
 
-		// common permanent slot policy
+		// well-known DBus name-specific permanent slot policy
+		snippet := getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name)
+
+		// abstraction policy
 		abstraction, err := getAppArmorAbstraction(bus)
 		if err != nil {
 			return nil, err
 		}
-
-		// well-known DBus name-specific permanent slot policy
-		snippet := getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name)
 
 		old := []byte("###DBUS_ABSTRACTION###")
 		new := []byte(abstraction)
