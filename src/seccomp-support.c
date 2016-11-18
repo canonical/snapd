@@ -501,7 +501,7 @@ static void preprocess_filter(FILE * f, struct preprocess *p)
 	return;
 }
 
-uint32_t get_hostarch(void)
+static uint32_t get_hostarch(void)
 {
 	struct utsname uts;
 	if (uname(&uts) < 0)
@@ -529,7 +529,7 @@ uint32_t get_hostarch(void)
 	return seccomp_arch_native();
 }
 
-void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
+static void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 {
 	uint32_t native_arch = seccomp_arch_native();	// seccomp userspace
 	uint32_t host_arch = get_hostarch();	// kernel
