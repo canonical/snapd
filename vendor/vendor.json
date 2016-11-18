@@ -100,6 +100,12 @@
 			"revisionTime": "2015-01-21T11:42:31Z"
 		},
 		{
+			"checksumSHA1": "lBMMakT63h9ywP4d5wlkhOYMCAs=",
+			"path": "gopkg.in/retry.v1",
+			"revision": "c09f6b86ba4d5d2cf5bdf0665364aec9fd4815db",
+			"revisionTime": "2016-10-25T18:07:18Z"
+		},
+		{
 			"checksumSHA1": "WiyCOMvfzRdymImAJ3ME6aoYUdM=",
 			"path": "gopkg.in/tomb.v2",
 			"revision": "14b3d72120e8d10ea6e6b7f87f7175734b1faab8",
