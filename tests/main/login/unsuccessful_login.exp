@@ -1,6 +1,6 @@
 spawn snap login someemail@testing.com
 
-expect "Store password: "
+expect "Password of "
 send "wrong-password\n"
 
 expect {
