@@ -31,7 +31,7 @@ import (
 
 type DbusInterfaceSuite struct {
 	testutil.BaseTest
-	iface                interfaces.Interface
+	iface interfaces.Interface
 
 	sessionPlug          *interfaces.Plug
 	systemPlug           *interfaces.Plug
