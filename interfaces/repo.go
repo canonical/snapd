@@ -747,26 +747,26 @@ func (r *Repository) RemoveSnap(snapName string) error {
 
 // DisconnectSnap disconnects all the connections to and from a given snap.
 //
-// The return value is a set of snaps that were affected.
-func (r *Repository) DisconnectSnap(snapName string) (map[*snap.Info]bool, error) {
+// The return value is a set of snap names that were affected.
+func (r *Repository) DisconnectSnap(snapName string) (map[string]bool, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	affectedSnapSet := make(map[*snap.Info]bool)
+	affectedSnapSet := make(map[string]bool)
 
 	for _, plug := range r.plugs[snapName] {
 		for slot := range r.plugSlots[plug] {
 			r.disconnect(plug, slot)
-			affectedSnapSet[plug.Snap] = true
-			affectedSnapSet[slot.Snap] = true
+			affectedSnapSet[plug.Snap.Name()] = true
+			affectedSnapSet[slot.Snap.Name()] = true
 		}
 	}
 
 	for _, slot := range r.slots[snapName] {
 		for plug := range r.slotPlugs[slot] {
 			r.disconnect(plug, slot)
-			affectedSnapSet[plug.Snap] = true
-			affectedSnapSet[slot.Snap] = true
+			affectedSnapSet[plug.Snap.Name()] = true
+			affectedSnapSet[slot.Snap.Name()] = true
 		}
 	}
 
@@ -804,14 +804,15 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 	return candidates
 }
 
-// ConnectedSnaps finds the corresponding snaps for all connected plugs of the given snapName
-func (r *Repository) ConnectedSnaps(snapName string, snapSet map[*snap.Info]bool) error {
+// AddConnectedSnaps finds the set of snaps corresponding to the plugSlots of the given snapName
+// and adds them to the given snapSet
+func (r *Repository) AddConnectedSnaps(snapName string, snapSet map[string]bool) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	for _, plug := range r.plugs[snapName] {
 		for slot := range r.plugSlots[plug] {
-			snapSet[slot.Snap] = true
+			snapSet[slot.Snap.Name()] = true
 		}
 	}
 

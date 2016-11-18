@@ -1334,12 +1334,12 @@ func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
 	c.Check(affected, HasLen, 0)
 }
 
-func snapNamesFor(snapInfoSet map[*snap.Info]bool) []string {
-	snapNames := make([]string, 0, len(snapInfoSet))
-	for snap := range snapInfoSet {
-		snapNames = append(snapNames, snap.Name())
+func keysFor(aMap map[string]bool) []string {
+	keys := make([]string, 0, len(aMap))
+	for key := range aMap {
+		keys = append(keys, key)
 	}
-	return snapNames
+	return keys
 }
 
 func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
@@ -1349,7 +1349,7 @@ func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
 	// Disconnect s1 with which has an outgoing connection to s2
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	affectedNames := snapNamesFor(affected)
+	affectedNames := keysFor(affected)
 	c.Check(affectedNames, testutil.Contains, "s1")
 	c.Check(affectedNames, testutil.Contains, "s2")
 }
@@ -1361,7 +1361,7 @@ func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
 	// Disconnect s1 with which has an incoming connection from s2
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	affectedNames := snapNamesFor(affected)
+	affectedNames := keysFor(affected)
 	c.Check(affectedNames, testutil.Contains, "s1")
 	c.Check(affectedNames, testutil.Contains, "s2")
 }
@@ -1377,7 +1377,7 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 		c.Assert(err, IsNil)
 		affected, err := s.repo.DisconnectSnap(snapName)
 		c.Assert(err, IsNil)
-		affectedNames := snapNamesFor(affected)
+		affectedNames := keysFor(affected)
 		c.Check(affectedNames, testutil.Contains, "s1")
 		c.Check(affectedNames, testutil.Contains, "s2")
 	}
