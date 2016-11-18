@@ -216,42 +216,6 @@ slots:
 	c.Assert(err, ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
 }
 
-func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
-version: 1.0
-plugs:
- dbus-plug:
-  interface: dbus
-  bus: system
-  name: org.dbus-snap.system
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
-version: 1.0
-plugs:
- dbus-plug:
-  interface: dbus
-  bus: session
-  name: org.dbus-snap.session
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
-}
-
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
@@ -285,6 +249,42 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
 	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+plugs:
+ dbus-plug:
+  interface: dbus
+  bus: system
+  name: org.dbus-snap.system
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+plugs:
+ dbus-plug:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-plug"]}
+	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 }
 
