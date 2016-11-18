@@ -186,14 +186,15 @@ func InUse(name string, rev snap.Revision) bool {
 		return false
 	}
 
-	m, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
+	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
 	if err != nil {
 		logger.Noticef("cannot get boot vars: %s", err)
 		return false
 	}
 
-	for _, v := range m {
-		if v == filepath.Base(snap.MountFile(name, rev)) {
+	snapFile := filepath.Base(snap.MountFile(name, rev))
+	for _, bootVar := range bootVars {
+		if bootVar == snapFile {
 			return true
 		}
 	}
