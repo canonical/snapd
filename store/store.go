@@ -918,7 +918,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	for attempt := retry.Start(DefaultRetryStrategy, nil); attempt.Next(); {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    &u,
