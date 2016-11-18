@@ -47,4 +47,4 @@ execute: |
     echo "Install a snap that is already installed shows a message"
     echo "but does "exit 0" (LP: #1622782)"
     snap install $SNAP_NAME 2> stderr.out
-    cat stderr.out | MATCH "snap is already installed"
+    cat stderr.out | MATCH "snap \"$SNAP_NAME\" is already installed"

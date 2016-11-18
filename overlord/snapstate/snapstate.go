@@ -647,7 +647,7 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 	}
 
 	if !snapst.HasCurrent() {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{name, snap.R(0)}
 	}
 
 	if err := checkChangeConflict(s, name, nil); err != nil {
@@ -674,7 +674,7 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, fmt.Errorf("revision %s of snap %q is not installed", revision, name)
+			return nil, &snap.NotInstalledError{name, revision}
 		}
 	}
 

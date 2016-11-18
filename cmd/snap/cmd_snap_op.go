@@ -170,6 +170,10 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	cli := Client()
 	changeID, err := cli.Remove(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -362,7 +366,7 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		changeID, err = cli.Install(name, opts)
 	}
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, "snap is already installed")
+		fmt.Fprintf(Stderr, e.Message+"\n")
 		return nil
 	}
 	if err != nil {
