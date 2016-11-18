@@ -31,11 +31,17 @@ import (
 
 type DbusInterfaceSuite struct {
 	testutil.BaseTest
-	iface       interfaces.Interface
-	sessionPlug *interfaces.Plug
-	systemPlug  *interfaces.Plug
-	sessionSlot *interfaces.Slot
-	systemSlot  *interfaces.Slot
+	iface                interfaces.Interface
+
+	sessionPlug          *interfaces.Plug
+	systemPlug           *interfaces.Plug
+	connectedSessionPlug *interfaces.Plug
+	connectedSystemPlug  *interfaces.Plug
+
+	sessionSlot          *interfaces.Slot
+	systemSlot           *interfaces.Slot
+	connectedSessionSlot *interfaces.Slot
+	connectedSystemSlot  *interfaces.Slot
 }
 
 var _ = Suite(&DbusInterfaceSuite{
@@ -54,6 +60,14 @@ slots:
     interface: dbus
     bus: system
     name: org.test-system-slot
+  test-system-connected-slot:
+    interface: dbus
+    bus: system
+    name: org.test-system-connected
+  test-session-connected-slot:
+    interface: dbus
+    bus: session
+    name: org.test-session-connected
 
 plugs:
   test-session-plug:
@@ -64,6 +78,14 @@ plugs:
     interface: dbus
     bus: system
     name: org.test-system-plug
+  test-system-connected-plug:
+    interface: dbus
+    bus: system
+    name: org.test-system-connected
+  test-session-connected-plug:
+    interface: dbus
+    bus: session
+    name: org.test-session-connected
 
 apps:
   test-session-provider:
@@ -80,10 +102,16 @@ apps:
     - test-system-plug
 `))
 	c.Assert(err, IsNil)
+
 	s.sessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session-slot"]}
 	s.systemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system-slot"]}
+	s.connectedSessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session-connected-slot"]}
+	s.connectedSystemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system-connected-slot"]}
+
 	s.sessionPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-session-plug"]}
 	s.systemPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-system-plug"]}
+	s.connectedSessionPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-session-connected-plug"]}
+	s.connectedSystemPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-system-connected-plug"]}
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
@@ -98,6 +126,21 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+
+	snippet, err = s.iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// TODO
+	/*
+	snippet, err = s.iface.ConnectedPlugSnippet(s.sessionPlug, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.sessionPlug, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	*/
 }
 
 func (s *DbusInterfaceSuite) TestValidSessionBusName(c *C) {
@@ -261,6 +304,9 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 
 	// verify individual path in rules
 	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session-slot{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-session-slot{,.*}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
@@ -300,6 +346,9 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 
 	// verify path in rule
 	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system-slot{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-slot{,.*}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
@@ -308,4 +357,50 @@ func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+}
+
+func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
+	iface := &builtin.DbusInterface{}
+	snippet, err := iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify introspectable rule
+	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=session\n    interface=org.freedesktop.DBus.Introspectable\n    peer=(label=\"snap.test-dbus.*\"),\n")
+
+	// verify bind rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session-connected{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-session-connected{,.*}\"\n")
+}
+
+func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
+	iface := &builtin.DbusInterface{}
+	snippet, err := iface.ConnectedSlotSnippet(s.connectedSystemPlug, s.connectedSystemSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify introspectable rule
+	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    peer=(label=\"snap.test-dbus.*\"),\n")
+
+	// verify bind rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system-connected{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-connected{,.*}\"\n")
+}
+
+// TODO
+
+func (s *DbusInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+}
+
+func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 }
