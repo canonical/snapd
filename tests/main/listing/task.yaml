@@ -23,8 +23,8 @@ execute: |
     echo "Install test-snapd-tools again"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
-    echo "And run snap list --verbose"
-    output=$(snap list --verbose |grep test-snapd-tools)
+    echo "And run snap list --all"
+    output=$(snap list --all |grep test-snapd-tools)
     if [ $(printf "$output" | grep test-snapd-tools | wc -l) != "2" ]; then
         echo "Expected two test-snapd-tools in the output, got:"
         echo $output
