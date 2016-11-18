@@ -1031,57 +1031,68 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": s.deltaFormat,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.bulkURI,
+			Accept:      halJsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
 		}
-	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		if useDeltas() {
+			logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
+			reqOptions.ExtraHeaders = map[string]string{
+				"X-Ubuntu-Delta-Formats": s.deltaFormat,
+			}
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for updates")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
-	}
-
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
-		rrev := snap.R(rsnap.Revision)
-		cand := candidateMap[rsnap.SnapID]
-
-		// the store also gives us identical revisions, filter those
-		// out, we are not interested
-		if rrev == cand.Revision {
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
 			continue
 		}
-		// do not upgade to a version we rolledback back from
-		if findRev(rrev, cand.Block) {
-			continue
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, respToError(resp, "query the store for updates")
 		}
-		res = append(res, infoFromRemote(rsnap))
+
+		var updateData searchResults
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&updateData); err != nil {
+			return nil, err
+		}
+
+		res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+		for _, rsnap := range updateData.Payload.Packages {
+			rrev := snap.R(rsnap.Revision)
+			cand := candidateMap[rsnap.SnapID]
+
+			// the store also gives us identical revisions, filter those
+			// out, we are not interested
+			if rrev == cand.Revision {
+				continue
+			}
+			// do not upgade to a version we rolledback back from
+			if findRev(rrev, cand.Block) {
+				continue
+			}
+			res = append(res, infoFromRemote(rsnap))
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return res, nil
 	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return res, nil
+	panic("unreachable")
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
