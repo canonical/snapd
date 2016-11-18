@@ -28,8 +28,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-// Split this out since we only need these rules once per app
-const dbusPermanentSlotAppArmorShared = `
+const dbusPermanentSlotAppArmor = `
 # Description: Allow owning a name on DBus public bus
 
 #include <abstractions/###DBUS_ABSTRACTION###>
@@ -48,10 +47,7 @@ dbus (send)
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
-`
 
-// These rules are needed for each well-known name for the app
-const dbusPermanentSlotAppArmor = `
 # bind to a well-known DBus name: ###DBUS_NAME###
 dbus (bind)
     bus=###DBUS_BUS###
@@ -224,12 +220,13 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 }
 
 func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	bus, name, err := iface.getAttribs(slot.Attrs)
-	if err != nil {
-		return nil, err
-	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
+		bus, name, err := iface.getAttribs(plug.Attrs)
+		if err != nil {
+			return nil, err
+		}
+
 		// well-known DBus name-specific connected plug policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedPlugAppArmor), bus, name)
 
@@ -246,32 +243,36 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 }
 
 func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	bus, name, err := iface.getAttribs(slot.Attrs)
-	if err != nil {
-		return nil, err
-	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := bytes.NewBufferString("")
+		bus, name, err := iface.getAttribs(slot.Attrs)
+		if err != nil {
+			return nil, err
+		}
+
+		snippets := bytes.NewBufferString("")
 
 		// common permanent slot policy
 		abstraction, err := getAppArmorAbstraction(bus)
 		if err != nil {
 			return nil, err
 		}
-		old := []byte("###DBUS_ABSTRACTION###")
-		new := []byte(abstraction)
-		snippet.Write(bytes.Replace([]byte(dbusPermanentSlotAppArmorShared), old, new, -1))
 
 		// well-known DBus name-specific permanent slot policy
-		snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name))
+		snippet := getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name)
+
+		old := []byte("###DBUS_ABSTRACTION###")
+		new := []byte(abstraction)
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+		snippets.Write(snippet)
 
 		if release.OnClassic {
 			// classic-only policy
-			snippet.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
+			snippets.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
 		}
-		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippet.Bytes())
-		return snippet.Bytes(), nil
+		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
+		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
 	}
@@ -279,12 +280,13 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	bus, name, err := iface.getAttribs(slot.Attrs)
-	if err != nil {
-		return nil, err
-	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
+		bus, name, err := iface.getAttribs(slot.Attrs)
+		if err != nil {
+			return nil, err
+		}
+
 		// well-known DBus name-specific connected slot policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedSlotAppArmor), bus, name)
 
