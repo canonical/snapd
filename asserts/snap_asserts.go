@@ -706,14 +706,14 @@ type SnapDeveloper struct {
 	timestamp time.Time
 }
 
-// PublisherID returns the publisher's account id.
-func (snapdev *SnapDeveloper) PublisherID() string {
-	return snapdev.HeaderString("publisher-id")
-}
-
 // SnapID returns the snap id of the snap.
 func (snapdev *SnapDeveloper) SnapID() string {
 	return snapdev.HeaderString("snap-id")
+}
+
+// PublisherID returns the publisher's account id.
+func (snapdev *SnapDeveloper) PublisherID() string {
+	return snapdev.HeaderString("publisher-id")
 }
 
 // Timestamp returns the time when the snap-developer assertion was created.

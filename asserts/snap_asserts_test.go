@@ -1339,8 +1339,8 @@ func (sds *snapDevSuite) SetUpSuite(c *C) {
 func (sds *snapDevSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-developer\n" +
 		"authority-id: dev-id1\n" +
-		"publisher-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
+		"publisher-id: dev-id1\n" +
 		sds.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
@@ -1362,8 +1362,8 @@ const (
 func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-developer\n" +
 		"authority-id: dev-id1\n" +
-		"publisher-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
+		"publisher-id: dev-id1\n" +
 		sds.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
@@ -1393,8 +1393,8 @@ func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 
 	headers := map[string]interface{}{
 		"authority-id": "dev-id1",
-		"publisher-id": "dev-id1",
 		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
 		"timestamp":    sds.ts.Format(time.RFC3339),
 	}
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
