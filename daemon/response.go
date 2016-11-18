@@ -120,14 +120,16 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 type errorKind string
 
 const (
-	errorKindTwoFactorRequired    = errorKind("two-factor-required")
-	errorKindTwoFactorFailed      = errorKind("two-factor-failed")
-	errorKindLoginRequired        = errorKind("login-required")
-	errorKindInvalidAuthData      = errorKind("invalid-auth-data")
-	errorKindTermsNotAccepted     = errorKind("terms-not-accepted")
-	errorKindNoPaymentMethods     = errorKind("no-payment-methods")
-	errorKindPaymentDeclined      = errorKind("payment-declined")
+	errorKindTwoFactorRequired = errorKind("two-factor-required")
+	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
+	errorKindLoginRequired     = errorKind("login-required")
+	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
+	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
+	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
+	errorKindPaymentDeclined   = errorKind("payment-declined")
+
 	errorKindSnapAlreadyInstalled = errorKind("snap-already-installed")
+	errorKindSnapNotInstalled     = errorKind("snap-not-installed")
 )
 
 type errorValue interface{}
