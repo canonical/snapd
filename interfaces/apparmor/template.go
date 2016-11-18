@@ -320,6 +320,10 @@ var defaultTemplate = []byte(`
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
 
+  # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
+  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
+  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
   unix peer=(label=snap.@{SNAP_NAME}.*),

@@ -22,13 +22,16 @@ package store_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type loggerSuite struct {
@@ -96,4 +99,32 @@ func (s loggerSuite) TestLogging(c *check.C) {
 	c.Check(aRsp, check.Equals, rsp)
 	c.Check(s.logbuf.String(), check.Matches, `(?ms).*> "WAT / HTTP/\S+.*`)
 	c.Check(s.logbuf.String(), check.Matches, `(?ms).*< "HTTP/\S+ 999 WAT.*`)
+}
+
+func (s loggerSuite) TestNotLoggingOctetStream(c *check.C) {
+	req, err := http.NewRequest("GET", "http://example.com/data", nil)
+	c.Assert(err, check.IsNil)
+	needle := "lots of binary data"
+	rsp := &http.Response{
+		Status:     "200 OK",
+		StatusCode: 200,
+		Header: http.Header{
+			"Content-Type": []string{"application/octet-stream"},
+		},
+		Body: ioutil.NopCloser(strings.NewReader(needle)),
+	}
+	tr := &store.LoggedTransport{
+		Transport: &fakeTransport{
+			rsp: rsp,
+		},
+		Key: "TEST_FOO",
+	}
+
+	os.Setenv("TEST_FOO", "7")
+
+	aRsp, err := tr.RoundTrip(req)
+	c.Assert(err, check.IsNil)
+	c.Check(aRsp, check.Equals, rsp)
+	c.Check(s.logbuf.String(), check.Matches, `(?ms).*> "GET /data HTTP/\S+.*`)
+	c.Check(s.logbuf.String(), check.Not(testutil.Contains), needle)
 }

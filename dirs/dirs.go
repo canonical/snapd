@@ -66,6 +66,8 @@ var (
 	ClassicDir string
 
 	LibExecDir string
+
+	XdgRuntimeDirGlob string
 )
 
 var (
@@ -142,4 +144,6 @@ func SetRootDir(rootdir string) {
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
 	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+
+	XdgRuntimeDirGlob = filepath.Join(rootdir, "/run/user/*/")
 }

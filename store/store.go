@@ -402,9 +402,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+
+		client: newHTTPClient(&httpClientOpts{
+			Timeout:    10 * time.Second,
+			MayLogBody: true,
+		}),
 	}
 }
 
@@ -1119,8 +1123,11 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		// We revert to normal downloads if there is any error.
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
-
-	w, err := os.Create(targetPath + ".partial")
+	w, err := os.OpenFile(targetPath+".partial", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	resume, err := w.Seek(0, os.SEEK_END)
 	if err != nil {
 		return err
 	}
@@ -1138,7 +1145,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(name, downloadInfo.Sha3_384, url, user, s, w, pbar)
+	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
 	if err != nil {
 		return err
 	}
@@ -1154,7 +1161,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1164,15 +1171,29 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		Method: "GET",
 		URL:    storeURL,
 	}
+	h := crypto.SHA3_384.New()
+
+	if resume > 0 {
+		reqOptions.ExtraHeaders = map[string]string{
+			"Range": fmt.Sprintf("bytes=%d-", resume),
+		}
+		// seed the sha3 with the already local file
+		seekStart := 0
+		if _, err := w.Seek(0, seekStart); err != nil {
+			return err
+		}
+		n, err := io.Copy(h, w)
+		if err != nil {
+			return err
+		}
+		if n != resume {
+			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
+		}
+	}
 
 	var resp *http.Response
 	for _, n := range downloadBackoffs {
-		// we do *not* want to reuse the client between iterations in
-		// this case as it will have internal state (e.g. cached
-		// connections) that led us to an error (the default client is
-		// documented as not reusing the transport unless the body is
-		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
 			return err
 		}
@@ -1186,7 +1207,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case http.StatusOK, http.StatusPartialContent:
 		break
 	case http.StatusUnauthorized:
 		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
@@ -1198,21 +1219,20 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		pbar = &progress.NullProgress{}
 	}
 	pbar.Start(name, float64(resp.ContentLength))
-	h := crypto.SHA3_384.New()
 	mw := io.MultiWriter(w, h, pbar)
 	_, err = io.Copy(mw, resp.Body)
 	pbar.Finished()
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, sha3_384, actualSha3)
+		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
 
 	return err
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.Writer, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
 
 	if len(downloadInfo.Deltas) != 1 {
 		return errors.New("store returned more than one download delta")
@@ -1229,7 +1249,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
+	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
