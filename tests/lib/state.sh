@@ -14,7 +14,7 @@ remove_users_from_state(){
 }
 
 restore_state(){
-    if [ -f ./state.json.back ]; then
+    if [ -f $SPREAD_PATH/state.json.save ]; then
         systemctl stop snapd.service
         mv $SPREAD_PATH/state.json.save /var/lib/snapd/state.json
         systemctl start snapd.service
