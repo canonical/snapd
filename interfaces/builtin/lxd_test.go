@@ -92,10 +92,6 @@ func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "shutdown\n")
 }
 
-func (s *LxdInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
-
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {
 	// allow what declarations allowed
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
