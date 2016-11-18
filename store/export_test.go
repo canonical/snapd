@@ -27,7 +27,7 @@ import (
 
 var GetFlags = (*LoggedTransport).getFlags
 
-// MockDefaultRetryStrategy mocks the retry startegy used by several store requests
+// MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	originalDefaultRetryStrategy := defaultRetryStrategy
 	defaultRetryStrategy = strategy
