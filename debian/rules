@@ -118,7 +118,7 @@ override_dh_install:
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snap.mount debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
