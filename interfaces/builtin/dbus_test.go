@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -438,4 +439,193 @@ func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+}
+
+func (s *DbusInterfaceSuite) TestConnectionFirst(c *C) {
+	const plugYaml = `name: plugger
+version: 1.0
+plugs:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+`
+	const slotYaml = `name: slotter
+version: 1.0
+slots:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+ that:
+  interface: dbus
+  bus: system
+  name: org.slotter.other-session
+`
+
+	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
+	matchingPlug := &interfaces.Plug{PlugInfo: plugInfo.Plugs["this"]}
+
+	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
+	matchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
+	nonmatchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, matchingSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "org.slotter.session")
+	c.Check(string(snippet), testutil.Contains, "bus=session")
+	c.Check(string(snippet), Not(testutil.Contains), "org.slotter.other-session")
+	c.Check(string(snippet), Not(testutil.Contains), "bus=system")
+
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nonmatchingSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestConnectionSecond(c *C) {
+	const plugYaml = `name: plugger
+version: 1.0
+plugs:
+ that:
+  interface: dbus
+  bus: system
+  name: org.slotter.other-session
+`
+	const slotYaml = `name: slotter
+version: 1.0
+slots:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+ that:
+  interface: dbus
+  bus: system
+  name: org.slotter.other-session
+`
+
+	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
+	matchingPlug := &interfaces.Plug{PlugInfo: plugInfo.Plugs["that"]}
+
+	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
+	matchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
+	nonmatchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, matchingSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "org.slotter.other-session")
+	c.Check(string(snippet), testutil.Contains, "bus=system")
+	c.Check(string(snippet), Not(testutil.Contains), "org.slotter.session")
+	c.Check(string(snippet), Not(testutil.Contains), "bus=session")
+
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nonmatchingSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestConnectionBoth(c *C) {
+	const plugYaml = `name: plugger
+version: 1.0
+plugs:
+ that:
+  interface: dbus
+  bus: system
+  name: org.slotter.other-session
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+`
+	const slotYaml = `name: slotter
+version: 1.0
+slots:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+ that:
+  interface: dbus
+  bus: system
+  name: org.slotter.other-session
+`
+
+	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
+	matchingPlug1 := &interfaces.Plug{PlugInfo: plugInfo.Plugs["this"]}
+	matchingPlug2 := &interfaces.Plug{PlugInfo: plugInfo.Plugs["that"]}
+
+	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
+	matchingSlot1 := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
+	matchingSlot2 := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug1, matchingSlot1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "org.slotter.session")
+	c.Check(string(snippet), testutil.Contains, "bus=session")
+
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug2, matchingSlot2, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "org.slotter.other-session")
+	c.Check(string(snippet), testutil.Contains, "bus=system")
+}
+
+func (s *DbusInterfaceSuite) TestConnectionMismatchBus(c *C) {
+	const plugYaml = `name: plugger
+version: 1.0
+plugs:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+`
+	const slotYaml = `name: slotter
+version: 1.0
+slots:
+ this:
+  interface: dbus
+  bus: system
+  name: org.slotter.session
+`
+
+	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: plugInfo.Plugs["this"]}
+
+	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestConnectionMismatchName(c *C) {
+	const plugYaml = `name: plugger
+version: 1.0
+plugs:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.session
+`
+	const slotYaml = `name: slotter
+version: 1.0
+slots:
+ this:
+  interface: dbus
+  bus: session
+  name: org.slotter.nomatch
+`
+
+	plugInfo := snaptest.MockInfo(c, plugYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: plugInfo.Plugs["this"]}
+
+	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }

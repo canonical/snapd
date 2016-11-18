@@ -220,13 +220,23 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 }
 
 func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	bus, name, err := iface.getAttribs(plug.Attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	busSlot, nameSlot, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	// ensure that we only connect to slot with matching attributes
+	if bus != busSlot || name != nameSlot {
+		return nil, nil
+	}
+
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		bus, name, err := iface.getAttribs(plug.Attrs)
-		if err != nil {
-			return nil, err
-		}
-
 		// well-known DBus name-specific connected plug policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedPlugAppArmor), bus, name)
 
@@ -234,7 +244,6 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		new := slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		//fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippet)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusConnectedPlugSecComp), nil
@@ -271,7 +280,7 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 			// classic-only policy
 			snippets.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
 		}
-		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
+
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
@@ -280,13 +289,23 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	busPlug, namePlug, err := iface.getAttribs(plug.Attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	// ensure that we only connect to slot with matching attributes
+	if bus != busPlug || name != namePlug {
+		return nil, nil
+	}
+
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		bus, name, err := iface.getAttribs(slot.Attrs)
-		if err != nil {
-			return nil, err
-		}
-
 		// well-known DBus name-specific connected slot policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedSlotAppArmor), bus, name)
 
@@ -294,7 +313,6 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 		new := plugAppLabelExpr(plug)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		//fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippet)
 		return snippet, nil
 	}
 	return nil, nil
