@@ -1,9 +1,13 @@
 #!/bin/sh
 remove_users_from_state(){
+    snap install jq-cprov.jq
     systemctl stop snapd.service
     cp /var/lib/snapd/state.json ./state.json.back
-    sed -i 's/"users":\[[^]]*\]/"users":null/' /var/lib/snapd/state.json
+    mv /var/lib/snapd/state.json /var/lib/snapd/state.json~
+    jq-cprov.jq 'del(.data.auth.users)|.' /var/lib/snapd/state.json~ > /var/lib/snapd/state.json
+    rm /var/lib/snapd/state.json~
     systemctl start snapd.service
+    snap remove jq-cprov
 }
 
 restore_state(){
