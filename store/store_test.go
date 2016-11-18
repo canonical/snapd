@@ -3069,6 +3069,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "no payment methods")
 		},
+		NumOfCalls: 1,
 	},
 	{
 		// No user account exists
