@@ -990,6 +990,32 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "local")
 }
 
+func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
+	d := s.daemon(c)
+
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
+
+	for _, t := range []struct {
+		q        string
+		numSnaps int
+	}{
+		{"?all=0", 1},
+		{"?all=nonsense", 1},
+		{"", 1},
+		{"?all=1", 3},
+	} {
+		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/snaps%s", t.q), nil)
+		c.Assert(err, check.IsNil)
+		rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
+
+		snaps := snapList(rsp.Result)
+		c.Assert(snaps, check.HasLen, t.numSnaps)
+		c.Assert(snaps[0]["name"], check.Equals, "local")
+	}
+}
+
 func (s *apiSuite) TestFind(c *check.C) {
 	s.suggestedCurrency = "EUR"
 
