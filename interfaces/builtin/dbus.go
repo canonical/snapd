@@ -150,16 +150,16 @@ func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 		}
 
 		if attr == "bus" {
-			bus = val
-			if bus != "session" && bus != "system" {
-				return "", "", fmt.Errorf("bus '%s' must be one of 'session' or 'system'", bus)
+			if val != "session" && val != "system" {
+				return "", "", fmt.Errorf("bus '%s' must be one of 'session' or 'system'", val)
 			}
+			bus = val
 		} else if attr == "name" {
-			name = val
-			err := interfaces.ValidateDBusBusName(name)
+			err := interfaces.ValidateDBusBusName(val)
 			if err != nil {
 				return "", "", err
 			}
+			name = val
 		}
 	}
 
