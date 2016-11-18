@@ -397,10 +397,48 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-connected{,.*}\"\n")
 }
 
-// TODO
+func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
+	iface := &builtin.DbusInterface{}
+	snippet, err := iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 
-func (s *DbusInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+	// verify introspectable rule
+	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=session\n    interface=org.freedesktop.DBus.Introspectable\n    peer=(label=\"snap.test-dbus.*\"),\n")
+
+	// verify bind rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session-connected{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-session-connected{,.*}\"\n")
+}
+
+func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
+	iface := &builtin.DbusInterface{}
+	snippet, err := iface.ConnectedPlugSnippet(s.connectedSystemPlug, s.connectedSystemSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify introspectable rule
+	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    peer=(label=\"snap.test-dbus.*\"),\n")
+
+	// verify bind rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system-connected{,/**}\"\n")
+
+	// verify interface in rule
+	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-connected{,.*}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
