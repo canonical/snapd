@@ -42,6 +42,7 @@ apps:
 hooks:
  configure:
 `)
+var mockContents = "SNAP"
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
@@ -66,7 +67,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -102,7 +103,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -154,7 +155,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -189,7 +190,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -225,10 +226,10 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Create both revisions 41 and 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(41),
 	})
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -262,7 +263,7 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -292,7 +293,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -331,7 +332,7 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -350,11 +351,11 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	os.Setenv("SNAP_ARCH", "PDP-7")
 	defer os.Unsetenv("SNAP_NAME")
 	defer os.Unsetenv("SNAP_ARCH")
-	// but unreleated stuff is ok
+	// but unrelated stuff is ok
 	os.Setenv("SNAP_THE_WORLD", "YES")
 	defer os.Unsetenv("SNAP_THE_WORLD")
 
-	// and ensure those SNAP_ vars get overriden
+	// and ensure those SNAP_ vars get overridden
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
