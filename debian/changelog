@@ -192,7 +192,7 @@ snapd (2.17) xenial; urgency=medium
       declarations (#2027)
     - store: apply deltas if explicitly enabled (#2031)
     - tests: fix create-key/snap-sign test isolation (#2032)
-    - snap/implicit: don't restrict the camera iface to clasic (#2025)
+    - snap/implicit: don't restrict the camera iface to classic (#2025)
     - client, cmd: change buy command to match UX document (#2011)
     - coreconfig: nuke it. Also, ignore po/snappy.pot. (#2030)
     - store: download deltas if explicitly enabled (#2017)
@@ -310,7 +310,7 @@ snapd (2.15.2ubuntu1) xenial; urgency=medium
       (cherry pick PR: #1926)
     - interfaces: allow xdg-open in unity7, unity7 cleanups
       (cherry pick PR: #1946)
-    - tests: ensure http{,s}_proxy is defined inside the fake-store 
+    - tests: ensure http{,s}_proxy is defined inside the fake-store
       (cherry pick PR: #1949)
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 21 Sep 2016 17:21:12 +0200
@@ -579,7 +579,7 @@ snapd (2.13) xenial; urgency=medium
     - overlord/snapstate: check changes to SnapState for conflicts also.
     - docs/interfaces: change snappy command to snap
     - tests: test `snap run --hook` using in-tree snap-exec.
-    - partition: ensure that snap_{kernel,core} is not overriden with an
+    - partition: ensure that snap_{kernel,core} is not overridden with an
       empty value
     - asserts,overlord/assertstate: introduce an assertstate task
       handler to fetch snap assertions
@@ -1139,7 +1139,7 @@ snapd (2.0.4) xenial; urgency=medium
     - debian/tests: add reboot capability to autopkgtest and execute
       snapPersistsSuite
     - daemon,snappy,progress: drop license agreement broken logic
-    - daemon,client,cmd/snap: nice access denied message 
+    - daemon,client,cmd/snap: nice access denied message
       (LP: #1574829)
     - daemon: add user parameter to all commands
     - snap, store: rework purchase methods into decorators
@@ -1373,7 +1373,7 @@ snapd (1.9.3) xenial; urgency=medium
     - daemon: auto install ubuntu-core if missing
     - oauth,store: remove OAuth authentication logic
     - overlord/ifacestate: simplify some tests with implicit manager
-      initalization
+      initialization
     - store, snappy: move away from hitting details directly
     - overlord/ifacestate: reload connections when restarting the
       manager
@@ -1531,7 +1531,7 @@ ubuntu-snappy (1.7.3+20160303ubuntu1) xenial; urgency=medium
     - snappy,daemon,snap/lightweight,cmd/snappy,docs/rest.md: expose
       explicit channel selection to rest api
     - interfaces,daemon: rename package holding built-in interfaces
-    - integration-tests: add the first classic dimention tests
+    - integration-tests: add the first classic dimension tests
     - client,deaemon,docs: rename skills to interfaces on the wire
     - asserts: add identity assertion type
     - integration-tests: add the no_proxy env var
@@ -1683,11 +1683,11 @@ ubuntu-snappy (1.7.2+20160204ubuntu1) xenial; urgency=medium
     - snappy: move SnapFile.Install() into Overlord.Install()
     - integration-tests: re-enable some failover tests
     - client: remove snaps
-    - asserts: uniform searching accross trusted (account keys) and main
+    - asserts: uniform searching across trusted (account keys) and main
       backstore
     - asserts: introduce Decoder to parse streams of assertions and
       Encoder to build them
-    - client: filter snaps with a seach query
+    - client: filter snaps with a search query
     - client: pass query as well as path in client internals
     - skills: provide different security snippets for skill and slot
       side
@@ -1832,7 +1832,7 @@ ubuntu-snappy (1.2-0ubuntu1) wily; urgency=medium
     - Consider the root directory when installing and removing policies
     - In the uboot TestHandleAssetsNoHardwareYaml, patch the cache dir
       before creating the partition type
-    - In the PartitionTestSuite, remove the unnecesary patches for
+    - In the PartitionTestSuite, remove the unnecessary patches for
       defaultCacheDir
     - Fix the help output of "snappy install -h"
 
@@ -1895,7 +1895,7 @@ ubuntu-snappy (0.1.1-0ubuntu1) vivid; urgency=low
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Feb 2015 13:51:22 +0100
 
-ubuntu-snappy (0.1-0ubuntu1) vivid; urgency=medium 
+ubuntu-snappy (0.1-0ubuntu1) vivid; urgency=medium
 
   * Initial packaging
 

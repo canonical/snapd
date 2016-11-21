@@ -26,7 +26,7 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this enviroment does not prevent
+# requires access to various DBus services and this environment does not prevent
 # eavesdropping or apps interfering with one another.
 # Usage: reserved
 
@@ -108,7 +108,7 @@ owner @{HOME}/.config/fcitx/dbus/* r,
 
 # allow creating an input context
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputmethod
     interface=org.fcitx.Fcitx.InputMethod
     member=CreateIC*
@@ -116,14 +116,14 @@ dbus send
 
 # allow setting up and tearing down the input context
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member="{Close,Destroy,Enable}IC"
     peer=(label=unconfined),
 
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member=Reset
@@ -134,16 +134,21 @@ dbus receive
     bus=fcitx
     peer=(label=unconfined),
 
+dbus receive
+    bus=session
+    interface=org.fcitx.Fcitx.*
+    peer=(label=unconfined),
+
 # use the input context
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member="Focus{In,Out}"
     peer=(label=unconfined),
 
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member="{CommitPreedit,Set*}"
@@ -153,7 +158,7 @@ dbus send
 # context path were tied to the process' security label, this would not be an
 # issue.
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member="{MouseEvent,ProcessKeyEvent}"
@@ -164,7 +169,7 @@ dbus send
 # again, could be avoided if the path were tied to the process' security
 # label).
 dbus send
-    bus=fcitx
+    bus={fcitx,session}
     path=/inputcontext_[0-9]*
     interface=org.freedesktop.DBus.Properties
     member=GetAll
@@ -422,7 +427,7 @@ deny /{,var/}{dev,run}/shm/lttng-ust-* r,
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugSecComp = `
 # Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this enviroment does not prevent
+# requires access to various DBus services and this environment does not prevent
 # eavesdropping or apps interfering with one another.
 
 # X
