@@ -188,8 +188,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
-	r1 := release.MockOnClassic(true)
-	defer r1()
+	restore := release.MockOnClassic(true)
+	defer restore()
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
@@ -344,27 +344,28 @@ var (
 	unconstrained = []string{"core", "kernel", "gadget", "app"}
 
 	slotInstallation = map[string][]string{
-		// unconstrained
-		"bluez":            unconstrained,
-		"fwupd":            unconstrained,
-		"location-control": unconstrained,
-		"location-observe": unconstrained,
-		"modem-manager":    unconstrained,
-		"udisks2":          unconstrained,
 		// other
-		"bool-file":       []string{"core", "gadget"},
-		"browser-support": []string{"core"},
-		"content":         []string{"app", "gadget"},
-		"docker-support":  []string{"core"},
-		"gpio":            []string{"core", "gadget"},
-		"hidraw":          []string{"core", "gadget"},
-		"lxd-support":     []string{"core"},
-		"mir":             []string{"app"},
-		"mpris":           []string{"app"},
-		"network-manager": []string{"app", "core"},
-		"ppp":             []string{"core"},
-		"pulseaudio":      []string{"app", "core"},
-		"serial-port":     []string{"core", "gadget"},
+		"bluez":            []string{"app"},
+		"bool-file":        []string{"core", "gadget"},
+		"browser-support":  []string{"core"},
+		"content":          []string{"app", "gadget"},
+		"docker-support":   []string{"core"},
+		"fwupd":            []string{"app"},
+		"gpio":             []string{"core", "gadget"},
+		"hidraw":           []string{"core", "gadget"},
+		"i2c":              []string{"core", "gadget"},
+		"location-control": []string{"app"},
+		"location-observe": []string{"app"},
+		"lxd-support":      []string{"core"},
+		"mir":              []string{"app"},
+		"modem-manager":    []string{"app", "core"},
+		"mpris":            []string{"app"},
+		"network-manager":  []string{"app", "core"},
+		"ofono":            []string{"app", "core"},
+		"ppp":              []string{"core"},
+		"pulseaudio":       []string{"app", "core"},
+		"serial-port":      []string{"core", "gadget"},
+		"udisks2":          []string{"app"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
@@ -472,7 +473,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe": true,
 		"lxd":              true,
 		"mir":              true,
-		"modem-manager":    true,
 		"udisks2":          true,
 	}
 
@@ -488,6 +488,43 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 			c.Check(err, IsNil, comm)
 		} else {
 			c.Check(err, NotNil, comm)
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	noconnect := map[string]bool{
+		"modem-manager":   true,
+		"network-manager": true,
+		"ofono":           true,
+		"pulseaudio":      true,
+	}
+
+	for _, onClassic := range []bool{true, false} {
+		release.OnClassic = onClassic
+		for _, iface := range all {
+			if !noconnect[iface.Name()] {
+				continue
+			}
+			expected := onClassic
+			comm := Commentf(iface.Name())
+
+			// check base declaration
+			cand := s.connectCand(c, iface.Name(), "", "")
+			err := cand.Check()
+
+			if expected {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, NotNil, comm)
+			}
 		}
 	}
 }

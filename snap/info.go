@@ -56,6 +56,9 @@ type PlaceInfo interface {
 
 	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 	CommonDataHomeDir() string
+
+	// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+	XdgRuntimeDirs() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -228,6 +231,16 @@ func (s *Info) DataHomeDir() string {
 // CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
+}
+
+// UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
+func (s *Info) UserXdgRuntimeDir(euid int) string {
+	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
+}
+
+// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+func (s *Info) XdgRuntimeDirs() string {
+	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 
 // NeedsDevMode retursn whether the snap needs devmode.
@@ -465,6 +478,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
+	st, err := os.Stat(MountFile(name, si.Revision))
+	if err != nil {
+		return nil, err
+	}
+	info.Size = st.Size()
+
 	err = addImplicitHooks(info)
 	if err != nil {
 		return nil, err
@@ -482,6 +501,11 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	info.Size, err = snapf.Size()
 	if err != nil {
 		return nil, err
 	}

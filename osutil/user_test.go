@@ -21,8 +21,10 @@ package osutil_test
 
 import (
 	"io/ioutil"
+	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/check.v1"
 
@@ -151,4 +153,36 @@ func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
 		{"usermod", "--password", "$6$salt$hash", "karl.sagan"},
 	})
 
+}
+
+func (s *createUserSuite) TestRealUser(c *check.C) {
+	oldUser := os.Getenv("SUDO_USER")
+	defer func() { os.Setenv("SUDO_USER", oldUser) }()
+
+	for _, t := range []struct {
+		SudoUsername    string
+		CurrentUsername string
+		CurrentUid      int
+	}{
+		// simulate regular "root", no SUDO_USER set
+		{"", os.Getenv("USER"), 0},
+		// simulate a normal sudo invocation
+		{"guy", "guy", 0},
+		// simulate running "sudo -u some-user -i" as root
+		// (LP: #1638656)
+		{"root", os.Getenv("USER"), 1000},
+	} {
+		restore := osutil.MockUserCurrent(func() (*user.User, error) {
+			return &user.User{
+				Username: t.CurrentUsername,
+				Uid:      strconv.Itoa(t.CurrentUid),
+			}, nil
+		})
+		defer restore()
+
+		os.Setenv("SUDO_USER", t.SudoUsername)
+		cur, err := osutil.RealUser()
+		c.Assert(err, check.IsNil)
+		c.Check(cur.Username, check.Equals, t.CurrentUsername)
+	}
 }
