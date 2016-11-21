@@ -65,7 +65,8 @@ func (x *cmdBuy) Execute(args []string) error {
 func buySnap(snapName, currency string) error {
 	cli := Client()
 
-	if !cli.LoggedIn() {
+	user := cli.LoggedInUser()
+	if user == nil {
 		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
 	}
 
@@ -116,7 +117,7 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
 
-	err = requestLogin("")
+	err = requestLogin(user.Email)
 	if err != nil {
 		return err
 	}
