@@ -823,45 +823,58 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	u.RawQuery = query.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: halJsonContentType,
+		}
+
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check statusCode
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// OK
+		case http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		default:
+			msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+			return nil, respToError(resp, msg)
+		}
+
+		// and decode json
+		var remote snapDetails
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&remote); err != nil {
+			return nil, err
+		}
+
+		info := infoFromRemote(remote)
+
+		err = s.decorateOrders([]*snap.Info{info}, channel, user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return info, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// check statusCode
-	switch resp.StatusCode {
-	case http.StatusOK:
-		// OK
-	case http.StatusNotFound:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
-		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
-	}
-
-	info := infoFromRemote(remote)
-
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return info, nil
+	panic("unreachable")
 }
 
 // A Search is what you do in order to Find something
