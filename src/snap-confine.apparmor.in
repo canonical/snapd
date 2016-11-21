@@ -217,6 +217,10 @@
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
     /{dev,run}/shm/{,*/,*/*/} rw,
 
+    # for creating the user XDG_RUNTIME_DIR: /run/user, /run/user/UID and
+    # /run/user/UID/<name>
+    /run/user/{,[0-9]*/,[0-9]*/*/} rw,
+
     # Workaround https://launchpad.net/bugs/359338 until upstream handles
     # stacked filesystems generally.
     # encrypted ~/.Private and old-style encrypted $HOME

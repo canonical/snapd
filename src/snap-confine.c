@@ -127,6 +127,7 @@ int main(int argc, char **argv)
 	}
 	// Ensure that the user data path exists.
 	setup_user_data();
+	setup_user_xdg_runtime_dir();
 
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 #ifdef HAVE_APPARMOR
