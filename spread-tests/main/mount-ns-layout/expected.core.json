@@ -960,56 +960,6 @@
     "root_dir": "/EFI/ubuntu"
   },
   {
-    "fs_type": "devtmpfs",
-    "mount_opts": "rw,nosuid,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/dev",
-    "mount_src": "udev",
-    "opt_fields": [
-      "master:renumbered/2"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "hugetlbfs",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/dev/hugepages",
-    "mount_src": "hugetlbfs",
-    "opt_fields": [
-      "master:renumbered/3"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "mqueue",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/dev/mqueue",
-    "mount_src": "mqueue",
-    "opt_fields": [
-      "master:renumbered/4"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "devpts",
-    "mount_opts": "rw,nosuid,noexec,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/dev/pts",
-    "mount_src": "devpts",
-    "opt_fields": [
-      "master:renumbered/5"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "tmpfs",
-    "mount_opts": "rw,nosuid,nodev",
-    "mount_point": "/var/lib/snapd/hostfs/dev/shm",
-    "mount_src": "tmpfs",
-    "opt_fields": [
-      "master:renumbered/6"
-    ],
-    "root_dir": "/"
-  },
-  {
     "fs_type": "ext4",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/snapd/hostfs/etc/apparmor.d/cache",

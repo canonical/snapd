@@ -158,6 +158,7 @@
     # cleanup 
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
     umount /var/lib/snapd/hostfs/sys/,
+    umount /var/lib/snapd/hostfs/dev/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
     # set up snap-specific private /tmp dir
