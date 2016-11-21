@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
@@ -66,10 +67,12 @@ dbus (send)
 `
 
 const dbusPermanentSlotAppArmorClassic = `
-# allow unconfined clients to introspect on classic
+# allow unconfined clients to introspect us on classic
 dbus (receive)
     bus=###DBUS_BUS###
+    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=unconfined),
 
 # allow unconfined clients talk to ###DBUS_NAME### on classic
@@ -78,8 +81,9 @@ dbus (receive, send)
     interface=###DBUS_INTERFACE###
     peer=(label=unconfined),
 
-# allow unconfined to everything under ###DBUS_PATH### (eg, org.freedesktop.*,
-# org.gtk.Application, etc) to allow integrating in classic environment.
+# allow unconfined to everything under ###DBUS_PATH### (eg,
+# org.freedesktop.*, org.gtk.Application, etc) to allow integrating in classic
+# environment.
 dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
@@ -95,11 +99,13 @@ sendto
 `
 
 const dbusConnectedSlotAppArmor = `
-# allow snaps to introspect us. This allows clients to see all the interfaces
-# supported by the service, but only use the specified interface.
+# allow snaps to introspect us. This allows clients to introspect other
+# interfaces of the service (but not access them).
 dbus (receive)
     bus=###DBUS_BUS###
+    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # allow connected snaps to ###DBUS_NAME###
@@ -118,11 +124,11 @@ dbus (receive, send)
 `
 
 const dbusConnectedPlugAppArmor = `
-# allow snaps to introspect the slot implementation. This allows clients to see
-# all the interfaces supported by the service, but only use the specified
-# interface.
+# allow snaps to introspect the slot implementation. This allows us to
+# introspect other interfaces of the service (but not access them).
 dbus (send)
     bus=###DBUS_BUS###
+    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -228,6 +234,23 @@ func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
 
 	old = []byte("###DBUS_PATH###")
 	new = pathBuf.Bytes()
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	// convert name to AppArmor dbus path (eg 'org.foo' to '/,/org,/org/foo')
+	var intPathBuf bytes.Buffer
+	intPathBuf.WriteString(`"{/`)
+
+	var last = ""
+	for _, comp := range strings.Split(name, `.`) {
+		tmp := fmt.Sprintf("%s/%s", last, comp)
+		intPathBuf.WriteString(`,`)
+		intPathBuf.WriteString(tmp)
+		last = tmp
+	}
+	intPathBuf.WriteString(`}"`)
+
+	old = []byte("###DBUS_INTROSPECT_PATH###")
+	new = intPathBuf.Bytes()
 	snippet = bytes.Replace(snippet, old, new, -1)
 
 	// convert name to AppArmor dbus interface (eg, 'org.foo' to 'org.foo{,.*}')
