@@ -150,12 +150,6 @@ type Interface interface {
 	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// LegacyAutoConnect is OBSOLETE, only used temporarily in tests
-	// to cross check with past behavior.
-	// It returned whether plugs and slots should be implicitly
-	// auto-connected when an unambiguous connection candidate is available.
-	LegacyAutoConnect() bool
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks

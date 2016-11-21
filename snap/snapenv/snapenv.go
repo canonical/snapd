@@ -91,6 +91,7 @@ func userEnv(info *snap.Info, home string) map[string]string {
 		"HOME":             info.UserDataDir(home),
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
+		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
 	}
 }
 
