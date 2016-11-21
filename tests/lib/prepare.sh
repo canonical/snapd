@@ -45,9 +45,10 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        # FIXME: go back to stable once we have a stable release with
-        #        the snap-exec fix
-        snap install --candidate core
+        # use parameterized core channel (defaults to edge) instead
+        # of a fixed one and close to stable in order to detect defects
+        # earlier
+        snap install --${CORE_CHANNEL} core
         snap list | grep core
 
         echo "Ensure that the grub-editenv list output is empty on classic"
