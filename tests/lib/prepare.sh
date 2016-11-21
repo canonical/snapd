@@ -240,8 +240,6 @@ EOF
         sfdisk /dev/sdb <<EOF
 ;
 EOF
-        blockdev --rereadpt /dev/sdb
-
         # format new partition
         mkfs.ext4 /dev/sdb1
 

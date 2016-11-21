@@ -15,6 +15,9 @@ restore: |
     . $TESTSLIB/state.sh
     restore_state
 
+debug: |
+    journalctl -xe --no-pager | grep autoimport
+
 execute: |
     if [ "$MANAGED_DEVICE" = "true" ]; then
         if snap create-user --sudoer mvo@ubuntu.com 2>create.error; then
