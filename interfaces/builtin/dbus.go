@@ -114,7 +114,7 @@ dbus (receive, send)
     interface=###DBUS_INTERFACE###
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# allow connected snaps to everything under ###DBUS_PATH### (eg,
+# allow connected snaps to all interfaces via ###DBUS_PATH### (eg,
 # org.freedesktop.*, org.gtk.Application, etc) to allow full integration with
 # connected snaps.
 dbus (receive, send)
@@ -139,7 +139,7 @@ dbus (receive, send)
     interface=###DBUS_INTERFACE###
     peer=(label=###SLOT_SECURITY_TAGS###),
 
-# allow connected snaps to everything under ###DBUS_PATH### (eg,
+# allow connected snaps to all interfaces via ###DBUS_PATH### (eg,
 # org.freedesktop.*, org.gtk.Application, etc) to allow full integration with
 # connected snaps.
 dbus (receive, send)
