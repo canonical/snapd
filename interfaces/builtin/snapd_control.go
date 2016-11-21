@@ -55,6 +55,5 @@ func NewSnapdControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  snapdControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }
