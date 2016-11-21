@@ -93,17 +93,24 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	return debugflag(flags)
 }
 
-var validCertFps [2][]byte
+var validCertFps [5][]byte
 
 func init() {
 	var err error
 
 	// obtained via:
-	// python3 -c 'import ssl,socket,hashlib,binascii; conn=ssl.create_default_context().wrap_socket(socket.socket(socket.AF_INET), server_hostname="search.apps.ubuntu.com"); conn.connect(("search.apps.ubuntu.com", 443));sha256=hashlib.sha256();sha256.update(conn.getpeercert(binary_form=True));print(binascii.hexlify(sha256.digest()))'
-	// python3 -c 'import ssl,socket,hashlib,binascii; conn=ssl.create_default_context().wrap_socket(socket.socket(socket.AF_INET), server_hostname="assertions.ubuntu.com"); conn.connect(("assertions.ubuntu.com", 443));sha256=hashlib.sha256();sha256.update(conn.getpeercert(binary_form=True));print(binascii.hexlify(sha256.digest()))'
+	// for i in search.apps.ubuntu.com assertions.ubuntu.com login.ubuntu.com public.apps.ubuntu.com myapps.developer.ubuntu.com; do printf "$i :"; python3 -c 'import sys,ssl,socket,hashlib,binascii; conn=ssl.create_default_context().wrap_socket(socket.socket(socket.AF_INET), server_hostname=sys.argv[1]); conn.connect((sys.argv[1], 443));sha256=hashlib.sha256();sha256.update(conn.getpeercert(binary_form=True));print(binascii.hexlify(sha256.digest()))' $i; done
 	for i, h := range []string{
-		"12b4681522999af0f46a1965cdacbbfa376370644a0606f441a33fb26952d3ef",
+		// myapps.developer.ubuntu.com
+		"200161b027634b3c85c8d101374d028291a9ed6dbaa759cb687252e96a76144b",
+		// search.apps.ubuntu.com
 		"be1294e0682fe95ea1b692bb002e642763d6cba61f48d8437f4ed6f87a6c0e7d",
+		// assertions.ubuntu.com
+		"12b4681522999af0f46a1965cdacbbfa376370644a0606f441a33fb26952d3ef",
+		// login.ubuntu.com
+		"ad3ade1e7d710ced999174b7c89cc5c1dd9076a498f2c85745ec9411a24d2725",
+		// public.apps.ubuntu.com
+		"455072985445cb12b0b91262c1bb72939a1dc01d5e94102e92d3cef96eff4c4b",
 	} {
 		validCertFps[i], err = hex.DecodeString(h)
 		if err != nil {
