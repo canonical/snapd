@@ -1,4 +1,4 @@
-name: basic-devmode
+name: test-snapd-devmode
 version: 1.0
 summary: Basic snap with devmode confinement
 description: A basic buildable snap that asks for devmode confinement
