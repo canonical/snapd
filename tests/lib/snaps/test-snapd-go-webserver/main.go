@@ -11,7 +11,7 @@ func main() {
 
 	log.Println("Starting webserver on :8081")
 	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatal("http.ListendAndServer() failed with %s\n", err)
+		log.Fatalf("http.ListendAndServer() failed with %s\n", err)
 	}
 }
 
