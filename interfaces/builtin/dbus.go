@@ -67,7 +67,7 @@ dbus (send)
 `
 
 const dbusPermanentSlotAppArmorClassic = `
-# allow unconfined clients to introspect us on classic
+# allow unconfined clients to introspect ###DBUS_NAME### on classic
 dbus (receive)
     bus=###DBUS_BUS###
     path=###DBUS_INTROSPECT_PATH###
@@ -99,8 +99,8 @@ sendto
 `
 
 const dbusConnectedSlotAppArmor = `
-# allow snaps to introspect us. This allows clients to introspect other
-# interfaces of the service (but not access them).
+# allow snaps to introspect ###DBUS_NAME###. This allows clients
+# to introspect other interfaces of the service (but not access them).
 dbus (receive)
     bus=###DBUS_BUS###
     path=###DBUS_INTROSPECT_PATH###
@@ -124,7 +124,7 @@ dbus (receive, send)
 `
 
 const dbusConnectedPlugAppArmor = `
-# allow snaps to introspect the slot implementation. This allows us to
+# allow snaps to introspect ###DBUS_NAME###. This allows us to
 # introspect other interfaces of the service (but not access them).
 dbus (send)
     bus=###DBUS_BUS###
