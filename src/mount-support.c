@@ -90,44 +90,44 @@ static void setup_private_mount(const char *security_tag)
 	must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
 		      security_tag);
 	if (mkdtemp(tmpdir) == NULL) {
-		die("unable to create tmpdir");
+		die("cannot create temporary directory essential for private /tmp");
 	}
 	// now we create a 1777 /tmp inside our private dir
 	mode_t old_mask = umask(0);
 	char *d = strdup(tmpdir);
 	if (!d) {
-		die("Out of memory");
+		die("cannot allocate memory for string copy");
 	}
 	must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
 	if (mkdir(tmpdir, 01777) != 0) {
-		die("unable to create /tmp inside private dir");
+		die("cannot create temporary directory for private /tmp");
 	}
 	umask(old_mask);
 
 	// chdir to '/' since the mount won't apply to the current directory
 	char *pwd = get_current_dir_name();
 	if (pwd == NULL)
-		die("unable to get current directory");
+		die("cannot get current working directory");
 	if (chdir("/") != 0)
-		die("unable to change directory to '/'");
+		die("cannot change directory to '/'");
 
 	// MS_BIND is there from linux 2.4
 	if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
-		die("unable to bind private /tmp");
+		die("cannot bind mount private /tmp");
 	}
 	// MS_PRIVATE needs linux > 2.6.11
 	if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
-		die("unable to make /tmp/ private");
+		die("cannot change sharing on /tmp to make it private");
 	}
 	// do the chown after the bind mount to avoid potential shenanigans
 	if (chown("/tmp/", uid, gid) < 0) {
-		die("unable to chown tmpdir");
+		die("cannot change ownership of /tmp");
 	}
 	// chdir to original directory
 	if (chdir(pwd) != 0)
-		die("unable to change to original directory");
+		die("cannot change current working directory to the original directory");
 	free(pwd);
 
 	// ensure we set the various TMPDIRs to our newly created tmpdir
@@ -135,7 +135,7 @@ static void setup_private_mount(const char *security_tag)
 	int i;
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
-			die("unable to set '%s'", tmpd[i]);
+			die("cannot set environment variable '%s'", tmpd[i]);
 		}
 	}
 }
@@ -158,21 +158,21 @@ static void setup_private_pts()
 	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode
 	// which doesn't provide the isolation we require.
 	if (stat("/dev/pts/ptmx", &st) != 0) {
-		die("/dev/pts/ptmx does not exist");
+		die("cannot stat /dev/pts/ptmx");
 	}
 	// Make sure /dev/ptmx exists so we can bind mount over it
 	if (stat("/dev/ptmx", &st) != 0) {
-		die("/dev/ptmx does not exist");
+		die("cannot stat /dev/ptmx");
 	}
 	// Since multi-instance, use ptmxmode=0666. The other options are
 	// copied from /etc/default/devpts
 	if (mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		  "newinstance,ptmxmode=0666,mode=0620,gid=5")) {
-		die("unable to mount a new instance of '/dev/pts'");
+		die("cannot mount a new instance of /dev/pts");
 	}
 
 	if (mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0)) {
-		die("unable to mount '/dev/pts/ptmx'->'/dev/ptmx'");
+		die("cannot mount /dev/pts/ptmx at /dev/ptmx'");
 	}
 }
 
@@ -226,10 +226,10 @@ static void sc_setup_mount_profiles(const char *security_tag)
 		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
 		debug("initial flags are: bind,ro,nodev,nosuid");
 		if (strcmp(m->mnt_type, "none") != 0) {
-			die("only 'none' filesystem type is supported");
+			die("cannot honor mount profile, only 'none' filesystem type is supported");
 		}
 		if (hasmntopt(m, "bind") == NULL) {
-			die("the bind mount flag is mandatory");
+			die("cannot honor mount profile, the bind mount flag is mandatory");
 		}
 		if (hasmntopt(m, "rw") != NULL) {
 			flags &= ~MS_RDONLY;
