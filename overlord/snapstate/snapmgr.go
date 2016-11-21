@@ -274,11 +274,11 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 }
 
 // Manager returns a new snap manager.
-func Manager(s *state.State) (*SnapManager, error) {
-	runner := state.NewTaskRunner(s)
+func Manager(st *state.State) (*SnapManager, error) {
+	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:   s,
+		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
 	}
@@ -333,8 +333,8 @@ func ReplaceStore(state *state.State, store StoreService) {
 	state.Cache(cachedStoreKey{}, store)
 }
 
-func cachedStore(s *state.State) StoreService {
-	ubuntuStore := s.Cached(cachedStoreKey{})
+func cachedStore(st *state.State) StoreService {
+	ubuntuStore := st.Cached(cachedStoreKey{})
 	if ubuntuStore == nil {
 		return nil
 	}
@@ -345,8 +345,8 @@ func cachedStore(s *state.State) StoreService {
 var _ StoreService = (*store.Store)(nil)
 
 // Store returns the store service used by the snapstate package.
-func Store(s *state.State) StoreService {
-	if cachedStore := cachedStore(s); cachedStore != nil {
+func Store(st *state.State) StoreService {
+	if cachedStore := cachedStore(st); cachedStore != nil {
 		return cachedStore
 	}
 	panic("internal error: needing the store before managers have initialized it")
