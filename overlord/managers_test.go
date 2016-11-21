@@ -493,7 +493,7 @@ apps:
 	c.Check(snapRev50.(*asserts.SnapRevision).SnapID(), Equals, fooSnapID)
 	c.Check(snapRev50.(*asserts.SnapRevision).SnapRevision(), Equals, 50)
 
-	// check udpated wrapper
+	// check updated wrapper
 	symlinkTarget, err := os.Readlink(info.Apps["bar"].WrapperPath())
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, "/usr/bin/snap")
