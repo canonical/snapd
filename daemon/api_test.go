@@ -2391,6 +2391,29 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
+func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
+	refreshSnapDecls := false
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		refreshSnapDecls = true
+		return assertstate.RefreshSnapDeclarations(s, userID)
+	}
+
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 0)
+		return nil, nil, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "refresh"}
+	st := d.overlord.State()
+	st.Lock()
+	summary, _, _, err := snapUpdateMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Refresh all snaps in the system found no updates`)
+	c.Check(refreshSnapDecls, check.Equals, true)
+}
+
 func (s *apiSuite) TestRefreshMany(c *check.C) {
 	refreshSnapDecls := false
 	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
