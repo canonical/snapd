@@ -2361,7 +2361,7 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	c.Check(chg.Summary(), check.Equals, "Refresh all snaps in the system")
+	c.Check(chg.Summary(), check.Equals, `Refresh snaps "fake1", "fake2"`)
 	var apiData map[string]interface{}
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
@@ -2377,7 +2377,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
@@ -2387,7 +2387,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	summary, _, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, "Refresh all snaps in the system")
+	c.Check(summary, check.Equals, `Refresh snaps "fake1", "fake2"`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 

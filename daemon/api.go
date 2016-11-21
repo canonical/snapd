@@ -780,14 +780,11 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	}
 
 	switch len(inst.Snaps) {
-	case 0:
-		// all snaps
-		msg = i18n.G("Refresh all snaps in the system")
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
 	default:
-		quoted := make([]string, len(inst.Snaps))
-		for i, name := range inst.Snaps {
+		quoted := make([]string, len(updated))
+		for i, name := range updated {
 			quoted[i] = strconv.Quote(name)
 		}
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
