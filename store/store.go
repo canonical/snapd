@@ -1499,60 +1499,71 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.ordersURI,
-		Accept:      jsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
-		// user already ordered or order successful
-		var orderDetails order
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&orderDetails); err != nil {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.ordersURI,
+			Accept:      jsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return nil, err
 		}
 
-		if orderDetails.State == "Cancelled" {
-			return buyOptionError("payment cancelled")
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
+		defer resp.Body.Close()
 
-		return &BuyResult{
-			State: orderDetails.State,
-		}, nil
-	case http.StatusBadRequest:
-		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusCreated:
+			// user already ordered or order successful
+			var orderDetails order
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&orderDetails); err != nil {
+				return nil, err
+			}
+
+			if orderDetails.State == "Cancelled" {
+				return buyOptionError("payment cancelled")
+			}
+
+			return &BuyResult{
+				State: orderDetails.State,
+			}, nil
+		case http.StatusBadRequest:
+			// Invalid price was specified, etc.
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+		case http.StatusNotFound:
+			// Likely because snap ID doesn't exist.
+			return buyOptionError("server says not found (snap got removed?)")
+		case http.StatusPaymentRequired:
+			// Payment failed for some reason.
+			return nil, ErrPaymentDeclined
+		case http.StatusUnauthorized:
+			// TODO handle token expiry and refresh
+			return nil, ErrInvalidCredentials
+		default:
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 		}
-		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
-	case http.StatusNotFound:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
-	case http.StatusPaymentRequired:
-		// Payment failed for some reason.
-		return nil, ErrPaymentDeclined
-	case http.StatusUnauthorized:
-		// TODO handle token expiry and refresh
-		return nil, ErrInvalidCredentials
-	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
+	panic("unreachable")
 }
 
 type storeCustomer struct {
