@@ -6,8 +6,8 @@ details: |
 prepare: |
     echo "Having installed the snapd-hacker-toolbelt snap"
     snap install snapd-hacker-toolbelt
-    echo "Having removed the SNAP_USER_DATA directory"
-    rm -rf "$HOME/snap/snapd-hacker-toolbelt/"
+    echo "Having removed the XDG_RUNTIME_DIR directory"
+    rm -rf "/run/user/`id -u`/snapd-hacker-toolbelt"
 execute: |
     cd /
     echo "FIXME: export XDG_RUNTIME_DIR for now until snapd does it"
