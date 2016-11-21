@@ -746,7 +746,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	return full, nil
 }
 
-// Revert returns a set of tasks for reverting to the pervious version of the snap.
+// Revert returns a set of tasks for reverting to the previous version of the snap.
 // Note that the state must be locked by the caller.
 func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState

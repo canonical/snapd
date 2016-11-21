@@ -30,7 +30,7 @@ type TestSecurityBackend struct {
 	// RemoveCalls stores information about all calls to Remove
 	RemoveCalls []string
 	// SetupCallback is an callback that is optionally called in Setup
-	SetupCallback func(snapInfo *snap.Info, developerMode bool, repo *Repository) error
+	SetupCallback func(snapInfo *snap.Info, confinement snap.ConfinementType, repo *Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
 	RemoveCallback func(snapName string) error
 }
@@ -39,8 +39,8 @@ type TestSecurityBackend struct {
 type TestSetupCall struct {
 	// SnapInfo is a copy of the snapInfo argument to a particular call to Setup
 	SnapInfo *snap.Info
-	// DevMode is a copy of the developerMode argument to a particular call to Setup
-	DevMode bool
+	// Confinement is a copy of the confinement argument to a particular call to Setup
+	Confinement snap.ConfinementType
 }
 
 // Name returns the name of the security backend.
@@ -49,12 +49,12 @@ func (b *TestSecurityBackend) Name() string {
 }
 
 // Setup records information about the call and calls the setup callback if one is defined.
-func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, devMode bool, repo *Repository) error {
-	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, DevMode: devMode})
+func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, confinement snap.ConfinementType, repo *Repository) error {
+	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, Confinement: confinement})
 	if b.SetupCallback == nil {
 		return nil
 	}
-	return b.SetupCallback(snapInfo, devMode, repo)
+	return b.SetupCallback(snapInfo, confinement, repo)
 }
 
 // Remove records information about the call and calls the remove callback if one is defined

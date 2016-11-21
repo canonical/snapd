@@ -86,7 +86,3 @@ func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 	c.Assert(string(snippet), testutil.Contains, `/dcdbas/smi_data`)
 }
-
-func (s *DcdbasControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}
