@@ -2599,6 +2599,28 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	})
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		AssertionsURI: assertionsURI,
+	}
+	repo := New(&cfg, nil)
+
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Assert(n, Equals, 6)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency := "GBP"
 
