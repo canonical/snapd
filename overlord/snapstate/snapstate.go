@@ -851,9 +851,9 @@ func All(st *state.State) (map[string]*SnapState, error) {
 		return nil, err
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
-	for snapName, snapState := range stateMap {
-		if snapState.HasCurrent() {
-			curStates[snapName] = snapState
+	for snapName, snapst := range stateMap {
+		if snapst.HasCurrent() {
+			curStates[snapName] = snapst
 		}
 	}
 	return curStates, nil
@@ -889,11 +889,11 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for snapName, snapState := range stateMap {
-		if !snapState.Active {
+	for snapName, snapst := range stateMap {
+		if !snapst.Active {
 			continue
 		}
-		snapInfo, err := snapState.CurrentInfo()
+		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
@@ -908,18 +908,18 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for _, snapState := range stateMap {
-		if !snapState.HasCurrent() {
+	for _, snapst := range stateMap {
+		if !snapst.HasCurrent() {
 			continue
 		}
-		typ, err := snapState.Type()
+		typ, err := snapst.Type()
 		if err != nil {
 			return nil, err
 		}
 		if typ != snapType {
 			continue
 		}
-		return snapState.CurrentInfo()
+		return snapst.CurrentInfo()
 	}
 
 	return nil, state.ErrNoState
