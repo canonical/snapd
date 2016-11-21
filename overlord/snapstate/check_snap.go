@@ -42,9 +42,9 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 }
 
-func checkAssumes(s *snap.Info) error {
+func checkAssumes(si *snap.Info) error {
 	missing := ([]string)(nil)
-	for _, flag := range s.Assumes {
+	for _, flag := range si.Assumes {
 		if strings.HasPrefix(flag, "snapd") && checkVersion(flag[5:]) {
 			continue
 		}
@@ -57,7 +57,7 @@ func checkAssumes(s *snap.Info) error {
 		if release.OnClassic {
 			hint = "try to update snapd and refresh the core snap"
 		}
-		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", s.Name(), strings.Join(missing, ", "), hint)
+		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.Name(), strings.Join(missing, ", "), hint)
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 }
 
 // CheckSnapCallback defines callbacks for checking a snap for installation or refresh.
-type CheckSnapCallback func(s *state.State, snap, curSnap *snap.Info, flags Flags) error
+type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags) error
 
 var checkSnapCallbacks []CheckSnapCallback
 
