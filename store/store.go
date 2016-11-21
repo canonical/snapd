@@ -988,36 +988,46 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 	u.RawQuery = q.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "sections")
-	}
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    &u,
+			Accept: halJsonContentType,
+		}
 
-	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
 
-	var sectionData sectionResults
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return nil, respToError(resp, "sections")
+		}
 
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&sectionData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
-	}
-	var sectionNames []string
-	for _, s := range sectionData.Payload.Sections {
-		sectionNames = append(sectionNames, s.Name)
-	}
+		if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+			return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
+		}
 
-	return sectionNames, nil
+		var sectionData sectionResults
+		
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&sectionData); err != nil {
+			return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
+		}
+		var sectionNames []string
+		for _, s := range sectionData.Payload.Sections {
+			sectionNames = append(sectionNames, s.Name)
+		}
+
+		return sectionNames, nil
+	}
+	panic("unreachable")
+
 }
 
 // RefreshCandidate contains information for the store about the currently
