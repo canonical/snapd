@@ -970,11 +970,11 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "search")
+		return nil, respToError(resp, "sections")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
 	}
 
 	var sectionData sectionResults

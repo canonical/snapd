@@ -479,26 +479,16 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
 	case store.ErrUnauthenticated:
-		return Unauthorized(err.Error())
+		return Unauthorized("%v", err)
 	default:
 		return InternalError("%v", err)
-	}
-
-	results := make([]*json.RawMessage, 0, len(sections))
-	for _, section := range sections {
-		data, err := json.Marshal(section)
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		raw := json.RawMessage(data)
-		results = append(results, &raw)
 	}
 
 	meta := &Meta{
 		Sources: []string{"store"},
 	}
 
-	return SyncResponse(results, meta)
+	return SyncResponse(sections, meta)
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
