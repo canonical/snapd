@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func Test(t *testing.T) {
@@ -91,9 +92,9 @@ func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
 	c.Assert(osutil.FileExists(path), Equals, false)
 
-	for _, devMode := range []bool{true, false} {
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
 		s.modprobeCmd.ForgetCalls()
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 
 		c.Assert(osutil.FileExists(path), Equals, true)
 		modfile, err := ioutil.ReadFile(path)
@@ -120,8 +121,8 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
 	c.Assert(osutil.FileExists(path), Equals, false)
 
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		c.Assert(osutil.FileExists(path), Equals, true)
 		s.RemoveSnap(c, snapInfo)
 		c.Assert(osutil.FileExists(path), Equals, false)
@@ -136,10 +137,10 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		}
 		return nil, nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.modprobeCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, devMode, s.Repo)
+		err := s.Backend.Setup(snapInfo, confinement, s.Repo)
 		c.Assert(err, IsNil)
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)
