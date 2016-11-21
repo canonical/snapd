@@ -618,26 +618,6 @@
     "root_dir": "/var/lib/snapd/hostfs"
   },
   {
-    "fs_type": "proc",
-    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/proc",
-    "mount_src": "proc",
-    "opt_fields": [
-      "master:renumbered/8"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "autofs",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/proc/sys/fs/binfmt_misc",
-    "mount_src": "systemd-1",
-    "opt_fields": [
-      "master:renumbered/9"
-    ],
-    "root_dir": "/"
-  },
-  {
     "fs_type": "tmpfs",
     "mount_opts": "rw,nosuid,noexec,relatime",
     "mount_point": "/var/lib/snapd/hostfs/run",

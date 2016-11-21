@@ -1260,36 +1260,6 @@
     "root_dir": "/"
   },
   {
-    "fs_type": "proc",
-    "mount_opts": "rw,nosuid,nodev,noexec,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/proc",
-    "mount_src": "proc",
-    "opt_fields": [
-      "master:renumbered/38"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "binfmt_misc",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/proc/sys/fs/binfmt_misc",
-    "mount_src": "binfmt_misc",
-    "opt_fields": [
-      "master:renumbered/40"
-    ],
-    "root_dir": "/"
-  },
-  {
-    "fs_type": "autofs",
-    "mount_opts": "rw,relatime",
-    "mount_point": "/var/lib/snapd/hostfs/proc/sys/fs/binfmt_misc",
-    "mount_src": "systemd-1",
-    "opt_fields": [
-      "master:renumbered/39"
-    ],
-    "root_dir": "/"
-  },
-  {
     "fs_type": "ext4",
     "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/snapd/hostfs/root",
