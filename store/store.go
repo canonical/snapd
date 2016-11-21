@@ -1571,11 +1571,11 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			if err := dec.Decode(&customer); err != nil {
 				return err
 			}
-			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted
-			}
 			if !customer.HasPaymentMethod {
 				return ErrNoPaymentMethods
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
 			}
 			return nil
 		case http.StatusNotFound:
