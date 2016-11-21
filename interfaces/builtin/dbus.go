@@ -81,7 +81,7 @@ dbus (receive, send)
     interface=###DBUS_INTERFACE###
     peer=(label=unconfined),
 
-# allow unconfined to everything under ###DBUS_PATH### (eg,
+# allow unconfined to all interfaces via ###DBUS_PATH### (eg,
 # org.freedesktop.*, org.gtk.Application, etc) to allow integrating in classic
 # environment.
 dbus (receive, send)
