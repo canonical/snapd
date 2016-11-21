@@ -110,7 +110,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
-		"section": i18n.G("Restrict the search to a given section name"),
+		"section": i18n.G("Restrict the search to a given section"),
 	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
