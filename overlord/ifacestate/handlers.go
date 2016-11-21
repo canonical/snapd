@@ -65,16 +65,16 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	defer task.State().Unlock()
 
 	// Get snap.Info from bits handed by the snap manager.
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 
-	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
-	return m.setupProfilesForSnap(task, tomb, snapInfo, ss.DevModeAllowed())
+	return m.setupProfilesForSnap(task, tomb, snapInfo, snapsup.DevModeAllowed())
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, devModeAllowed bool) error {
@@ -170,11 +170,11 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
-	snapName := ss.Name()
+	snapName := snapsup.Name()
 
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.

@@ -1362,8 +1362,8 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var ss snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &ss); err == state.ErrNoState {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &snapst); err == state.ErrNoState {
 		return NotFound("cannot find %q snap", snapName)
 	} else if err != nil {
 		return InternalError("%v", err)
