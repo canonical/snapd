@@ -31,12 +31,13 @@ type SecurityBackend interface {
 	Name() string
 
 	// Setup creates and loads security artefacts specific to a given snap.
-	// The snap can be in developer mode to make security violations non-fatal
-	// to the offending application process.
+	// The snap can be in one of three kids onf confinement (strict mode,
+	// developer mode or classic mode). In the last two security violations
+	// are non-fatal to the offending application process.
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Setup(snapInfo *snap.Info, devMode bool, repo *Repository) error
+	Setup(snapInfo *snap.Info, confinement snap.ConfinementType, repo *Repository) error
 
 	// Remove removes and unloads security artefacts of a given snap.
 	//
