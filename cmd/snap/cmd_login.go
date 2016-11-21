@@ -92,7 +92,7 @@ func requestLoginWith2faRetry(email, password string) error {
 }
 
 func requestLogin(email string) error {
-	fmt.Fprint(Stdout, i18n.G("Password: "))
+	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
 	password, err := terminal.ReadPassword(Terminal)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {

@@ -34,9 +34,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
+	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
@@ -51,6 +53,7 @@ import (
 )
 
 type remoteRepoTestSuite struct {
+	testutil.BaseTest
 	store     *Store
 	logbuf    *bytes.Buffer
 	user      *auth.UserState
@@ -1941,6 +1944,112 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, "")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(n, Equals, 1)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/updates/"`)
+}
+func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
+	c.Assert(n, Equals, 6)
+}
+
+func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 10 * time.Millisecond,
+			Factor:  1.67,
+		},
+	)))
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		time.Sleep(time.Duration(2) * time.Second)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
+	c.Assert(n, Equals, 1)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -3043,6 +3152,24 @@ var readyToBuyTests = []struct {
   "latest_tos_date": "2016-10-14T00:00:00+00:00",
   "accepted_tos_date": "2016-09-14T15:56:49+00:00",
   "latest_tos_accepted": true,
+  "has_payment_method": false
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "no payment methods")
+		},
+		NumOfCalls: 1,
+	},
+	{
+		// A user account that has no payment method and has not accepted the TOS
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-10-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": false,
   "has_payment_method": false
 }
 `)
