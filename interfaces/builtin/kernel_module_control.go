@@ -49,6 +49,5 @@ func NewKernelModuleControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

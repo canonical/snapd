@@ -449,8 +449,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.StrictConfinement)
+	c.Check(s.secBackend.SetupCalls[1].Confinement, Equals, snap.StrictConfinement)
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -491,7 +491,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
@@ -520,7 +520,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
@@ -930,11 +930,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// The snap was setup with DevMode equal to true.
+	// The snap was setup with DevmodeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.DevmodeConfinement)
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
@@ -1217,8 +1217,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.StrictConfinement)
+	c.Check(s.secBackend.SetupCalls[1].Confinement, Equals, snap.StrictConfinement)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
@@ -1262,8 +1262,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.StrictConfinement)
+	c.Check(s.secBackend.SetupCalls[1].Confinement, Equals, snap.StrictConfinement)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
@@ -1384,9 +1384,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.DevmodeConfinement)
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].Confinement, Equals, snap.StrictConfinement)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
@@ -1524,5 +1524,5 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Confinement, Equals, snap.StrictConfinement)
 }

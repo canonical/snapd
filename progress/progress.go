@@ -48,7 +48,7 @@ type Meter interface {
 	// interface for writer
 	Write(p []byte) (n int, err error)
 
-	// notify the user of miscelaneous events
+	// notify the user of miscellaneous events
 	Notify(string)
 }
 
@@ -172,7 +172,7 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 	return unicode.ToLower(r) == 'y'
 }
 
-// Notify the user of miscelaneous events
+// Notify the user of miscellaneous events
 func (*TextProgress) Notify(msg string) {
 	fmt.Printf("\r%s%s\n", msg, clearUntilEOL)
 }
