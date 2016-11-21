@@ -4,7 +4,7 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    GOOD_SNAP: xkcd-webserver
+    GOOD_SNAP: test-snapd-python-webserver
     BAD_SNAP: test-snapd-tools
 
 prepare: |
