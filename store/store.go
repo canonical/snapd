@@ -931,45 +931,56 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    &u,
+			Accept: halJsonContentType,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return nil, respToError(resp, "search")
+		}
+
+		if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+			return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+		}
+
+		var searchData searchResults
+
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&searchData); err != nil {
+			return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
+		}
+
+		snaps := make([]*snap.Info, len(searchData.Payload.Packages))
+		for i, pkg := range searchData.Payload.Packages {
+			snaps[i] = infoFromRemote(pkg)
+		}
+
+		err = s.decorateOrders(snaps, "", user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return snaps, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "search")
-	}
-
-	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
-	}
-
-	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
-	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
-	}
-
-	err = s.decorateOrders(snaps, "", user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return snaps, nil
+	panic("unreachable")
 }
 
 // RefreshCandidate contains information for the store about the currently

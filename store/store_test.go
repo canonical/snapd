@@ -1837,6 +1837,61 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := Config{
+		SearchURI:    searchURI,
+		DetailFields: []string{},
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
+	c.Assert(n, Equals, 6)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := Config{
+		SearchURI:    searchURI,
+		DetailFields: []string{},
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(n, Equals, 2)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check authorization is set
