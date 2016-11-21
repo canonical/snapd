@@ -1,0 +1,18 @@
+summary: snaps installed with --jailmode are not in devmode
+details: |
+    Users found that a snap that uses "confinement: devmode", even when
+    installed with "snap install --jailmode" is effectively in devmode (the
+    apparmor profile is in complain mode) even if "snap list" reports it as
+    "jailmode".
+    This has been reported as https://bugs.launchpad.net/snappy/+bug/1641885
+prepare: |
+    snapbuild $TESTSLIB/snaps/basic-devmode .
+execute: |
+    snap install --jailmode --dangerous ./basic-devmode_1.0_all.snap
+    snap list | grep basic-devmode | grep jailmode
+    cat /var/lib/snapd/apparmor/profiles/snap.basic-devmode.basic-devmode | grep attach_disconnected | grep -v complain
+restore: |
+    rm -f ./basic-devmode_1.0_all.snap
+debug: |
+    head -n 10 /var/lib/snapd/apparmor/profiles/snap.basic-devmode.basic-devmode || true
+
