@@ -3079,6 +3079,43 @@ var buyTests = []struct {
 	},
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	detailsURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	c.Assert(err, IsNil)
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+	c.Assert(err, IsNil)
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	cfg := Config{
+		CustomersMeURI: customersMeURI,
+		DetailsURI:     detailsURI,
+		OrdersURI:      ordersURI,
+	}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	buyOptions := &BuyOptions{
+		SnapID:   helloWorldSnapID,
+		Currency: "USD",
+		Price:    1,
+	}
+	_, err = repo.Buy(buyOptions, t.user)
+	c.Assert(err, NotNil)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 	for _, test := range buyTests {
 		searchServerCalled := false
