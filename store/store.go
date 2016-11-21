@@ -823,45 +823,58 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	u.RawQuery = query.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: halJsonContentType,
+		}
+
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check statusCode
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// OK
+		case http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		default:
+			msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+			return nil, respToError(resp, msg)
+		}
+
+		// and decode json
+		var remote snapDetails
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&remote); err != nil {
+			return nil, err
+		}
+
+		info := infoFromRemote(remote)
+
+		err = s.decorateOrders([]*snap.Info{info}, channel, user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return info, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// check statusCode
-	switch resp.StatusCode {
-	case http.StatusOK:
-		// OK
-	case http.StatusNotFound:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
-		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
-	}
-
-	info := infoFromRemote(remote)
-
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return info, nil
+	panic("unreachable")
 }
 
 // A Search is what you do in order to Find something
@@ -1031,57 +1044,68 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": s.deltaFormat,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.bulkURI,
+			Accept:      halJsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
 		}
-	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		if useDeltas() {
+			logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
+			reqOptions.ExtraHeaders = map[string]string{
+				"X-Ubuntu-Delta-Formats": s.deltaFormat,
+			}
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for updates")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
-	}
-
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
-		rrev := snap.R(rsnap.Revision)
-		cand := candidateMap[rsnap.SnapID]
-
-		// the store also gives us identical revisions, filter those
-		// out, we are not interested
-		if rrev == cand.Revision {
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
 			continue
 		}
-		// do not upgade to a version we rolledback back from
-		if findRev(rrev, cand.Block) {
-			continue
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, respToError(resp, "query the store for updates")
 		}
-		res = append(res, infoFromRemote(rsnap))
+
+		var updateData searchResults
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&updateData); err != nil {
+			return nil, err
+		}
+
+		res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+		for _, rsnap := range updateData.Payload.Packages {
+			rrev := snap.R(rsnap.Revision)
+			cand := candidateMap[rsnap.SnapID]
+
+			// the store also gives us identical revisions, filter those
+			// out, we are not interested
+			if rrev == cand.Revision {
+				continue
+			}
+			// do not upgade to a version we rolledback back from
+			if findRev(rrev, cand.Block) {
+				continue
+			}
+			res = append(res, infoFromRemote(rsnap))
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return res, nil
 	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return res, nil
+	panic("unreachable")
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1549,11 +1573,11 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			if err := dec.Decode(&customer); err != nil {
 				return err
 			}
-			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted
-			}
 			if !customer.HasPaymentMethod {
 				return ErrNoPaymentMethods
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
 			}
 			return nil
 		case http.StatusNotFound:
