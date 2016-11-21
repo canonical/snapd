@@ -68,6 +68,8 @@ func (f Flags) EffectiveConfinement(confinementType snap.ConfinementType) snap.C
 		}
 		// unchanged, stays devmode
 	case snap.StrictConfinement:
+		// In case both jailmode and devmode are set in flags, look at jailmode
+		// first. This errs on the safer side of being strict.
 		if f.JailMode {
 			// jailmode flag overrides devmode flag
 			return snap.StrictConfinement
