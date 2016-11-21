@@ -536,12 +536,12 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, ss *snapstate.SnapSetup) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -553,12 +553,12 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("remove-profiles", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -570,12 +570,12 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("discard-conns", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
