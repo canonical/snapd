@@ -19,6 +19,10 @@
 
 package snapstate
 
+import (
+	"github.com/snapcore/snapd/snap"
+)
+
 // Flags are used to pass additional flags to operations and to keep track of snap modes.
 type Flags struct {
 	// DevMode switches confinement to non-enforcing mode.
@@ -49,4 +53,31 @@ func (f Flags) DevModeAllowed() bool {
 func (f Flags) ForSnapSetup() Flags {
 	f.IgnoreValidation = false
 	return f
+}
+
+// EffectiveConfinement return the effective confinement for a given declared
+// confinement and flags like jailmode or devmode.
+func (f Flags) EffectiveConfinement(confinementType snap.ConfinementType) snap.ConfinementType {
+	switch confinementType {
+	case snap.ClassicConfinement:
+		// unchanged, flags don't impact snaps with classic confinement
+	case snap.DevmodeConfinement:
+		if f.JailMode {
+			// jailmode overrides devmode confinement declaration
+			return snap.StrictConfinement
+		}
+		// unchanged, stays devmode
+	case snap.StrictConfinement:
+		if f.JailMode {
+			// jailmode flag overrides devmode flag
+			return snap.StrictConfinement
+		}
+		if f.DevMode {
+			// devmode flag overrides strict confinement declaration in absence
+			// of jailmode flag.
+			return snap.DevmodeConfinement
+		}
+		// unchanged stays strict
+	}
+	return confinementType
 }
