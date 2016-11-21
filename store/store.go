@@ -1014,7 +1014,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		}
 
 		var sectionData sectionResults
-		
+
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&sectionData); err != nil {
 			return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
