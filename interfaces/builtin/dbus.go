@@ -66,11 +66,23 @@ dbus (send)
 `
 
 const dbusPermanentSlotAppArmorClassic = `
+# allow unconfined clients to introspect on classic
+dbus (receive)
+    bus=###DBUS_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=unconfined),
+
 # allow unconfined clients talk to ###DBUS_NAME### on classic
 dbus (receive, send)
     bus=###DBUS_BUS###
-    path=###DBUS_PATH###
     interface=###DBUS_INTERFACE###
+    peer=(label=unconfined),
+
+# allow unconfined to everything under ###DBUS_PATH### (eg, org.freedesktop.*,
+# org.gtk.Application, etc) to allow integrating in classic environment.
+dbus (receive, send)
+    bus=###DBUS_BUS###
+    path=###DBUS_PATH###
     peer=(label=unconfined),
 `
 
@@ -90,27 +102,43 @@ dbus (receive)
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# allow snaps to ###DBUS_NAME###
+# allow connected snaps to ###DBUS_NAME###
+dbus (receive, send)
+    bus=###DBUS_BUS###
+    interface=###DBUS_INTERFACE###
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+# allow connected snaps to everything under ###DBUS_PATH### (eg,
+# org.freedesktop.*, org.gtk.Application, etc) to allow full integration with
+# connected snaps.
 dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
-    interface=###DBUS_INTERFACE###
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const dbusConnectedPlugAppArmor = `
-# allow snaps to introspect us. This allows clients to see all the interfaces
-# supported by the service, but only use the specified interface.
+# allow snaps to introspect the slot implementation. This allows clients to see
+# all the interfaces supported by the service, but only use the specified
+# interface.
 dbus (send)
     bus=###DBUS_BUS###
     interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 
-# allow snaps to ###DBUS_NAME###
+# allow connected snaps to ###DBUS_NAME###
+dbus (receive, send)
+    bus=###DBUS_BUS###
+    interface=###DBUS_INTERFACE###
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# allow connected snaps to everything under ###DBUS_PATH### (eg,
+# org.freedesktop.*, org.gtk.Application, etc) to allow full integration with
+# connected snaps.
 dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
-    interface=###DBUS_INTERFACE###
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
