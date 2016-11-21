@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -61,6 +62,7 @@ func (f debugflag) debugBody() bool {
 type LoggedTransport struct {
 	Transport http.RoundTripper
 	Key       string
+	body      bool
 }
 
 // RoundTrip is from the http.RoundTripper interface.
@@ -68,14 +70,14 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	flags := tr.getFlags()
 
 	if flags.debugRequest() {
-		buf, _ := httputil.DumpRequestOut(req, flags.debugBody())
+		buf, _ := httputil.DumpRequestOut(req, tr.body && flags.debugBody())
 		logger.Debugf("> %q", buf)
 	}
 
 	rsp, err := tr.Transport.RoundTrip(req)
 
 	if err == nil && flags.debugResponse() {
-		buf, _ := httputil.DumpResponse(rsp, flags.debugBody())
+		buf, _ := httputil.DumpResponse(rsp, tr.body && flags.debugBody())
 		logger.Debugf("< %q", buf)
 	}
 
@@ -128,15 +130,37 @@ func pinnedDialTLS(network, addr string) (net.Conn, error) {
 	return nil, fmt.Errorf("cannot find expected security cert for %v %v: valid %v", network, addr, validCertFps)
 }
 
-// returns a new http.Client with a LoggedTransport and a Timeout
-func newHTTPClient() *http.Client {
+type httpClientOpts struct {
+	Timeout    time.Duration
+	MayLogBody bool
+}
+
+// returns a new http.Client with a LoggedTransport, a Timeout and preservation
+// of range requests across redirects
+func newHTTPClient(opts *httpClientOpts) *http.Client {
+	if opts == nil {
+		opts = &httpClientOpts{}
+	}
+
 	return &http.Client{
 		Transport: &LoggedTransport{
 			Transport: &http.Transport{
 				DialTLS: pinnedDialTLS,
 			},
-			Key: "SNAPD_DEBUG_HTTP",
+
+			Key:  "SNAPD_DEBUG_HTTP",
+			body: opts.MayLogBody,
 		},
-		Timeout: 10 * time.Second,
+		Timeout: opts.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			// preserve the range header across redirects
+			// to the CDN
+			v := via[0].Header.Get("Range")
+			req.Header.Set("Range", v)
+			return nil
+		},
 	}
 }

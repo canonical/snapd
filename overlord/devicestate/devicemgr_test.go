@@ -226,12 +226,12 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 	}))
 }
 
-func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
+func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string) {
 	sideInfoGadget := &snap.SideInfo{
 		RealName: "gadget",
 		Revision: snap.R(2),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -240,12 +240,12 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
 	})
 }
 
-func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string) {
+func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents string) {
 	sideInfoCore := &snap.SideInfo{
 		RealName: name,
 		Revision: snap.R(3),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoCore)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -277,7 +277,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -347,7 +347,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -412,7 +412,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -479,7 +479,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -570,7 +570,7 @@ type: gadget
 version: gadget
 hooks:
     prepare-device:
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -857,7 +857,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
 name: ubuntu-core
 type: os
 version: ubuntu-core
-`)
+`, "")
 
 	// have a model assertion
 	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
