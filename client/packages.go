@@ -51,11 +51,18 @@ type Snap struct {
 	Apps          []AppInfo     `json:"apps"`
 	Broken        string        `json:"broken"`
 
-	Prices map[string]float64 `json:"prices"`
+	Prices      map[string]float64 `json:"prices"`
+	Screenshots []Screenshot       `json:"screenshots"`
 }
 
 type AppInfo struct {
 	Name string `json:"name"`
+}
+
+type Screenshot struct {
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
 }
 
 // Statuses and types a snap may have.

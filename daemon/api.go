@@ -1284,7 +1284,7 @@ out:
 		// potentially dangerous but dangerous or devmode params were set
 		info, err := unsafeReadSnapInfo(tempPath)
 		if err != nil {
-			return InternalError("cannot read snap file: %v", err)
+			return BadRequest("cannot read snap file: %v", err)
 		}
 		snapName = info.Name()
 		sideInfo = &snap.SideInfo{RealName: snapName}
