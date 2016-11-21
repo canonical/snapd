@@ -233,6 +233,7 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
+        fdisk -l
         # prepare block device on swap for cold-plug system-user autoimport testing
         # deactivate swap
         swapoff -a

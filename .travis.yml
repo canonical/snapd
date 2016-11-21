@@ -19,4 +19,4 @@ install:
   - sudo apt-get install -qq squashfs-tools
   - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
 
-script: ./run-checks --$RUN
+script: ./run-checks --spread
