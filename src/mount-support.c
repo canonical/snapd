@@ -510,6 +510,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
 		die("cannot perform operation: umount --lazy %s", src);
 	}
+	// Detach the redundant hostfs version of /proc since it shows up in the
+	// mount table and software inspecting the mount table may become confused.
+	must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
+	debug("performing operation: umount --lazy %s", src);
+	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
+		die("cannot perform operation: umount --lazy %s", src);
+	}
 }
 
 /**
