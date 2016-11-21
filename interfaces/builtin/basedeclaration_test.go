@@ -349,7 +349,7 @@ var (
 		"bool-file":        []string{"core", "gadget"},
 		"browser-support":  []string{"core"},
 		"content":          []string{"app", "gadget"},
-		"dbus":            []string{"app"},
+		"dbus":             []string{"app"},
 		"docker-support":   []string{"core"},
 		"fwupd":            []string{"app"},
 		"gpio":             []string{"core", "gadget"},
