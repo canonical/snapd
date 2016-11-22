@@ -119,6 +119,11 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	longName[1] = '.'
 	err = ValidateDBusBusName(string(longName))
 	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
+
+	// snappy-specific limitation
+	name := "a.b-1.c-12345"
+	err = ValidateDBusBusName(string(name))
+	c.Assert(err, ErrorMatches, `DBus bus name must not end with -NUMBER`)
 }
 
 // Plug.Ref works as expected
