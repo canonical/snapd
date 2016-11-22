@@ -46,12 +46,12 @@ func patch5(st *state.State) error {
 		return err
 	}
 
-	for snapName, snapState := range snapStates {
-		if !snapState.Active {
+	for snapName, snapst := range snapStates {
+		if !snapst.Active {
 			continue
 		}
 
-		info, err := snapState.CurrentInfo()
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return err
 		}
