@@ -1,5 +1,4 @@
 [![Build Status][travis-image]][travis-url]
-[![Coverage Status][coveralls-image]][coveralls-url]
 [![Go Report Card][goreportcard-image]][goreportcard-url]
 
 # snapd
