@@ -45,10 +45,10 @@ func (mod *Model) Model() string {
 	return mod.HeaderString("model")
 }
 
-// ModelDisplayName returns the display-friendly name of the model or
+// DisplayName returns the display-friendly name of the model or
 // falls back to Model if this was not set.
-func (mod *Model) ModelDisplayName() string {
-	display := mod.HeaderString("model-display-name")
+func (mod *Model) DisplayName() string {
+	display := mod.HeaderString("display-name")
 	if display == "" {
 		return mod.Model()
 	}
@@ -178,8 +178,8 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// model-display-name is optional but must be a string
-	_, err = checkOptionalString(assert.headers, "model-display-name")
+	// display-name is optional but must be a string
+	_, err = checkOptionalString(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
 	}
