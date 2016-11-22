@@ -35,14 +35,14 @@ const dbusPermanentSlotAppArmor = `
 
 # register on DBus
 dbus (send)
-    bus=system
+    bus=###DBUS_BUS###
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="{Request,Release}Name"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
-    bus=system
+    bus=###DBUS_BUS###
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
