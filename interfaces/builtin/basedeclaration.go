@@ -221,7 +221,7 @@ slots:
     allow-installation:
       slot-snap-type:
         - app
-    deny-auto-connection: false
+    deny-auto-connection: true
   firewall-control:
     allow-installation:
       slot-snap-type:
