@@ -1033,7 +1033,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 		confinement := snap.StrictConfinement
 		if cs.DevMode {
-			confinement = snap.DevmodeConfinement
+			confinement = snap.DevModeConfinement
 		}
 
 		currentSnaps = append(currentSnaps, currentSnapJson{
