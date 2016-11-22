@@ -818,7 +818,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	//      devmode, and have the business logic wrt what to do with
 	//      unwanted devmode further up
 	if !devmode {
-		query.Set("confinement", string(snap.StrictConfinement))
+		query.Set("confinement", string(snap.Strict))
 	}
 
 	u.RawQuery = query.Encode()
@@ -1031,9 +1031,9 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
-		confinement := snap.StrictConfinement
+		confinement := snap.Strict
 		if cs.DevMode {
-			confinement = snap.DevModeConfinement
+			confinement = snap.DevMode
 		}
 
 		currentSnaps = append(currentSnaps, currentSnapJson{

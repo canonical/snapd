@@ -245,7 +245,7 @@ func (s *Info) XdgRuntimeDirs() string {
 
 // NeedsDevMode retursn whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
-	return s.Confinement == DevModeConfinement
+	return s.Confinement == DevMode
 }
 
 // DownloadInfo contains the information to download a snap.

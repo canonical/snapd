@@ -1088,7 +1088,7 @@ slots:
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevMode)
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
@@ -1233,7 +1233,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Confinement, Equals, snap.StrictConfinement)
+	c.Assert(info.Confinement, Equals, snap.Strict)
 }
 
 func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
@@ -1390,12 +1390,12 @@ apps:
 }
 
 // classic confinement
-func (s *YamlSuite) TestClassicConfinement(c *C) {
+func (s *YamlSuite) TestClassic(c *C) {
 	y := []byte(`
 name: foo
 confinement: classic
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
+	c.Assert(info.Confinement, Equals, snap.Classic)
 }
