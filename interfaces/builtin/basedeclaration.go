@@ -217,6 +217,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  download:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: false
   firewall-control:
     allow-installation:
       slot-snap-type:

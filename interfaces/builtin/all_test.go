@@ -37,6 +37,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.BrowserSupportInterface{})
 	c.Check(all, Contains, &builtin.DockerInterface{})
 	c.Check(all, Contains, &builtin.DockerSupportInterface{})
+	c.Check(all, Contains, &builtin.DownloadInterface{})
 	c.Check(all, Contains, &builtin.FwupdInterface{})
 	c.Check(all, Contains, &builtin.FwupdInterface{})
 	c.Check(all, Contains, &builtin.GpioInterface{})

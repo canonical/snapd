@@ -30,6 +30,7 @@ var allInterfaces = []interfaces.Interface{
 	&ContentInterface{},
 	&DockerInterface{},
 	&DockerSupportInterface{},
+	&DownloadInterface{},
 	&FwupdInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
