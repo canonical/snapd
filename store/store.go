@@ -1157,9 +1157,6 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 	return w.Sync()
 }
 
-// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
-var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
-
 // download writes an http.Request showing a progress.Meter
 var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1192,43 +1189,46 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	}
 
 	var resp *http.Response
-	for _, n := range downloadBackoffs {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return err
+		}
+
+		if shouldRetryHttpResponse(attempt, r) {
+			r.Body.Close()
+			continue
 		}
 		defer r.Body.Close()
 
 		resp = r
-
-		if r.StatusCode != 500 {
+		switch resp.StatusCode {
+			case http.StatusOK, http.StatusPartialContent:
 			break
+		case http.StatusUnauthorized:
+			return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
+		default:
+			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
-		time.Sleep(time.Duration(n) * time.Millisecond)
-	}
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusPartialContent:
-		break
-	case http.StatusUnauthorized:
-		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
-	default:
-		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
-	}
 
-	if pbar == nil {
-		pbar = &progress.NullProgress{}
-	}
-	pbar.Start(name, float64(resp.ContentLength))
-	mw := io.MultiWriter(w, h, pbar)
-	_, err = io.Copy(mw, resp.Body)
-	pbar.Finished()
+		if pbar == nil {
+			pbar = &progress.NullProgress{}
+		}
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, h, pbar)
+		_, err = io.Copy(mw, resp.Body)
+		pbar.Finished()
 
-	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
-	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if sha3_384 != "" && sha3_384 != actualSha3 {
+			return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
+		}
+		return err
 	}
-
-	return err
+	panic("unreachable")
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
