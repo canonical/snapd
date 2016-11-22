@@ -86,15 +86,15 @@ type patch4SnapSetup struct {
 	SideInfo     *patch4SideInfo     `json:"side-info,omitempty"`
 }
 
-func (ss *patch4SnapSetup) Name() string {
-	if ss.SideInfo.RealName == "" {
+func (snapsup *patch4SnapSetup) Name() string {
+	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
-	return ss.SideInfo.RealName
+	return snapsup.SideInfo.RealName
 }
 
-func (ss *patch4SnapSetup) Revision() snap.Revision {
-	return ss.SideInfo.Revision
+func (snapsup *patch4SnapSetup) Revision() snap.Revision {
+	return snapsup.SideInfo.Revision
 }
 
 type patch4SnapState struct {
@@ -118,13 +118,13 @@ func (snapst *patch4SnapState) LastIndex(revision snap.Revision) int {
 type patch4T struct{} // for namespacing of the helpers
 
 func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
-	var ss patch4SnapSetup
+	var snapsup patch4SnapSetup
 
-	switch err := p4.getMaybe(task, "snap-setup", &ss); err {
+	switch err := p4.getMaybe(task, "snap-setup", &snapsup); err {
 	case state.ErrNoState:
 		// continue below
 	case nil:
-		return &ss, nil
+		return &snapsup, nil
 	default:
 		return nil, err
 	}
@@ -134,17 +134,17 @@ func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
 		return nil, err
 	}
 
-	if err := p4.get(task.State().Task(id), "snap-setup", &ss); err != nil {
+	if err := p4.get(task.State().Task(id), "snap-setup", &snapsup); err != nil {
 		return nil, err
 	}
 
-	return &ss, nil
+	return &snapsup, nil
 }
 
 func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4SnapState, error) {
 	var snapst patch4SnapState
 
-	ss, err := p4.taskSnapSetup(task)
+	snapsup, err := p4.taskSnapSetup(task)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -154,16 +154,16 @@ func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot get snaps state: %v", err)
 	}
-	raw, ok := snaps[ss.Name()]
+	raw, ok := snaps[snapsup.Name()]
 	if !ok {
-		return nil, nil, fmt.Errorf("cannot get snap state for %q: %v", ss.Name(), err)
+		return nil, nil, fmt.Errorf("cannot get snap state for %q: %v", snapsup.Name(), err)
 	}
 	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get state for snap %q: %v", ss.Name(), err)
+		return nil, nil, fmt.Errorf("cannot get state for snap %q: %v", snapsup.Name(), err)
 	}
 
-	return ss, &snapst, err
+	return snapsup, &snapst, err
 }
 
 // getMaybe calls task.Get and wraps any non-ErrNoState error in an informative message
@@ -196,7 +196,7 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 		return nil
 	}
 
-	ss, err := p4.taskSnapSetup(task)
+	snapsup, err := p4.taskSnapSetup(task)
 	if err != nil {
 		return err
 	}
@@ -208,13 +208,13 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 
 	change := task.Change()
 	revisionStr := ""
-	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
+	if snapsup.SideInfo != nil {
+		revisionStr = fmt.Sprintf(" (%s)", snapsup.Revision())
 	}
 
 	tasks := change.Tasks()
 	last := tasks[len(tasks)-1]
-	newTask := task.State().NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", ss.Name(), revisionStr))
+	newTask := task.State().NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.Name(), revisionStr))
 	newTask.Set("snap-setup-task", tid)
 	newTask.WaitFor(last)
 	change.AddTask(newTask)
@@ -223,7 +223,7 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 }
 
 func (p4 patch4T) mangle(task *state.Task) error {
-	ss, snapst, err := p4.snapSetupAndState(task)
+	snapsup, snapst, err := p4.snapSetupAndState(task)
 	if err != nil {
 		return err
 	}
@@ -243,20 +243,20 @@ func (p4 patch4T) mangle(task *state.Task) error {
 
 	task.Clear("had-candidate")
 
-	task.Set("old-candidate-index", snapst.LastIndex(ss.SideInfo.Revision))
+	task.Set("old-candidate-index", snapst.LastIndex(snapsup.SideInfo.Revision))
 
 	return nil
 }
 
 func (p4 patch4T) addRevertFlag(task *state.Task) error {
-	var ss patch4SnapSetup
-	err := p4.getMaybe(task, "snap-setup", &ss)
+	var snapsup patch4SnapSetup
+	err := p4.getMaybe(task, "snap-setup", &snapsup)
 	switch err {
 	case nil:
-		ss.Flags |= patch4FlagRevert
+		snapsup.Flags |= patch4FlagRevert
 
 		// save it back
-		task.Set("snap-setup", &ss)
+		task.Set("snap-setup", &snapsup)
 		return nil
 	case state.ErrNoState:
 		return nil
