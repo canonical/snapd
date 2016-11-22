@@ -1318,6 +1318,64 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		DetailsURI: detailsURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	_, err = repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 500 via GET to "http://.*?/details/hello-world\?channel=edge"`)
+	c.Assert(n, Equals, 6)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n > 1 {
+			w.Header().Set("X-Suggested-Currency", "GBP")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, MockDetailsJSON)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		DetailsURI: detailsURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+	c.Assert(n, Equals, 2)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -1777,6 +1835,61 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := Config{
+		SearchURI:    searchURI,
+		DetailFields: []string{},
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
+	c.Assert(n, Equals, 6)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := Config{
+		SearchURI:    searchURI,
+		DetailFields: []string{},
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(n, Equals, 2)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
@@ -2541,6 +2654,28 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	})
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		AssertionsURI: assertionsURI,
+	}
+	repo := New(&cfg, nil)
+
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Assert(n, Equals, 6)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency := "GBP"
 
@@ -2944,6 +3079,43 @@ var buyTests = []struct {
 	},
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}))
+
+	detailsURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	c.Assert(err, IsNil)
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+	c.Assert(err, IsNil)
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	cfg := Config{
+		CustomersMeURI: customersMeURI,
+		DetailsURI:     detailsURI,
+		OrdersURI:      ordersURI,
+	}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	buyOptions := &BuyOptions{
+		SnapID:   helloWorldSnapID,
+		Currency: "USD",
+		Price:    1,
+	}
+	_, err = repo.Buy(buyOptions, t.user)
+	c.Assert(err, NotNil)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 	for _, test := range buyTests {
 		searchServerCalled := false
@@ -3152,6 +3324,24 @@ var readyToBuyTests = []struct {
   "latest_tos_date": "2016-10-14T00:00:00+00:00",
   "accepted_tos_date": "2016-09-14T15:56:49+00:00",
   "latest_tos_accepted": true,
+  "has_payment_method": false
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "no payment methods")
+		},
+		NumOfCalls: 1,
+	},
+	{
+		// A user account that has no payment method and has not accepted the TOS
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-10-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": false,
   "has_payment_method": false
 }
 `)

@@ -93,12 +93,12 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for _, snapState := range snapStates {
+	for _, snapst := range snapStates {
 		var infos []*snap.Info
 		var info *snap.Info
 		var err error
 		if all {
-			for _, seq := range snapState.Sequence {
+			for _, seq := range snapst.Sequence {
 				info, err = snap.ReadInfo(seq.RealName, seq)
 				if err != nil {
 					break
@@ -106,7 +106,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 				infos = append(infos, info)
 			}
 		} else {
-			info, err = snapState.CurrentInfo()
+			info, err = snapst.CurrentInfo()
 			infos = append(infos, info)
 		}
 
@@ -118,7 +118,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 			continue
 		}
 		for _, info := range infos {
-			about = append(about, aboutSnap{info, snapState})
+			about = append(about, aboutSnap{info, snapst})
 		}
 	}
 
