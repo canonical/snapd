@@ -2125,7 +2125,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
-	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 10 * time.Millisecond,
 			Factor:  1.67,
@@ -2160,7 +2160,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
-	c.Assert(n, Equals, 1)
+	c.Assert(n, Equals, 2)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {

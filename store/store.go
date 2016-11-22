@@ -179,11 +179,11 @@ type Store struct {
 }
 
 func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
+	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.Next()
 }
 
 func shouldRetryError(attempt *retry.Attempt, err error) bool {
-	if !attempt.More() {
+	if !attempt.Next() {
 		return false
 	}
 	if netErr, ok := err.(net.Error); ok {
@@ -192,7 +192,7 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
 		Initial: 10 * time.Millisecond,
 		Factor:  1.67,
@@ -823,7 +823,10 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	u.RawQuery = query.Encode()
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    u,
@@ -874,7 +877,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 		return info, nil
 	}
-	panic("unreachable")
+	// unreachable
 }
 
 // A Search is what you do in order to Find something
@@ -931,7 +934,10 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    &u,
@@ -980,7 +986,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 		return snaps, nil
 	}
-	panic("unreachable")
+	// unreachable
 }
 
 // RefreshCandidate contains information for the store about the currently
@@ -1055,7 +1061,10 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		reqOptions := &requestOptions{
 			Method:      "POST",
 			URL:         s.bulkURI,
@@ -1116,7 +1125,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 		return res, nil
 	}
-	panic("unreachable")
+	// unreachable
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1369,7 +1378,10 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u.RawQuery = v.Encode()
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    u,
@@ -1409,7 +1421,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		dec := asserts.NewDecoder(resp.Body)
 		return dec.Decode()
 	}
-	panic("unreachable")
+	// unreachable
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1499,7 +1511,10 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		reqOptions := &requestOptions{
 			Method:      "POST",
 			URL:         s.ordersURI,
@@ -1563,7 +1578,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 		}
 	}
-	panic("unreachable")
+	// unreachable
 }
 
 type storeCustomer struct {
@@ -1585,7 +1600,10 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	attempt := retry.Start(defaultRetryStrategy, nil)
+	// This loop returns when the server call was successful or if the number
+	// of retries defined by retry strategy has been reached.
+	for {
 		resp, err := s.doRequest(s.client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
@@ -1630,6 +1648,5 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return &errors
 		}
 	}
-
-	return nil
+	// unreachable
 }
