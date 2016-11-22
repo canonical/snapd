@@ -484,11 +484,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	meta := &Meta{
-		Sources: []string{"store"},
-	}
-
-	return SyncResponse(sections, meta)
+	return SyncResponse(sections, &Meta{})
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {

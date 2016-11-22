@@ -87,9 +87,11 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 type SectionName string
 
 func (s *SectionName) Complete(match string) []flags.Completion {
-	// TODO cache the result
 	cli := Client()
-	sections, _ := cli.GetSections()
+	sections, err := cli.Sections()
+	if err != nil {
+		return nil
+	}
 	ret := make([]flags.Completion, len(sections))
 	for _, s := range sections {
 		ret = append(ret, flags.Completion{Item: s})
@@ -99,7 +101,7 @@ func (s *SectionName) Complete(match string) []flags.Completion {
 
 type cmdFind struct {
 	Private    bool        `long:"private"`
-	Section    SectionName `long:"section" optional:"yes"`
+	Section    SectionName `long:"section"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`

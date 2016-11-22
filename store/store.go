@@ -984,8 +984,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 	q := u.Query()
 
-	q.Set("confinement", "strict")
-
 	u.RawQuery = q.Encode()
 
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
@@ -1027,7 +1025,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		return sectionNames, nil
 	}
 	panic("unreachable")
-
 }
 
 // RefreshCandidate contains information for the store about the currently

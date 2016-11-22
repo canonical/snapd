@@ -130,8 +130,8 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
-// GetSections returns the list of existing snap sections in the store
-func (client *Client) GetSections() ([]string, error) {
+// Sections returns the list of existing snap sections in the store
+func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
 	if err != nil {
