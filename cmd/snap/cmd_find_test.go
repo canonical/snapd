@@ -93,14 +93,12 @@ const findJSON = `
 }
 `
 
-func (s *SnapSuite) TestFind(c *check.C) {
+func (s *SnapSuite) TestFindSnapName(c *check.C) {
 	n := 0
-	findWhat := []string{"hello", ""}
-
-	maxfindRequest := len(findWhat)
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if n < maxfindRequest {
+		switch n {
+		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			q := r.URL.Query()
@@ -110,28 +108,25 @@ func (s *SnapSuite) TestFind(c *check.C) {
 				c.Check(v, check.DeepEquals, []string{""})
 			}
 			fmt.Fprintln(w, findJSON)
-		} else {
-			c.Fatalf("expected to get %d requests, now on %d", maxfindRequest, n+1)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
 		}
-
 		n++
 	})
 
-	for _, what := range findWhat {
-		rest, err := snap.Parser().ParseArgs([]string{"find", what})
+	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
 
-		c.Assert(err, check.IsNil)
-		c.Assert(rest, check.DeepEquals, []string{})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
 
-		c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
 hello +2.10 +canonical +- +GNU Hello, the "hello world" snap
 hello-world +6.1 +canonical +- +Hello world example
 hello-huge +1.0 +noise +- +a really big snap
 `)
-		c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 
-		s.ResetStdStreams()
-	}
+	s.ResetStdStreams()
 }
 
 const findHelloJSON = `

@@ -1678,18 +1678,6 @@ const MockSectionsJSON = `{
       }, 
       {
         "name": "database"
-      }, 
-      {
-        "name": "ops"
-      }, 
-      {
-        "name": "messaging"
-      }, 
-      {
-        "name": "media"
-      }, 
-      {
-        "name": "devtools"
       }
     ]
   }, 
@@ -1735,8 +1723,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	_, err := repo.Sections(t.user)
+	sections, err := repo.Sections(t.user)
 	c.Check(err, IsNil)
+	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
