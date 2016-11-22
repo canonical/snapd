@@ -22,3 +22,6 @@ install:
   - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
 
 script: ./run-checks --$RUN
+
+after_success:
+  - coveralls
