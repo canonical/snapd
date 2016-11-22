@@ -91,6 +91,7 @@ printf "hello world"
 	err = ioutil.WriteFile(someFile, []byte(""), 0666)
 	c.Assert(err, IsNil)
 	err = os.Chmod(someFile, 0666)
+	c.Assert(err, IsNil)
 
 	// an example symlink
 	err = os.Symlink("bin/hello-world", filepath.Join(tempdir, "symlink"))
@@ -260,6 +261,7 @@ integration:
 	outputDir := filepath.Join(c.MkDir(), "output")
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
 	resultSnap, err := snaptest.BuildSquashfsSnap(sourceDir, outputDir)
+	c.Assert(err, IsNil)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
