@@ -173,6 +173,7 @@ func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
 	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
+	c.Check(string(out), Not(Equals), "")
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
