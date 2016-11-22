@@ -192,6 +192,16 @@ func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 			if err != nil {
 				return "", "", err
 			}
+
+			// snapd has AppArmor rule allowing binds to
+			// busName-PID so to avoid overlap with different snaps
+			// (eg, busName running as PID 123 and busName-123),
+			// don't allow busName to end with -PID. If that rule
+			// is removed, this limitation can be lifted.
+			invalidSnappyBusName := regexp.MustCompile("-[0-9]+$")
+			if invalidSnappyBusName.MatchString(val) {
+				return "", "", fmt.Errorf("DBus bus name must not end with -NUMBER")
+			}
 			name = val
 		}
 	}

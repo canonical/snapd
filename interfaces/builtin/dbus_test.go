@@ -214,6 +214,27 @@ slots:
 	c.Assert(err, ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
 }
 
+// If this test is failing, be sure to verify the AppArmor rules for binding to
+// a well-known name to avoid overlaps.
+func (s *DbusInterfaceSuite) TestInvalidBusNameEndsWithDashInt(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+slots:
+ dbus-slot:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session-12345
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "DBus bus name must not end with -NUMBER")
+}
+
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-snap
 version: 1.0
