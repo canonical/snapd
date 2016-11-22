@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
@@ -74,10 +73,9 @@ dbus (send)
 `
 
 const dbusPermanentSlotAppArmorClassic = `
-# allow unconfined clients to introspect ###DBUS_NAME### on classic
+# allow unconfined clients to introspect us on classic
 dbus (receive)
     bus=###DBUS_BUS###
-    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
@@ -106,11 +104,10 @@ sendto
 `
 
 const dbusConnectedSlotAppArmor = `
-# allow snaps to introspect ###DBUS_NAME###. This allows clients
-# to introspect other interfaces of the service (but not access them).
+# allow snaps to introspect us. This allows clients to introspect all
+# DBus interfaces of this service (but not use them).
 dbus (receive)
     bus=###DBUS_BUS###
-    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -131,11 +128,10 @@ dbus (receive, send)
 `
 
 const dbusConnectedPlugAppArmor = `
-# allow snaps to introspect ###DBUS_NAME###. This allows us to
-# introspect other interfaces of the service (but not access them).
+# allow snaps to introspect the slot servive. This allows us to introspect
+# all DBus interfaces of the service (but not use them).
 dbus (send)
     bus=###DBUS_BUS###
-    path=###DBUS_INTROSPECT_PATH###
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
@@ -241,23 +237,6 @@ func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
 
 	old = []byte("###DBUS_PATH###")
 	new = pathBuf.Bytes()
-	snippet = bytes.Replace(snippet, old, new, -1)
-
-	// convert name to AppArmor dbus path (eg 'org.foo' to '/,/org,/org/foo')
-	var intPathBuf bytes.Buffer
-	intPathBuf.WriteString(`"{/`)
-
-	var last = ""
-	for _, comp := range strings.Split(name, `.`) {
-		tmp := fmt.Sprintf("%s/%s", last, comp)
-		intPathBuf.WriteString(`,`)
-		intPathBuf.WriteString(tmp)
-		last = tmp
-	}
-	intPathBuf.WriteString(`}"`)
-
-	old = []byte("###DBUS_INTROSPECT_PATH###")
-	new = intPathBuf.Bytes()
 	snippet = bytes.Replace(snippet, old, new, -1)
 
 	// convert name to AppArmor dbus interface (eg, 'org.foo' to 'org.foo{,.*}')
