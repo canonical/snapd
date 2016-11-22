@@ -104,7 +104,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 
 	q := make(url.Values)
 	if opts.All {
-		q.Add("all", "1")
+		q.Add("select", "all")
 	}
 
 	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
