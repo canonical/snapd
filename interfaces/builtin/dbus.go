@@ -373,8 +373,6 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-// Since we only implement the permanent slot side, this is meaningless but
-// we have to supply the method, so set it to something safe.
 func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
