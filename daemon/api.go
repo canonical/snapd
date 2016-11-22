@@ -618,7 +618,16 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	all := (r.URL.Query().Get("all") == "1")
+	var all bool
+	sel := r.URL.Query().Get("select")
+	switch sel {
+	case "all":
+		all = true
+	case "enabled", "":
+		all = false
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
 	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)

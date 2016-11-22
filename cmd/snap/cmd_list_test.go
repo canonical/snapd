@@ -59,7 +59,7 @@ func (s *SnapSuite) TestListAll(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			c.Check(r.URL.RawQuery, check.Equals, "all=1")
+			c.Check(r.URL.RawQuery, check.Equals, "select=all")
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
