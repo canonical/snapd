@@ -1,6 +1,8 @@
+set timeout 60
+
 spawn snap login someemail@testing.com
 
-expect "Password: "
+expect "Password of "
 send "wrong-password\n"
 
 expect {

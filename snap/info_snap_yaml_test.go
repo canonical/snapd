@@ -1388,3 +1388,14 @@ apps:
 		"k2": "v2",
 	})
 }
+
+// classic confinement
+func (s *YamlSuite) TestClassicConfinement(c *C) {
+	y := []byte(`
+name: foo
+confinement: classic
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
+}
