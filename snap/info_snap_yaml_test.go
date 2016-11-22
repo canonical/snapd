@@ -1088,7 +1088,7 @@ slots:
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)

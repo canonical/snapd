@@ -1261,7 +1261,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 			},
 		},
 		{
-			Confinement: snap.DevmodeConfinement,
+			Confinement: snap.DevModeConfinement,
 			SideInfo: snap.SideInfo{
 				RealName: "baz",
 			},
@@ -1279,7 +1279,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 	for i, ss := range [][2]string{
 		{"foo", string(snap.StrictConfinement)},
 		{"bar", string(snap.StrictConfinement)},
-		{"baz", string(snap.DevmodeConfinement)},
+		{"baz", string(snap.DevModeConfinement)},
 	} {
 		name, mode := ss[0], ss[1]
 		c.Check(snaps[i]["name"], check.Equals, name, check.Commentf(name))

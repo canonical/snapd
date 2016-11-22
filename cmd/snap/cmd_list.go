@@ -80,7 +80,7 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		// TODO: make JailMode a flag in the snap itself
-		jailMode := snap.Confinement == client.DevmodeConfinement && !snap.DevMode
+		jailMode := snap.Confinement == client.DevModeConfinement && !snap.DevMode
 		notes := &Notes{
 			Private:  snap.Private,
 			DevMode:  snap.DevMode,
