@@ -126,6 +126,8 @@ if [ "$UNIT" = 1 ]; then
         append_coverage .coverage/profile.out
     done
 
+    go get -u github.com/mattn/goveralls
+    ${GOBIN:-$GOPATH/bin}/goveralls -coverprofile=.coverage/profile.out -service=travis-ci -repotoken $COVERALLS_TOKEN
 fi
 
 if [ "$SPREAD" = 1 ]; then
