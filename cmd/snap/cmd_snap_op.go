@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -565,7 +566,7 @@ type cmdTry struct {
 	modeMixin
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 func (x *cmdTry) Execute([]string) error {
@@ -577,6 +578,17 @@ func (x *cmdTry) Execute([]string) error {
 	opts := &client.SnapOptions{
 		DevMode:  x.DevMode,
 		JailMode: x.JailMode,
+	}
+
+	if name == "" {
+		if _, err := os.Stat("snapcraft.yaml"); err == nil {
+			if stat, err := os.Stat("prime"); err == nil && stat.IsDir() {
+				name = "prime"
+			}
+		}
+		if name == "" {
+			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and `prime` directory couldn't be found"))
+		}
 	}
 
 	path, err := filepath.Abs(name)
