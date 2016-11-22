@@ -236,6 +236,9 @@ EOF
         # prepare block device on swap for cold-plug system-user autoimport testing
         # deactivate swap
         swapoff -a
+        wipefs -a -f /dev/sdb
+        sed -i 's|^/dev/sdb.*||' /etc/fstab
+
         # create new primary partition occupying all the /dev/sdb disk
         sfdisk /dev/sdb <<EOF
 ;
