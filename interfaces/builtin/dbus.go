@@ -55,7 +55,8 @@ dbus (bind)
     name=###DBUS_NAME###,
 
 # For KDE applications, also support alternation since they use org.kde.foo-PID
-# as their 'well-known' name.
+# as their 'well-known' name. snapd does not allow ###DBUS_NAME### to end with
+# '-[0-9]+', so this is ok.
 dbus (bind)
     bus=###DBUS_BUS###
     name=###DBUS_NAME###-{[1-9],[1-9][0-9],[1-9][0-9][0-9],[1-9][0-9][0-9][0-9],[1-9][0-9][0-9][0-9][0-9],[1-9][0-9][0-9][0-9][0-9][0-9]},
