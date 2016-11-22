@@ -63,7 +63,7 @@ func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[
 	return nil
 }
 
-func (b *Backend) Setup(snapInfo *snap.Info, confinement snap.ConfinementType, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	rawSnippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySystemd)
 	if err != nil {

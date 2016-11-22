@@ -105,13 +105,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, confinement snap.ConfinementType, repo *interfaces.Repository) error {
+func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	st := task.State()
 	snapName := snapInfo.Name()
 
 	for _, backend := range backends.All {
 		st.Unlock()
-		err := backend.Setup(snapInfo, confinement, repo)
+		err := backend.Setup(snapInfo, opts, repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
