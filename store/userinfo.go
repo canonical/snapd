@@ -23,10 +23,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 var (
-	httpClient = newHTTPClient()
+	httpClient = newHTTPClient(&httpClientOpts{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+	})
 )
 
 type keysReply struct {

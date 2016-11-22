@@ -212,9 +212,10 @@ func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, deve
 name: %s
 version: %s
 %s`, name, version, extraYaml)
+	contents := ""
 
 	// Mock the snap on disk
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, contents, sideInfo)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -245,7 +246,8 @@ version: 1
 type: gadget
 gadget: {store: {id: %q}}
 `, store)
-	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
+	contents := ""
+	snaptest.MockSnap(c, yamlText, contents, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
 
@@ -308,6 +310,19 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	}
 
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
+}
+
+func (s *apiSuite) TestQuotedNames(c *check.C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		{[]string{}, ""},
+		{[]string{"snap1"}, `"snap1"`},
+		{[]string{"snap1", "snap2"}, `"snap1", "snap2"`},
+	} {
+		c.Check(quotedNames(t.in), check.Equals, t.out)
+	}
 }
 
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {

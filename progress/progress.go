@@ -48,7 +48,7 @@ type Meter interface {
 	// interface for writer
 	Write(p []byte) (n int, err error)
 
-	// notify the user of miscelaneous events
+	// notify the user of miscellaneous events
 	Notify(string)
 }
 
@@ -100,8 +100,7 @@ func NewTextProgress() *TextProgress {
 
 // Start starts showing progress
 func (t *TextProgress) Start(label string, total float64) {
-	t.pbar = pb.New64(0)
-	t.pbar.Total = int64(total)
+	t.pbar = pb.New64(int64(total))
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
 	t.pbar.Prefix(label)
@@ -172,7 +171,7 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 	return unicode.ToLower(r) == 'y'
 }
 
-// Notify the user of miscelaneous events
+// Notify the user of miscellaneous events
 func (*TextProgress) Notify(msg string) {
 	fmt.Printf("\r%s%s\n", msg, clearUntilEOL)
 }

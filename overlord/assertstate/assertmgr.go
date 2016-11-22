@@ -297,24 +297,24 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
-	ss, err := snapstate.TaskSnapSetup(t)
+	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
 		return nil
 	}
 
-	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(ss.SnapPath)
+	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(t.State(), ss.UserID, func(f asserts.Fetcher) error {
+	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
 		return snapasserts.FetchSnapAssertions(f, sha3_384)
 	})
 	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
 		if notFound.Ref.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
 		} else {
-			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)
 		}
 	}
 	if err != nil {
@@ -322,7 +322,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(t.State())
-	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
+	err = snapasserts.CrossCheck(snapsup.Name(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
@@ -341,8 +341,8 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapState := range snapStates {
-			info, err := snapState.CurrentInfo()
+		for _, snapst := range snapStates {
+			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return err
 			}
@@ -385,8 +385,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	if err != nil {
 		return nil, err
 	}
-	for snapName, snapState := range snapStates {
-		info, err := snapState.CurrentInfo()
+	for snapName, snapst := range snapStates {
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}

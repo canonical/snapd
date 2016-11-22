@@ -9,4 +9,4 @@ prepare: |
 
 execute: |
     echo "Then the pts device follows confinement rules"
-    expect -f pts.exp
+    expect -d -f pts.exp
