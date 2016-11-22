@@ -200,5 +200,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	if len(remoteSnap.Prices) > 0 {
 		result["prices"] = remoteSnap.Prices
 	}
+
+	if len(remoteSnap.Channels) > 0 {
+		result["channels"] = remoteSnap.Channels
+	}
+
 	return result
 }
