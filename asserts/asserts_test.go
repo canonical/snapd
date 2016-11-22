@@ -578,6 +578,7 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 	}
 
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
 
 	c.Check(a.Revision(), Equals, 11)
 	c.Check(a.Format(), Equals, 1)

@@ -94,6 +94,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
 		"primary-key":  "0",
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
 
 	cfg := &asserts.DatabaseConfig{
 		Trusted: []asserts.Assertion{a},
