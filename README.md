@@ -29,5 +29,5 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
 [travis-url]: https://travis-ci.org/snapcore/snapd
 
-[coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
-[coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
+[coveralls-image]: https://coveralls.io/repos/github/snapcore/snapd/badge.svg
+[coveralls-url]: https://coveralls.io/github/snapcore/snapd
