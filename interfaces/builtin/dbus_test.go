@@ -148,7 +148,7 @@ slots:
  dbus-slot:
   interface: dbus
   bus: session
-  name: org.dbus-snap.session-1
+  name: org.dbus-snap.session-a
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -166,7 +166,7 @@ slots:
  dbus-slot:
   interface: dbus
   bus: system
-  name: org.dbus-snap.system-1
+  name: org.dbus-snap.system-a
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
