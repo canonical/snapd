@@ -39,13 +39,13 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 	st := task.State()
 
 	// Setup security of the affected snaps.
-	for affectedSnap := range affectedSnaps {
+	for affectedSnapName := range affectedSnaps {
 		// the snap that triggered the change needs to be skipped
-		if affectedSnap == affectingSnap {
+		if affectedSnapName == affectingSnap {
 			continue
 		}
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, affectedSnap, &snapst); err != nil {
+		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
 			return err
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
