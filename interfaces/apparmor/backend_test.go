@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/backendtest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -102,8 +103,7 @@ func (s *backendSuite) TestName(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
-	devMode := false
-	s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
+	s.InstallSnap(c, snap.StrictConfinement, backendtest.SambaYamlV1, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
 	_, err := os.Stat(profile)
@@ -115,8 +115,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
-	devMode := false
-	s.InstallSnap(c, devMode, backendtest.HookYaml, 1)
+	s.InstallSnap(c, snap.StrictConfinement, backendtest.HookYaml, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.configure")
 
 	// Verify that profile "snap.foo.hook.configure" was created
@@ -129,10 +128,10 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
 }
 
 func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, devMode, s.Repo)
+		err := s.Backend.Setup(snapInfo, confinement, s.Repo)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
@@ -143,8 +142,8 @@ func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -163,8 +162,8 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 }
 
 func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.HookYaml, 1)
 		s.parserCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.configure")
@@ -183,10 +182,10 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 2)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1, 2)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		// apparmor_parser was used to reload the profile because snap revision
 		// is inside the generated policy.
@@ -198,11 +197,11 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the new application being added
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 1)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1WithNmbd, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
@@ -218,11 +217,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1WithNmbd, 1)
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the new application being added
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 1)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlWithHook, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.configure")
@@ -241,11 +240,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1WithNmbd, 1)
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the application being removed
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 1)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
@@ -261,11 +260,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 1)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlWithHook, 1)
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the application being removed
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 1)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1WithNmbd, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.configure")
@@ -286,7 +285,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo := snaptest.MockInfo(c, backendtest.SambaYamlV1, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err := s.Backend.Setup(snapInfo, false, s.Repo)
+	err := s.Backend.Setup(snapInfo, snap.StrictConfinement, s.Repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
@@ -303,9 +302,9 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 }
 
 type combineSnippetsScenario struct {
-	devMode bool
-	snippet string
-	content string
+	confinement snap.ConfinementType
+	snippet     string
+	content     string
 }
 
 const commonPrefix = `
@@ -314,28 +313,30 @@ const commonPrefix = `
 @{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
+	confinement: snap.StrictConfinement,
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
 
 }
 `,
 }, {
-	snippet: "snippet",
+	confinement: snap.StrictConfinement,
+	snippet:     "snippet",
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
 snippet
 }
 `,
 }, {
-	devMode: true,
+	confinement: snap.DevmodeConfinement,
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 
 }
 `,
 }, {
-	devMode: true,
-	snippet: "snippet",
+	confinement: snap.DevmodeConfinement,
+	snippet:     "snippet",
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 snippet
@@ -357,7 +358,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 			}
 			return []byte(scenario.snippet), nil
 		}
-		snapInfo := s.InstallSnap(c, scenario.devMode, backendtest.SambaYamlV1, 1)
+		snapInfo := s.InstallSnap(c, scenario.confinement, backendtest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)

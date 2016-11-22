@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const usbrawConnectedPlugAppArmor = `
+const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
 # Reserved because this gives privileged access to the system.
 # Usage: reserved
@@ -40,10 +40,10 @@ const usbrawConnectedPlugAppArmor = `
 `
 
 // Transitional interface which allows access to all usb devices.
-func NewUsbRawInterface() interfaces.Interface {
+func NewRawUsbInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "usb-raw",
-		connectedPlugAppArmor: usbrawConnectedPlugAppArmor,
+		name: "raw-usb",
+		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		reservedForOS:         true,
 	}
 }
