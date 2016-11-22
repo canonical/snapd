@@ -61,7 +61,6 @@ type remoteRepoTestSuite struct {
 	device    *auth.DeviceState
 
 	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
-	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
 
@@ -214,8 +213,6 @@ func createTestDevice() *auth.DeviceState {
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
-	t.origBackoffs = downloadBackoffs
-	downloadBackoffs = []int{2, 5, 0}
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
@@ -241,7 +238,6 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
-	downloadBackoffs = t.origBackoffs
 	t.mockXDelta.Restore()
 }
 
@@ -483,7 +479,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
-	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
+	c.Check(n, Equals, 6)
 }
 
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
