@@ -40,7 +40,7 @@ type cmdList struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 
-	All bool `short:"a" long:"all"`
+	All bool `long:"all"`
 }
 
 func init() {
