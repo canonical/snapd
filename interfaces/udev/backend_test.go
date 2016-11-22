@@ -80,9 +80,9 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
 		s.udevadmCmd.ForgetCalls()
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
@@ -104,9 +104,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
 		s.udevadmCmd.ForgetCalls()
-		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+		snapInfo := s.InstallSnap(c, confinement, backendtest.HookYaml, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 
 		// Verify that "70-snap.foo.rules" was created.
@@ -127,10 +127,10 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, devMode, s.Repo)
+		err := s.Backend.Setup(snapInfo, confinement, s.Repo)
 		c.Assert(err, IsNil)
 		// rules are not re-loaded when nothing changes
 		c.Check(s.udevadmCmd.Calls(), HasLen, 0)
@@ -143,8 +143,8 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
@@ -164,10 +164,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return createSnippetForApps(slot.Apps), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1WithNmbd, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
@@ -189,10 +189,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlWithHook, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 
 		// Verify that "70-snap.samba.rules" was created
@@ -213,10 +213,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return createSnippetForApps(slot.Apps), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1WithNmbd, 0)
 		s.udevadmCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
@@ -238,10 +238,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlWithHook, 0)
 		s.udevadmCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
@@ -260,8 +260,8 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
@@ -277,8 +277,8 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.PlugNoAppsYaml, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.PlugNoAppsYaml, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
@@ -294,8 +294,8 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C)
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SlotNoAppsYaml, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SlotNoAppsYaml, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
@@ -307,8 +307,8 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C)
 }
 
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
-	for _, devMode := range []bool{false, true} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		_, err := os.Stat(fname)
 		// Without any snippets, there the .rules file is not created.
@@ -322,10 +322,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1NoSlot, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1NoSlot, 0)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		// file called "70-snap.sambda.rules" was removed
 		_, err := os.Stat(fname)
@@ -344,15 +344,15 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1NoSlot, 0)
+	for _, confinement := range []snap.ConfinementType{snap.DevmodeConfinement, snap.StrictConfinement} {
+		snapInfo := s.InstallSnap(c, confinement, backendtest.SambaYamlV1NoSlot, 0)
 		// file called "70-snap.sambda.rules" does not exist
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		s.udevadmCmd.ForgetCalls()
 
-		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbdNoSlot, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, confinement, backendtest.SambaYamlV1WithNmbdNoSlot, 0)
 		// file called "70-snap.sambda.rules" still does not exist
 		_, err = os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)

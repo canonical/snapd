@@ -45,9 +45,10 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        # FIXME: go back to stable once we have a stable release with
-        #        the snap-exec fix
-        snap install --candidate core
+        # use parameterized core channel (defaults to edge) instead
+        # of a fixed one and close to stable in order to detect defects
+        # earlier
+        snap install --${CORE_CHANNEL} core
         snap list | grep core
 
         echo "Ensure that the grub-editenv list output is empty on classic"
@@ -83,7 +84,7 @@ setup_reflash_magic() {
         apt_install_local ${SPREAD_PATH}/../snapd_*.deb
         apt-get clean
 
-        snap install --edge core
+        snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
         snap install --devmode --edge ubuntu-image
@@ -129,6 +130,15 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+
+        # add a gpio slot
+        cat >> $UNPACKD/meta/snap.yaml <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+EOF
 
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
