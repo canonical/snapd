@@ -74,9 +74,9 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var ss snapstate.SnapSetup
-	t.Get("snap-setup", &ss)
-	c.Check(ss.SideInfo, DeepEquals, &snap.SideInfo{
+	var snapsup snapstate.SnapSetup
+	t.Get("snap-setup", &snapsup)
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(-1),
 	})

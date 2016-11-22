@@ -778,6 +778,16 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 
 }
 
+// quotedNames formats a slice of snap names (or other strings) to a
+// quoted list of comma separated names, e.g. `"snap1", "snap2"`
+func quotedNames(names []string) string {
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = strconv.Quote(name)
+	}
+	return strings.Join(quoted, ", ")
+}
+
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
 	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
@@ -796,12 +806,9 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
 	default:
-		quoted := make([]string, len(inst.Snaps))
-		for i, name := range inst.Snaps {
-			quoted[i] = strconv.Quote(name)
-		}
+		quoted := quotedNames(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), strings.Join(quoted, ", "))
+		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
 
 	return msg, updated, tasksets, nil
@@ -819,12 +826,9 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
 	default:
-		quoted := make([]string, len(inst.Snaps))
-		for i, name := range inst.Snaps {
-			quoted[i] = strconv.Quote(name)
-		}
+		quoted := quotedNames(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Install snaps %s"), strings.Join(quoted, ", "))
+		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
 
 	return msg, installed, tasksets, nil
@@ -894,12 +898,9 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
 	default:
-		quoted := make([]string, len(inst.Snaps))
-		for i, name := range inst.Snaps {
-			quoted[i] = strconv.Quote(name)
-		}
+		quoted := quotedNames(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), strings.Join(quoted, ", "))
+		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), quoted)
 	}
 
 	return msg, removed, tasksets, nil
@@ -1258,7 +1259,7 @@ out:
 		// potentially dangerous but dangerous or devmode params were set
 		info, err := unsafeReadSnapInfo(tempPath)
 		if err != nil {
-			return InternalError("cannot read snap file: %v", err)
+			return BadRequest("cannot read snap file: %v", err)
 		}
 		snapName = info.Name()
 		sideInfo = &snap.SideInfo{RealName: snapName}
@@ -1372,8 +1373,8 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var ss snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &ss); err == state.ErrNoState {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &snapst); err == state.ErrNoState {
 		return NotFound("cannot find %q snap", snapName)
 	} else if err != nil {
 		return InternalError("%v", err)
