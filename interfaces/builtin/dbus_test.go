@@ -364,7 +364,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify introspectable rule
-	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=session\n    path=\"{/,/org,/org/test-session-connected}\"\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=session\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
 
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
@@ -383,7 +383,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify introspectable rule
-	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=system\n    path=\"{/,/org,/org/test-system-connected}\"\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (receive)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
 
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
@@ -402,7 +402,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify introspectable rule
-	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=session\n    path=\"{/,/org,/org/test-session-connected}\"\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=session\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
 
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
@@ -421,7 +421,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify introspectable rule
-	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=system\n    path=\"{/,/org,/org/test-system-connected}\"\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(label=\"snap.test-dbus.*\"),\n")
 
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
