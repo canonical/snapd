@@ -131,6 +131,15 @@ setup_reflash_magic() {
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
 
+        # add a gpio slot
+        cat >> $UNPACKD/meta/snap.yaml <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+EOF
+
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
