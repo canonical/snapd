@@ -178,7 +178,7 @@ func (s *patch6Suite) TestPatch6(c *C) {
 	c.Check(stateMap["c"].JailMode, Equals, true)
 
 	for _, task := range st.Tasks() {
-		ss, err := patch.Patch6SnapSetup(task)
+		snapsup, err := patch.Patch6SnapSetup(task)
 		if err == state.ErrNoState {
 			continue
 		}
@@ -190,20 +190,20 @@ func (s *patch6Suite) TestPatch6(c *C) {
 
 		switch snaps[0] {
 		case "a":
-			c.Check(ss.DevMode, Equals, true, Commentf("a"))
-			c.Check(ss.TryMode, Equals, false, Commentf("a"))
-			c.Check(ss.JailMode, Equals, false, Commentf("a"))
-			c.Check(ss.Revert, Equals, false, Commentf("a"))
+			c.Check(snapsup.DevMode, Equals, true, Commentf("a"))
+			c.Check(snapsup.TryMode, Equals, false, Commentf("a"))
+			c.Check(snapsup.JailMode, Equals, false, Commentf("a"))
+			c.Check(snapsup.Revert, Equals, false, Commentf("a"))
 		case "b":
-			c.Check(ss.DevMode, Equals, false, Commentf("b"))
-			c.Check(ss.TryMode, Equals, true, Commentf("b"))
-			c.Check(ss.JailMode, Equals, false, Commentf("b"))
-			c.Check(ss.Revert, Equals, false, Commentf("b"))
+			c.Check(snapsup.DevMode, Equals, false, Commentf("b"))
+			c.Check(snapsup.TryMode, Equals, true, Commentf("b"))
+			c.Check(snapsup.JailMode, Equals, false, Commentf("b"))
+			c.Check(snapsup.Revert, Equals, false, Commentf("b"))
 		case "c":
-			c.Check(ss.DevMode, Equals, false, Commentf("c"))
-			c.Check(ss.TryMode, Equals, false, Commentf("c"))
-			c.Check(ss.JailMode, Equals, true, Commentf("c"))
-			c.Check(ss.Revert, Equals, true, Commentf("c"))
+			c.Check(snapsup.DevMode, Equals, false, Commentf("c"))
+			c.Check(snapsup.TryMode, Equals, false, Commentf("c"))
+			c.Check(snapsup.JailMode, Equals, true, Commentf("c"))
+			c.Check(snapsup.Revert, Equals, true, Commentf("c"))
 		}
 	}
 }

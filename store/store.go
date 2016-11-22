@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,12 +43,15 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+
+	"gopkg.in/retry.v1"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -173,6 +177,27 @@ type Store struct {
 	mu                sync.Mutex
 	suggestedCurrency string
 }
+
+func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
+	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
+}
+
+func shouldRetryError(attempt *retry.Attempt, err error) bool {
+	if !attempt.More() {
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout()
+	}
+	return err == io.ErrUnexpectedEOF
+}
+
+var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+	retry.Exponential{
+		Initial: 10 * time.Millisecond,
+		Factor:  1.67,
+	},
+))
 
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
@@ -377,9 +402,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
-		client:          newHTTPClient(),
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
+
+		client: newHTTPClient(&httpClientOpts{
+			Timeout:    10 * time.Second,
+			MayLogBody: true,
+		}),
 	}
 }
 
@@ -794,45 +823,58 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	u.RawQuery = query.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: halJsonContentType,
+		}
+
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check statusCode
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// OK
+		case http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		default:
+			msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+			return nil, respToError(resp, msg)
+		}
+
+		// and decode json
+		var remote snapDetails
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&remote); err != nil {
+			return nil, err
+		}
+
+		info := infoFromRemote(remote)
+
+		err = s.decorateOrders([]*snap.Info{info}, channel, user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return info, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// check statusCode
-	switch resp.StatusCode {
-	case http.StatusOK:
-		// OK
-	case http.StatusNotFound:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
-		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
-	}
-
-	info := infoFromRemote(remote)
-
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return info, nil
+	panic("unreachable")
 }
 
 // A Search is what you do in order to Find something
@@ -889,45 +931,56 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    &u,
+			Accept: halJsonContentType,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return nil, respToError(resp, "search")
+		}
+
+		if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+			return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+		}
+
+		var searchData searchResults
+
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&searchData); err != nil {
+			return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
+		}
+
+		snaps := make([]*snap.Info, len(searchData.Payload.Packages))
+		for i, pkg := range searchData.Payload.Packages {
+			snaps[i] = infoFromRemote(pkg)
+		}
+
+		err = s.decorateOrders(snaps, "", user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return snaps, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "search")
-	}
-
-	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
-	}
-
-	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
-	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
-	}
-
-	err = s.decorateOrders(snaps, "", user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return snaps, nil
+	panic("unreachable")
 }
 
 // RefreshCandidate contains information for the store about the currently
@@ -1002,57 +1055,68 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	if useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": s.deltaFormat,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.bulkURI,
+			Accept:      halJsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
 		}
-	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		if useDeltas() {
+			logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
+			reqOptions.ExtraHeaders = map[string]string{
+				"X-Ubuntu-Delta-Formats": s.deltaFormat,
+			}
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for updates")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
-	}
-
-	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-	for _, rsnap := range updateData.Payload.Packages {
-		rrev := snap.R(rsnap.Revision)
-		cand := candidateMap[rsnap.SnapID]
-
-		// the store also gives us identical revisions, filter those
-		// out, we are not interested
-		if rrev == cand.Revision {
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
 			continue
 		}
-		// do not upgade to a version we rolledback back from
-		if findRev(rrev, cand.Block) {
-			continue
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, respToError(resp, "query the store for updates")
 		}
-		res = append(res, infoFromRemote(rsnap))
+
+		var updateData searchResults
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&updateData); err != nil {
+			return nil, err
+		}
+
+		res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+		for _, rsnap := range updateData.Payload.Packages {
+			rrev := snap.R(rsnap.Revision)
+			cand := candidateMap[rsnap.SnapID]
+
+			// the store also gives us identical revisions, filter those
+			// out, we are not interested
+			if rrev == cand.Revision {
+				continue
+			}
+			// do not upgade to a version we rolledback back from
+			if findRev(rrev, cand.Block) {
+				continue
+			}
+			res = append(res, infoFromRemote(rsnap))
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return res, nil
 	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return res, nil
+	panic("unreachable")
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1068,11 +1132,26 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
-	if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
+func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
-	w, err := os.Create(targetFn + ".partial")
+	if useDeltas() {
+		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+	}
+	if useDeltas() && len(downloadInfo.Deltas) == 1 {
+		err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+		if err == nil {
+			return nil
+		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+	}
+	w, err := os.OpenFile(targetPath+".partial", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	resume, err := w.Seek(0, os.SEEK_END)
 	if err != nil {
 		return err
 	}
@@ -1090,12 +1169,12 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(name, downloadInfo.Sha3_384, url, user, s, w, pbar)
+	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
 	if err != nil {
 		return err
 	}
 
-	if err := os.Rename(w.Name(), targetFn); err != nil {
+	if err := os.Rename(w.Name(), targetPath); err != nil {
 		return err
 	}
 
@@ -1106,7 +1185,7 @@ func (s *Store) Download(name string, targetFn string, downloadInfo *snap.Downlo
 var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1116,15 +1195,29 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		Method: "GET",
 		URL:    storeURL,
 	}
+	h := crypto.SHA3_384.New()
+
+	if resume > 0 {
+		reqOptions.ExtraHeaders = map[string]string{
+			"Range": fmt.Sprintf("bytes=%d-", resume),
+		}
+		// seed the sha3 with the already local file
+		seekStart := 0
+		if _, err := w.Seek(0, seekStart); err != nil {
+			return err
+		}
+		n, err := io.Copy(h, w)
+		if err != nil {
+			return err
+		}
+		if n != resume {
+			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
+		}
+	}
 
 	var resp *http.Response
 	for _, n := range downloadBackoffs {
-		// we do *not* want to reuse the client between iterations in
-		// this case as it will have internal state (e.g. cached
-		// connections) that led us to an error (the default client is
-		// documented as not reusing the transport unless the body is
-		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
 			return err
 		}
@@ -1137,7 +1230,12 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		}
 		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusPartialContent:
+		break
+	case http.StatusUnauthorized:
+		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
+	default:
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
@@ -1145,87 +1243,113 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		pbar = &progress.NullProgress{}
 	}
 	pbar.Start(name, float64(resp.ContentLength))
-	h := crypto.SHA3_384.New()
 	mw := io.MultiWriter(w, h, pbar)
 	_, err = io.Copy(mw, resp.Body)
 	pbar.Finished()
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, sha3_384, actualSha3)
+		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
 
 	return err
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
 
 	if len(downloadInfo.Deltas) != 1 {
-		return "", errors.New("store returned more than one download delta")
+		return errors.New("store returned more than one download delta")
 	}
 
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+		return fmt.Errorf("store returned unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
-
-	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
-
-	w, err := os.Create(path.Join(downloadDir, deltaName))
-	if err != nil {
-		return "", err
-	}
-	deltaPath := w.Name()
-	defer func() {
-		if cerr := w.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-		if err != nil {
-			os.Remove(w.Name())
-			deltaPath = ""
-		}
-	}()
 
 	url := deltaInfo.AnonDownloadURL
 	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 
-	err = download(deltaName, deltaInfo.Sha3_384, url, user, s, w, pbar)
-	if err != nil {
-		return "", err
-	}
-
-	return deltaPath, nil
+	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
-var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
 	if !osutil.FileExists(snapPath) {
-		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
+		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
 	if deltaInfo.Format != "xdelta" {
-		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
 	}
 
-	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
-	targetSnapPath := targetSnapName + ".partial"
+	partialTargetPath := targetPath + ".partial"
 
-	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, partialTargetPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err := cmd.Run(); err != nil {
-		os.Remove(targetSnapPath)
-		return "", err
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
+		return err
 	}
 
-	return targetSnapPath, nil
+	bsha3_384, _, err := osutil.FileDigest(partialTargetPath, crypto.SHA3_384)
+	if err != nil {
+		return err
+	}
+	sha3_384 := fmt.Sprintf("%x", bsha3_384)
+	if targetSha3_384 != "" && sha3_384 != targetSha3_384 {
+		if err := os.Remove(partialTargetPath); err != nil {
+			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+		}
+		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
+	}
+
+	if err := os.Rename(partialTargetPath, targetPath); err != nil {
+		return osutil.CopyFile(partialTargetPath, targetPath, 0)
+	}
+
+	return nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+	deltaInfo := &downloadInfo.Deltas[0]
+
+	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
+	deltaName := filepath.Base(deltaPath)
+
+	w, err := os.Create(deltaPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		os.Remove(deltaPath)
+	}()
+
+	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	if err := applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
+		return err
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
+	return nil
 }
 
 type assertionSvcError struct {
@@ -1245,36 +1369,47 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u.RawQuery = v.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: asserts.MediaType,
 		}
-		return nil, respToError(resp, "fetch assertion")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(&svcErr); err != nil {
+					return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
+				}
+				if svcErr.Status == 404 {
+					return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+			return nil, respToError(resp, "fetch assertion")
+		}
+
+		// and decode assertion
+		dec := asserts.NewDecoder(resp.Body)
+		return dec.Decode()
+	}
+	panic("unreachable")
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1291,7 +1426,6 @@ func (s *Store) SuggestedCurrency() string {
 // BuyOptions specifies parameters to buy from the store.
 type BuyOptions struct {
 	SnapID   string  `json:"snap-id"`
-	SnapName string  `json:"snap-name"`
 	Price    float64 `json:"price"`
 	Currency string  `json:"currency"` // ISO 4217 code as string
 }
@@ -1328,31 +1462,21 @@ func (s *storeErrors) Error() string {
 	return "store reported an error: " + s.Errors[0].Error()
 }
 
-func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
-	identifier := ""
-	if options.SnapName != "" {
-		identifier = fmt.Sprintf(" %q", options.SnapName)
-	} else if options.SnapID != "" {
-		identifier = fmt.Sprintf(" %q", options.SnapID)
-	}
-
-	return nil, fmt.Errorf("cannot buy snap%s: %s", identifier, message)
+func buyOptionError(message string) (*BuyResult, error) {
+	return nil, fmt.Errorf("cannot buy snap: %s", message)
 }
 
 // Buy sends a buy request for the specified snap.
 // Returns the state of the order: Complete, Cancelled.
 func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
-		return buyOptionError(options, "snap ID missing")
-	}
-	if options.SnapName == "" {
-		return buyOptionError(options, "snap name missing")
+		return buyOptionError("snap ID missing")
 	}
 	if options.Price <= 0 {
-		return buyOptionError(options, "invalid expected price")
+		return buyOptionError("invalid expected price")
 	}
 	if options.Currency == "" {
-		return buyOptionError(options, "currency missing")
+		return buyOptionError("currency missing")
 	}
 	if user == nil {
 		return nil, ErrUnauthenticated
@@ -1375,60 +1499,71 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.ordersURI,
-		Accept:      jsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
-		// user already ordered or order successful
-		var orderDetails order
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&orderDetails); err != nil {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.ordersURI,
+			Accept:      jsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return nil, err
 		}
 
-		if orderDetails.State == "Cancelled" {
-			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
+		defer resp.Body.Close()
 
-		return &BuyResult{
-			State: orderDetails.State,
-		}, nil
-	case http.StatusBadRequest:
-		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusCreated:
+			// user already ordered or order successful
+			var orderDetails order
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&orderDetails); err != nil {
+				return nil, err
+			}
+
+			if orderDetails.State == "Cancelled" {
+				return buyOptionError("payment cancelled")
+			}
+
+			return &BuyResult{
+				State: orderDetails.State,
+			}, nil
+		case http.StatusBadRequest:
+			// Invalid price was specified, etc.
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+		case http.StatusNotFound:
+			// Likely because snap ID doesn't exist.
+			return buyOptionError("server says not found (snap got removed?)")
+		case http.StatusPaymentRequired:
+			// Payment failed for some reason.
+			return nil, ErrPaymentDeclined
+		case http.StatusUnauthorized:
+			// TODO handle token expiry and refresh
+			return nil, ErrInvalidCredentials
+		default:
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 		}
-		return nil, fmt.Errorf("cannot buy snap %q: bad request: %v", options.SnapName, errorInfo.Error())
-	case http.StatusNotFound:
-		// Likely because snap ID doesn't exist.
-		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
-	case http.StatusPaymentRequired:
-		// Payment failed for some reason.
-		return nil, ErrPaymentDeclined
-	case http.StatusUnauthorized:
-		// TODO handle token expiry and refresh
-		return nil, ErrInvalidCredentials
-	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap %q: %v", options.SnapName, errorInfo))
 	}
+	panic("unreachable")
 }
 
 type storeCustomer struct {
@@ -1449,40 +1584,52 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return err
 		}
-		if !customer.LatestTOSAccepted {
-			return ErrTOSNotAccepted
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
-		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethods
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var customer storeCustomer
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&customer); err != nil {
+				return err
+			}
+			if !customer.HasPaymentMethod {
+				return ErrNoPaymentMethods
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
+			}
+			return nil
+		case http.StatusNotFound:
+			// Likely because user has no account registered on the pay server
+			return fmt.Errorf("cannot get customer details: server says no account exists")
+		case http.StatusUnauthorized:
+			return ErrInvalidCredentials
+		default:
+			var errors storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errors); err != nil {
+				return err
+			}
+			if len(errors.Errors) == 0 {
+				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+			}
+			return &errors
 		}
-		return nil
-	case http.StatusNotFound:
-		// Likely because user has no account registered on the pay server
-		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
-		return ErrInvalidCredentials
-	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
-		if len(errors.Errors) == 0 {
-			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-		}
-		return &errors
 	}
+
+	return nil
 }
