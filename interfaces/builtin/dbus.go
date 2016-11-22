@@ -128,6 +128,8 @@ dbus (receive, send)
 `
 
 const dbusConnectedPlugAppArmor = `
+#include <abstractions/###DBUS_ABSTRACTION###>
+
 # allow snaps to introspect the slot servive. This allows us to introspect
 # all DBus interfaces of the service (but not use them).
 dbus (send)
@@ -277,8 +279,18 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		// well-known DBus name-specific connected plug policy
 		snippet := getAppArmorSnippet([]byte(dbusConnectedPlugAppArmor), bus, name)
 
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
+		// abstraction policy
+		abstraction, err := getAppArmorAbstraction(bus)
+		if err != nil {
+			return nil, err
+		}
+
+		old := []byte("###DBUS_ABSTRACTION###")
+		new := []byte(abstraction)
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+		old = []byte("###SLOT_SECURITY_TAGS###")
+		new = slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
 		return snippet, nil
