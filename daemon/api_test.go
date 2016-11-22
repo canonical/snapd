@@ -312,6 +312,19 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
 }
 
+func (s *apiSuite) TestQuotedNames(c *check.C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		{[]string{}, ""},
+		{[]string{"snap1"}, `"snap1"`},
+		{[]string{"snap1", "snap2"}, `"snap1", "snap2"`},
+	} {
+		c.Check(quotedNames(t.in), check.Equals, t.out)
+	}
+}
+
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()

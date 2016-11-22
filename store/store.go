@@ -823,45 +823,58 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	u.RawQuery = query.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: halJsonContentType,
+		}
+
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check statusCode
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// OK
+		case http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		default:
+			msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+			return nil, respToError(resp, msg)
+		}
+
+		// and decode json
+		var remote snapDetails
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&remote); err != nil {
+			return nil, err
+		}
+
+		info := infoFromRemote(remote)
+
+		err = s.decorateOrders([]*snap.Info{info}, channel, user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return info, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// check statusCode
-	switch resp.StatusCode {
-	case http.StatusOK:
-		// OK
-	case http.StatusNotFound:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
-		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
-	}
-
-	info := infoFromRemote(remote)
-
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return info, nil
+	panic("unreachable")
 }
 
 // A Search is what you do in order to Find something
@@ -918,45 +931,56 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    &u,
+			Accept: halJsonContentType,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return nil, respToError(resp, "search")
+		}
+
+		if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+			return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+		}
+
+		var searchData searchResults
+
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&searchData); err != nil {
+			return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
+		}
+
+		snaps := make([]*snap.Info, len(searchData.Payload.Packages))
+		for i, pkg := range searchData.Payload.Packages {
+			snaps[i] = infoFromRemote(pkg)
+		}
+
+		err = s.decorateOrders(snaps, "", user)
+		if err != nil {
+			logger.Noticef("cannot get user orders: %v", err)
+		}
+
+		s.extractSuggestedCurrency(resp)
+
+		return snaps, nil
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "search")
-	}
-
-	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
-	}
-
-	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
-	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
-	}
-
-	err = s.decorateOrders(snaps, "", user)
-	if err != nil {
-		logger.Noticef("cannot get user orders: %v", err)
-	}
-
-	s.extractSuggestedCurrency(resp)
-
-	return snaps, nil
+	panic("unreachable")
 }
 
 // RefreshCandidate contains information for the store about the currently
@@ -1345,36 +1369,47 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u.RawQuery = v.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: asserts.MediaType,
 		}
-		return nil, respToError(resp, "fetch assertion")
-	}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(&svcErr); err != nil {
+					return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
+				}
+				if svcErr.Status == 404 {
+					return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+			return nil, respToError(resp, "fetch assertion")
+		}
+
+		// and decode assertion
+		dec := asserts.NewDecoder(resp.Body)
+		return dec.Decode()
+	}
+	panic("unreachable")
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1464,60 +1499,71 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.ordersURI,
-		Accept:      jsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
-		// user already ordered or order successful
-		var orderDetails order
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&orderDetails); err != nil {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method:      "POST",
+			URL:         s.ordersURI,
+			Accept:      jsonContentType,
+			ContentType: jsonContentType,
+			Data:        jsonData,
+		}
+		resp, err := s.doRequest(s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return nil, err
 		}
 
-		if orderDetails.State == "Cancelled" {
-			return buyOptionError("payment cancelled")
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
+		defer resp.Body.Close()
 
-		return &BuyResult{
-			State: orderDetails.State,
-		}, nil
-	case http.StatusBadRequest:
-		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusCreated:
+			// user already ordered or order successful
+			var orderDetails order
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&orderDetails); err != nil {
+				return nil, err
+			}
+
+			if orderDetails.State == "Cancelled" {
+				return buyOptionError("payment cancelled")
+			}
+
+			return &BuyResult{
+				State: orderDetails.State,
+			}, nil
+		case http.StatusBadRequest:
+			// Invalid price was specified, etc.
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
+		case http.StatusNotFound:
+			// Likely because snap ID doesn't exist.
+			return buyOptionError("server says not found (snap got removed?)")
+		case http.StatusPaymentRequired:
+			// Payment failed for some reason.
+			return nil, ErrPaymentDeclined
+		case http.StatusUnauthorized:
+			// TODO handle token expiry and refresh
+			return nil, ErrInvalidCredentials
+		default:
+			var errorInfo storeErrors
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errorInfo); err != nil {
+				return nil, err
+			}
+			return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 		}
-		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
-	case http.StatusNotFound:
-		// Likely because snap ID doesn't exist.
-		return buyOptionError("server says not found (snap got removed?)")
-	case http.StatusPaymentRequired:
-		// Payment failed for some reason.
-		return nil, ErrPaymentDeclined
-	case http.StatusUnauthorized:
-		// TODO handle token expiry and refresh
-		return nil, ErrInvalidCredentials
-	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
+	panic("unreachable")
 }
 
 type storeCustomer struct {
@@ -1560,11 +1606,11 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			if err := dec.Decode(&customer); err != nil {
 				return err
 			}
-			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted
-			}
 			if !customer.HasPaymentMethod {
 				return ErrNoPaymentMethods
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
 			}
 			return nil
 		case http.StatusNotFound:
