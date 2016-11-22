@@ -5,7 +5,7 @@ execute: |
     ( snap find 2>&1 || echo FAILED ) | grep -Pzq "(?ms)you need to specify a query.*FAILED"
 
     echo "Exact matches"
-    for snapName in test-snapd-tools xkcd-webserver
+    for snapName in test-snapd-tools test-snapd-python-webserver
     do
         expected="(?s)Name +Version +Developer +Notes +Summary *\n\
     (.*?\n)?\

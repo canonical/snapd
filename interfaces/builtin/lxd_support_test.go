@@ -93,10 +93,6 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "@unrestricted\n")
 }
 
-func (s *LxdSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
-}
-
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }

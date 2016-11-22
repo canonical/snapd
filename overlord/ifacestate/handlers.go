@@ -53,7 +53,13 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
-		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+		var confinement snap.ConfinementType
+		if snapst.DevModeAllowed() {
+			confinement = snap.DevmodeConfinement
+		} else {
+			confinement = snap.StrictConfinement
+		}
+		if err := setupSnapSecurity(task, affectedSnapInfo, confinement, m.repo); err != nil {
 			return err
 		}
 	}
@@ -65,19 +71,26 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	defer task.State().Unlock()
 
 	// Get snap.Info from bits handed by the snap manager.
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 
-	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
-	return m.setupProfilesForSnap(task, tomb, snapInfo, ss.DevModeAllowed())
+
+	var confinement snap.ConfinementType
+	if snapsup.DevModeAllowed() {
+		confinement = snap.DevmodeConfinement
+	} else {
+		confinement = snap.StrictConfinement
+	}
+	return m.setupProfilesForSnap(task, tomb, snapInfo, confinement)
 }
 
-func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, devModeAllowed bool) error {
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, confinement snap.ConfinementType) error {
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
@@ -115,7 +128,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, devModeAllowed, m.repo); err != nil {
+	if err := setupSnapSecurity(task, snapInfo, confinement, m.repo); err != nil {
 		return err
 	}
 
@@ -170,11 +183,11 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
-	snapName := ss.Name()
+	snapName := snapsup.Name()
 
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.
@@ -193,7 +206,13 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		return m.setupProfilesForSnap(task, tomb, snapInfo, snapst.DevMode)
+		var confinement snap.ConfinementType
+		if snapst.DevModeAllowed() {
+			confinement = snap.DevmodeConfinement
+		} else {
+			confinement = snap.StrictConfinement
+		}
+		return m.setupProfilesForSnap(task, tomb, snapInfo, confinement)
 	}
 }
 
@@ -341,10 +360,22 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
+	var slotConfinement snap.ConfinementType
+	if slotSnapst.DevModeAllowed() {
+		slotConfinement = snap.DevmodeConfinement
+	} else {
+		slotConfinement = snap.StrictConfinement
+	}
+	if err := setupSnapSecurity(task, slot.Snap, slotConfinement, m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
+	var plugConfinement snap.ConfinementType
+	if plugSnapst.DevModeAllowed() {
+		plugConfinement = snap.DevmodeConfinement
+	} else {
+		plugConfinement = snap.StrictConfinement
+	}
+	if err := setupSnapSecurity(task, plug.Snap, plugConfinement, m.repo); err != nil {
 		return err
 	}
 
@@ -416,7 +447,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		if err := setupSnapSecurity(task, snapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+		var confinement snap.ConfinementType
+		if snapst.DevModeAllowed() {
+			confinement = snap.DevmodeConfinement
+		} else {
+			confinement = snap.StrictConfinement
+		}
+		if err := setupSnapSecurity(task, snapInfo, confinement, m.repo); err != nil {
 			return &state.Retry{}
 		}
 	}

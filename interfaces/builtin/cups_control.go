@@ -29,6 +29,8 @@ const cupsControlConnectedPlugAppArmor = `
 `
 
 const cupsControlConnectedPlugSecComp = `
+recvfrom
+sendto
 setsockopt
 `
 
@@ -39,6 +41,5 @@ func NewCupsControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  cupsControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
 	}
 }

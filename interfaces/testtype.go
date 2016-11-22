@@ -112,10 +112,6 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 	return nil, nil
 }
 
-func (t *TestInterface) LegacyAutoConnect() bool {
-	panic("no test should depend on this anymore")
-}
-
 // AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
