@@ -45,7 +45,7 @@ func (mod *Model) Model() string {
 	return mod.HeaderString("model")
 }
 
-// DisplayName returns the display-friendly name of the model or
+// DisplayName returns the human-friendly name of the model or
 // falls back to Model if this was not set.
 func (mod *Model) DisplayName() string {
 	display := mod.HeaderString("display-name")
