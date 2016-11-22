@@ -3343,15 +3343,10 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 
 	snapStates, err := snapstate.All(st)
 	c.Assert(err, IsNil)
+	c.Assert(snapStates, HasLen, 1)
 
-	c.Check(snapStates, HasLen, 1)
-
-	var snapst *snapstate.SnapState
-
-	for name, sst := range snapStates {
-		c.Assert(name, Equals, "name1")
-		snapst = sst
-	}
+	snapst := snapStates["name1"]
+	c.Assert(snapst, NotNil)
 
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.CurrentSideInfo(), NotNil)
