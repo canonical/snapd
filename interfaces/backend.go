@@ -30,7 +30,7 @@ import (
 // initially defined by the ConfinementType declared by the snap. It can be
 // either "strict", "devmode" or "classic".
 //
-// The "strict" type uses mount layout that puts the base snap as the root
+// The "strict" type uses mount layout that puts the core snap as the root
 // filesystem and provides strong isolation from the system and from other
 // snaps. Violations cause permission errors or mandatory process termination.
 //
