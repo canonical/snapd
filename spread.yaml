@@ -15,6 +15,8 @@ environment:
     SUDO_USER: ""
     SUDO_UID: ""
     TRUST_TEST_KEYS: "true"
+    MANAGED_DEVICE: "false"
+    CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
 
 backends:
     linode:

@@ -449,8 +449,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -536,12 +536,12 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, ss *snapstate.SnapSetup) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -553,12 +553,12 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("remove-profiles", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -570,12 +570,12 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("discard-conns", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -930,11 +930,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// The snap was setup with DevMode equal to true.
+	// The snap was setup with DevModeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
@@ -1217,8 +1217,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
@@ -1262,8 +1262,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
@@ -1384,9 +1384,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
@@ -1524,5 +1524,5 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 }

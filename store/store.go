@@ -340,6 +340,9 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
+// The fields we are interested in for snap.Refs
+var refFields = getStructFields(snap.Ref{})
+
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta"
 
@@ -576,6 +579,28 @@ type requestOptions struct {
 	Data         []byte
 }
 
+// retryRequest uses defaultRetryStrategy to call doRequest with retry
+func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err = s.doRequest(client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		break
+	}
+
+	return resp, err
+}
+
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
@@ -797,6 +822,65 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 	return !bought
 }
 
+// fakeChannels is a stopgap method of getting pseudo-channels until
+// the details endpoint provides the real thing for us. The main
+// difference between this pseudo one and the real thing is that a
+// channel can be closed, and we'll be oblivious to it.
+func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.Ref, error) {
+	snaps := make([]currentSnapJson, 4)
+	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
+		snaps[i] = currentSnapJson{
+			SnapID:  snapID,
+			Channel: channel,
+			// revision, confinement, epoch purposely left empty
+		}
+	}
+	jsonData, err := json.Marshal(metadataWrapper{
+		Snaps:  snaps,
+		Fields: refFields,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.bulkURI,
+		Accept:      halJsonContentType,
+		ContentType: jsonContentType,
+		Data:        jsonData,
+	}
+
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, respToError(resp, "query the store for channel information")
+	}
+
+	var results struct {
+		Payload struct {
+			Refs []*snap.Ref `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&results); err != nil {
+		return nil, err
+	}
+
+	channels := make(map[string]*snap.Ref, 4)
+	for _, item := range results.Payload.Refs {
+		channels[item.Channel] = item
+	}
+
+	return channels, nil
+}
+
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
@@ -828,7 +912,8 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -853,6 +938,16 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	}
 
 	info := infoFromRemote(remote)
+
+	// only get the channels when it makes sense as part of the reply
+	if info.SnapID != "" && channel == "" && revision.Unset() {
+		channels, err := s.fakeChannels(info.SnapID, user)
+		if err != nil {
+			logger.Noticef("cannot get channels: %v", err)
+		} else {
+			info.Channels = channels
+		}
+	}
 
 	err = s.decorateOrders([]*snap.Info{info}, channel, user)
 	if err != nil {
@@ -923,10 +1018,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -1009,7 +1105,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 		confinement := snap.StrictConfinement
 		if cs.DevMode {
-			confinement = snap.DevmodeConfinement
+			confinement = snap.DevModeConfinement
 		}
 
 		currentSnaps = append(currentSnaps, currentSnapJson{
@@ -1046,10 +1142,11 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -1339,10 +1436,11 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -1460,10 +1558,11 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
@@ -1528,51 +1627,41 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err := s.doRequest(s.client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			return err
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			var customer storeCustomer
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&customer); err != nil {
-				return err
-			}
-			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted
-			}
-			if !customer.HasPaymentMethod {
-				return ErrNoPaymentMethods
-			}
-			return nil
-		case http.StatusNotFound:
-			// Likely because user has no account registered on the pay server
-			return fmt.Errorf("cannot get customer details: server says no account exists")
-		case http.StatusUnauthorized:
-			return ErrInvalidCredentials
-		default:
-			var errors storeErrors
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&errors); err != nil {
-				return err
-			}
-			if len(errors.Errors) == 0 {
-				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-			}
-			return &errors
-		}
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var customer storeCustomer
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&customer); err != nil {
+			return err
+		}
+		if !customer.HasPaymentMethod {
+			return ErrNoPaymentMethods
+		}
+		if !customer.LatestTOSAccepted {
+			return ErrTOSNotAccepted
+		}
+		return nil
+	case http.StatusNotFound:
+		// Likely because user has no account registered on the pay server
+		return fmt.Errorf("cannot get customer details: server says no account exists")
+	case http.StatusUnauthorized:
+		return ErrInvalidCredentials
+	default:
+		var errors storeErrors
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errors); err != nil {
+			return err
+		}
+		if len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+		}
+		return &errors
+	}
 }
