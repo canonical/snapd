@@ -161,7 +161,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	case opts.Private:
 		q.Set("select", "private")
 	}
-	q.Set("section", opts.Section)
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
+	}
 
 	return client.snapsFromPath("/v2/find", q)
 }
