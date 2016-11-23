@@ -213,13 +213,13 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 
 	snapName := snapSetup.Name()
 
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	if err == nil && len(snapState.Sequence) != 0 {
+	if err == nil && len(snapst.Sequence) != 0 {
 		return fmt.Errorf("cannot discard connections for snap %q while it is present", snapName)
 	}
 	conns, err := getConns(st)

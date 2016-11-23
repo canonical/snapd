@@ -71,6 +71,7 @@ var allInterfaces = []interfaces.Interface{
 	NewOpenglInterface(),
 	NewOpticalDriveInterface(),
 	NewProcessControlInterface(),
+	NewRawUsbInterface(),
 	NewRemovableMediaInterface(),
 	NewScreenInhibitControlInterface(),
 	NewShutdownInterface(),
@@ -83,7 +84,6 @@ var allInterfaces = []interfaces.Interface{
 	NewTpmInterface(),
 	NewUPowerObserveInterface(),
 	NewUnity7Interface(),
-	NewUsbRawInterface(),
 	NewX11Interface(),
 }
 

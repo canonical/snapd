@@ -397,6 +397,11 @@ slots:
         - core
     deny-connection:
       on-classic: false
+  raw-usb:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   removable-media:
     allow-installation:
       slot-snap-type:
@@ -466,11 +471,6 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
-  usb-raw:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
   x11:
     allow-installation:
       slot-snap-type:
