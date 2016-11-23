@@ -106,6 +106,12 @@ if [ "$STATIC" = 1 ]; then
     for file in $(ls . | grep -v 'vendor\|po'); do
         ${GOBIN:-$GOPATH/bin}/misspell -error -i auther $file
     done
+
+    echo Checking for ineffective assignments
+    go get -u github.com/gordonklaus/ineffassign
+    for file in $(ls . | grep -v 'vendor\|po'); do
+        ${GOBIN:-$GOPATH/bin}/ineffassign $file
+    done
 fi
 
 if [ "$UNIT" = 1 ]; then
