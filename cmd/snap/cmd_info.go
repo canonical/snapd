@@ -78,7 +78,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "path:\t%q\n", path)
 	fmt.Fprintf(w, "name:\t%s\n", info.Name())
-	fmt.Fprintf(w, "summary:\t%s\n", info.Summary())
+	fmt.Fprintf(w, "summary:\t%q\n", info.Summary())
 
 	var notes *Notes
 	if verbose {
@@ -138,7 +138,7 @@ func (x *infoCmd) Execute([]string) error {
 		noneOK = false
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
-		fmt.Fprintf(w, "summary:\t%s\n", both.Summary)
+		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
