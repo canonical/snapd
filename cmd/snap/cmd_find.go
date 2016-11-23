@@ -120,6 +120,12 @@ func (x *cmdFind) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
+	// magic! `snap find` returns the featured snaps
+	if x.Positional.Query == "" && x.Section == "" {
+		x.Section = "featured"
+	}
+
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
 		Section: string(x.Section),

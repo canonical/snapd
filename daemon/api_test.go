@@ -316,6 +316,19 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
 }
 
+func (s *apiSuite) TestQuotedNames(c *check.C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		{[]string{}, ""},
+		{[]string{"snap1"}, `"snap1"`},
+		{[]string{"snap1", "snap2"}, `"snap1", "snap2"`},
+	} {
+		c.Check(quotedNames(t.in), check.Equals, t.out)
+	}
+}
+
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -4325,6 +4338,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 1)
 }
@@ -4379,6 +4393,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 2)
 }
