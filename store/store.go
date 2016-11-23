@@ -1292,7 +1292,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 
 		resp = r
 		switch resp.StatusCode {
-			case http.StatusOK, http.StatusPartialContent:
+		case http.StatusOK, http.StatusPartialContent:
 			break
 		case http.StatusUnauthorized:
 			return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
