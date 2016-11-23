@@ -21,8 +21,8 @@
 #include <stdbool.h>
 
 /**
- * Data required to manage apparmor wrapper. 
- */
+ * Type of apparmor confinement.
+ **/
 enum sc_apparmor_mode {
 	// The enforcement mode was not recognized.
 	SC_AA_INVALID = -1,
@@ -34,6 +34,9 @@ enum sc_apparmor_mode {
 	SC_AA_COMPLAIN,
 };
 
+/**
+ * Data required to manage apparmor wrapper.
+ **/
 struct sc_apparmor {
 	// The mode of enforcement. In addition to the two apparmor defined modes
 	// can be also SC_AA_INVALID (unknown mode reported by apparmor) and
