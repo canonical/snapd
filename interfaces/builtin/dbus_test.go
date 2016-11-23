@@ -390,6 +390,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	c.Check(string(snippet), testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
+	c.Check(string(snippet), testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
