@@ -144,13 +144,13 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	c.Assert(st.Changes(), HasLen, 2)
 	c.Assert(st.Tasks(), HasLen, 2)
 
-	var ss snapstate.SnapSetup
+	var snapsup snapstate.SnapSetup
 	// transition of:
 	// - SnapSetup.{Name,Revision} -> SnapSetup.SideInfo.{RealName,Revision}
 	t := st.Task("1")
-	err = t.Get("snap-setup", &ss)
+	err = t.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R("x3"),
 	})
@@ -166,9 +166,9 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	// transition of:
 	// - Candidate for "bar" -> tasks SnapSetup.SideInfo
 	t = st.Task("2")
-	err = t.Get("snap-setup", &ss)
+	err = t.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "bar",
 		Revision: snap.R("x1"),
 	})
