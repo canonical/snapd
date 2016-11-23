@@ -733,6 +733,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(1024)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",

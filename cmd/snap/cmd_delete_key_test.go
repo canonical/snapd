@@ -50,6 +50,7 @@ func (s *SnapKeysSuite) TestDeleteKey(c *C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 	_, err = snap.Parser().ParseArgs([]string{"keys", "--json"})
+	c.Assert(err, IsNil)
 	expectedResponse := []snap.Key{
 		snap.Key{
 			Name:     "default",
