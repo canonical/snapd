@@ -142,6 +142,7 @@ func makeTestSnap(c *C, yaml string) string {
 	snapSource := filepath.Join(tmp, "snapsrc")
 
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)

@@ -162,6 +162,17 @@ type Info struct {
 	MustBuy bool
 
 	Screenshots []ScreenshotInfo
+	Channels    map[string]*Ref
+}
+
+// Ref is the minimum information that can be used to clearly
+// distinguish different revisions of the same snap.
+type Ref struct {
+	Revision    Revision        `json:"revision"`
+	Confinement ConfinementType `json:"confinement"`
+	Version     string          `json:"version"`
+	Channel     string          `json:"channel"`
+	Epoch       string          `json:"epoch"`
 }
 
 // Name returns the blessed name for the snap.
