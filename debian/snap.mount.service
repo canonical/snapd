@@ -1,5 +1,6 @@
 [Unit]
 Description=Apply special mount sharing to /snap directory
+ConditionPathExists=!/run/systemd/initctl/fifo
 Before=snapd.service
 
 [Service]
@@ -11,4 +12,4 @@ ExecStop=/bin/umount -l /snap
 RemainAfterExit=yes
 
 [Install]
-WantedBy=local-fs.target
+WantedBy=local-fs-pre.target

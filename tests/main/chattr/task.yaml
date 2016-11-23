@@ -2,6 +2,7 @@ summary: test chattr
 # ubuntu-core doesn't have go :-)
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 prepare: |
+  export PATH=/usr/lib/go-1.6/bin:${PATH}
   go build -o toggle ./toggle.go
 execute: |
   touch foo
