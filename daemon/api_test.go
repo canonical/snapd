@@ -4318,6 +4318,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 1)
 }
@@ -4372,6 +4373,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 2)
 }

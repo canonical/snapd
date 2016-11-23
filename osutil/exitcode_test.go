@@ -45,6 +45,7 @@ func (ts *ExitCodeTestSuite) TestExitCode(c *C) {
 	cmd = exec.Command("sh", "-c", "exit 7")
 	err = cmd.Run()
 	e, err = ExitCode(err)
+	c.Assert(err, IsNil)
 	c.Assert(e, Equals, 7)
 
 	// ensure that non exec.ExitError values give a error
