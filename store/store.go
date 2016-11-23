@@ -955,11 +955,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	} else {
 		q.Set("q", searchTerm)
 	}
-
-	// FIXME: store behaves differently if this is omitted from it being
-	// empty, see:
-	// https://github.com/snapcore/snapd/pull/2288#discussion_r89266741
-	q.Set("section", search.Section)
+	if search.Section != "" {
+		q.Set("section", search.Section)
+	}
 
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
