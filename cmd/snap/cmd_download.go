@@ -119,7 +119,7 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	dlOpts := image.DownloadOptions{
 		TargetDir: "", // cwd
-		DevMode:   devMode,
+		Devmode:   devMode,
 		Channel:   x.Channel,
 		User:      user,
 	}

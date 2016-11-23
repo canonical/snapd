@@ -674,8 +674,8 @@ type snapInstruction struct {
 	Action           string        `json:"action"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
-	DevMode          bool          `json:"devmode"`
-	JailMode         bool          `json:"jailmode"`
+	Devmode          bool          `json:"devmode"`
+	Jailmode         bool          `json:"jailmode"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
@@ -746,22 +746,22 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 }
 
 var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
-var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
+var errNoJailmode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+	devModeOS := release.ReleaseInfo.ForceDevmode()
 	flags := snapstate.Flags{}
 	if jailMode {
 		if devModeOS {
-			return flags, errNoJailMode
+			return flags, errNoJailmode
 		}
 		if devMode {
 			return flags, errModeConflict
 		}
-		flags.JailMode = true
+		flags.Jailmode = true
 	}
 	if devMode || devModeOS {
-		flags.DevMode = true
+		flags.Devmode = true
 	}
 
 	return flags, nil
@@ -825,7 +825,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.Devmode, inst.Jailmode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -850,7 +850,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.Devmode, inst.Jailmode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -909,7 +909,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.Devmode, inst.Jailmode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1081,7 +1081,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.Devmode || inst.Jailmode {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 

@@ -34,23 +34,23 @@ func init() {
 type patch4Flags int
 
 const (
-	patch4FlagDevMode = 1 << iota
+	patch4FlagDevmode = 1 << iota
 	patch4FlagTryMode
-	patch4FlagJailMode
+	patch4FlagJailmode
 )
 
 const patch4FlagRevert = patch4Flags(0x40000000)
 
-func (f patch4Flags) DevMode() bool {
-	return f&patch4FlagDevMode != 0
+func (f patch4Flags) Devmode() bool {
+	return f&patch4FlagDevmode != 0
 }
 
 func (f patch4Flags) TryMode() bool {
 	return f&patch4FlagTryMode != 0
 }
 
-func (f patch4Flags) JailMode() bool {
-	return f&patch4FlagJailMode != 0
+func (f patch4Flags) Jailmode() bool {
+	return f&patch4FlagJailmode != 0
 }
 
 func (f patch4Flags) Revert() bool {

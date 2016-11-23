@@ -58,7 +58,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		SnapID: "snapidsnapidsnapid",
 
 		Channel: "stable",
-		DevMode: true,
+		Devmode: true,
 	})
 	c.Assert(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
 		File:       "local.snap",

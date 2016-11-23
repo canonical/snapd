@@ -21,11 +21,11 @@ package snapstate
 
 // Flags are used to pass additional flags to operations and to keep track of snap modes.
 type Flags struct {
-	// DevMode switches confinement to non-enforcing mode.
-	DevMode bool `json:"devmode,omitempty"`
-	// JailMode is set when the user has requested confinement
+	// Devmode switches confinement to non-enforcing mode.
+	Devmode bool `json:"devmode,omitempty"`
+	// Jailmode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
-	JailMode bool `json:"jailmode,omitempty"`
+	Jailmode bool `json:"jailmode,omitempty"`
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode bool `json:"trymode,omitempty"`
 
@@ -40,9 +40,9 @@ type Flags struct {
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 }
 
-// DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
-func (f Flags) DevModeAllowed() bool {
-	return f.DevMode || f.JailMode
+// DevmodeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
+func (f Flags) DevmodeAllowed() bool {
+	return f.Devmode || f.Jailmode
 }
 
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)

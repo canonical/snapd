@@ -312,8 +312,8 @@ func (mx *channelMixin) asksForChannel() bool {
 }
 
 type modeMixin struct {
-	DevMode  bool `long:"devmode"`
-	JailMode bool `long:"jailmode"`
+	Devmode  bool `long:"devmode"`
+	Jailmode bool `long:"jailmode"`
 }
 
 var modeDescs = mixinDescs{
@@ -324,14 +324,14 @@ var modeDescs = mixinDescs{
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
 
 func (mx modeMixin) validateMode() error {
-	if mx.DevMode && mx.JailMode {
+	if mx.Devmode && mx.Jailmode {
 		return errModeConflict
 	}
 	return nil
 }
 
 func (mx modeMixin) asksForMode() bool {
-	return mx.DevMode || mx.JailMode
+	return mx.Devmode || mx.Jailmode
 }
 
 type cmdInstall struct {
@@ -425,8 +425,8 @@ func (x *cmdInstall) Execute([]string) error {
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
 		Channel:   x.Channel,
-		DevMode:   x.DevMode,
-		JailMode:  x.JailMode,
+		Devmode:   x.Devmode,
+		Jailmode:  x.Jailmode,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
@@ -516,7 +516,7 @@ func listRefresh() error {
 	for _, snap := range snaps {
 		notes := &Notes{
 			Private: snap.Private,
-			DevMode: snap.DevMode,
+			Devmode: snap.Devmode,
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}
@@ -542,8 +542,8 @@ func (x *cmdRefresh) Execute([]string) error {
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
-			DevMode:          x.DevMode,
-			JailMode:         x.JailMode,
+			Devmode:          x.Devmode,
+			Jailmode:         x.Jailmode,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
 		}
@@ -575,8 +575,8 @@ func (x *cmdTry) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.SnapDir
 	opts := &client.SnapOptions{
-		DevMode:  x.DevMode,
-		JailMode: x.JailMode,
+		Devmode:  x.Devmode,
+		Jailmode: x.Jailmode,
 	}
 
 	path, err := filepath.Abs(name)
@@ -695,7 +695,7 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
+	opts := &client.SnapOptions{Devmode: x.Devmode, Jailmode: x.Jailmode, Revision: x.Revision}
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err

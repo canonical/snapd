@@ -45,8 +45,8 @@ var _ = Suite(&backendSuite{})
 
 var testedConfinementOpts = []interfaces.ConfinementOptions{
 	{},
-	{DevMode: true},
-	{JailMode: true},
+	{Devmode: true},
+	{Jailmode: true},
 	{Classic: true},
 }
 
@@ -334,14 +334,14 @@ snippet
 }
 `,
 }, {
-	opts: interfaces.ConfinementOptions{DevMode: true},
+	opts: interfaces.ConfinementOptions{Devmode: true},
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 
 }
 `,
 }, {
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:    interfaces.ConfinementOptions{Devmode: true},
 	snippet: "snippet",
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {

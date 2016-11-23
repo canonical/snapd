@@ -47,19 +47,19 @@ import (
 // The three types defined above map to some combinations of the three flags
 // defined below.
 //
-// The DevMode flag attempts to switch all confinement facilities into
+// The Devmode flag attempts to switch all confinement facilities into
 // non-enforcing mode even if the snap requested otherwise.
 //
-// The JailMode flag attempts to switch all confinement facilities into
+// The Jailmode flag attempts to switch all confinement facilities into
 // enforcing mode even if the snap requested otherwise.
 //
 // The Classic flag switches the layout of the mount namespace so that there's
 // no "chroot" to the core snap.
 type ConfinementOptions struct {
-	// DevMode flag switches confinement to non-enforcing mode.
-	DevMode bool
-	// JailMode flag switches confinement to enforcing mode.
-	JailMode bool
+	// Devmode flag switches confinement to non-enforcing mode.
+	Devmode bool
+	// Jailmode flag switches confinement to enforcing mode.
+	Jailmode bool
 	// Classic flag switches the core snap "chroot" off.
 	Classic bool
 }

@@ -591,7 +591,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	c.Check(seed.Snaps[last], DeepEquals, &snap.SeedSnap{
 		Name:       "devmode-snap",
 		File:       fn,
-		DevMode:    true,
+		Devmode:    true,
 		Unasserted: true,
 	})
 }

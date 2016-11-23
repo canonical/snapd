@@ -35,9 +35,9 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
-// ForceDevMode returns true if the distribution doesn't implement required
+// ForceDevmode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
-func (os *OS) ForceDevMode() bool {
+func (os *OS) ForceDevmode() bool {
 	switch os.ID {
 	case "neon":
 		return false

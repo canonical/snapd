@@ -254,9 +254,9 @@ func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 
-// NeedsDevMode retursn whether the snap needs devmode.
-func (s *Info) NeedsDevMode() bool {
-	return s.Confinement == DevModeConfinement
+// NeedsDevmode retursn whether the snap needs devmode.
+func (s *Info) NeedsDevmode() bool {
+	return s.Confinement == DevmodeConfinement
 }
 
 // DownloadInfo contains the information to download a snap.

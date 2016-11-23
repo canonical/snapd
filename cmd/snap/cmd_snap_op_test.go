@@ -186,7 +186,7 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
+func (s *SnapOpSuite) TestInstallDevmode(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -232,7 +232,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
+func (s *SnapOpSuite) TestInstallPathDevmode(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		postData, err := ioutil.ReadAll(r.Body)
@@ -469,10 +469,10 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestTryNoDevMode(c *check.C) {
+func (s *SnapOpSuite) TestTryNoDevmode(c *check.C) {
 	s.runTryTest(c, false)
 }
-func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
+func (s *SnapOpSuite) TestTryDevmode(c *check.C) {
 	s.runTryTest(c, true)
 }
 

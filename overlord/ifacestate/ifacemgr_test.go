@@ -900,11 +900,11 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
-// The setup-profiles task will honor snapstate.DevMode flag by storing it
+// The setup-profiles task will honor snapstate.Devmode flag by storing it
 // in the SnapState.Flags and by actually setting up security
-// using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
+// using that flag. Old copy of SnapState.Flag's Devmode is saved for the undo
 // handler under `old-devmode`.
-func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
+func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevmode(c *C) {
 	// Put the OS snap in place.
 	mgr := s.manager(c)
 
@@ -918,7 +918,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 			RealName: snapInfo.Name(),
 			Revision: snapInfo.Revision,
 		},
-		Flags: snapstate.Flags{DevMode: true},
+		Flags: snapstate.Flags{Devmode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -930,11 +930,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// The snap was setup with DevModeConfinement
+	// The snap was setup with DevmodeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
-	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{Devmode: true})
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
@@ -1328,7 +1328,7 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
-func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
+func (s *interfaceManagerSuite) TestSetupProfilesDevmodeMultiple(c *C) {
 	mgr := s.manager(c)
 	repo := mgr.Repository()
 
@@ -1367,7 +1367,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 			RealName: siC.Name(),
 			Revision: siC.Revision,
 		},
-		Flags: snapstate.Flags{DevMode: true},
+		Flags: snapstate.Flags{Devmode: true},
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -1384,7 +1384,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
-	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{Devmode: true})
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }

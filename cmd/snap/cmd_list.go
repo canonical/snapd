@@ -79,12 +79,12 @@ func listSnaps(names []string) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
-		// TODO: make JailMode a flag in the snap itself
-		jailMode := snap.Confinement == client.DevModeConfinement && !snap.DevMode
+		// TODO: make Jailmode a flag in the snap itself
+		jailMode := snap.Confinement == client.DevmodeConfinement && !snap.Devmode
 		notes := &Notes{
 			Private:  snap.Private,
-			DevMode:  snap.DevMode,
-			JailMode: jailMode,
+			Devmode:  snap.Devmode,
+			Jailmode: jailMode,
 			TryMode:  snap.TryMode,
 			// FIXME: a bit confusing, a installed snap
 			//        is either "active" or "installed", so

@@ -289,13 +289,13 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
-func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManyDevmode(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Flags:  snapstate.Flags{DevMode: true},
+		Flags:  snapstate.Flags{Devmode: true},
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
 		},
@@ -308,13 +308,13 @@ func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
 	c.Check(updates, HasLen, 1)
 }
 
-func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
+func (s *snapmgrTestSuite) TestUpdateAllDevmode(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Flags:  snapstate.Flags{DevMode: true},
+		Flags:  snapstate.Flags{Devmode: true},
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
 		},
@@ -690,7 +690,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	c.Check(snapsup.Channel, Equals, "edge")
 }
 
-func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
+func (s *snapmgrTestSuite) TestUpdatePassDevmode(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -701,7 +701,7 @@ func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{Devmode: true})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
@@ -711,7 +711,7 @@ func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 			Epoch:    "",
-			DevMode:  true,
+			Devmode:  true,
 			Channel:  "some-channel",
 		},
 		revno: snap.R(11),
@@ -957,7 +957,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
+				Devmode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1123,7 +1123,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
+				Devmode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1282,7 +1282,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
+				Devmode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1482,7 +1482,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	// hook it up
 	snapstate.ValidateRefreshes = validateRefreshes
 
-	flags := snapstate.Flags{JailMode: true, IgnoreValidation: true}
+	flags := snapstate.Flags{Jailmode: true, IgnoreValidation: true}
 	ts, err := snapstate.Update(s.state, "some-snap", "stable", snap.R(0), s.user.ID, flags)
 	c.Assert(err, IsNil)
 
@@ -1525,7 +1525,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 			Epoch:    "",
-			DevMode:  false,
+			Devmode:  false,
 			Channel:  "some-channel",
 		},
 	})
@@ -1565,7 +1565,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			DevMode:  false,
+			Devmode:  false,
 		},
 	})
 
@@ -1603,7 +1603,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			DevMode:  false,
+			Devmode:  false,
 			Block:    []snap.Revision{snap.R(11)},
 		},
 	})
@@ -3459,11 +3459,11 @@ type snapStateSuite struct{}
 
 var _ = Suite(&snapStateSuite{})
 
-func (s *snapStateSuite) TestSnapStateDevMode(c *C) {
+func (s *snapStateSuite) TestSnapStateDevmode(c *C) {
 	snapst := &snapstate.SnapState{}
-	c.Check(snapst.DevMode, Equals, false)
-	snapst.Flags.DevMode = true
-	c.Check(snapst.DevMode, Equals, true)
+	c.Check(snapst.Devmode, Equals, false)
+	snapst.Flags.Devmode = true
+	c.Check(snapst.Devmode, Equals, true)
 }
 
 func (s *snapStateSuite) TestSnapStateType(c *C) {
