@@ -378,6 +378,20 @@ func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
 
+func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.systemSlot, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
+}
+
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 	iface := &builtin.DbusInterface{}
 	snippet, err := iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
