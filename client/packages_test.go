@@ -47,6 +47,29 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientFindRefreshSetsQueryWithSec(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Refresh: true,
+		Section: "mysection",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "section": []string{"mysection"}, "select": []string{"refresh"},
+	})
+}
+
+func (cs *clientSuite) TestClientFindWithSectionSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Section: "mysection",
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "section": []string{"mysection"},
+	})
+}
+
 func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{
 		Private: true,

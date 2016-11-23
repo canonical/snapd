@@ -94,6 +94,7 @@ type FindOptions struct {
 	Private bool
 	Prefix  bool
 	Query   string
+	Section string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
@@ -129,6 +130,16 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
+// Sections returns the list of existing snap sections in the store
+func (client *Client) Sections() ([]string, error) {
+	var sections []string
+	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap sections: %s", err)
+	}
+	return sections, nil
+}
+
 // Find returns a list of snaps available for install from the
 // store for this system and that match the query
 func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
@@ -149,6 +160,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	case opts.Private:
 		q.Set("select", "private")
+	}
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
 	}
 
 	return client.snapsFromPath("/v2/find", q)

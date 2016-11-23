@@ -1751,16 +1751,29 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 
 		name := query.Get("name")
 		q := query.Get("q")
+		section := query.Get("section")
 
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
+			c.Check(section, Equals, "")
 		case 1:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(section, Equals, "")
+		case 2:
+			c.Check(r.URL.Path, Equals, "/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "")
+			c.Check(section, Equals, "db")
+		case 3:
+			c.Check(r.URL.Path, Equals, "/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "hello")
+			c.Check(section, Equals, "db")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -1784,9 +1797,72 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	for _, query := range []Search{
 		{Query: "hello", Prefix: true},
 		{Query: "hello"},
+		{Section: "db"},
+		{Query: "hello", Section: "db"},
 	} {
 		repo.Find(&query, nil)
 	}
+}
+
+/* acquired via:
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/snaps/sections'
+*/
+const MockSectionsJSON = `{
+  "_embedded": {
+    "clickindex:sections": [
+      {
+        "name": "featured"
+      }, 
+      {
+        "name": "database"
+      }
+    ]
+  }, 
+  "_links": {
+    "curies": [
+      {
+        "href": "https://search.apps.ubuntu.com/docs/#reltype-{rel}", 
+        "name": "clickindex", 
+        "templated": true, 
+        "type": "text/html"
+      }
+    ], 
+    "self": {
+      "href": "http://search.apps.ubuntu.com/api/v1/snaps/sections"
+    }
+  }
+}
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/snaps/sections")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockSectionsJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	searchSectionsURI, _ := serverURL.Parse("/snaps/sections")
+	cfg := Config{
+		SectionsURI: searchSectionsURI,
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	sections, err := repo.Sections(t.user)
+	c.Check(err, IsNil)
+	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
@@ -1836,9 +1912,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, nil)
-	_, err := repo.Find(&Search{}, nil)
-	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
+	_, err := repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
 	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user)
 	c.Check(err, Equals, ErrBadQuery)

@@ -142,6 +142,7 @@ type Config struct {
 	AssertionsURI  *url.URL
 	OrdersURI      *url.URL
 	CustomersMeURI *url.URL
+	SectionsURI    *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
@@ -161,6 +162,7 @@ type Store struct {
 	assertionsURI  *url.URL
 	ordersURI      *url.URL
 	customersMeURI *url.URL
+	sectionsURI    *url.URL
 
 	architecture string
 	series       string
@@ -329,11 +331,22 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	defaultConfig.SectionsURI, err = storeBaseURI.Parse("snaps/sections")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type searchResults struct {
 	Payload struct {
 		Packages []snapDetails `json:"clickindex:package"`
+	} `json:"_embedded"`
+}
+
+type sectionResults struct {
+	Payload struct {
+		Sections []struct{ Name string } `json:"clickindex:sections"`
 	} `json:"_embedded"`
 }
 
@@ -378,6 +391,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
+	var sectionsURI *url.URL
+	if cfg.SectionsURI != nil {
+		uri := *cfg.SectionsURI
+		uri.RawQuery = rawQuery
+		sectionsURI = &uri
+	}
+
 	architecture := arch.UbuntuArchitecture()
 	if cfg.Architecture != "" {
 		architecture = cfg.Architecture
@@ -401,6 +421,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		assertionsURI:   cfg.AssertionsURI,
 		ordersURI:       cfg.OrdersURI,
 		customersMeURI:  cfg.CustomersMeURI,
+		sectionsURI:     sectionsURI,
 		series:          series,
 		architecture:    architecture,
 		fallbackStoreID: cfg.StoreID,
@@ -962,6 +983,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 // A Search is what you do in order to Find something
 type Search struct {
 	Query   string
+	Section string
 	Private bool
 	Prefix  bool
 }
@@ -976,10 +998,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	searchTerm = strings.TrimSpace(searchTerm)
-
-	if searchTerm == "" {
-		return nil, ErrEmptyQuery
-	}
 
 	// these characters might have special meaning on the search
 	// server, and don't form part of a reasonable search, so
@@ -1009,6 +1027,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	} else {
 		q.Set("q", searchTerm)
 	}
+
+	// FIXME: store behaves differently if this is omitted from it being
+	// empty, see:
+	// https://github.com/snapcore/snapd/pull/2288#discussion_r89266741
+	q.Set("section", search.Section)
 
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
@@ -1053,6 +1076,48 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	s.extractSuggestedCurrency(resp)
 
 	return snaps, nil
+}
+
+// Sections retrieves the list of available store sections.
+func (s *Store) Sections(user *auth.UserState) ([]string, error) {
+	u := *s.sectionsURI // make a copy, so we can mutate it
+
+	q := u.Query()
+
+	u.RawQuery = q.Encode()
+
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
+	}
+
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, respToError(resp, "sections")
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
+	}
+
+	var sectionData sectionResults
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&sectionData); err != nil {
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
+	}
+	var sectionNames []string
+	for _, s := range sectionData.Payload.Sections {
+		sectionNames = append(sectionNames, s.Name)
+	}
+
+	return sectionNames, nil
 }
 
 // RefreshCandidate contains information for the store about the currently
