@@ -151,7 +151,7 @@ func (x *infoCmd) Execute([]string) error {
 		if local != nil {
 			var notes *Notes
 			if x.Verbose {
-				jailMode := local.Confinement == client.DevmodeConfinement && !local.DevMode
+				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
 				fmt.Fprintf(w, "  devmode:\t%t\n", local.DevMode)
 				fmt.Fprintf(w, "  jailmode:\t%t\n", jailMode)
 				fmt.Fprintf(w, "  trymode:\t%t\n", local.TryMode)

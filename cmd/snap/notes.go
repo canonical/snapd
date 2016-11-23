@@ -69,7 +69,7 @@ func NotesFromRef(ref *snap.Ref) *Notes {
 func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 	notes := &Notes{
 		Private: snap.Private,
-		DevMode: snap.Confinement == client.DevmodeConfinement,
+		DevMode: snap.Confinement == client.DevModeConfinement,
 	}
 	if resInfo != nil {
 		notes.Price = getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status)
@@ -79,7 +79,7 @@ func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 }
 
 func NotesFromLocal(snap *client.Snap) *Notes {
-	jailMode := snap.Confinement == client.DevmodeConfinement && !snap.DevMode
+	jailMode := snap.Confinement == client.DevModeConfinement && !snap.DevMode
 	return &Notes{
 		Private:  snap.Private,
 		DevMode:  snap.DevMode,
@@ -93,7 +93,7 @@ func NotesFromLocal(snap *client.Snap) *Notes {
 func NotesFromInfo(info *snap.Info) *Notes {
 	return &Notes{
 		Private: info.Private,
-		DevMode: info.Confinement == client.DevmodeConfinement,
+		DevMode: info.Confinement == client.DevModeConfinement,
 		Broken:  info.Broken != "",
 	}
 }
