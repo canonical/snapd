@@ -33,3 +33,9 @@ execute: |
     test-snapd-tools +.*? *\n\
     .*"
     snap find test-snapd- | grep -Pzq "$expected"
+
+    # cassandra only available for amd64
+    if [ $(uname -m) = "x86_64" ]; then
+        echo "List of snaps in a section works"
+        snap find --section=database | MATCH cassandra
+    fi
