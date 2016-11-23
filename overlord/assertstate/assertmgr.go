@@ -341,8 +341,8 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapState := range snapStates {
-			info, err := snapState.CurrentInfo()
+		for _, snapst := range snapStates {
+			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return err
 			}
@@ -385,8 +385,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	if err != nil {
 		return nil, err
 	}
-	for snapName, snapState := range snapStates {
-		info, err := snapState.CurrentInfo()
+	for snapName, snapst := range snapStates {
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
