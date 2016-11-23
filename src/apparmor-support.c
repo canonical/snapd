@@ -35,7 +35,7 @@
 #define SC_AA_ENFORCE_STR "enforce"
 #define SC_AA_COMPLAIN_STR "complain"
 
-enum sc_mode {
+enum sc_apparmor_mode {
 	// The enforcement mode was not recognized.
 	SC_AA_INVALID = -1,
 	// The enforcement mode is not applicable because apparmor is disabled.
@@ -50,7 +50,7 @@ struct sc_apparmor {
 	// The mode of enforcement. In addition to the two apparmor defined modes
 	// can be also SC_AA_INVALID (unknown mode reported by apparmor) and
 	// SC_AA_NOT_APPLICABLE (when we're not linked with apparmor).
-	enum sc_mode mode;
+	enum sc_apparmor_mode mode;
 	// Flag indicating that the current process is confined.
 	bool is_confined;
 };
