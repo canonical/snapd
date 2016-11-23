@@ -86,6 +86,6 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
  **/
 void
 sc_maybe_aa_change_hat(struct sc_apparmor *apparmor,
-		       const char *subprofile, unsigned long magic_token)
+		       const char *subprofile, unsigned long magic_token);
 
 #endif
