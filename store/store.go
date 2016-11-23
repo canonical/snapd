@@ -228,11 +228,11 @@ func getStructFields(s interface{}) []string {
 }
 
 func useDeltas() bool {
-	return os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1"
+	return osutil.EnvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
 }
 
 func useStaging() bool {
-	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+	return osutil.EnvBool("SNAPPY_USE_STAGING_STORE")
 }
 
 func cpiURL() string {
@@ -240,8 +240,8 @@ func cpiURL() string {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
-	if os.Getenv("SNAPPY_FORCE_CPI_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_CPI_URL")
+	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
+		return u
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -255,8 +255,8 @@ func authLocation() string {
 }
 
 func authURL() string {
-	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_SSO_URL")
+	if u := os.Getenv("SNAPPY_FORCE_SSO_URL"); u != "" {
+		return u
 	}
 	return "https://" + authLocation() + "/api/v2"
 }
@@ -266,8 +266,8 @@ func assertsURL() string {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
-	if os.Getenv("SNAPPY_FORCE_SAS_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_SAS_URL")
+	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
+		return u
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
