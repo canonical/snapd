@@ -60,7 +60,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
 	rawSnippetMap := map[string][][]byte{
-		"security-tag": [][]byte{
+		"security-tag": {
 			[]byte(`{"services": {"foo.service": {"exec-start": "/bin/true"}}}`),
 			[]byte(`{"services": {"bar.service": {"exec-start": "/bin/false"}}}`),
 		},
@@ -68,13 +68,13 @@ func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
 	richSnippetMap, err := systemd.UnmarshalRawSnippetMap(rawSnippetMap)
 	c.Assert(err, IsNil)
 	c.Assert(richSnippetMap, DeepEquals, map[string][]*systemd.Snippet{
-		"security-tag": []*systemd.Snippet{
-			&systemd.Snippet{
+		"security-tag": {
+			{
 				Services: map[string]systemd.Service{
 					"foo.service": {ExecStart: "/bin/true"},
 				},
 			},
-			&systemd.Snippet{
+			{
 				Services: map[string]systemd.Service{
 					"bar.service": {ExecStart: "/bin/false"},
 				},
@@ -85,15 +85,15 @@ func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
 
 func (s *backendSuite) TestMergeSnippetMapOK(c *C) {
 	snippetMap := map[string][]*systemd.Snippet{
-		"security-tag": []*systemd.Snippet{
-			&systemd.Snippet{
+		"security-tag": {
+			{
 				Services: map[string]systemd.Service{
 					"foo.service": {ExecStart: "/bin/true"},
 				},
 			},
 		},
-		"another-tag": []*systemd.Snippet{
-			&systemd.Snippet{
+		"another-tag": {
+			{
 				Services: map[string]systemd.Service{
 					"bar.service": {ExecStart: "/bin/false"},
 				},
@@ -112,15 +112,15 @@ func (s *backendSuite) TestMergeSnippetMapOK(c *C) {
 
 func (s *backendSuite) TestMergeSnippetMapClashing(c *C) {
 	snippetMap := map[string][]*systemd.Snippet{
-		"security-tag": []*systemd.Snippet{
-			&systemd.Snippet{
+		"security-tag": {
+			{
 				Services: map[string]systemd.Service{
 					"foo.service": {ExecStart: "/bin/true"},
 				},
 			},
 		},
-		"another-tag": []*systemd.Snippet{
-			&systemd.Snippet{
+		"another-tag": {
+			{
 				Services: map[string]systemd.Service{
 					"foo.service": {ExecStart: "/bin/evil"},
 				},
@@ -141,7 +141,7 @@ func (s *backendSuite) TestRenderSnippet(c *C) {
 	content, err := systemd.RenderSnippet(snippet)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		"foo.service": &osutil.FileState{
+		"foo.service": {
 			Content: []byte("[Service]\nExecStart=/bin/true\n\n[Install]\nWantedBy=multi-user.target\n"),
 			Mode:    0644,
 		},

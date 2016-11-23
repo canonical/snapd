@@ -149,6 +149,7 @@ func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
 	} {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
+		c.Assert(err, IsNil)
 		err = InstallBootConfig(mockGadgetDir)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(dirs.GlobalRootDir, t.systemFile)

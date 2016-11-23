@@ -83,7 +83,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -l $GOPATH/src/$pkg)"
+        s="$(gofmt -s -l $GOPATH/src/$pkg)"
         if [ -n "$s" ]; then
             fmt="$s\n$fmt"
         fi
