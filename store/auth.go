@@ -86,6 +86,9 @@ func requestStoreMacaroon() (string, error) {
 		"permissions": []string{"package_access", "package_purchase"},
 	}
 	macaroonJSONData, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
 
 	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {

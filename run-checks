@@ -83,7 +83,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -l $GOPATH/src/$pkg)"
+        s="$(gofmt -s -l $GOPATH/src/$pkg)"
         if [ -n "$s" ]; then
             fmt="$s\n$fmt"
         fi
@@ -105,6 +105,12 @@ if [ "$STATIC" = 1 ]; then
     go get -u github.com/client9/misspell/cmd/misspell
     for file in $(ls . | grep -v 'vendor\|po'); do
         ${GOBIN:-$GOPATH/bin}/misspell -error -i auther $file
+    done
+
+    echo Checking for ineffective assignments
+    go get -u github.com/gordonklaus/ineffassign
+    for file in $(ls . | grep -v 'vendor\|po'); do
+        ${GOBIN:-$GOPATH/bin}/ineffassign $file
     done
 fi
 

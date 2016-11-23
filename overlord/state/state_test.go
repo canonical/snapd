@@ -327,6 +327,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 
 	var v int
 	err = chg0.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(chg0.Status(), Equals, state.ErrorStatus)
@@ -434,6 +435,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	var v int
 	err = task0_1.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
