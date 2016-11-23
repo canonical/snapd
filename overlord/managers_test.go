@@ -702,6 +702,8 @@ version: @VERSION@
 	ms.serveSnap(snapPath, revno)
 
 	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0)
+	c.Check(updated, IsNil)
+	c.Check(tss, IsNil)
 	// no validation we, get an error
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to revision 50: no validation by "bar"`)
 
