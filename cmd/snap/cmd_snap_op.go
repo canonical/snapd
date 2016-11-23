@@ -585,9 +585,15 @@ func (x *cmdTry) Execute([]string) error {
 			if stat, err := os.Stat("prime"); err == nil && stat.IsDir() {
 				name = "prime"
 			}
+		} else {
+			if stat, err := os.Stat("meta"); err == nil && stat.IsDir() {
+				if _, err := os.Stat("meta/snap.yaml"); err == nil {
+					name = "./"
+				}
+			}
 		}
 		if name == "" {
-			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and `prime` directory couldn't be found"))
+			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and neither `prime` nor `meta` directory could be found"))
 		}
 	}
 
