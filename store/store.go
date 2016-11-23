@@ -1632,6 +1632,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	switch resp.StatusCode {
 	case http.StatusOK:
 		var customer storeCustomer
