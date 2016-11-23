@@ -18,7 +18,7 @@ execute: |
     fi
 
     echo "Exact matches"
-    for snapName in test-snapd-tools xkcd-webserver
+    for snapName in test-snapd-tools test-snapd-python-webserver
     do
         expected="(?s)Name +Version +Developer +Notes +Summary *\n\
     (.*?\n)?\
