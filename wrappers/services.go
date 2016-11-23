@@ -152,9 +152,13 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 		if app.Daemon == "" {
 			continue
 		}
-		nservices++
-
+		if _, err := os.Stat(app.ServiceFile()); os.IsNotExist(err) {
+			// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
+			// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
+			continue
+		}
 		serviceName := filepath.Base(app.ServiceFile())
+		nservices++
 		tout := serviceStopTimeout(app)
 		if err := sysd.Stop(serviceName, tout); err != nil {
 			if !systemd.IsTimeout(err) {
