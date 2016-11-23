@@ -1314,7 +1314,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		}
 		return err
 	}
-	panic("unreachable")
+	return err
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
