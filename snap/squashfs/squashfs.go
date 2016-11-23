@@ -63,7 +63,7 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// snap when we "install" a squashfs snap in the tests.
 	// We can not mount it for real in the tests, so we just unpack
 	// it to the location which is good enough for the tests.
-	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
+	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
 		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
