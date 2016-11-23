@@ -73,7 +73,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor);
  * environment variable is set then the process is not terminated.
  **/
 void
-sc_maybe_aa_chagne_onexec(struct sc_apparmor *apparmor, const char *profile);
+sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
 
 /**
  * Maybe call aa_change_hat(2)
