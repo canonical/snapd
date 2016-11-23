@@ -176,3 +176,28 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 
 	return false
 }
+
+// InUse checks if the given name/revision is used in the
+// boot environment
+func InUse(name string, rev snap.Revision) bool {
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		logger.Noticef("cannot get boot settings: %s", err)
+		return false
+	}
+
+	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
+	if err != nil {
+		logger.Noticef("cannot get boot vars: %s", err)
+		return false
+	}
+
+	snapFile := filepath.Base(snap.MountFile(name, rev))
+	for _, bootVar := range bootVars {
+		if bootVar == snapFile {
+			return true
+		}
+	}
+
+	return false
+}
