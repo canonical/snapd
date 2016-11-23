@@ -6,6 +6,16 @@ execute: |
     (.*?\n)?\
     .*"
     snap find | grep -Pzq "$expected"
+    if [ $(snap find | wc -l) -gt 50 ]; then
+        echo "Found more than 50 featured apps, this seems bogus:"
+        snap find
+        exit 1
+    fi
+    if [ $(snap find | wc -l) -lt 3 ]; then
+        echo "Found less than 3 featured apps, this seems bogus:"
+        snap find
+        exit 1
+    fi
 
     echo "Exact matches"
     for snapName in test-snapd-tools xkcd-webserver
