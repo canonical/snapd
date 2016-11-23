@@ -519,11 +519,7 @@ func listRefresh() error {
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 	for _, snap := range snaps {
-		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.DevMode,
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromRemote(snap, nil))
 	}
 
 	return nil
