@@ -109,7 +109,7 @@ const dbusPermanentSlotDBus = `
     <allow send_destination="###DBUS_NAME###"/>
 </policy>
 <policy context="default">
-    <deny send_destination="###DBUS_NAME###"/>
+    <allow send_destination="###DBUS_NAME###"/>
 </policy>
 `
 
