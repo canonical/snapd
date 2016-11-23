@@ -85,7 +85,7 @@ sc_maybe_aa_chagne_onexec(struct sc_apparmor *apparmor, const char *profile);
  * process termination.
  **/
 void
-sc_maybe_change_apparmor_hat(struct sc_apparmor *apparmor,
-			     const char *subprofile, unsigned long magic_token);
+sc_maybe_aa_change_hat(struct sc_apparmor *apparmor,
+		       const char *subprofile, unsigned long magic_token)
 
 #endif
