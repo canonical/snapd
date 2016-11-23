@@ -115,11 +115,11 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	sto := store.New(nil, authContext)
 	// we always allow devmode for downloads
-	devMode := true
+	devmode := true
 
 	dlOpts := image.DownloadOptions{
 		TargetDir: "", // cwd
-		Devmode:   devMode,
+		Devmode:   devmode,
 		Channel:   x.Channel,
 		User:      user,
 	}

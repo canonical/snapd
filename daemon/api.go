@@ -748,19 +748,19 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errNoJailmode = errors.New("this system cannot honour the jailmode flag")
 
-func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevmode()
+func modeFlags(devmode, jailmode bool) (snapstate.Flags, error) {
+	devmodeOS := release.ReleaseInfo.ForceDevmode()
 	flags := snapstate.Flags{}
-	if jailMode {
-		if devModeOS {
+	if jailmode {
+		if devmodeOS {
 			return flags, errNoJailmode
 		}
-		if devMode {
+		if devmode {
 			return flags, errModeConflict
 		}
 		flags.Jailmode = true
 	}
-	if devMode || devModeOS {
+	if devmode || devmodeOS {
 		flags.Devmode = true
 	}
 

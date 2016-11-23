@@ -80,11 +80,11 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		// TODO: make Jailmode a flag in the snap itself
-		jailMode := snap.Confinement == client.DevmodeConfinement && !snap.Devmode
+		jailmode := snap.Confinement == client.DevmodeConfinement && !snap.Devmode
 		notes := &Notes{
 			Private:  snap.Private,
 			Devmode:  snap.Devmode,
-			Jailmode: jailMode,
+			Jailmode: jailmode,
 			TryMode:  snap.TryMode,
 			// FIXME: a bit confusing, a installed snap
 			//        is either "active" or "installed", so

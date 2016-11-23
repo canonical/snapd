@@ -58,7 +58,7 @@ func (b *Backend) Name() string {
 
 // Setup creates a conf file with list of kernel modules required by given snap,
 // writes it in /etc/modules-load.d/ directory and immediately loads the modules
-// using /sbin/modprobe. The devMode is ignored.
+// using /sbin/modprobe. The devmode is ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
