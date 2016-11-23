@@ -77,9 +77,9 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	// test slightly ugly, on a real system STDOUT will be:
-	//    Please input your email address: foo@example.com\n
+	//    Email address: foo@example.com\n
 	// because the input to stdin is echoed
-	c.Check(s.Stdout(), Equals, `Please input your email address: Password of "foo@example.com": 
+	c.Check(s.Stdout(), Equals, `Email address: Password of "foo@example.com": 
 Login successful
 `)
 	c.Check(s.Stderr(), Equals, "")
