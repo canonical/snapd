@@ -130,7 +130,7 @@ func init() {
 // Trusted returns a copy of the current set of trusted assertions as used by Open.
 func Trusted() []asserts.Assertion {
 	trusted := []asserts.Assertion(nil)
-	if !osutil.EnvBool("SNAPPY_USE_STAGING_STORE") {
+	if !osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
 		trusted = append(trusted, trustedAssertions...)
 	} else {
 		trusted = append(trusted, trustedStagingAssertions...)

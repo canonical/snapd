@@ -228,11 +228,11 @@ func getStructFields(s interface{}) []string {
 }
 
 func useDeltas() bool {
-	return osutil.EnvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
 }
 
 func useStaging() bool {
-	return osutil.EnvBool("SNAPPY_USE_STAGING_STORE")
+	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
 func cpiURL() string {

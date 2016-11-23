@@ -24,9 +24,9 @@ import (
 	"strconv"
 )
 
-// EnvBool returns whether the given key may be considered "set" in the environment
+// GetenvBool returns whether the given key may be considered "set" in the environment
 // (i.e. it is set to one of "1", "true", etc)
-func EnvBool(key string) bool {
+func GetenvBool(key string) bool {
 	val := os.Getenv(key)
 	if val == "" {
 		return false
