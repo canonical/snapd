@@ -137,7 +137,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Epoch != "" {
 		epoch = y.Epoch
 	}
-	confinement := StrictConfinement
+	confinement := Strict
 	if y.Confinement != "" {
 		confinement = y.Confinement
 	}

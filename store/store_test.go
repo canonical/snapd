@@ -1429,25 +1429,25 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 		"stable": {
 			Revision:    snap.R(1),
 			Version:     "v1",
-			Confinement: snap.StrictConfinement,
+			Confinement: snap.Strict,
 			Channel:     "stable",
 		},
 		"candidate": {
 			Revision:    snap.R(2),
 			Version:     "v2",
-			Confinement: snap.StrictConfinement,
+			Confinement: snap.Strict,
 			Channel:     "candidate",
 		},
 		"beta": {
 			Revision:    snap.R(8),
 			Version:     "v8",
-			Confinement: snap.DevModeConfinement,
+			Confinement: snap.DevMode,
 			Channel:     "beta",
 		},
 		"edge": {
 			Revision:    snap.R(9),
 			Version:     "v9",
-			Confinement: snap.DevModeConfinement,
+			Confinement: snap.DevMode,
 			Channel:     "edge",
 		},
 	})

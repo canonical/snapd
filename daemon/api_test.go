@@ -301,7 +301,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":    "/v2/snaps/foo",
 			"private":     false,
 			"devmode":     false,
-			"confinement": snap.StrictConfinement,
+			"confinement": snap.Strict,
 			"trymode":     false,
 			"apps":        []appJSON{},
 			"broken":      "",
@@ -1277,13 +1277,13 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 			},
 		},
 		{
-			Confinement: snap.StrictConfinement,
+			Confinement: snap.Strict,
 			SideInfo: snap.SideInfo{
 				RealName: "bar",
 			},
 		},
 		{
-			Confinement: snap.DevModeConfinement,
+			Confinement: snap.DevMode,
 			SideInfo: snap.SideInfo{
 				RealName: "baz",
 			},
@@ -1299,9 +1299,9 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 	c.Assert(snaps, check.HasLen, 3)
 
 	for i, ss := range [][2]string{
-		{"foo", string(snap.StrictConfinement)},
-		{"bar", string(snap.StrictConfinement)},
-		{"baz", string(snap.DevModeConfinement)},
+		{"foo", string(snap.Strict)},
+		{"bar", string(snap.Strict)},
+		{"baz", string(snap.DevMode)},
 	} {
 		name, mode := ss[0], ss[1]
 		c.Check(snaps[i]["name"], check.Equals, name, check.Commentf(name))

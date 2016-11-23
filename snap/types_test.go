@@ -140,11 +140,11 @@ func (s *typeSuite) TestYamlUnmarshalInvalidTypes(c *C) {
 }
 
 func (s *typeSuite) TestYamlMarshalConfinementTypes(c *C) {
-	out, err := yaml.Marshal(DevModeConfinement)
+	out, err := yaml.Marshal(DevMode)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "devmode\n")
 
-	out, err = yaml.Marshal(StrictConfinement)
+	out, err = yaml.Marshal(Strict)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "strict\n")
 }
@@ -153,11 +153,11 @@ func (s *typeSuite) TestYamlUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
 	err := yaml.Unmarshal([]byte("devmode"), &confinementType)
 	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, DevModeConfinement)
+	c.Check(confinementType, Equals, DevMode)
 
 	err = yaml.Unmarshal([]byte("strict"), &confinementType)
 	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, StrictConfinement)
+	c.Check(confinementType, Equals, Strict)
 }
 
 func (s *typeSuite) TestYamlUnmarshalInvalidConfinementTypes(c *C) {
@@ -172,11 +172,11 @@ func (s *typeSuite) TestYamlUnmarshalInvalidConfinementTypes(c *C) {
 }
 
 func (s *typeSuite) TestJsonMarshalConfinementTypes(c *C) {
-	out, err := json.Marshal(DevModeConfinement)
+	out, err := json.Marshal(DevMode)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"devmode\"")
 
-	out, err = json.Marshal(StrictConfinement)
+	out, err = json.Marshal(Strict)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"strict\"")
 }
@@ -185,11 +185,11 @@ func (s *typeSuite) TestJsonUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
 	err := json.Unmarshal([]byte("\"devmode\""), &confinementType)
 	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, DevModeConfinement)
+	c.Check(confinementType, Equals, DevMode)
 
 	err = json.Unmarshal([]byte("\"strict\""), &confinementType)
 	c.Assert(err, IsNil)
-	c.Check(confinementType, Equals, StrictConfinement)
+	c.Check(confinementType, Equals, Strict)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {

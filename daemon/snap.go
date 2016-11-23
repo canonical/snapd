@@ -164,7 +164,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 
 	confinement := remoteSnap.Confinement
 	if confinement == "" {
-		confinement = snap.StrictConfinement
+		confinement = snap.Strict
 	}
 
 	screenshots := make([]screenshotJSON, len(remoteSnap.Screenshots))
