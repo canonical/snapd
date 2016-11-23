@@ -44,6 +44,9 @@ restore-each: |
     /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
     test "$(dmesg | grep DENIED | wc -l)" -eq 0
 
+debug-each: |
+    dmesg | grep DENIED
+
 suites:
     spread-tests/main/:
         summary: Full-system tests for snap-confine
