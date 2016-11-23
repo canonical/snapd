@@ -1160,7 +1160,7 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
+		var new []byte
 		if release.OnClassic {
 			// If we're running on classic ModemManager will be part
 			// of the OS snap and will run unconfined.
