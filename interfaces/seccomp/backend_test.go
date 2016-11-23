@@ -208,6 +208,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, scenario.content)
 		stat, err := os.Stat(profile)
+		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.RemoveSnap(c, snapInfo)
 	}
