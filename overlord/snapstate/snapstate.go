@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -149,6 +150,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
+			if boot.InUse(snapsup.Name(), si.Revision) {
+				continue
+			}
 			ts := removeInactiveRevision(st, snapsup.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
@@ -622,6 +626,11 @@ func canRemove(si *snap.Info, active bool) bool {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	// never remove anything that is used for booting
+	if boot.InUse(si.Name(), si.Revision) {
+		return false
+	}
 
 	return true
 }
