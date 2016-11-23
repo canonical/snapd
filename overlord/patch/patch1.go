@@ -103,19 +103,19 @@ func patch1(s *state.State) error {
 		return err
 	}
 
-	for snapName, snapState := range stateMap {
-		seq := snapState.Sequence
+	for snapName, snapst := range stateMap {
+		seq := snapst.Sequence
 		if len(seq) == 0 {
 			continue
 		}
-		snapState.Current = seq[len(seq)-1].Revision
-		typ, err := patch1ReadType(snapName, snapState.Current)
+		snapst.Current = seq[len(seq)-1].Revision
+		typ, err := patch1ReadType(snapName, snapst.Current)
 		if err != nil {
 			logger.Noticef("Recording type for snap %q: cannot retrieve info, assuming it's a app: %v", snapName, err)
 		} else {
 			logger.Noticef("Recording type for snap %q: setting to %q", snapName, typ)
 		}
-		snapState.SnapType = string(typ)
+		snapst.SnapType = string(typ)
 	}
 
 	s.Set("snaps", stateMap)

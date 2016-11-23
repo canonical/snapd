@@ -356,6 +356,7 @@ snaps:
 	defer st.Unlock()
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
 	chg := st.NewChange("run-it", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
