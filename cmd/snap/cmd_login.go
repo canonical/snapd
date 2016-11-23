@@ -111,7 +111,7 @@ func (x *cmdLogin) Execute(args []string) error {
 
 	email := x.Positional.Email
 	if email == "" {
-		fmt.Fprint(Stdout, "Please input your email address: ")
+		fmt.Fprint(Stdout, "Email address: ")
 		in, _, err := bufio.NewReader(Stdin).ReadLine()
 		if err != nil {
 			return err

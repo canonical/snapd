@@ -1,7 +1,7 @@
 spawn snap login
 
 expect {
-    "Please input your email address:" {
+    "Email address:" {
         exit 0
     } default {
         exit 1
