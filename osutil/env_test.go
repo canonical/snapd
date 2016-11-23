@@ -31,7 +31,7 @@ type envSuite struct{}
 
 var _ = check.Suite(&envSuite{})
 
-func (s *envSuite) TestEnvBoolTrue(c *check.C) {
+func (s *envSuite) TestGetenvBoolTrue(c *check.C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
 
@@ -40,20 +40,20 @@ func (s *envSuite) TestEnvBoolTrue(c *check.C) {
 	} {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.EnvBool(key), check.Equals, true, check.Commentf(s))
+		c.Check(osutil.GetenvBool(key), check.Equals, true, check.Commentf(s))
 	}
 }
 
-func (s *envSuite) TestEnvBoolFalse(c *check.C) {
+func (s *envSuite) TestGetenvBoolFalse(c *check.C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
-	c.Assert(osutil.EnvBool(key), check.Equals, false)
+	c.Assert(osutil.GetenvBool(key), check.Equals, false)
 
 	for _, s := range []string{
 		"", "0", "f", "FALSE", // etc
 	} {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.EnvBool(key), check.Equals, false, check.Commentf(s))
+		c.Check(osutil.GetenvBool(key), check.Equals, false, check.Commentf(s))
 	}
 }

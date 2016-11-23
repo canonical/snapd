@@ -111,7 +111,7 @@ func (l *ConsoleLog) Debug(msg string) {
 	s := "DEBUG: " + msg
 	l.sys.Output(3, s)
 
-	if osutil.EnvBool("SNAPD_DEBUG") {
+	if osutil.GetenvBool("SNAPD_DEBUG") {
 		l.log.Output(3, s)
 	}
 }

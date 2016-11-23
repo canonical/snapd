@@ -360,7 +360,7 @@ func (m *DeviceManager) Stop() {
 }
 
 func useStaging() bool {
-	return osutil.EnvBool("SNAPPY_USE_STAGING_STORE")
+	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
 func deviceAPIBaseURL() string {

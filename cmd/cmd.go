@@ -55,7 +55,7 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	if !osutil.EnvBool(key) {
+	if !osutil.GetenvBool(key) {
 		return
 	}
 
