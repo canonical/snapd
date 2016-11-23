@@ -40,6 +40,11 @@ type Notes struct {
 func (n *Notes) String() string {
 	var ns []string
 
+	if n.Disabled {
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("disabled"))
+	}
+
 	if n.Price != "" {
 		ns = append(ns, n.Price)
 	}
@@ -59,11 +64,6 @@ func (n *Notes) String() string {
 
 	if n.TryMode {
 		ns = append(ns, "try")
-	}
-
-	if n.Disabled {
-		// TRANSLATORS: if possible, a single short word
-		ns = append(ns, i18n.G("disabled"))
 	}
 
 	if n.Broken {
