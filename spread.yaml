@@ -35,26 +35,17 @@ prepare: |
     [ "${REUSE_PROJECT:-}" != 1 ] || exit 0
     ./spread-tests/spread-prepare.sh
 
+restore-each: |
+    # Ensure that we don't have stranded processes around
+    test "$(pgrep -c ubuntu-core-launcher)" -eq 0
+    test "$(pgrep -c snap-confine)" -eq 0
+    # See the note above about discarding namespaces
+    /usr/lib/snapd/snap-discard-ns hello-world || true
+    /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
+    test "$(dmesg | grep DENIED | wc -l)" -eq 0
+
 suites:
     spread-tests/main/:
         summary: Full-system tests for snap-confine
-        restore-each: |
-            # Ensure that we don't have stranded processes around
-            test "$(pgrep -c ubuntu-core-launcher)" -eq 0
-            test "$(pgrep -c snap-confine)" -eq 0
-            # NOTE: before snapd discards namespaces on snap removal
-            # we have to do it ourselves. All of the tests use one
-            # snap so this is easier to work with.
-            /usr/lib/snapd/snap-discard-ns hello-world || true
-            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
-            test "$(dmesg | grep DENIED | wc -l)" -eq 0
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
-        restore-each: |
-            # Ensure that we don't have stranded processes around
-            test "$(pgrep -c ubuntu-core-launcher)" -eq 0
-            test "$(pgrep -c snap-confine)" -eq 0
-            # See the note above about discarding namespaces
-            /usr/lib/snapd/snap-discard-ns hello-world || true
-            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
-            test "$(dmesg | grep DENIED | wc -l)" -eq 0
