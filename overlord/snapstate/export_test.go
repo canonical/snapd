@@ -35,7 +35,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, ss *SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
 }
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
@@ -45,13 +45,13 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 		task.State().Lock()
 		kind := task.Kind()
 		status := task.Status()
-		ss, err := TaskSnapSetup(task)
+		snapsup, err := TaskSnapSetup(task)
 		task.State().Unlock()
 		if err != nil {
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, ss)
+		tracker.ForeignTask(kind, status, snapsup)
 
 		return nil
 	}

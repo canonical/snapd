@@ -597,6 +597,28 @@ type requestOptions struct {
 	Data         []byte
 }
 
+// retryRequest uses defaultRetryStrategy to call doRequest with retry
+func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err = s.doRequest(client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		break
+	}
+
+	return resp, err
+}
+
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
@@ -849,7 +871,8 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -946,10 +969,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -1096,68 +1120,58 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method:      "POST",
-			URL:         s.bulkURI,
-			Accept:      halJsonContentType,
-			ContentType: jsonContentType,
-			Data:        jsonData,
-		}
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.bulkURI,
+		Accept:      halJsonContentType,
+		ContentType: jsonContentType,
+		Data:        jsonData,
+	}
 
-		if useDeltas() {
-			logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-			reqOptions.ExtraHeaders = map[string]string{
-				"X-Ubuntu-Delta-Formats": s.deltaFormat,
-			}
+	if useDeltas() {
+		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
+		reqOptions.ExtraHeaders = map[string]string{
+			"X-Ubuntu-Delta-Formats": s.deltaFormat,
 		}
+	}
 
-		resp, err := s.doRequest(s.client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			return nil, err
-		}
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return nil, err
+	}
 
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, respToError(resp, "query the store for updates")
+	}
+
+	var updateData searchResults
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&updateData); err != nil {
+		return nil, err
+	}
+
+	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+	for _, rsnap := range updateData.Payload.Packages {
+		rrev := snap.R(rsnap.Revision)
+		cand := candidateMap[rsnap.SnapID]
+
+		// the store also gives us identical revisions, filter those
+		// out, we are not interested
+		if rrev == cand.Revision {
 			continue
 		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, respToError(resp, "query the store for updates")
+		// do not upgade to a version we rolledback back from
+		if findRev(rrev, cand.Block) {
+			continue
 		}
-
-		var updateData searchResults
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&updateData); err != nil {
-			return nil, err
-		}
-
-		res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
-		for _, rsnap := range updateData.Payload.Packages {
-			rrev := snap.R(rsnap.Revision)
-			cand := candidateMap[rsnap.SnapID]
-
-			// the store also gives us identical revisions, filter those
-			// out, we are not interested
-			if rrev == cand.Revision {
-				continue
-			}
-			// do not upgade to a version we rolledback back from
-			if findRev(rrev, cand.Block) {
-				continue
-			}
-			res = append(res, infoFromRemote(rsnap))
-		}
-
-		s.extractSuggestedCurrency(resp)
-
-		return res, nil
+		res = append(res, infoFromRemote(rsnap))
 	}
-	panic("unreachable")
+
+	s.extractSuggestedCurrency(resp)
+
+	return res, nil
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -1415,10 +1429,11 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -1536,10 +1551,11 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
@@ -1604,51 +1620,39 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err := s.doRequest(s.client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			return err
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			var customer storeCustomer
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&customer); err != nil {
-				return err
-			}
-			if !customer.HasPaymentMethod {
-				return ErrNoPaymentMethods
-			}
-			if !customer.LatestTOSAccepted {
-				return ErrTOSNotAccepted
-			}
-			return nil
-		case http.StatusNotFound:
-			// Likely because user has no account registered on the pay server
-			return fmt.Errorf("cannot get customer details: server says no account exists")
-		case http.StatusUnauthorized:
-			return ErrInvalidCredentials
-		default:
-			var errors storeErrors
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&errors); err != nil {
-				return err
-			}
-			if len(errors.Errors) == 0 {
-				return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
-			}
-			return &errors
-		}
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var customer storeCustomer
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&customer); err != nil {
+			return err
+		}
+		if !customer.HasPaymentMethod {
+			return ErrNoPaymentMethods
+		}
+		if !customer.LatestTOSAccepted {
+			return ErrTOSNotAccepted
+		}
+		return nil
+	case http.StatusNotFound:
+		// Likely because user has no account registered on the pay server
+		return fmt.Errorf("cannot get customer details: server says no account exists")
+	case http.StatusUnauthorized:
+		return ErrInvalidCredentials
+	default:
+		var errors storeErrors
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errors); err != nil {
+			return err
+		}
+		if len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+		}
+		return &errors
+	}
 }

@@ -179,7 +179,7 @@ func (s *patchSuite) TestError(c *C) {
 func (s *patchSuite) TestSanity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))
-	for l, _ := range patches {
+	for l := range patches {
 		levels = append(levels, l)
 	}
 	sort.Ints(levels)

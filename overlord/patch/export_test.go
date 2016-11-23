@@ -43,7 +43,7 @@ func Patch6StateMap(st *state.State) (map[string]patch6SnapState, error) {
 }
 
 func Patch6SnapSetup(task *state.Task) (patch6SnapSetup, error) {
-	var ss patch6SnapSetup
-	err := task.Get("snap-setup", &ss)
-	return ss, err
+	var snapsup patch6SnapSetup
+	err := task.Get("snap-setup", &snapsup)
+	return snapsup, err
 }
