@@ -1025,6 +1025,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
 	c.Check(snaps[0]["screenshots"], check.IsNil)
+	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1128,6 +1129,11 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			RealName:  "store",
 			Developer: "foo",
 		},
+		Channels: map[string]*snap.Ref{
+			"stable": {
+				Revision: snap.R(42),
+			},
+		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
@@ -1141,6 +1147,9 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
+
+	c.Check(m["revision"], check.Equals, "42")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -4318,6 +4327,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 1)
 }
@@ -4372,6 +4382,7 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C
 	st := s.d.overlord.State()
 	st.Lock()
 	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
 	st.Unlock()
 	c.Check(users, check.HasLen, 2)
 }
