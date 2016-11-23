@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
@@ -33,7 +34,7 @@ import (
 type cmdLogin struct {
 	Positional struct {
 		Email string
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 var shortLoginHelp = i18n.G("Authenticates on snapd and the store")
@@ -99,7 +100,8 @@ func requestLogin(email string) error {
 		return err
 	}
 
-	return requestLoginWith2faRetry(email, string(password))
+	// strings.TrimSpace needed because we get \r from the pty in the tests
+	return requestLoginWith2faRetry(email, strings.TrimSpace(string(password)))
 }
 
 func (x *cmdLogin) Execute(args []string) error {
@@ -107,7 +109,17 @@ func (x *cmdLogin) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	err := requestLogin(x.Positional.Email)
+	email := x.Positional.Email
+	if email == "" {
+		fmt.Fprint(Stdout, i18n.G("Email address: "))
+		in, _, err := bufio.NewReader(Stdin).ReadLine()
+		if err != nil {
+			return err
+		}
+		email = string(in)
+	}
+
+	err := requestLogin(email)
 	if err != nil {
 		return err
 	}
