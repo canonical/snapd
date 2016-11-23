@@ -103,6 +103,16 @@ sendmsg
 sendto
 `
 
+const dbusPermanentSlotDBus = `
+<policy user="root">
+    <allow own="###DBUS_NAME###"/>
+    <allow send_destination="###DBUS_NAME###"/>
+</policy>
+<policy context="default">
+    <deny send_destination="###DBUS_NAME###"/>
+</policy>
+`
+
 const dbusConnectedSlotAppArmor = `
 # allow snaps to introspect us. This allows clients to introspect all
 # DBus interfaces of this service (but not use them).
@@ -333,6 +343,23 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusPermanentSlotSecComp), nil
+	case interfaces.SecurityDBus:
+		bus, name, err := iface.getAttribs(slot.Attrs)
+		if err != nil {
+			return nil, err
+
+		}
+
+		// only system services need bus policy
+		if bus != "system" {
+			return nil, nil
+		}
+
+		old := []byte("###DBUS_NAME###")
+		new := []byte(name)
+		snippet := bytes.Replace([]byte(dbusPermanentSlotDBus), old, new, -1)
+
+		return []byte(snippet), nil
 	}
 	return nil, nil
 }
