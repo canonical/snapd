@@ -106,7 +106,7 @@ var _ consistencyChecker = (*SnapDeclaration)(nil)
 // Prerequisites returns references to this snap-declaration's prerequisite assertions.
 func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
+		{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
 	}
 }
 
@@ -332,8 +332,8 @@ var _ consistencyChecker = (*SnapRevision)(nil)
 func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	return []*Ref{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
-		&Ref{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
+		{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
 	}
 }
 
@@ -457,8 +457,8 @@ var _ consistencyChecker = (*Validation)(nil)
 // Prerequisites returns references to this validation's prerequisite assertions.
 func (validation *Validation) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
 	}
 }
 

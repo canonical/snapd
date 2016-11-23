@@ -1080,6 +1080,7 @@ AXNpZw==`
 	baseDecl := a.(*asserts.BaseDeclaration)
 	c.Check(baseDecl.Series(), Equals, "16")
 	ts, err := time.Parse(time.RFC3339, "2016-09-29T19:50:49Z")
+	c.Assert(err, IsNil)
 	c.Check(baseDecl.Timestamp().Equal(ts), Equals, true)
 
 	c.Check(baseDecl.PlugRule("interfaceX"), IsNil)

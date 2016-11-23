@@ -53,6 +53,7 @@ const modelExample = "type: model\n" +
 	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
+	"display-name: Baz 3000\n" +
 	"architecture: amd64\n" +
 	"gadget: brand-gadget\n" +
 	"kernel: baz-linux\n" +
@@ -76,6 +77,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Series(), Equals, "16")
 	c.Check(model.BrandID(), Equals, "brand-id1")
 	c.Check(model.Model(), Equals, "baz-3000")
+	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
@@ -97,6 +99,23 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "display-name: Baz 3000\n", "display-name: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// optional but we fallback to Model
+	c.Check(model.DisplayName(), Equals, "baz-3000")
+
+	encoded = strings.Replace(withTimestamp, "display-name: Baz 3000\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// optional but we fallback to Model
+	c.Check(model.DisplayName(), Equals, "baz-3000")
 }
 
 func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
@@ -142,6 +161,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
 		// lift this restriction at a later point
 		{"model: baz-3000\n", "model: BAZ-3000\n", `"model" header cannot contain uppercase letters`},
+		{"display-name: Baz 3000\n", "display-name:\n  - xyz\n", `"display-name" header must be a string`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
