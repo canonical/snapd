@@ -1009,6 +1009,37 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "local")
 }
 
+func (s *apiSuite) TestSnapsInfoAll(c *check.C) {
+	d := s.daemon(c)
+
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v2", snap.R(2), false, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v3", snap.R(3), true, "")
+
+	for _, t := range []struct {
+		q        string
+		numSnaps int
+		typ      ResponseType
+	}{
+		{"?select=enabled", 1, "sync"},
+		{`?select=`, 1, "sync"},
+		{"", 1, "sync"},
+		{"?select=all", 3, "sync"},
+		{"?select=invalid-field", 0, "error"},
+	} {
+		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/snaps%s", t.q), nil)
+		c.Assert(err, check.IsNil)
+		rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
+		c.Assert(rsp.Type, check.Equals, t.typ)
+
+		if rsp.Type != "error" {
+			snaps := snapList(rsp.Result)
+			c.Assert(snaps, check.HasLen, t.numSnaps)
+			c.Assert(snaps[0]["name"], check.Equals, "local")
+		}
+	}
+}
+
 func (s *apiSuite) TestFind(c *check.C) {
 	s.suggestedCurrency = "EUR"
 
@@ -1029,6 +1060,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
 	c.Check(snaps[0]["screenshots"], check.IsNil)
+	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1148,6 +1180,11 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			RealName:  "store",
 			Developer: "foo",
 		},
+		Channels: map[string]*snap.Ref{
+			"stable": {
+				Revision: snap.R(42),
+			},
+		},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 
@@ -1161,6 +1198,9 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
+
+	c.Check(m["revision"], check.Equals, "42")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -1294,7 +1334,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 			},
 		},
 		{
-			Confinement: snap.DevmodeConfinement,
+			Confinement: snap.DevModeConfinement,
 			SideInfo: snap.SideInfo{
 				RealName: "baz",
 			},
@@ -1312,7 +1352,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 	for i, ss := range [][2]string{
 		{"foo", string(snap.StrictConfinement)},
 		{"bar", string(snap.StrictConfinement)},
-		{"baz", string(snap.DevmodeConfinement)},
+		{"baz", string(snap.DevModeConfinement)},
 	} {
 		name, mode := ss[0], ss[1]
 		c.Check(snaps[i]["name"], check.Equals, name, check.Commentf(name))
@@ -2396,7 +2436,7 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	c.Check(chg.Summary(), check.Equals, "Refresh all snaps in the system")
+	c.Check(chg.Summary(), check.Equals, `Refresh snaps "fake1", "fake2"`)
 	var apiData map[string]interface{}
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
@@ -2412,7 +2452,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
@@ -2422,7 +2462,30 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	summary, _, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, "Refresh all snaps in the system")
+	c.Check(summary, check.Equals, `Refresh snaps "fake1", "fake2"`)
+	c.Check(refreshSnapDecls, check.Equals, true)
+}
+
+func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
+	refreshSnapDecls := false
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		refreshSnapDecls = true
+		return assertstate.RefreshSnapDeclarations(s, userID)
+	}
+
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 0)
+		return nil, nil, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "refresh"}
+	st := d.overlord.State()
+	st.Lock()
+	summary, _, _, err := snapUpdateMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 

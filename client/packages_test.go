@@ -30,7 +30,7 @@ import (
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.List(nil)
+	_, _ = cs.cli.List(nil, nil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{})
@@ -85,7 +85,7 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 		"type": "sync",
 		"result": "not a list of snaps"
 	}`
-	_, err := cs.cli.List(nil)
+	_, err := cs.cli.List(nil, nil)
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
@@ -95,9 +95,9 @@ func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
 		"result": [],
 		"suggested-currency": "GBP"
 	}`
-	_, err := cs.cli.List(nil)
+	_, err := cs.cli.List(nil, nil)
 	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
-	_, err = cs.cli.List([]string{"foo"})
+	_, err = cs.cli.List([]string{"foo"}, nil)
 	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
 }
 
@@ -122,7 +122,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		}],
 		"suggested-currency": "GBP"
 	}`
-	applications, err := cs.cli.List(nil)
+	applications, err := cs.cli.List(nil, nil)
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:            "funky-snap-id",
@@ -140,7 +140,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Private:       true,
 		DevMode:       false,
 	}})
-	otherApps, err := cs.cli.List([]string{"foo"})
+	otherApps, err := cs.cli.List([]string{"foo"}, nil)
 	c.Check(err, check.IsNil)
 	c.Check(otherApps, check.HasLen, 0)
 }
