@@ -3,28 +3,31 @@ import re
 import sys
 import yaml
 
-def e(s):
+def die(s):
     print(s, file=sys.stderr)
     sys.exit(1)
 
-def eq(name, s1, s2):
+def equals(name, s1, s2):
     if s1 != s2:
-        e("in %s expected %r, got %r" % (name, s2, s1))
+        die("in %s expected %r, got %r" % (name, s2, s1))
 
-def rx(name, s, r):
+def matches(name, s, r):
     if not re.search(r, s):
-        e("in %s expected to match %s, got %r" % (name, r, s))
+        die("in %s expected to match %s, got %r" % (name, r, s))
 
-def ck(name, d, *a):
+def check(name, d, *a):
     ka = set()
     for k, op, *args in a:
         if k not in d:
-            e("in %s expected to have a key %r" % (name, k))
+            die("in %s expected to have a key %r" % (name, k))
         op(name+"."+k, d[k], *args)
         ka.add(k)
     kd = set(d)
     if ka < kd:
-        e("in %s: extra keys: %r" % (name, kd-ka))
+        die("in %s: extra keys: %r" % (name, kd-ka))
+
+def exists(name, d):
+    pass
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
@@ -32,45 +35,55 @@ def verRevNotesRx(s):
 
 res = list(yaml.load_all(sys.stdin))
 
-eq("number of entries", len(res), 5)
+equals("number of entries", len(res), 6)
 
-ck("basic", res[0],
-   ("name", eq, "basic"),
-   ("summary", eq, "Basic snap"),
-   ("path", rx, r"^basic_[0-9.]+_all\.snap$"),
-   ("version", rx, verNotesRx),
+check("basic", res[0],
+   ("name", equals, "basic"),
+   ("summary", equals, "Basic snap"),
+   ("path", matches, r"^basic_[0-9.]+_all\.snap$"),
+   ("version", matches, verNotesRx),
 )
 
-ck("basic-desktop", res[1],
-   ("name", eq, "basic-desktop"),
-   ("path", rx, "snaps/basic-desktop/$"), # note the trailing slash
-   ("summary", eq, ""),
-   ("version", rx, verNotesRx),
+check("basic-desktop", res[1],
+   ("name", equals, "basic-desktop"),
+   ("path", matches, "snaps/basic-desktop/$"), # note the trailing slash
+   ("summary", equals, ""),
+   ("version", matches, verNotesRx),
 )
 
-ck("test-snapd-tools", res[2],
-   ("name", eq, "test-snapd-tools"),
-   ("publisher", eq, "canonical"),
-   ("summary", eq, "Tools for testing the snapd application"),
-   ("tracking", eq, "stable"),
-   ("installed", rx, verRevNotesRx("-")),
-   ("channels", ck,
-    ("stable", rx, verRevNotesRx("-")),
-    ("candidate", rx, verRevNotesRx("-")),
-    ("beta", rx, verRevNotesRx("-")),
-    ("edge", rx, verRevNotesRx("-")),
+check("test-snapd-tools", res[2],
+   ("name", equals, "test-snapd-tools"),
+   ("publisher", equals, "canonical"),
+   ("summary", equals, "Tools for testing the snapd application"),
+   ("tracking", equals, "stable"),
+   ("installed", matches, verRevNotesRx("-")),
+   ("channels", check,
+    ("stable", matches, verRevNotesRx("-")),
+    ("candidate", matches, verRevNotesRx("-")),
+    ("beta", matches, verRevNotesRx("-")),
+    ("edge", matches, verRevNotesRx("-")),
    ),
 )
 
-ck("test-snapd-devmode", res[3],
-   ("name", eq, "test-snapd-devmode"),
-   ("publisher", eq, "canonical"),
-   ("summary", eq, "Basic snap with devmode confinement"),
-   ("tracking", eq, "beta"),
-   ("installed", rx, verRevNotesRx("devmode")),
+check("test-snapd-devmode", res[3],
+   ("name", equals, "test-snapd-devmode"),
+   ("publisher", equals, "canonical"),
+   ("summary", equals, "Basic snap with devmode confinement"),
+   ("tracking", equals, "beta"),
+   ("installed", matches, verRevNotesRx("devmode")),
 )
 
-ck("error", res[4],
-   ("path", eq, "/etc/passwd"),
-   ("warning", eq, "not a valid snap"),
+check("core", res[4],
+      ("name", equals, "core"),
+      ("publisher", equals, "canonical"),
+      ("type", equals, "core"), # attenti al cane
+      ("summary", exists),
+      ("tracking", exists),
+      ("installed", exists),
+      ("channels", exists),
+)
+
+check("error", res[5],
+   ("argument", equals, "/etc/passwd"),
+   ("warning", equals, "not a valid snap"),
 )
