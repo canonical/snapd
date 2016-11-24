@@ -1243,9 +1243,6 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 	return w.Sync()
 }
 
-// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
-var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
-
 // download writes an http.Request showing a progress.Meter
 var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1278,20 +1275,24 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	}
 
 	var resp *http.Response
-	for _, n := range downloadBackoffs {
-		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err = s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return err
 		}
-		defer r.Body.Close()
 
-		resp = r
-
-		if r.StatusCode != 500 {
-			break
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
-		time.Sleep(time.Duration(n) * time.Millisecond)
+
+		break
 	}
+	defer resp.Body.Close()
+
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusPartialContent:
 		break
@@ -1313,7 +1314,6 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	if sha3_384 != "" && sha3_384 != actualSha3 {
 		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
-
 	return err
 }
 
