@@ -58,12 +58,13 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 	lastLog := map[string]string{}
 	for {
 		chg, err := cli.Change(id)
-		// a client.Error means we were able to communicate with
-		// the server (got an answer)
-		if e, ok := err.(*client.Error); ok {
-			return nil, e
-		}
 		if err != nil {
+			// a client.Error means we were able to communicate with
+			// the server (got an answer)
+			if e, ok := err.(*client.Error); ok {
+				return nil, e
+			}
+
 			// an non-client error here means the server most
 			// likely went away
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
