@@ -53,6 +53,8 @@ type Snap struct {
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
+
+	Channels map[string]*snap.Ref `json:"channels"`
 }
 
 type AppInfo struct {
