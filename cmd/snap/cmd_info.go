@@ -64,6 +64,19 @@ func norm(path string) string {
 	return path
 }
 
+func maybePrintType(w io.Writer, t string) {
+	// XXX: using literals here until we reshuffle snap & client properly
+	// (and os->core rename happens, etc)
+	switch t {
+	case "", "app", "application":
+		return
+	case "os":
+		t = "core"
+	}
+
+	fmt.Fprintf(w, "type:\t%s\n", t)
+}
+
 func tryDirect(w io.Writer, path string, verbose bool) bool {
 	path = norm(path)
 
@@ -94,9 +107,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 		notes = NotesFromInfo(info)
 	}
 	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
-	if info.Type != snap.TypeApp {
-		fmt.Fprintf(w, "type:\t%s\n", info.Type)
-	}
+	maybePrintType(w, string(info.Type))
 
 	return true
 }
@@ -132,7 +143,7 @@ func (x *infoCmd) Execute([]string) error {
 		both := coalesce(local, remote)
 
 		if both == nil {
-			fmt.Fprintf(w, "path:\t%q\nwarning:\t%s\n", snapName, i18n.G("not a valid snap"))
+			fmt.Fprintf(w, "argument:\t%q\nwarning:\t%s\n", snapName, i18n.G("not a valid snap"))
 			continue
 		}
 		noneOK = false
@@ -142,6 +153,7 @@ func (x *infoCmd) Execute([]string) error {
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		maybePrintType(w, both.Type)
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
