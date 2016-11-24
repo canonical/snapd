@@ -205,7 +205,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 		// previous one) so we can continue down the path.
 		int previous_fd = fd;
 		fd = openat(fd, path_segment, open_flags);
-		if (close(previous_fd) != 0) {
+		if (previous_fd != AT_FDCWD && close(previous_fd) != 0) {
 			return -1;
 		}
 		if (fd < 0) {
