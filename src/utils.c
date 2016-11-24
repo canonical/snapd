@@ -156,7 +156,7 @@ int must_snprintf(char *str, size_t size, const char *format, ...)
 	return n;
 }
 
-int sc_nonfatal_mkpath(const char *const path)
+int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 {
 	// If asked to create an empty path, return immediately.
 	if (strlen(path) == 0) {
@@ -194,7 +194,7 @@ int sc_nonfatal_mkpath(const char *const path)
 	while (path_segment) {
 		// Try to create the directory. It's okay if it already
 		// existed, but any other error is fatal.
-		if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
+		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
 			return -1;
 		}
 		// Open the parent directory we just made (and close the
