@@ -123,6 +123,10 @@ func (s *apiBaseSuite) Assertion(*asserts.AssertionType, []string, *auth.UserSta
 	panic("Assertion not expected to be called")
 }
 
+func (s *apiBaseSuite) Sections(*auth.UserState) ([]string, error) {
+	panic("Sections not expected to be called")
+}
+
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
@@ -1150,6 +1154,22 @@ func (s *apiSuite) TestFindPrefix(c *check.C) {
 	_ = searchStore(findCmd, req, nil).(*resp)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo", Prefix: true})
+}
+
+func (s *apiSuite) TestFindSection(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&section=bar", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query:   "foo",
+		Section: "bar",
+	})
 }
 
 func (s *apiSuite) TestFindOne(c *check.C) {

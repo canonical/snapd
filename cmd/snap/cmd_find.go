@@ -64,8 +64,24 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 	return val, currency, nil
 }
 
+type SectionName string
+
+func (s *SectionName) Complete(match string) []flags.Completion {
+	cli := Client()
+	sections, err := cli.Sections()
+	if err != nil {
+		return nil
+	}
+	ret := make([]flags.Completion, len(sections))
+	for _, s := range sections {
+		ret = append(ret, flags.Completion{Item: s})
+	}
+	return ret
+}
+
 type cmdFind struct {
-	Private    bool `long:"private"`
+	Private    bool        `long:"private"`
+	Section    SectionName `long:"section"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -76,6 +92,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
+		"section": i18n.G("Restrict the search to a given section"),
 	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
@@ -84,12 +101,14 @@ func (x *cmdFind) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	if x.Positional.Query == "" {
-		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
+	// magic! `snap find` returns the featured snaps
+	if x.Positional.Query == "" && x.Section == "" {
+		x.Section = "featured"
 	}
 
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
+		Section: string(x.Section),
 		Query:   x.Positional.Query,
 	})
 }
