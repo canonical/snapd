@@ -312,3 +312,24 @@ hello +2.10 +canonical +bought +GNU Hello, the "hello world" snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
+
+func (s *SnapSuite) TestFindNothingMeansFeaturedSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			c.Check(r.URL.Query().Get("section"), check.Equals, "featured")
+			fmt.Fprintln(w, findJSON)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"find"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
