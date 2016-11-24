@@ -256,7 +256,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
+		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
 	}
 	return res[0], nil
 }
