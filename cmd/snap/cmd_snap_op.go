@@ -182,6 +182,10 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	cli := Client()
 	changeID, err := cli.Remove(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -213,8 +217,17 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
+	seen := make(map[string]bool)
 	for _, name := range removed {
 		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s not installed\n"), name)
+		}
 	}
 
 	return nil
@@ -373,6 +386,10 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -420,7 +437,22 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		return showDone(installed, "install")
+		if err := showDone(installed, "install"); err != nil {
+			return err
+		}
+	}
+
+	// show skipped
+	seen := make(map[string]bool)
+	for _, name := range installed {
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+		}
 	}
 
 	return nil
@@ -495,6 +527,10 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 func refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.Refresh(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNoUpdateAvailable {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}

@@ -60,3 +60,7 @@ execute: |
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
     snap list | grep -Pzq "$expected"
+
+    echo "When a snap is refreshed and has no update it exit 0"
+    snap refresh $SNAP_NAME 2>stderr.out
+    cat stderr.out | MATCH "snap \"$SNAP_NAME\" has no updates available"
