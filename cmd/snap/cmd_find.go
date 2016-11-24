@@ -73,8 +73,8 @@ func (s *SectionName) Complete(match string) []flags.Completion {
 		return nil
 	}
 	ret := make([]flags.Completion, len(sections))
-	for _, s := range sections {
-		ret = append(ret, flags.Completion{Item: s})
+	for i, s := range sections {
+		ret[i] = flags.Completion{Item: s}
 	}
 	return ret
 }
