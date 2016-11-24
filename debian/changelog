@@ -1,3 +1,112 @@
+snapd (2.18) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - store: retry on io.EOF
+    - tests: skip pty tests on ppc64el and powerpc
+    - client, cmd/snap: introducing "snap info"
+    - snap: do exit 0 on install/remove if that snap is already
+      installed or already removed
+    - snap: add `snap watch <change-id>` to attach to a running change
+    - store: retry downloads using retry loop
+    - snap: try doesn't require snap-dir when run in snap's directory
+    - daemon: show what will change in the "refresh-all" changes
+    - tests: disable autorefresh for the external backend
+    - snap: add `snap list -a` to show all snaps (even inactive ones)
+    - many: unify boolean env var handling
+    - overlord/ifacestate: don't setup jailmode snaps with devmode
+      confinement
+    - snapstate: do not garbage collect the snaps used by the bootenv
+    - debian: drop hard xdelta dependency for now
+    - snap: make `snap login` ask for email if not given as argument
+    - osutil: fix build on armhf (arm in go-arch) and powerpc (ppc in
+      go-arch)
+    - many: rename DevmodeConfinement to DevModeConfinement
+    - store: resp.Body.Close() missing in ReadyToBuy
+    - many: use ConfinementOptions instead of ConfinementType
+    - snap, daemon, store: fake the channel map in the REST API
+    - misc: run github.com/gordonklaus/ineffassign as part of the static
+      checks
+    - docs: add goreportcard badge and remove coveralls badge
+    - tests: force gofmt -s in static checks
+    - many: run gofmt -s -w on all the code
+    - store: DRY actual retry code
+    - many: fix various errors uncovered by goreportcard.com
+    - interfaces/builtin: allow additional shared memory for webkit
+    - many: some more missing snapState->snapst
+    - asserts: introduce an optional freeform display-name for model
+    - interfaces/builtin: rename usb-raw to raw-usb
+    - progress: init pbar with correct total value
+    - daemon/api.go: add quotedNames() helper
+    - interfaces: add ConfinementOptions type
+    - tests: add a test about the extra bits that prepare-device can
+      specify for device registration
+    - tests: check that gpio device nodes are exported after reboot
+    - tests: parameterize core channel with env var for classic too
+    - many: rename variable "ss" to "snapsup" or "snapst" or "st"
+      (depending on context)
+    - tests: do not use external snaps in spread
+    - store: retry buy request
+    - store: retry store.Find
+    - store: retry assertion store call
+    - store: retry call for snap details
+    - many: use snap.ConfinementType rather than bool devmode
+    - daemon: if a bad snap is posted it is not an internal error but a
+      bad request
+    - client: add "Snap.Screenshots" to the client API
+    - interfaces: update base declaration documentation and policy for
+      on-classic and snap-type
+    - store: check payment method before TOS for a better UX
+    - interfaces: allow sched_setaffinity in process-control
+    - tests: parameterize core channel with env var
+    - tests: ensure that the XDG_ env contains at least XDG_RUNTIME_DIR
+    - interfaces: fcitx also listens on the session bus for Qt apps (LP:
+      #1634089)
+    - store: retry ListRefresh
+    - snap: use "Password of <email>:" in the `snap login`
+    - many: reshuffle how we load/inject tests keys so image doesn't
+      need assertstate anymore
+    - store: use range requests if we have a local file already
+    - dirs,interfaces,overlord,snap,snapenv,test: export per-snap
+      XDG_RUNTIME_DIR per user (LP: #1620442)
+    - osutil: make RealUser only look at SUDO_USER when uid==0
+      LP: #1638656
+    - tests: do not use the ppa:snappy-dev/image in the tests
+    - store: retry readyToBuy request
+    - tests: increase `expect` timeouts
+    - static tests: add spell check
+    - tests: add debug to all flaky expect tests
+    - systemd: correct the mount arguments when mounting with squashfuse
+    - interfaces: add avahi-observe (LP: #1639967)
+    - store: bring delta downloads back
+    - interfaces: add alsa (LP: #1598309)
+    - interfaces/builtin: fix a broken test that snuck into master
+    - osutil: add chattr funcs
+    - image: init "snap_mode" on image creation time to avoid ugly
+      messages
+    - tests: test-snapd-fuse-consumer needs python-fuse as a build-
+      package
+    - interfaces/builtin: add i2c interface
+    - interfaces: add ofono interface
+    - tests: do not use hello-world in our tests
+    - snap: add support for classic confinement
+    - interfaces: remove LegacyAutoConnect() from the interfaces
+    - interfaces: miscellaneous policy updates (LP: #1639988, 1614269,
+      1639614, 1605216, 1629996, et al)
+    - tests: run autopkgtests in the autopkgtest.ubuntu.com
+      infrastructure
+    - Implement lxd-client interface exposing the lxd snap (LP:
+      #1634880)
+    - asserts: validate optional account username
+    - many: remove unnecessary snap name parameter from buying endpoint
+    - tests: do not hardcode the size of /dev/ram0
+    - tests: add test that ensures the right content for /etc/os-release
+    - spread tests: fix snap mode check
+    - docs: fix path for source files location in HACKING.md
+    - interfaces/builtin/mir: allow slot to make recvfrom syscalls
+    - store: sections/featured snaps store support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 24 Nov 2016 19:43:08 +0100
+
 snapd (2.17.1) xenial; urgency=medium
 
   * New upstream release, LP: #1637215:
