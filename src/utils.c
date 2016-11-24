@@ -24,13 +24,14 @@
 
 void die(const char *msg, ...)
 {
+	int saved_errno = errno;
 	va_list va;
 	va_start(va, msg);
 	vfprintf(stderr, msg, va);
 	va_end(va);
 
 	if (errno != 0) {
-		perror(". errmsg");
+		fprintf(stderr, ": %s\n", strerror(saved_errno));
 	} else {
 		fprintf(stderr, "\n");
 	}

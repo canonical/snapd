@@ -58,7 +58,37 @@ static void test_str2bool()
 	g_assert_cmpint(errno, ==, EFAULT);
 }
 
+static void test_die()
+{
+	if (g_test_subprocess()) {
+		errno = 0;
+		die("death message");
+		g_test_message("expected die not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("death message\n");
+}
+
+static void test_die_with_errno()
+{
+	if (g_test_subprocess()) {
+		errno = EPERM;
+		die("death message");
+		g_test_message("expected die not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("death message: Operation not permitted\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/utils/str2bool", test_str2bool);
+	g_test_add_func("/utils/die", test_die);
+	g_test_add_func("/utils/die_with_errno", test_die_with_errno);
 }
