@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var fmtWaitChangeJSON = `{"type": "sync", "result": {
+var fmtWatchChangeJSON = `{"type": "sync", "result": {
   "id":   "42",
   "kind": "some-kind",
   "summary": "some summary...",
@@ -41,7 +41,7 @@ var fmtWaitChangeJSON = `{"type": "sync", "result": {
   "tasks": [{"id": "84", "kind": "bar", "summary": "some summary", "status": "Doing", "progress": {"label": "my-snap", "done": %d, "total": %d}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
 }}`
 
-func (s *SnapSuite) TestCmdWait(c *C) {
+func (s *SnapSuite) TestCmdWatch(c *C) {
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
@@ -51,11 +51,11 @@ func (s *SnapSuite) TestCmdWait(c *C) {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/changes/42")
-			fmt.Fprintf(w, fmtWaitChangeJSON, 0, 100*1024)
+			fmt.Fprintf(w, fmtWatchChangeJSON, 0, 100*1024)
 		case 1:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/changes/42")
-			fmt.Fprintf(w, fmtWaitChangeJSON, 50*1024, 100*1024)
+			fmt.Fprintf(w, fmtWatchChangeJSON, 50*1024, 100*1024)
 		case 2:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/changes/42")
@@ -74,7 +74,7 @@ func (s *SnapSuite) TestCmdWait(c *C) {
 	}()
 	os.Stdout = stdout
 
-	_, err = snap.Parser().ParseArgs([]string{"wait", "42"})
+	_, err = snap.Parser().ParseArgs([]string{"watch", "42"})
 	os.Stdout = oldStdout
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)

@@ -25,28 +25,28 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdWait struct {
+type cmdWatch struct {
 	Positional struct {
 		ChangeID string `positional-arg-name:"<change-id>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortWaitHelp = i18n.G("Wait for a change in progress")
-var longWaitHelp = i18n.G(`
-The wait command waits for the given change-id to finish and show progress
+var shortWatchHelp = i18n.G("Watch a change in progress")
+var longWatchHelp = i18n.G(`
+The watch command waits for the given change-id to finish and shows progress
 (if available).
 `)
 
 func init() {
-	addCommand("wait", shortWaitHelp, longWaitHelp, func() flags.Commander {
-		return &cmdWait{}
+	addCommand("watch", shortWatchHelp, longWatchHelp, func() flags.Commander {
+		return &cmdWatch{}
 	}, nil, []argDesc{{
 		name: i18n.G("<change-id>"),
 		desc: i18n.G("Change ID"),
 	}})
 }
 
-func (x *cmdWait) Execute(args []string) error {
+func (x *cmdWatch) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
