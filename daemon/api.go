@@ -82,6 +82,7 @@ var api = []*Command{
 	readyToBuyCmd,
 	snapctlCmd,
 	usersCmd,
+	sectionsCmd,
 }
 
 var (
@@ -205,6 +206,12 @@ var (
 		Path:   "/v2/users",
 		UserOK: false,
 		GET:    getUsers,
+	}
+
+	sectionsCmd = &Command{
+		Path:   "/v2/sections",
+		UserOK: true,
+		GET:    getSections,
 	}
 )
 
@@ -457,6 +464,29 @@ func getStore(c *Command) snapstate.StoreService {
 	return snapstate.Store(st)
 }
 
+func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	theStore := getStore(c)
+
+	sections, err := theStore.Sections(user)
+	switch err {
+	case nil:
+		// pass
+	case store.ErrEmptyQuery, store.ErrBadQuery:
+		return BadRequest("%v", err)
+	case store.ErrUnauthenticated:
+		return Unauthorized("%v", err)
+	default:
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(sections, &Meta{})
+}
+
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
@@ -464,6 +494,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 	q := query.Get("q")
+	section := query.Get("section")
 	name := query.Get("name")
 	private := false
 	prefix := false
@@ -499,6 +530,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
 		Query:   q,
+		Section: section,
 		Private: private,
 		Prefix:  prefix,
 	}, user)
