@@ -2425,7 +2425,7 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	summary, _, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh all snaps in the system found no updates`)
+	c.Check(summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
