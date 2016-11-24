@@ -793,10 +793,10 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	case 0:
 		// not really needed but be paranoid
 		if len(inst.Snaps) != 0 {
-			return "", nil, nil, fmt.Errorf("internal error, when asking for a refresh of %q no update was found but not error was generated", inst.Snaps)
+			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", quotedNames(inst.Snaps))
 		}
-		// FIXME: instead not generated a change(?) at all
-		msg = fmt.Sprintf(i18n.G("Refresh all snaps in the system found no updates"))
+		// FIXME: instead don't generated a change(?) at all
+		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
 	default:
