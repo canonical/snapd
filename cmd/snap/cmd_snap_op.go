@@ -47,7 +47,7 @@ var (
 	pollTime    = 100 * time.Millisecond
 )
 
-func wait(client *client.Client, id string) (*client.Change, error) {
+func wait(cli *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
@@ -58,9 +58,16 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 	var lastID string
 	lastLog := map[string]string{}
 	for {
-		chg, err := client.Change(id)
+		chg, err := cli.Change(id)
 		if err != nil {
-			// an error here means the server most likely went away
+			// a client.Error means we were able to communicate with
+			// the server (got an answer)
+			if e, ok := err.(*client.Error); ok {
+				return nil, e
+			}
+
+			// an non-client error here means the server most
+			// likely went away
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
