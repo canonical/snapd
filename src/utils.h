@@ -50,5 +50,6 @@ int must_snprintf(char *str, size_t size, const char *format, ...);
  *
  * The function returns -1 in case of any error.
  **/
+__attribute__ ((warn_unused_result))
 int sc_nonfatal_mkpath(const char *const path, mode_t mode);
 #endif
