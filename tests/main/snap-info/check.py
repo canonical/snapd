@@ -75,8 +75,8 @@ check("test-snapd-devmode", res[3],
 
 check("core", res[4],
       ("name", equals, "core"),
-      ("publisher", equals, "canonical"),
       ("type", equals, "core"), # attenti al cane
+      ("publisher", exists),
       ("summary", exists),
       ("tracking", exists),
       ("installed", exists),
