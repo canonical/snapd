@@ -230,11 +230,11 @@ func getStructFields(s interface{}) []string {
 }
 
 func useDeltas() bool {
-	return os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1"
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
 }
 
 func useStaging() bool {
-	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
 func cpiURL() string {
@@ -242,8 +242,8 @@ func cpiURL() string {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
-	if os.Getenv("SNAPPY_FORCE_CPI_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_CPI_URL")
+	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
+		return u
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -257,8 +257,8 @@ func authLocation() string {
 }
 
 func authURL() string {
-	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_SSO_URL")
+	if u := os.Getenv("SNAPPY_FORCE_SSO_URL"); u != "" {
+		return u
 	}
 	return "https://" + authLocation() + "/api/v2"
 }
@@ -268,8 +268,8 @@ func assertsURL() string {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
-	if os.Getenv("SNAPPY_FORCE_SAS_URL") != "" {
-		return os.Getenv("SNAPPY_FORCE_SAS_URL")
+	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
+		return u
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
@@ -352,6 +352,9 @@ type sectionResults struct {
 
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
+
+// The fields we are interested in for snap.Refs
+var refFields = getStructFields(snap.Ref{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta"
@@ -840,6 +843,65 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 	return !bought
 }
 
+// fakeChannels is a stopgap method of getting pseudo-channels until
+// the details endpoint provides the real thing for us. The main
+// difference between this pseudo one and the real thing is that a
+// channel can be closed, and we'll be oblivious to it.
+func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.Ref, error) {
+	snaps := make([]currentSnapJson, 4)
+	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
+		snaps[i] = currentSnapJson{
+			SnapID:  snapID,
+			Channel: channel,
+			// revision, confinement, epoch purposely left empty
+		}
+	}
+	jsonData, err := json.Marshal(metadataWrapper{
+		Snaps:  snaps,
+		Fields: refFields,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.bulkURI,
+		Accept:      halJsonContentType,
+		ContentType: jsonContentType,
+		Data:        jsonData,
+	}
+
+	resp, err := s.retryRequest(s.client, reqOptions, user)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, respToError(resp, "query the store for channel information")
+	}
+
+	var results struct {
+		Payload struct {
+			Refs []*snap.Ref `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&results); err != nil {
+		return nil, err
+	}
+
+	channels := make(map[string]*snap.Ref, 4)
+	for _, item := range results.Payload.Refs {
+		channels[item.Channel] = item
+	}
+
+	return channels, nil
+}
+
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
@@ -897,6 +959,16 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	}
 
 	info := infoFromRemote(remote)
+
+	// only get the channels when it makes sense as part of the reply
+	if info.SnapID != "" && channel == "" && revision.Unset() {
+		channels, err := s.fakeChannels(info.SnapID, user)
+		if err != nil {
+			logger.Noticef("cannot get channels: %v", err)
+		} else {
+			info.Channels = channels
+		}
+	}
 
 	err = s.decorateOrders([]*snap.Info{info}, channel, user)
 	if err != nil {
@@ -1096,7 +1168,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 		confinement := snap.StrictConfinement
 		if cs.DevMode {
-			confinement = snap.DevmodeConfinement
+			confinement = snap.DevModeConfinement
 		}
 
 		currentSnaps = append(currentSnaps, currentSnapJson{
@@ -1234,9 +1306,6 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 	return w.Sync()
 }
 
-// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
-var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
-
 // download writes an http.Request showing a progress.Meter
 var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1269,20 +1338,24 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	}
 
 	var resp *http.Response
-	for _, n := range downloadBackoffs {
-		r, err := s.doRequest(newHTTPClient(nil), reqOptions, user)
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		resp, err = s.doRequest(newHTTPClient(nil), reqOptions, user)
 		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
 			return err
 		}
-		defer r.Body.Close()
 
-		resp = r
-
-		if r.StatusCode != 500 {
-			break
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
 		}
-		time.Sleep(time.Duration(n) * time.Millisecond)
+
+		break
 	}
+	defer resp.Body.Close()
+
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusPartialContent:
 		break
@@ -1304,7 +1377,6 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	if sha3_384 != "" && sha3_384 != actualSha3 {
 		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
-
 	return err
 }
 
@@ -1622,6 +1694,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusOK:

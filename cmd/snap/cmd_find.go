@@ -64,26 +64,6 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 	return val, currency, nil
 }
 
-func formatPrice(val float64, currency string) string {
-	return fmt.Sprintf("%.2f%s", val, currency)
-}
-
-func getPriceString(prices map[string]float64, suggestedCurrency, status string) string {
-	price, currency, err := getPrice(prices, suggestedCurrency)
-
-	// If there are no prices, then the snap is free
-	if err != nil {
-		return ""
-	}
-
-	// If the snap is priced, but has been purchased
-	if status == "available" {
-		return i18n.G("bought")
-	}
-
-	return formatPrice(price, currency)
-}
-
 type SectionName string
 
 func (s *SectionName) Complete(match string) []flags.Completion {
@@ -151,13 +131,8 @@ func findSnaps(opts *client.FindOptions) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
 
 	for _, snap := range snaps {
-		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.Confinement != client.StrictConfinement,
-			Price:   getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
-		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
 
 	return nil

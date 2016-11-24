@@ -53,6 +53,8 @@ type Snap struct {
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
+
+	Channels map[string]*snap.Ref `json:"channels"`
 }
 
 type AppInfo struct {
@@ -78,7 +80,7 @@ const (
 	TypeOS     = "os"
 
 	StrictConfinement  = "strict"
-	DevmodeConfinement = "devmode"
+	DevModeConfinement = "devmode"
 )
 
 type ResultInfo struct {
@@ -99,10 +101,23 @@ type FindOptions struct {
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
+type ListOptions struct {
+	All bool
+}
+
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) List(names []string) ([]*Snap, error) {
-	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
+func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
+	if opts == nil {
+		opts = &ListOptions{}
+	}
+
+	q := make(url.Values)
+	if opts.All {
+		q.Add("select", "all")
+	}
+
+	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
 	if err != nil {
 		return nil, err
 	}

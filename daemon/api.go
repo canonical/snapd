@@ -650,7 +650,17 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State())
+	var all bool
+	sel := r.URL.Query().Get("select")
+	switch sel {
+	case "all":
+		all = true
+	case "enabled", "":
+		all = false
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
@@ -821,14 +831,18 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 		return "", nil, nil, err
 	}
 
-	switch len(inst.Snaps) {
+	switch len(updated) {
 	case 0:
-		// all snaps
-		msg = i18n.G("Refresh all snaps in the system")
+		// not really needed but be paranoid
+		if len(inst.Snaps) != 0 {
+			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", quotedNames(inst.Snaps))
+		}
+		// FIXME: instead don't generated a change(?) at all
+		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(inst.Snaps)
+		quoted := quotedNames(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
@@ -1003,6 +1017,40 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
+func (inst *snapInstruction) errToResponse(err error) Response {
+	if _, ok := err.(*snap.AlreadyInstalledError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapAlreadyInstalled,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	if _, ok := err.(*snap.NotInstalledError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapNotInstalled,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapNoUpdateAvailable,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+}
+
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -1033,7 +1081,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		return inst.errToResponse(err)
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)

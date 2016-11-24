@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build armhf 386
+// +build arm 386 ppc
 
 /*
  * Copyright (C) 2016 Canonical Ltd

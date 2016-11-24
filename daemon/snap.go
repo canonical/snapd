@@ -82,7 +82,7 @@ type aboutSnap struct {
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
-func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
+func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -94,7 +94,22 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 	var firstErr error
 	for _, snapst := range snapStates {
-		info, err := snapst.CurrentInfo()
+		var infos []*snap.Info
+		var info *snap.Info
+		var err error
+		if all {
+			for _, seq := range snapst.Sequence {
+				info, err = snap.ReadInfo(seq.RealName, seq)
+				if err != nil {
+					break
+				}
+				infos = append(infos, info)
+			}
+		} else {
+			info, err = snapst.CurrentInfo()
+			infos = append(infos, info)
+		}
+
 		if err != nil {
 			// XXX: aggregate instead?
 			if firstErr == nil {
@@ -102,7 +117,9 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 			}
 			continue
 		}
-		about = append(about, aboutSnap{info, snapst})
+		for _, info := range infos {
+			about = append(about, aboutSnap{info, snapst})
+		}
 	}
 
 	return about, firstErr
@@ -200,5 +217,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	if len(remoteSnap.Prices) > 0 {
 		result["prices"] = remoteSnap.Prices
 	}
+
+	if len(remoteSnap.Channels) > 0 {
+		result["channels"] = remoteSnap.Channels
+	}
+
 	return result
 }

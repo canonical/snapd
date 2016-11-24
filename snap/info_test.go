@@ -182,7 +182,7 @@ confinement: devmode`
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
