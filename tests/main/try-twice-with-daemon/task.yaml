@@ -1,0 +1,42 @@
+summary: Check that try command works when daemon line is added to snap.yaml
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+
+environment:
+  TRYSNAPDIR: /tmp/test/test-snapd-service-try
+  SERVICE: snap.test-snapd-service-try.daemon1.service
+
+prepare: |
+  mkdir /tmp/test
+  cp -r $TESTSLIB/snaps/test-snapd-service-try /tmp/test
+
+execute: |
+  cp $TRYSNAPDIR/snap-1.yaml $TRYSNAPDIR/meta/snap.yaml
+  echo "Given a buildable snap in a known directory"
+  echo "When try is executed on that directory"
+  snap try $TRYSNAPDIR
+
+  echo "Then the snap is listed as installed with try in the notes"
+  snap list | grep -Pq "^test-snapd-service-try +.*?try"
+
+  # Sanity check just to ensure the test and its input yaml is correct
+  echo "And it doesn't have a systemd service just yet"
+  expected_output="LoadState=not-found"
+  output=$(systemctl show --property=LoadState $SERVICE)
+  if [ "$output" != "$expected_output" ]; then
+    echo "Expected systemctl show output to be '$expected_output', but it was '$output'"
+    exit 1
+  fi
+
+  echo "When snap.yaml is updated with the daemon line added"
+  cp $TRYSNAPDIR/snap-2.yaml $TRYSNAPDIR/meta/snap.yaml
+  echo "Then it can be tried again"
+  snap try $TRYSNAPDIR
+  snap list | grep -Pq "^test-snapd-service-try +.*?try"
+  echo "And a service is now loaded with systemd"
+
+  expected_output="LoadState=loaded"
+  output=$(systemctl show --property=LoadState $SERVICE)
+  if [ "$output" != "$expected_output" ]; then
+    echo "Expected systemctl show output to be '$expected_output', but it was '$output'"
+    exit 1
+  fi
