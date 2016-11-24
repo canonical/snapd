@@ -22,7 +22,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 )
 
@@ -147,6 +147,10 @@ The try command installs an unpacked snap into the system for testing purposes.
 The unpacked snap content continues to be used even after installation, so
 non-metadata changes there go live instantly. Metadata changes such as those
 performed in snap.yaml will require reinstallation to go live.
+
+If snap-dir argument is omitted, the try command will attempt to infer it if
+either snapcraft.yaml file and prime directory or meta/snap.yaml file can be
+found relative to current working directory.
 `)
 
 var longEnableHelp = i18n.G(`
@@ -581,19 +585,15 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	if name == "" {
-		if _, err := os.Stat("snapcraft.yaml"); err == nil {
-			if stat, err := os.Stat("prime"); err == nil && stat.IsDir() {
-				name = "prime"
-			}
+		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
+			name = "prime"
 		} else {
-			if stat, err := os.Stat("meta"); err == nil && stat.IsDir() {
-				if _, err := os.Stat("meta/snap.yaml"); err == nil {
-					name = "./"
-				}
+			if osutil.FileExists("meta/snap.yaml") {
+				name = "./"
 			}
 		}
 		if name == "" {
-			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and neither `prime` nor `meta` directory could be found"))
+			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and couldn't be inferred"))
 		}
 	}
 
