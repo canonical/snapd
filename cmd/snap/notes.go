@@ -30,8 +30,8 @@ import (
 type Notes struct {
 	Price    string
 	Private  bool
-	DevMode  bool
-	JailMode bool
+	Devmode  bool
+	Jailmode bool
 	TryMode  bool
 	Disabled bool
 	Broken   bool
@@ -49,11 +49,11 @@ func (n *Notes) String() string {
 		ns = append(ns, n.Price)
 	}
 
-	if n.DevMode {
+	if n.Devmode {
 		ns = append(ns, "devmode")
 	}
 
-	if n.JailMode {
+	if n.Jailmode {
 		ns = append(ns, "jailmode")
 	}
 

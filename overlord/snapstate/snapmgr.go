@@ -241,7 +241,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
 		Channel: channel,
-		DevMode: flags.DevModeAllowed(),
+		Devmode: flags.DevmodeAllowed(),
 
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
@@ -268,7 +268,7 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
+	snap, err := theStore.Snap(name, channel, flags.DevmodeAllowed(), revision, user)
 	st.Lock()
 	return snap, err
 }
@@ -420,7 +420,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevmodeAllowed(), snapsup.Revision(), user)
 		if err != nil {
 			return err
 		}
@@ -822,10 +822,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	oldTryMode := snapst.TryMode
 	snapst.TryMode = snapsup.TryMode
-	oldDevMode := snapst.DevMode
-	snapst.DevMode = snapsup.DevMode
-	oldJailMode := snapst.JailMode
-	snapst.JailMode = snapsup.JailMode
+	oldDevmode := snapst.Devmode
+	snapst.Devmode = snapsup.Devmode
+	oldJailmode := snapst.Jailmode
+	snapst.Jailmode = snapsup.Jailmode
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
@@ -854,8 +854,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
-	t.Set("old-devmode", oldDevMode)
-	t.Set("old-jailmode", oldJailMode)
+	t.Set("old-devmode", oldDevmode)
+	t.Set("old-jailmode", oldJailmode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -903,13 +903,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var oldDevMode bool
-	err = t.Get("old-devmode", &oldDevMode)
+	var oldDevmode bool
+	err = t.Get("old-devmode", &oldDevmode)
 	if err != nil {
 		return err
 	}
-	var oldJailMode bool
-	err = t.Get("old-jailmode", &oldJailMode)
+	var oldJailmode bool
+	err = t.Get("old-jailmode", &oldJailmode)
 	if err != nil {
 		return err
 	}
@@ -942,8 +942,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	snapst.Channel = oldChannel
 	snapst.TryMode = oldTryMode
-	snapst.DevMode = oldDevMode
-	snapst.JailMode = oldJailMode
+	snapst.Devmode = oldDevmode
+	snapst.Jailmode = oldJailmode
 
 	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {

@@ -328,7 +328,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	for _, snapst := range snapStates {
-		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+		if len(names) == 0 && (snapst.TryMode || snapst.Devmode) {
 			// no auto-refresh for trymode nor devmode
 			continue
 		}
@@ -360,7 +360,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
 			Channel: snapst.Channel,
-			DevMode: snapst.DevModeAllowed(),
+			Devmode: snapst.DevmodeAllowed(),
 
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,

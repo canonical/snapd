@@ -1437,13 +1437,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 		"beta": {
 			Revision:    snap.R(8),
 			Version:     "v8",
-			Confinement: snap.DevModeConfinement,
+			Confinement: snap.DevmodeConfinement,
 			Channel:     "beta",
 		},
 		"edge": {
 			Revision:    snap.R(9),
 			Version:     "v9",
-			Confinement: snap.DevModeConfinement,
+			Confinement: snap.DevmodeConfinement,
 			Channel:     "edge",
 		},
 	})
@@ -2119,7 +2119,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(1),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2161,7 +2161,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(n, Equals, 1)
@@ -2192,7 +2192,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
@@ -2231,7 +2231,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
@@ -2279,7 +2279,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 			Channel:  "stable",
 			Revision: snap.R(26),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2328,7 +2328,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 			Channel:  "stable",
 			Revision: snap.R(25),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 			Block:    []snap.Revision{snap.R(26)},
 		},
 	}, nil)
@@ -2454,7 +2454,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2529,7 +2529,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
+			Devmode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2577,7 +2577,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 			Channel:  "stable",
 			Revision: snap.R(-2),
 			Epoch:    "0",
-			DevMode:  true,
+			Devmode:  true,
 		},
 	}, nil)
 	c.Assert(err, IsNil)

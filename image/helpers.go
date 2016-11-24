@@ -37,7 +37,7 @@ import (
 type DownloadOptions struct {
 	TargetDir string
 	Channel   string
-	DevMode   bool
+	Devmode   bool
 	User      *auth.UserState
 }
 
@@ -64,7 +64,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, opts.DevMode, revision, opts.User)
+	snap, err := sto.Snap(name, opts.Channel, opts.Devmode, revision, opts.User)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}

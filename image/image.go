@@ -270,7 +270,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	dlOpts := &DownloadOptions{
 		TargetDir: snapSeedDir,
 		Channel:   opts.Channel,
-		DevMode:   false, // XXX: should this be true?
+		Devmode:   false, // XXX: should this be true?
 	}
 
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
@@ -341,7 +341,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			SnapID:  info.SnapID, // cross-ref
 			Channel: info.Channel,
 			File:    filepath.Base(fn),
-			DevMode: info.NeedsDevMode(),
+			Devmode: info.NeedsDevmode(),
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
 		})

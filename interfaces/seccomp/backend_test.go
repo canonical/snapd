@@ -42,8 +42,8 @@ var _ = Suite(&backendSuite{})
 
 var testedConfinementOpts = []interfaces.ConfinementOptions{
 	{},
-	{DevMode: true},
-	{JailMode: true},
+	{Devmode: true},
+	{Jailmode: true},
 	{Classic: true},
 }
 
@@ -189,10 +189,10 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	snippet: "snippet",
 	content: "default\nsnippet\n",
 }, {
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:    interfaces.ConfinementOptions{Devmode: true},
 	content: "@complain\ndefault\n",
 }, {
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:    interfaces.ConfinementOptions{Devmode: true},
 	snippet: "snippet",
 	content: "@complain\ndefault\nsnippet\n",
 }}

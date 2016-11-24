@@ -46,7 +46,7 @@ type Snap struct {
 	Revision      snap.Revision `json:"revision"`
 	Confinement   string        `json:"confinement"`
 	Private       bool          `json:"private"`
-	DevMode       bool          `json:"devmode"`
+	Devmode       bool          `json:"devmode"`
 	TryMode       bool          `json:"trymode"`
 	Apps          []AppInfo     `json:"apps"`
 	Broken        string        `json:"broken"`
@@ -78,7 +78,7 @@ const (
 	TypeOS     = "os"
 
 	StrictConfinement  = "strict"
-	DevModeConfinement = "devmode"
+	DevmodeConfinement = "devmode"
 )
 
 type ResultInfo struct {

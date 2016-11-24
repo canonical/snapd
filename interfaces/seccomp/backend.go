@@ -113,7 +113,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.Confineme
 
 func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
-	if opts.DevMode && !opts.JailMode {
+	if opts.Devmode && !opts.Jailmode {
 		// NOTE: This is understood by ubuntu-core-launcher
 		buffer.WriteString("@complain\n")
 	}

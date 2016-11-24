@@ -488,7 +488,7 @@ version: 1
 	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
 }
 
-func (s *checkSnapSuite) TestCheckSnapErrorOnDevModeDisallowed(c *C) {
+func (s *checkSnapSuite) TestCheckSnapErrorOnDevmodeDisallowed(c *C) {
 	const yaml = `name: hello
 version: 1.10
 confinement: devmode

@@ -165,7 +165,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"version":        localSnap.Version,
 		"channel":        localSnap.Channel,
 		"confinement":    localSnap.Confinement,
-		"devmode":        snapst.DevMode,
+		"devmode":        snapst.Devmode,
 		"trymode":        snapst.TryMode,
 		"private":        localSnap.Private,
 		"apps":           apps,

@@ -47,8 +47,8 @@ var _ = Suite(&backendSuite{})
 
 var testedConfinementOpts = []interfaces.ConfinementOptions{
 	{},
-	{DevMode: true},
-	{JailMode: true},
+	{Devmode: true},
+	{Jailmode: true},
 	{Classic: true},
 }
 

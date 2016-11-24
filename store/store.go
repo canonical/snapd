@@ -77,7 +77,7 @@ func SetUserAgentFromVersion(version string) {
 	if release.OnClassic {
 		extras = append(extras, "classic")
 	}
-	if release.ReleaseInfo.ForceDevMode() {
+	if release.ReleaseInfo.ForceDevmode() {
 		extras = append(extras, "devmode")
 	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
@@ -1061,7 +1061,7 @@ type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
 	Epoch    string
-	DevMode  bool
+	Devmode  bool
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1104,8 +1104,8 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 
 		confinement := snap.StrictConfinement
-		if cs.DevMode {
-			confinement = snap.DevModeConfinement
+		if cs.Devmode {
+			confinement = snap.DevmodeConfinement
 		}
 
 		currentSnaps = append(currentSnaps, currentSnapJson{

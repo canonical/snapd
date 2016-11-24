@@ -80,7 +80,7 @@ type ConfinementType string
 
 // The various confinement types we support
 const (
-	DevModeConfinement ConfinementType = "devmode"
+	DevmodeConfinement ConfinementType = "devmode"
 	ClassicConfinement ConfinementType = "classic"
 	StrictConfinement  ConfinementType = "strict"
 )
@@ -107,7 +107,7 @@ func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}
 
 func (confinementType *ConfinementType) fromString(str string) error {
 	c := ConfinementType(str)
-	if c != DevModeConfinement && c != ClassicConfinement && c != StrictConfinement {
+	if c != DevmodeConfinement && c != ClassicConfinement && c != StrictConfinement {
 		return fmt.Errorf("invalid confinement type: %q", str)
 	}
 

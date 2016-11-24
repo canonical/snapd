@@ -45,15 +45,15 @@ func (notesSuite) TestNotesPrivate(c *check.C) {
 	}).String(), check.Equals, "private")
 }
 
-func (notesSuite) TestNotesDevMode(c *check.C) {
+func (notesSuite) TestNotesDevmode(c *check.C) {
 	c.Check((&snap.Notes{
-		DevMode: true,
+		Devmode: true,
 	}).String(), check.Equals, "devmode")
 }
 
-func (notesSuite) TestNotesJailMode(c *check.C) {
+func (notesSuite) TestNotesJailmode(c *check.C) {
 	c.Check((&snap.Notes{
-		JailMode: true,
+		Jailmode: true,
 	}).String(), check.Equals, "jailmode")
 }
 
@@ -81,7 +81,7 @@ func (notesSuite) TestNotesNothing(c *check.C) {
 
 func (notesSuite) TestNotesTwo(c *check.C) {
 	c.Check((&snap.Notes{
-		DevMode: true,
+		Devmode: true,
 		Broken:  true,
 	}).String(), check.Matches, "(devmode,broken|broken,devmode)")
 }

@@ -165,17 +165,17 @@ func (s *patch6Suite) TestPatch6(c *C) {
 	stateMap, err := patch.Patch6StateMap(st)
 	c.Assert(err, IsNil)
 
-	c.Check(stateMap["a"].DevMode, Equals, true)
+	c.Check(stateMap["a"].Devmode, Equals, true)
 	c.Check(stateMap["a"].TryMode, Equals, false)
-	c.Check(stateMap["a"].JailMode, Equals, false)
+	c.Check(stateMap["a"].Jailmode, Equals, false)
 
-	c.Check(stateMap["b"].DevMode, Equals, false)
+	c.Check(stateMap["b"].Devmode, Equals, false)
 	c.Check(stateMap["b"].TryMode, Equals, true)
-	c.Check(stateMap["b"].JailMode, Equals, false)
+	c.Check(stateMap["b"].Jailmode, Equals, false)
 
-	c.Check(stateMap["c"].DevMode, Equals, false)
+	c.Check(stateMap["c"].Devmode, Equals, false)
 	c.Check(stateMap["c"].TryMode, Equals, false)
-	c.Check(stateMap["c"].JailMode, Equals, true)
+	c.Check(stateMap["c"].Jailmode, Equals, true)
 
 	for _, task := range st.Tasks() {
 		snapsup, err := patch.Patch6SnapSetup(task)
@@ -190,19 +190,19 @@ func (s *patch6Suite) TestPatch6(c *C) {
 
 		switch snaps[0] {
 		case "a":
-			c.Check(snapsup.DevMode, Equals, true, Commentf("a"))
+			c.Check(snapsup.Devmode, Equals, true, Commentf("a"))
 			c.Check(snapsup.TryMode, Equals, false, Commentf("a"))
-			c.Check(snapsup.JailMode, Equals, false, Commentf("a"))
+			c.Check(snapsup.Jailmode, Equals, false, Commentf("a"))
 			c.Check(snapsup.Revert, Equals, false, Commentf("a"))
 		case "b":
-			c.Check(snapsup.DevMode, Equals, false, Commentf("b"))
+			c.Check(snapsup.Devmode, Equals, false, Commentf("b"))
 			c.Check(snapsup.TryMode, Equals, true, Commentf("b"))
-			c.Check(snapsup.JailMode, Equals, false, Commentf("b"))
+			c.Check(snapsup.Jailmode, Equals, false, Commentf("b"))
 			c.Check(snapsup.Revert, Equals, false, Commentf("b"))
 		case "c":
-			c.Check(snapsup.DevMode, Equals, false, Commentf("c"))
+			c.Check(snapsup.Devmode, Equals, false, Commentf("c"))
 			c.Check(snapsup.TryMode, Equals, false, Commentf("c"))
-			c.Check(snapsup.JailMode, Equals, true, Commentf("c"))
+			c.Check(snapsup.Jailmode, Equals, true, Commentf("c"))
 			c.Check(snapsup.Revert, Equals, true, Commentf("c"))
 		}
 	}

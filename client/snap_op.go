@@ -33,8 +33,8 @@ import (
 type SnapOptions struct {
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
-	DevMode          bool   `json:"devmode,omitempty"`
-	JailMode         bool   `json:"jailmode,omitempty"`
+	Devmode          bool   `json:"devmode,omitempty"`
+	Jailmode         bool   `json:"jailmode,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 }
@@ -166,8 +166,8 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	mw := multipart.NewWriter(buf)
 	mw.WriteField("action", "try")
 	mw.WriteField("snap-path", path)
-	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
-	mw.WriteField("jailmode", strconv.FormatBool(options.JailMode))
+	mw.WriteField("devmode", strconv.FormatBool(options.Devmode))
+	mw.WriteField("jailmode", strconv.FormatBool(options.Jailmode))
 	mw.Close()
 
 	headers := map[string]string{
@@ -188,8 +188,8 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("name", action.Name),
 		mw.WriteField("snap-path", action.SnapPath),
 		mw.WriteField("channel", action.Channel),
-		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
-		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("devmode", strconv.FormatBool(action.Devmode)),
+		mw.WriteField("jailmode", strconv.FormatBool(action.Jailmode)),
 		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {

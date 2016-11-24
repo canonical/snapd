@@ -115,7 +115,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Version:       "1.0.18",
 		Confinement:   client.StrictConfinement,
 		Private:       true,
-		DevMode:       false,
+		Devmode:       false,
 	}})
 	otherApps, err := cs.cli.List([]string{"foo"}, nil)
 	c.Check(err, check.IsNil)
@@ -192,7 +192,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Version:       "0.1-8",
 		Confinement:   client.StrictConfinement,
 		Private:       true,
-		DevMode:       true,
+		Devmode:       true,
 		TryMode:       true,
 		Screenshots: []client.Screenshot{
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},

@@ -40,7 +40,7 @@ type SeedSnap struct {
 
 	// bits that are orthongonal/not in assertions
 	Channel string `yaml:"channel,omitempty"`
-	DevMode bool   `yaml:"devmode,omitempty"`
+	Devmode bool   `yaml:"devmode,omitempty"`
 
 	Private bool `yaml:"private,omitempty"`
 

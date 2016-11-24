@@ -42,7 +42,7 @@ var All = []interfaces.SecurityBackend{
 }
 
 func init() {
-	if !release.ReleaseInfo.ForceDevMode() {
+	if !release.ReleaseInfo.ForceDevmode() {
 		All = append(All, &apparmor.Backend{})
 	}
 }

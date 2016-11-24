@@ -29,8 +29,8 @@ func init() {
 }
 
 type patch6Flags struct {
-	DevMode  bool `json:"devmode,omitempty"`
-	JailMode bool `json:"jailmode,omitempty"`
+	Devmode  bool `json:"devmode,omitempty"`
+	Jailmode bool `json:"jailmode,omitempty"`
 	TryMode  bool `json:"trymode,omitempty"`
 	Revert   bool `json:"revert,omitempty"`
 }
@@ -58,9 +58,9 @@ type patch6SnapState struct {
 
 func patch6FlagsFromPatch4(old patch4Flags) patch6Flags {
 	return patch6Flags{
-		DevMode:  old.DevMode(),
+		Devmode:  old.Devmode(),
 		TryMode:  old.TryMode(),
-		JailMode: old.JailMode(),
+		Jailmode: old.Jailmode(),
 		Revert:   old.Revert(),
 	}
 }

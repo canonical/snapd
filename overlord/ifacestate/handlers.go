@@ -38,8 +38,8 @@ import (
 // confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
 func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	return interfaces.ConfinementOptions{
-		DevMode:  flags.DevMode,
-		JailMode: flags.JailMode,
+		Devmode:  flags.Devmode,
+		Jailmode: flags.Jailmode,
 		// TODO: map Classic when it shows up in snapstate.Flags
 	}
 }
