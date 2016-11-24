@@ -108,9 +108,6 @@ prepare: |
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
-    # XXX: hack
-    rm -f /etc/mtab
-    ln -s /proc/mounts /etc/mtab
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
