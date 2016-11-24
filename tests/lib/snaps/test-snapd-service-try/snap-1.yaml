@@ -2,4 +2,4 @@ name: test-snapd-service-try
 version: 1.0
 apps:
  service:
-  command: bin/good
+  command: bin/service
