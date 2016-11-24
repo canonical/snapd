@@ -985,6 +985,40 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
+func (inst *snapInstruction) errToResponse(err error) Response {
+	if _, ok := err.(*snap.AlreadyInstalledError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapAlreadyInstalled,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	if _, ok := err.(*snap.NotInstalledError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapNotInstalled,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindSnapNoUpdateAvailable,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
+	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+}
+
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -1015,7 +1049,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		return inst.errToResponse(err)
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
