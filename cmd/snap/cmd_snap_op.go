@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 )
 
@@ -46,7 +47,7 @@ var (
 	pollTime    = 100 * time.Millisecond
 )
 
-func wait(client *client.Client, id string) (*client.Change, error) {
+func wait(cli *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
@@ -57,9 +58,16 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 	var lastID string
 	lastLog := map[string]string{}
 	for {
-		chg, err := client.Change(id)
+		chg, err := cli.Change(id)
 		if err != nil {
-			// an error here means the server most likely went away
+			// a client.Error means we were able to communicate with
+			// the server (got an answer)
+			if e, ok := err.(*client.Error); ok {
+				return nil, e
+			}
+
+			// an non-client error here means the server most
+			// likely went away
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
@@ -146,6 +154,10 @@ The try command installs an unpacked snap into the system for testing purposes.
 The unpacked snap content continues to be used even after installation, so
 non-metadata changes there go live instantly. Metadata changes such as those
 performed in snap.yaml will require reinstallation to go live.
+
+If snap-dir argument is omitted, the try command will attempt to infer it if
+either snapcraft.yaml file and prime directory or meta/snap.yaml file can be
+found relative to current working directory.
 `)
 
 var longEnableHelp = i18n.G(`
@@ -170,6 +182,10 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	cli := Client()
 	changeID, err := cli.Remove(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -201,8 +217,17 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
+	seen := make(map[string]bool)
 	for _, name := range removed {
 		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s not installed\n"), name)
+		}
 	}
 
 	return nil
@@ -277,7 +302,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 // show what has been done
 func showDone(names []string, op string) error {
 	cli := Client()
-	snaps, err := cli.List(names)
+	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
 	}
@@ -361,6 +386,10 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -408,7 +437,22 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		return showDone(installed, "install")
+		if err := showDone(installed, "install"); err != nil {
+			return err
+		}
+	}
+
+	// show skipped
+	seen := make(map[string]bool)
+	for _, name := range installed {
+		seen[name] = true
+	}
+	for _, name := range names {
+		if !seen[name] {
+			// FIXME: this is the only reason why a name can be
+			// skipped, but it does feel awkward
+			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+		}
 	}
 
 	return nil
@@ -483,6 +527,10 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 func refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
 	changeID, err := cli.Refresh(name, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNoUpdateAvailable {
+		fmt.Fprintf(Stderr, e.Message+"\n")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -514,11 +562,7 @@ func listRefresh() error {
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 	for _, snap := range snaps {
-		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.DevMode,
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromRemote(snap, nil))
 	}
 
 	return nil
@@ -565,7 +609,7 @@ type cmdTry struct {
 	modeMixin
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 func (x *cmdTry) Execute([]string) error {
@@ -577,6 +621,19 @@ func (x *cmdTry) Execute([]string) error {
 	opts := &client.SnapOptions{
 		DevMode:  x.DevMode,
 		JailMode: x.JailMode,
+	}
+
+	if name == "" {
+		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
+			name = "prime"
+		} else {
+			if osutil.FileExists("meta/snap.yaml") {
+				name = "./"
+			}
+		}
+		if name == "" {
+			return fmt.Errorf(i18n.G("error: the `<snap-dir>` argument was not provided and couldn't be inferred"))
+		}
 	}
 
 	path, err := filepath.Abs(name)
@@ -604,7 +661,7 @@ func (x *cmdTry) Execute([]string) error {
 	name = snapName
 
 	// show output as speced
-	snaps, err := cli.List([]string{name})
+	snaps, err := cli.List([]string{name}, nil)
 	if err != nil {
 		return err
 	}
@@ -706,7 +763,7 @@ func (x *cmdRevert) Execute(args []string) error {
 	}
 
 	// show output as speced
-	snaps, err := cli.List([]string{name})
+	snaps, err := cli.List([]string{name}, nil)
 	if err != nil {
 		return err
 	}

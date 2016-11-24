@@ -55,7 +55,7 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	if os.Getenv(key) != "1" {
+	if !osutil.GetenvBool(key) {
 		return
 	}
 
