@@ -191,7 +191,7 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout()
 	}
-	return err == io.ErrUnexpectedEOF
+	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
