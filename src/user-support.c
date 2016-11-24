@@ -108,7 +108,10 @@ void setup_user_data()
 		die("user data directory must be an absolute path");
 	}
 
-	mkpath(user_data);
+	debug("creating user data directory: %s", user_data);
+	if (sc_nonfatal_mkpath(user_data) < 0) {
+		die("cannot create user data directory: %s", user_data);
+	};
 }
 
 void setup_user_xdg_runtime_dir()
@@ -123,11 +126,13 @@ void setup_user_xdg_runtime_dir()
 	}
 
 	errno = 0;
-	mkpath(xdg_runtime_dir);
+	debug("creating user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
+	if (sc_nonfatal_mkpath(xdg_runtime_dir) < 0) {
+		die("cannot create user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
+	}
 
-	// if successfully created the directory (ie, not EEXIST), then
-	// chmod it.
+	// if successfully created the directory (ie, not EEXIST), then chmod it.
 	if (errno == 0 && chmod(xdg_runtime_dir, 0700) != 0) {
-		die("could not chmod XDG_RUNTIME_DIR");
+		die("cannot change permissions of user XDG_RUNTIME_DIR directory to 0700");
 	}
 }
