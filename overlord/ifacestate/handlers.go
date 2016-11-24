@@ -35,6 +35,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
+func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
+	return interfaces.ConfinementOptions{
+		DevMode:  flags.DevMode,
+		JailMode: flags.JailMode,
+		// TODO: map Classic when it shows up in snapstate.Flags
+	}
+}
+
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
 	st := task.State()
 
@@ -53,7 +62,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
-		opts := interfaces.ConfinementOptions{DevMode: snapst.DevModeAllowed()}
+		opts := confinementOptions(snapst.Flags)
 		if err := setupSnapSecurity(task, affectedSnapInfo, opts, m.repo); err != nil {
 			return err
 		}
@@ -76,7 +85,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	opts := interfaces.ConfinementOptions{DevMode: snapsup.DevModeAllowed()}
+	opts := confinementOptions(snapsup.Flags)
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
 }
 
@@ -196,7 +205,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts := interfaces.ConfinementOptions{DevMode: snapst.DevModeAllowed()}
+		opts := confinementOptions(snapst.Flags)
 		return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
 	}
 }
@@ -345,11 +354,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	slotOpts := interfaces.ConfinementOptions{DevMode: slotSnapst.DevModeAllowed()}
+	slotOpts := confinementOptions(slotSnapst.Flags)
 	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
 		return err
 	}
-	plugOpts := interfaces.ConfinementOptions{DevMode: plugSnapst.DevModeAllowed()}
+	plugOpts := confinementOptions(plugSnapst.Flags)
 	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
 		return err
 	}
@@ -422,7 +431,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		opts := interfaces.ConfinementOptions{DevMode: snapst.DevModeAllowed()}
+		opts := confinementOptions(snapst.Flags)
 		if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
 			return &state.Retry{}
 		}

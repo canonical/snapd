@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -149,6 +150,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
+			if boot.InUse(snapsup.Name(), si.Revision) {
+				continue
+			}
 			ts := removeInactiveRevision(st, snapsup.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
@@ -276,7 +280,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 	if snapst.HasCurrent() {
-		return nil, fmt.Errorf("snap %q already installed", name)
+		return nil, &snap.AlreadyInstalledError{name}
 	}
 
 	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
@@ -623,6 +627,11 @@ func canRemove(si *snap.Info, active bool) bool {
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
+	// never remove anything that is used for booting
+	if boot.InUse(si.Name(), si.Revision) {
+		return false
+	}
+
 	return true
 }
 
@@ -647,7 +656,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if !snapst.HasCurrent() {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{name, snap.R(0)}
 	}
 
 	if err := checkChangeConflict(st, name, nil); err != nil {
@@ -674,7 +683,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, fmt.Errorf("revision %s of snap %q is not installed", revision, name)
+			return nil, &snap.NotInstalledError{name, revision}
 		}
 	}
 
@@ -943,14 +952,18 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, len(names))
+	installed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for i, name := range names {
+	for _, name := range names {
 		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.AlreadyInstalledError); ok {
+			continue
+		}
 		if err != nil {
 			return nil, nil, err
 		}
-		installed[i] = name
+		installed = append(installed, name)
 		tasksets = append(tasksets, ts)
 	}
 
@@ -960,14 +973,18 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
-	removed := make([]string, len(names))
+	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for i, name := range names {
+	for _, name := range names {
 		ts, err := Remove(st, name, snap.R(0))
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			continue
+		}
 		if err != nil {
 			return nil, nil, err
 		}
-		removed[i] = name
+		removed = append(removed, name)
 		tasksets = append(tasksets, ts)
 	}
 

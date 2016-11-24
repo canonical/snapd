@@ -49,6 +49,10 @@ func makeLoginTestServer(c *C, n *int) func(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *SnapSuite) TestLoginSimple(c *C) {
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
+	}
+
 	n := 0
 	s.RedirectClientToTestServer(makeLoginTestServer(c, &n))
 
@@ -65,6 +69,10 @@ Login successful
 }
 
 func (s *SnapSuite) TestLoginAskEmail(c *C) {
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
+	}
+
 	n := 0
 	s.RedirectClientToTestServer(makeLoginTestServer(c, &n))
 
