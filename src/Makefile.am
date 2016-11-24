@@ -12,8 +12,6 @@ decode_mount_opts_SOURCES = \
 snap_discard_ns_SOURCES = \
 	ns-support.c \
 	ns-support.h \
-	user-support.c \
-	user-support.h \
 	utils.c \
 	utils.h \
 	secure-getenv.c \
@@ -92,8 +90,6 @@ snap_confine_unit_tests_SOURCES = \
 	unit-tests-main.c \
 	classic.c \
 	classic.h \
-	user-support.c \
-	user-support.h \
 	quirks.c \
 	quirks.h \
 	unit-tests.c \
