@@ -135,6 +135,8 @@ prepare: |
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
+        # stop and disable autorefresh
+        systemctl disable --now snapd.refresh.timer
         exit 0
     fi
 
@@ -186,6 +188,12 @@ prepare: |
     go get ./tests/lib/fakestore/cmd/fakestore
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
+
+restore: |
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # start and enable autorefresh
+        systemctl enable --now snapd.refresh.timer
+    fi
 
 suites:
     tests/main/:
