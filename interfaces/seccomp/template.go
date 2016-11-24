@@ -264,6 +264,7 @@ open
 
 openat
 pause
+personality
 pipe
 pipe2
 poll

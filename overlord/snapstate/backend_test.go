@@ -199,7 +199,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) (string, error) {
+func (f *fakeStore) Download(name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
 	var macaroon string
@@ -215,7 +215,7 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
 
-	return "downloaded-snap-path", nil
+	return nil
 }
 
 func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
