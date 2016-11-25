@@ -165,14 +165,11 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		opts = &FindOptions{}
 	}
 
-	query := opts.Query
-	section := opts.Section
-
 	q := url.Values{}
 	if opts.SearchNameOnly {
-		q.Set("name", query+"*")
+		q.Set("name", opts.Query+"*")
 	} else {
-		q.Set("q", query)
+		q.Set("q", opts.Query)
 	}
 
 	switch {
@@ -184,8 +181,8 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "private")
 	}
 
-	if section != "" || (section == "" && query == "") {
-		q.Set("section", section)
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
 	}
 
 	return client.snapsFromPath("/v2/find", q)

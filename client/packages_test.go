@@ -43,7 +43,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "section": []string{""}, "select": []string{"refresh"},
+		"q": []string{""}, "select": []string{"refresh"},
 	})
 }
 
