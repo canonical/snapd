@@ -90,7 +90,10 @@ type ResultInfo struct {
 // FindOptions supports exactly one of the following options:
 // - Refresh: only return snaps that are refreshable
 // - Private: return snaps that are private
-// - Query: only return snaps that match the query string
+// - Query: only return snaps that match the query string.
+// The Prefix predicate can be used to specify that
+// a search action is limited to the snaps' name fields only. By default
+// the search is performed on all of the snaps' description fields.
 type FindOptions struct {
 	Refresh bool
 	Private bool
@@ -162,12 +165,16 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		opts = &FindOptions{}
 	}
 
+	query := opts.Query
+	section := opts.Section
+
 	q := url.Values{}
 	if opts.Prefix {
-		q.Set("name", opts.Query+"*")
+		q.Set("name", query)
 	} else {
-		q.Set("q", opts.Query)
+		q.Set("q", query)
 	}
+
 	switch {
 	case opts.Refresh && opts.Private:
 		return nil, nil, fmt.Errorf("cannot specify refresh and private together")
@@ -176,7 +183,8 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	case opts.Private:
 		q.Set("select", "private")
 	}
-	if opts.Section != "" {
+
+	if section != "" || (section == "" && query == ""){
 		q.Set("section", opts.Section)
 	}
 
