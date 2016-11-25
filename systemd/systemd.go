@@ -293,11 +293,6 @@ func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if _, err := SystemctlCmd("stop", serviceName); err != nil {
-		if stat, serr := s.ServiceStatus(serviceName); serr == nil {
-			if stat.LoadState == "not-found" {
-				return &ServiceNotFound{action: "stop", service: serviceName}
-			}
-		}
 		return err
 	}
 
@@ -375,23 +370,6 @@ func (e *Timeout) Error() string {
 func IsTimeout(err error) bool {
 	_, isTimeout := err.(*Timeout)
 	return isTimeout
-}
-
-// ServiceNotFound is returned if the systemd action failed to
-// change the state of the service because it was not found.
-type ServiceNotFound struct {
-	action  string
-	service string
-}
-
-func (e *ServiceNotFound) Error() string {
-	return fmt.Sprintf("%v failed to %v: not found", e.service, e.action)
-}
-
-// IsServiceNotFound checks whether the given error is a ServiceNotFound
-func IsServiceNotFound(err error) bool {
-	_, isNotFound := err.(*ServiceNotFound)
-	return isNotFound
 }
 
 const myFmt = "2006-01-02T15:04:05.000000Z07:00"
