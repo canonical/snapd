@@ -1,4 +1,4 @@
-name: test-snapd-service
+name: test-snapd-service-try
 version: 1.0
 apps:
  service:
