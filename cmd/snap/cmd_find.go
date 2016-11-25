@@ -22,11 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -66,15 +67,17 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 
 type SectionName string
 
-func (s *SectionName) Complete(match string) []flags.Completion {
+func (s SectionName) Complete(match string) []flags.Completion {
 	cli := Client()
 	sections, err := cli.Sections()
 	if err != nil {
 		return nil
 	}
-	ret := make([]flags.Completion, len(sections))
+	ret := make([]flags.Completion, 0, len(sections))
 	for _, s := range sections {
-		ret = append(ret, flags.Completion{Item: s})
+		if strings.HasPrefix(s, match) {
+			ret = append(ret, flags.Completion{Item: s})
+		}
 	}
 	return ret
 }
