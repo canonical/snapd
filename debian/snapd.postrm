@@ -35,7 +35,7 @@ if [ "$1" = "purge" ]; then
             rm -f "/snap/bin/$snap".*
             # snap mount dir
             umount -l "/snap/$snap/$rev" 2> /dev/null || true
-            rm -rf "/snap/$snap/$rev"
+	    for i in 1 2 3 4 5; do rm -rf "/snap/$snap/$rev" && break || sleep 2; done
             rm -f "/snap/$snap/current"
             # snap data dir
             rm -rf "/var/snap/$snap/$rev"
