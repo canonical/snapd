@@ -39,6 +39,5 @@ execute: |
   output=$(systemctl show --property=LoadState $SERVICE)
   if [ "$output" != "$expected_output" ]; then
     echo "Expected systemctl show output to be '$expected_output', but it was '$output'"
-    systemctl|grep try
     exit 1
   fi
