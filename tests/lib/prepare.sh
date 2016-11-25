@@ -233,55 +233,9 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
-        # prepare block device on swap for cold-plug system-user autoimport testing
-        # deactivate swap
-        swapoff -a
-        wipefs -a -f /dev/sdb
-        sed -i 's|^/dev/sdb.*||' /etc/fstab
-
-        # create new primary partition occupying all the /dev/sdb disk
-        sfdisk /dev/sdb <<EOF
-;
-EOF
-        # format new partition
-        mkfs.ext4 /dev/sdb1
-
-        # mount and write system-user assertion
-        mount /dev/sdb1 /mnt
-        cat > /mnt/auto-import.assert <<"EOF"
-type: system-user
-authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
-revision: 1
-brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
-email: snappy-dev@lists.launchpad.net
-models:
-  - pc
-  - pi2
-  - pi3
-  - dragonboard
-name: user1
-password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
-series:
-  - 16
-since: 2016-10-10T15:03:21+00:00
-ssh-keys:
-  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAxnaIJtNvjR0sPO92hJla/Q71pczHn9KFx/Tc4gHHgY8kY6ysV7F9JxcfmDPzpTrYPNAylHTUR3SNWZGcgk2hYo2AChbTNyUh+PiyrvsEenMifl8e4qnb7145BStK6QdxQkZwkhVebm+T1pXEO+RwR9x2SPdV8+vHJ8EZ/FHwMyQAKGFWXYHkPCtwMgoFElB406VDeGxXCpeL1kpYGpK/2CgXgz4Dpm8nwvxfOWAmBYIDKOIrblzraQhFiyqBQp0fNlI2lgxFEGxpaMLL3WguMGqf7kKAvupUz32DWbY9i6//xFkhoaMWWiigAOZSWCcq7yE30d63Pg3mZE8YMIw3Kw== autoimported-user1
-until: 2017-10-09T15:03:21+00:00
-username: user1
-sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
-
-AcLBXAQAAQoABgUCWBdvsAAKCRCi4irWmF+hRUe7EACubB652d3mUzMFFCzbMCRFXseY+FHI3U3p
-wRM71oPC7TtnOtvdVv0QrZncf2uGuAJnVxZEDiFlZITEgZg1nj8IaUXLGzWbJlYphmBaiBwRU3Yq
-dcS7i7G6A7Fm0FpGjkRNxOg8x7LmjOU5fAqgMJbNw0VbRLkhM9oKnIAtHPJIoJJNCD3k6XHe7AlL
-Ys3OJz+hheCJTARkKuId2fFyakeFOikbgyya2I54ilGHO0LlMqltnmmOqNbcs1R7Eh7lXBx6LsAY
-BThitOtITSVclfWmWkELXwrcIpJz+BHle/LgvrHtTcApBs/qQ7klNbOZFWQRIQL9w6amKFY+/4c+
-J0qATpAt5slFJofwSGE4BH7FbA5b4eUBvmV/ZgKQBtPVEl0HI2P175u5+a7CGjAJJ7+jaeots4ES
-ZYmdUUSVe5AURyv6E+qICiGe5J5x/k7xmTng1vQZxHCapyGgbPnF4Qzpv7Z6wtbIzhC1ofofF6x+
-mw244TiSfoRdQvx98R9Lh7K8nxk4KNXNPFdKdl/DFfrAcDtZ9cTOfjBshPdF2gAoYdXTUjpb/r0A
-cHDFgdjLZ3An1c04+BlGTmSKSjBh7MFr/lFWECIacLhnEiewKkJ04ICUEkJhflORa9Nuk/IvSG0F
-gEuty0JJoVqXqlK4LQOzLO/QsYowkJKYp9n2An5TIQ==
-EOF
-        umount /mnt
+        if [ "$SPREAD_BACKEND" = "linode" ]; then
+            prepare_autoimport
+        fi
 }
 
 prepare_all_snap() {
@@ -327,4 +281,60 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
         systemctl start snapd.socket
     fi
+}
+
+prepare_autoimport(){
+    # prepare block device on swap for cold-plug system-user autoimport testing
+    # deactivate swap
+    swapoff -a
+    wipefs -a -f /dev/sdb
+    sed -i 's|^/dev/sdb.*||' /etc/fstab
+
+    # create new primary partition occupying all the /dev/sdb disk
+    sfdisk --dump /dev/sdb > sdb.dump
+    exit 1
+    sfdisk /dev/sdb <<EOF
+;
+EOF
+    echo -e "o\nn\np\n1\n\n\nw" | fdisk /dev/sdb
+
+    # format new partition
+    mkfs.ext4 /dev/sdb1
+
+    # mount and write system-user assertion
+    mount /dev/sdb1 /mnt
+    cat > /mnt/auto-import.assert <<"EOF"
+type: system-user
+authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+revision: 1
+brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+email: snappy-dev@lists.launchpad.net
+models:
+  - pc
+  - pi2
+  - pi3
+  - dragonboard
+name: user1
+password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
+series:
+  - 16
+since: 2016-10-10T15:03:21+00:00
+ssh-keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAxnaIJtNvjR0sPO92hJla/Q71pczHn9KFx/Tc4gHHgY8kY6ysV7F9JxcfmDPzpTrYPNAylHTUR3SNWZGcgk2hYo2AChbTNyUh+PiyrvsEenMifl8e4qnb7145BStK6QdxQkZwkhVebm+T1pXEO+RwR9x2SPdV8+vHJ8EZ/FHwMyQAKGFWXYHkPCtwMgoFElB406VDeGxXCpeL1kpYGpK/2CgXgz4Dpm8nwvxfOWAmBYIDKOIrblzraQhFiyqBQp0fNlI2lgxFEGxpaMLL3WguMGqf7kKAvupUz32DWbY9i6//xFkhoaMWWiigAOZSWCcq7yE30d63Pg3mZE8YMIw3Kw== autoimported-user1
+until: 2017-10-09T15:03:21+00:00
+username: user1
+sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
+
+AcLBXAQAAQoABgUCWBdvsAAKCRCi4irWmF+hRUe7EACubB652d3mUzMFFCzbMCRFXseY+FHI3U3p
+wRM71oPC7TtnOtvdVv0QrZncf2uGuAJnVxZEDiFlZITEgZg1nj8IaUXLGzWbJlYphmBaiBwRU3Yq
+dcS7i7G6A7Fm0FpGjkRNxOg8x7LmjOU5fAqgMJbNw0VbRLkhM9oKnIAtHPJIoJJNCD3k6XHe7AlL
+Ys3OJz+hheCJTARkKuId2fFyakeFOikbgyya2I54ilGHO0LlMqltnmmOqNbcs1R7Eh7lXBx6LsAY
+BThitOtITSVclfWmWkELXwrcIpJz+BHle/LgvrHtTcApBs/qQ7klNbOZFWQRIQL9w6amKFY+/4c+
+J0qATpAt5slFJofwSGE4BH7FbA5b4eUBvmV/ZgKQBtPVEl0HI2P175u5+a7CGjAJJ7+jaeots4ES
+ZYmdUUSVe5AURyv6E+qICiGe5J5x/k7xmTng1vQZxHCapyGgbPnF4Qzpv7Z6wtbIzhC1ofofF6x+
+mw244TiSfoRdQvx98R9Lh7K8nxk4KNXNPFdKdl/DFfrAcDtZ9cTOfjBshPdF2gAoYdXTUjpb/r0A
+cHDFgdjLZ3An1c04+BlGTmSKSjBh7MFr/lFWECIacLhnEiewKkJ04ICUEkJhflORa9Nuk/IvSG0F
+gEuty0JJoVqXqlK4LQOzLO/QsYowkJKYp9n2An5TIQ==
+EOF
+    umount /mnt
 }

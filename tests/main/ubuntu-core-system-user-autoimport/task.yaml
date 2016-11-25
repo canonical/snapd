@@ -1,18 +1,18 @@
 summary: Check cold-plug system-user autoimport
 
+backends: [linode]
+
 systems: [ubuntu-core-16-64]
 
 details: |
     After the ubuntu-core is prepared we end with a system-user
     assertion ready to be autoimported in a block device. This
     test checks that the creation took place after the first boot.
+    It is restricted to the linode backend because it relies on
+    the testbed having a swap partition, which is fomarted and used
+    as block device.
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Ensure there are ssh keys imported"
     grep "ssh-rsa.*autoimported-user1" /home/user1/.ssh/authorized_keys
 
