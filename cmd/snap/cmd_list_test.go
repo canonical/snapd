@@ -28,6 +28,26 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
+func (s *SnapSuite) TestListHelp(c *check.C) {
+	msg := `Usage:
+  snap.test [OPTIONS] list [list-OPTIONS] [<snap>...]
+
+The list command displays a summary of snaps installed in the current system.
+
+Application Options:
+      --version     Print the version and exit
+
+Help Options:
+  -h, --help        Show this help message
+
+[list command options]
+          --all     Show all revisions
+`
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--help"})
+	c.Assert(err.Error(), check.Equals, msg)
+	c.Assert(rest, check.DeepEquals, []string{})
+}
+
 func (s *SnapSuite) TestList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
