@@ -44,8 +44,8 @@ int must_snprintf(char *str, size_t size, const char *format, ...);
  *
  * This function behaves like "mkdir -p" (recursive mkdir) with the exception
  * that each directory is carefully created in a way that avoids symlink
- * attacks. The preceding directory is kept openat(2) (along with O_PATH) and
- * the next directory is created using mkdirat(2), this sequence continues
+ * attacks. The preceding directory is kept openat(2) (along with O_DIRECTORY)
+ * and the next directory is created using mkdirat(2), this sequence continues
  * while there are more directories to process.
  *
  * The function returns -1 in case of any error.
