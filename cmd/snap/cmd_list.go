@@ -44,7 +44,8 @@ type cmdList struct {
 }
 
 func init() {
-	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} }, nil, nil)
+	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
+		map[string]string{"all": i18n.G("Show all revisions")}, nil)
 }
 
 type snapsByName []*client.Snap
