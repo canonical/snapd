@@ -291,8 +291,6 @@ prepare_autoimport(){
     sed -i 's|^/dev/sdb.*||' /etc/fstab
 
     # create new primary partition occupying all the /dev/sdb disk
-    sfdisk --dump /dev/sdb > sdb.dump
-    exit 1
     sfdisk /dev/sdb <<EOF
 ;
 EOF
