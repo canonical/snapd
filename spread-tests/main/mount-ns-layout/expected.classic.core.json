@@ -452,6 +452,16 @@
   {
     "fs_type": "squashfs",
     "mount_opts": "rw,relatime",
+    "mount_point": "/var/lib/cloud",
+    "mount_src": "/dev/remapped-loop0",
+    "opt_fields": [
+      "master:renumbered/0"
+    ],
+    "root_dir": "/var/lib/cloud"
+  },
+  {
+    "fs_type": "squashfs",
+    "mount_opts": "rw,relatime",
     "mount_point": "/var/lib/console-conf",
     "mount_src": "/dev/remapped-loop0",
     "opt_fields": [
