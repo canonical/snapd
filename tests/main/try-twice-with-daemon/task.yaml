@@ -3,7 +3,7 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 environment:
   TRYSNAPDIR: /tmp/test/test-snapd-service-try
-  SERVICE: snap.test-snapd-service-try.daemon1.service
+  SERVICE: snap.test-snapd-service-try.service.service
 
 prepare: |
   mkdir /tmp/test
@@ -39,5 +39,6 @@ execute: |
   output=$(systemctl show --property=LoadState $SERVICE)
   if [ "$output" != "$expected_output" ]; then
     echo "Expected systemctl show output to be '$expected_output', but it was '$output'"
+    systemctl|grep try
     exit 1
   fi
