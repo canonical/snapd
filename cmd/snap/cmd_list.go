@@ -37,7 +37,7 @@ The list command displays a summary of snaps installed in the current system.`)
 
 type cmdList struct {
 	Positional struct {
-		Snaps []string `positional-arg-name:"<snap>"`
+		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 
 	All bool `long:"all"`
@@ -59,7 +59,12 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return listSnaps(x.Positional.Snaps, x.All)
+	names := make([]string, len(x.Positional.Snaps))
+	for i, name := range x.Positional.Snaps {
+		names[i] = string(name)
+	}
+
+	return listSnaps(names, x.All)
 }
 
 func listSnaps(names []string, all bool) error {
