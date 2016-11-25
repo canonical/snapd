@@ -147,18 +147,14 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
+		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
+		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		serviceName := filepath.Base(app.ServiceFile())
 		tout := serviceStopTimeout(app)
 		if err := sysd.Stop(serviceName, tout); err != nil {
-			// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
-			// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
-			if systemd.IsServiceNotFound(err) {
-				inter.Notify(fmt.Sprintf("%s not found, ignoring.", serviceName))
-				continue
-			}
 			if !systemd.IsTimeout(err) {
 				return err
 			}
@@ -181,7 +177,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++

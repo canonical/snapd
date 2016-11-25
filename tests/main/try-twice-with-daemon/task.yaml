@@ -8,6 +8,7 @@ environment:
 prepare: |
   mkdir /tmp/test
   cp -r $TESTSLIB/snaps/test-snapd-service-try /tmp/test
+  mkdir $TRYSNAPDIR/meta
 
 execute: |
   cp $TRYSNAPDIR/snap-1.yaml $TRYSNAPDIR/meta/snap.yaml
