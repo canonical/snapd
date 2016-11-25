@@ -36,7 +36,7 @@ import (
 type infoCmd struct {
 	Verbose    bool `long:"verbose"`
 	Positional struct {
-		Snaps []string `positional-arg-name:"<snap>" required:"1"`
+		Snaps []anySnap `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -128,6 +128,7 @@ func (x *infoCmd) Execute([]string) error {
 
 	noneOK := true
 	for i, snapName := range x.Positional.Snaps {
+		snapName := string(snapName)
 		if i > 0 {
 			fmt.Fprintln(w, "---")
 		}
