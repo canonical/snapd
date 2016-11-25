@@ -185,7 +185,7 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 
 	if section != "" || (section == "" && query == ""){
-		q.Set("section", opts.Section)
+		q.Set("section", section)
 	}
 
 	return client.snapsFromPath("/v2/find", q)
