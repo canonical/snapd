@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -51,88 +49,9 @@ func (s remoteSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
-type snapDir string
+type anySnapName string
 
-func (s snapDir) Complete(match string) []flags.Completion {
-	dir, prefix := filepath.Split(match)
-	if dir == "" {
-		dir = "."
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return nil
-	}
-	defer d.Close()
-	var res []flags.Completion
-	for {
-		fis, _ := d.Readdir(100)
-		if len(fis) == 0 {
-			break
-		}
-		for _, fi := range fis {
-			name := fi.Name()
-			if !strings.HasPrefix(name, prefix) {
-				continue
-			}
-			if fi.IsDir() {
-				res = append(res, flags.Completion{Item: filepath.Join(dir, name) + "/"})
-			}
-		}
-	}
-
-	return res
-}
-
-type snapFile string
-
-func (s snapFile) Complete(match string) []flags.Completion {
-	dir, prefix := filepath.Split(match)
-	if dir == "" {
-		dir = "."
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return nil
-	}
-	defer d.Close()
-	var res []flags.Completion
-	for {
-		fis, _ := d.Readdir(100)
-		if len(fis) == 0 {
-			break
-		}
-		for _, fi := range fis {
-			name := fi.Name()
-			if !strings.HasPrefix(name, prefix) {
-				continue
-			}
-			if fi.IsDir() {
-				res = append(res, flags.Completion{Item: filepath.Join(dir, name) + "/"})
-			} else if strings.HasSuffix(name, ".snap") {
-				res = append(res, flags.Completion{Item: filepath.Join(dir, name)})
-			}
-		}
-	}
-
-	return res
-}
-
-type snapFileOrRemoteSnapName string
-
-func (s snapFileOrRemoteSnapName) Complete(match string) []flags.Completion {
-	if strings.HasPrefix(match, ".") || strings.HasPrefix(match, "/") {
-		return snapFile(s).Complete(match)
-	}
-	return remoteSnapName(s).Complete(match)
-}
-
-type anySnap string
-
-func (s anySnap) Complete(match string) []flags.Completion {
-	if strings.HasPrefix(match, ".") || strings.HasPrefix(match, "/") {
-		return snapFile(s).Complete(match)
-	}
-
+func (s anySnapName) Complete(match string) []flags.Completion {
 	res := installedSnapName(s).Complete(match)
 	seen := make(map[string]bool)
 	for _, x := range res {

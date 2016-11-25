@@ -33,7 +33,7 @@ import (
 
 type cmdSignBuild struct {
 	Positional struct {
-		Filename snapFile
+		Filename string
 	} `positional-args:"yes" required:"yes"`
 
 	// XXX complete DeveloperID and SnapID
@@ -69,7 +69,7 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapDigest, snapSize, err := asserts.SnapFileSHA3_384(string(x.Positional.Filename))
+	snapDigest, snapSize, err := asserts.SnapFileSHA3_384(x.Positional.Filename)
 	if err != nil {
 		return err
 	}
