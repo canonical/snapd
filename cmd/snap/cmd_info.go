@@ -36,7 +36,7 @@ import (
 type infoCmd struct {
 	Verbose    bool `long:"verbose"`
 	Positional struct {
-		Snaps []anySnap `positional-arg-name:"<snap>" required:"1"`
+		Snaps []anySnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 

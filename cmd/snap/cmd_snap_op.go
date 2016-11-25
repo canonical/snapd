@@ -373,7 +373,7 @@ type cmdInstall struct {
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Positional struct {
-		Snaps []snapFileOrRemoteSnapName `positional-arg-name:"<snap>"`
+		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -620,7 +620,7 @@ func (x *cmdRefresh) Execute([]string) error {
 type cmdTry struct {
 	modeMixin
 	Positional struct {
-		SnapDir snapDir `positional-arg-name:"<snap-dir>"`
+		SnapDir string `positional-arg-name:"<snap-dir>"`
 	} `positional-args:"yes"`
 }
 
@@ -629,7 +629,7 @@ func (x *cmdTry) Execute([]string) error {
 		return err
 	}
 	cli := Client()
-	name := string(x.Positional.SnapDir)
+	name := x.Positional.SnapDir
 	opts := &client.SnapOptions{
 		DevMode:  x.DevMode,
 		JailMode: x.JailMode,
