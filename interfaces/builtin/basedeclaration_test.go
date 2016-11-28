@@ -351,7 +351,6 @@ var (
 		"content":          {"app", "gadget"},
 		"dbus":             {"app"},
 		"docker-support":   {"core"},
-		"eds":		    {"core"},
 		"fwupd":            {"app"},
 		"gpio":             {"core", "gadget"},
 		"hidraw":           {"core", "gadget"},
@@ -369,6 +368,7 @@ var (
 		"pulseaudio":       {"app", "core"},
 		"serial-port":      {"core", "gadget"},
 		"udisks2":          {"app"},
+		"unity8-calendar":  {"app"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
@@ -477,6 +477,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":              true,
 		"mir":              true,
 		"udisks2":          true,
+		"unity8-calendar":  true,
 	}
 
 	for _, iface := range all {

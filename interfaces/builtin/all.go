@@ -31,7 +31,6 @@ var allInterfaces = []interfaces.Interface{
 	&DbusInterface{},
 	&DockerInterface{},
 	&DockerSupportInterface{},
-	&EDSInterface{},
 	&FwupdInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
@@ -89,6 +88,7 @@ var allInterfaces = []interfaces.Interface{
 	NewTpmInterface(),
 	NewUPowerObserveInterface(),
 	NewUnity7Interface(),
+	NewUnity8CalendarInterface(),
 	NewX11Interface(),
 }
 
