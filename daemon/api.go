@@ -1122,13 +1122,21 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+	tsets, err := withEnsureUbuntuCore(st, info.Name(), userID,
+		func() (*state.TaskSet, error) {
+			return snapstateTryPath(st, info.Name(), trydir, flags)
+		},
+	)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
+	chg := newChange(st, "try-snap", msg, tsets, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
 	ensureStateSoon(st)
