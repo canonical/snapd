@@ -141,8 +141,6 @@ func ValidateApp(app *AppInfo) error {
 		"command":           app.Command,
 		"stop-command":      app.StopCommand,
 		"post-stop-command": app.PostStopCommand,
-		"socket-mode":       app.SocketMode,
-		"listen-stream":     app.ListenStream,
 		"bus-name":          app.BusName,
 	}
 

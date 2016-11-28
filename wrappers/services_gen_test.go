@@ -197,63 +197,6 @@ apps:
 	c.Assert(wrapperText, Equals, expectedDbusService)
 }
 
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker.sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	content, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(content, Equals, `[Unit]
-# Auto-generated, DO NO EDIT
-Description=Socket for snap application xkcd-webserver.xkcd-webserver
-Requires=snap-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=snap-xkcd\x2dwebserver-44.mount network-online.target
-X-Snappy=yes
-
-[Socket]
-ListenStream=/var/run/docker.sock
-SocketMode=0660
-
-[Install]
-WantedBy=sockets.target
-`)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker!sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	_, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, NotNil)
-}
-
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
