@@ -225,12 +225,6 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  eds:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: true
   firewall-control:
     allow-installation:
       slot-snap-type:
@@ -497,6 +491,12 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8-calendar:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:

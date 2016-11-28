@@ -60,6 +60,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
+	"unity8-calendar",
 }
 
 var implicitClassicSlots = []string{
@@ -78,7 +79,6 @@ var implicitClassicSlots = []string{
 	"unity7",
 	"upower-observe",
 	"x11",
-	"eds",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
