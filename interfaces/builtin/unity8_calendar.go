@@ -119,7 +119,7 @@ const unity8CalendarPermanentSlotDBus = `
 	<allow send_interface="org.gnome.evolution.dataserver.CalendarFactory"/>
 `
 
-// NewCameraInterface returns a new "camera" interface.
+// NewUnity8CalendarInterface returns a new "untiy8-calendar" interface.
 func NewUnity8CalendarInterface() interfaces.Interface {
 	return &unity8PimInterface{
 		name: "unity8-calendar",

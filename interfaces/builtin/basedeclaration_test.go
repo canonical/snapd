@@ -368,7 +368,8 @@ var (
 		"pulseaudio":       {"app", "core"},
 		"serial-port":      {"core", "gadget"},
 		"udisks2":          {"app"},
-		"unity8-calendar":  {"app"},
+		"unity8-calendar":  {"app", "core"},
+		"unity8-contacts":  {"app", "core"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
@@ -478,6 +479,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":              true,
 		"udisks2":          true,
 		"unity8-calendar":  true,
+		"unity8-contacts":  true,
 	}
 
 	for _, iface := range all {

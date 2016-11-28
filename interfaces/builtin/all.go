@@ -89,6 +89,7 @@ var allInterfaces = []interfaces.Interface{
 	NewUPowerObserveInterface(),
 	NewUnity7Interface(),
 	NewUnity8CalendarInterface(),
+	NewUnity8ContactsInterface(),
 	NewX11Interface(),
 }
 

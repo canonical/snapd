@@ -61,6 +61,7 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"unity8-calendar",
+	"unity8-contacts",
 }
 
 var implicitClassicSlots = []string{
