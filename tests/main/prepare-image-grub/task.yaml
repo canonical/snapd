@@ -11,10 +11,10 @@ environment:
     UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 prepare: |
     . $TESTSLIB/store.sh
-    setup_store fake $STORE_DIR
+    setup_fake_store $STORE_DIR
 restore: |
     . $TESTSLIB/store.sh
-    teardown_store fake $STORE_DIR
+    teardown_fake_store $STORE_DIR
     rm -rf $ROOT
 execute: |
     echo Expose the needed assertions through the fakestore
