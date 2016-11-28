@@ -1375,7 +1375,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
+		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, sha3_384, actualSha3)
 	}
 	return err
 }
