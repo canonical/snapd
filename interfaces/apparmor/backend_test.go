@@ -319,35 +319,20 @@ const commonPrefix = `
 @{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
-	opts: interfaces.ConfinementOptions{},
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected) {
-
-}
-`,
+	opts:    interfaces.ConfinementOptions{},
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n",
 }, {
 	opts:    interfaces.ConfinementOptions{},
 	snippet: "snippet",
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected) {
-snippet
-}
-`,
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
 }, {
-	opts: interfaces.ConfinementOptions{DevMode: true},
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-
-}
-`,
+	opts:    interfaces.ConfinementOptions{DevMode: true},
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\n\n}\n",
 }, {
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-snippet
-}
-`}}
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+}}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
