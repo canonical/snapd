@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -323,7 +324,7 @@ func (s *SnapSuite) TestFindNothingMeansFeaturedSection(c *check.C) {
 			c.Check(r.URL.Query().Get("section"), check.Equals, "featured")
 			fmt.Fprintln(w, findJSON)
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+			c.Fatalf("expected to get 1 request, now on %d", n+1)
 		}
 		n++
 	})
@@ -332,4 +333,32 @@ func (s *SnapSuite) TestFindNothingMeansFeaturedSection(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestSectionCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"foo", "bar", "baz"},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	c.Check(snap.SectionName("").Complete(""), check.DeepEquals, []flags.Completion{
+		{Item: "foo"},
+		{Item: "bar"},
+		{Item: "baz"},
+	})
+
+	c.Check(snap.SectionName("").Complete("f"), check.DeepEquals, []flags.Completion{
+		{Item: "foo"},
+	})
 }
