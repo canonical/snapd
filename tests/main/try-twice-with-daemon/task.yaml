@@ -14,10 +14,10 @@ execute: |
 
   # Sanity check just to ensure the test and its input yaml are correct
   echo "And it doesn't have a systemd service just yet"
-  expected_output="LoadState=not-found"
-  output=$(systemctl show --property=LoadState $SERVICE)
-  if [ "$output" != "$expected_output" ]; then
-    echo "Expected systemctl show output to be '$expected_output', but it was '$output'"
+  # Note: systemctl in yakkety doesn't report LoadState=not-found for unknown services
+  # so need to grep all the services
+  if systemctl|grep -q $SERVICE ; then
+    echo "Unexpected service $SERVICE"
     exit 1
   fi
 
