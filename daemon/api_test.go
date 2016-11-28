@@ -1879,12 +1879,6 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	soon := 0
-	ensureStateSoon = func(st *state.State) {
-		soon++
-		ensureStateSoonImpl(st)
-	}
-
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
@@ -1896,44 +1890,73 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	err = ioutil.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
 	c.Assert(err, check.IsNil)
 
-	tryWasCalled := true
-	snapstateTryPath = func(s *state.State, name, path string, flags snapstate.Flags) (*state.TaskSet, error) {
-		tryWasCalled = true
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
+	for _, t := range []struct {
+		coreInfoErr error
+		nTasks      int
+		installSnap string
+	}{
+		// core installed
+		{nil, 1, ""},
+		// no-core-installed
+		{state.ErrNoState, 2, "core"},
+	} {
+		soon := 0
+		ensureStateSoon = func(st *state.State) {
+			soon++
+			ensureStateSoonImpl(st)
+		}
+
+		tryWasCalled := true
+		snapstateTryPath = func(s *state.State, name, path string, flags snapstate.Flags) (*state.TaskSet, error) {
+			tryWasCalled = true
+			t := s.NewTask("fake-install-snap", "Doing a fake try")
+			return state.NewTaskSet(t), nil
+		}
+
+		installSnap := ""
+		snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+			installSnap = name
+			t := s.NewTask("fake-install-snap", "Doing a fake install")
+			return state.NewTaskSet(t), nil
+		}
+
+		snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+			return nil, t.coreInfoErr
+		}
+
+		// try the snap (without an installed core)
+		rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
+		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+		c.Assert(tryWasCalled, check.Equals, true)
+
+		st := d.overlord.State()
+		st.Lock()
+		chg := st.Change(rsp.Change)
+		c.Assert(chg, check.NotNil)
+
+		c.Assert(chg.Tasks(), check.HasLen, t.nTasks)
+		c.Check(installSnap, check.Equals, t.installSnap)
+
+		st.Unlock()
+		<-chg.Ready()
+		st.Lock()
+
+		c.Check(chg.Kind(), check.Equals, "try-snap")
+		c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir))
+		var names []string
+		err = chg.Get("snap-names", &names)
+		c.Assert(err, check.IsNil)
+		c.Check(names, check.DeepEquals, []string{"foo"})
+		var apiData map[string]interface{}
+		err = chg.Get("api-data", &apiData)
+		c.Assert(err, check.IsNil)
+		c.Check(apiData, check.DeepEquals, map[string]interface{}{
+			"snap-name": "foo",
+		})
+
+		c.Check(soon, check.Equals, 1)
+		st.Unlock()
 	}
-
-	// try the snap
-	rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Assert(tryWasCalled, check.Equals, true)
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	chg := st.Change(rsp.Change)
-	c.Assert(chg, check.NotNil)
-
-	c.Assert(chg.Tasks(), check.HasLen, 1)
-
-	st.Unlock()
-	<-chg.Ready()
-	st.Lock()
-
-	c.Check(chg.Kind(), check.Equals, "try-snap")
-	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir))
-	var names []string
-	err = chg.Get("snap-names", &names)
-	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []string{"foo"})
-	var apiData map[string]interface{}
-	err = chg.Get("api-data", &apiData)
-	c.Assert(err, check.IsNil)
-	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": "foo",
-	})
-
-	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestTrySnapRelative(c *check.C) {
