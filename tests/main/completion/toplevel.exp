@@ -1,4 +1,4 @@
-source lib.exp
+source lib.exp0
 
 # --help completes
 chat "snap --h\t" "snap --help $" true
@@ -13,9 +13,11 @@ chat "\t\t" "snap --version $"
 cancel
 
 # commands complete
-rechat "snap in\t\t" "info *install *interfaces"
-next
-chat "s\t" "snap install "
+rechat "snap in\t\t" "\[\n ]info\[\r ]" true
+rechat "" "\[\n ]install\[\r ]" true
+rechat "" "\[\n ]interfaces\[\r ]"
+
+chat "s\t" "snap install $"
 
 cancel
 brexit

@@ -1,0 +1,15 @@
+source lib.exp0
+
+# create a key doesn't complete
+chat "snap create-key \t\t" "snap create-key ??$"
+chat "\r" "Passphrase:"
+chat "\r" "Confirm passphrase:"
+send "\r"
+
+# this can take a while
+set timeout 60
+
+next
+cancel
+brexit
+

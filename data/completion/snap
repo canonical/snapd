@@ -1,3 +1,4 @@
+# -*- sh -*-
 _complete() {
     local cur prev words cword
     _init_completion || return
@@ -23,7 +24,10 @@ _complete() {
 
     case $command in
         install|info|sign-build)
-            _filedir "*.snap"
+            _filedir "snap"
+            ;;
+        ack)
+            _filedir
             ;;
         try)
             _filedir -d
