@@ -288,15 +288,11 @@ prepare_autoimport(){
     # deactivate swap
     swapoff -a
     wipefs -a -f /dev/sdb
-    sed -i 's|^/dev/sdb.*||' /etc/fstab
+    sync
 
-    # create new primary partition occupying all the /dev/sdb disk
-    sfdisk /dev/sdb <<EOF
-;
-EOF
-    echo -e "o\nn\np\n1\n\n\nw" | fdisk /dev/sdb
-
-    # format new partition
+    # create new partition
+    parted --script /dev/sdb mklabel gpt mkpart primary ext4 1MiB 127MiB
+    sync
     mkfs.ext4 /dev/sdb1
 
     # mount and write system-user assertion
