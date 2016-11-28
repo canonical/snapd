@@ -1,0 +1,21 @@
+source lib.exp
+
+# --help completes
+chat "snap --h\t" "snap --help $" true
+# but no more
+chat "\t\t" "snap --help $"
+cancel
+
+# --version completes
+chat "snap --v\t" "snap --version $" true
+# but no more
+chat "\t\t" "snap --version $"
+cancel
+
+# commands complete
+rechat "snap in\t\t" "info *install *interfaces"
+next
+chat "s\t" "snap install "
+
+cancel
+brexit

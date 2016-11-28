@@ -1,0 +1,17 @@
+summary: Check different completions
+
+prepare: |
+    touch basic_1.0_all.snap
+    mkdir -p testdir
+
+restore: |
+    rm basic_1.0_all.snap
+    rmdir testdir
+
+execute: |
+    echo "Toplevel completion"
+    expect -d -f toplevel.exp
+
+    echo "Install completion"
+    expect -d -f install.exp
+    
