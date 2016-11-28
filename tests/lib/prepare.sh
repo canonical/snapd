@@ -140,6 +140,13 @@ slots:
         direction: out
 EOF
 
+        # configure remote store
+        if [ "$REMOTE_STORE" = "staging" ]; then
+            target_dir=$UNPACKD/$(dirname "$STORE_CONFIG")
+            mkdir -p "$target_dir"
+            cp -av "$STORE_CONFIG" "$target_dir"
+        fi
+
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 

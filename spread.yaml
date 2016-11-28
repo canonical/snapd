@@ -17,6 +17,7 @@ environment:
     TRUST_TEST_KEYS: "true"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
+    REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
 
 backends:
     linode:
@@ -189,10 +190,20 @@ prepare: |
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
 
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
+    fi
+
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
         systemctl enable --now snapd.refresh.timer
+    fi
+
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        teardown_staging_store
     fi
 
 suites:
