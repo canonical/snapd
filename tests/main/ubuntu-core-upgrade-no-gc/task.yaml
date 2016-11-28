@@ -10,6 +10,14 @@ debug: |
     bootenv
     ls /var/lib/snapd/snaps
 
+prepare: |
+    readlink -f /snap/core/current > current-core-symlink
+
+restore: |
+    rm -f  /snap/core/current
+    ln -s $(cat current-core-symlink) /snap/core/current
+    rm -f current-core-symlink
+
 execute: |
     . $TESTSLIB/names.sh
     . $TESTSLIB/boot.sh
