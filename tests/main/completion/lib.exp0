@@ -2,7 +2,7 @@ set send_slow {1 0.1}
 set timeout 5
 
 proc delay {} {
-    sleep 0.1
+    sleep 0.5
 }
 
 proc chat {outstr instr {keep false}} {
@@ -41,12 +41,12 @@ proc next {} {
     delay
     expect {
         timeout {puts "timeout"; exit 1}
-        "bash-*\[$#] "
+        "bash-*\[$#] $"
     }
 }
 
 proc cancel {} {
-    send ""
+    send "\r"
     next
 }
 
@@ -54,7 +54,7 @@ proc brexit {} {
     send "exit\r"
     expect {
         timeout {puts "timeout"; exit 1}
-        eof     exit 0
+        eof     {exit 0}
     }
 }
 

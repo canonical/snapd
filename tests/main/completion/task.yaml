@@ -1,17 +1,20 @@
 summary: Check different completions
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 prepare: |
-    touch basic_1.0_all.snap
     mkdir -p testdir
+    touch testdir/foo.snap
+    touch bar.snap
+    snap install core
+    snap install test-snapd-tools
+    expect -d -f key.exp0
 
 restore: |
-    rm basic_1.0_all.snap
+    rm testdir/foo.snap bar.snap
     rmdir testdir
 
 execute: |
-    echo "Toplevel completion"
-    expect -d -f toplevel.exp
-
-    echo "Install completion"
-    expect -d -f install.exp
-    
+    for i in *.exp; do
+        echo $i
+        expect -d -f $i
+    done
