@@ -25,17 +25,17 @@ execute: |
         cat /proc/self/mountinfo | ./process.py > observed.json
     echo "We can now compare the obtained mount table to expected values"
     if [ -e /snap/core/current ]; then
-        cmp observed.json expected.classic.core.$arch.json
+        cmp observed.json expected.classic.core.$SPREAD_BACKEND.$arch.json
     else
-        cmp observed.json expected.classic.ubuntu-core.$arch.json
+        cmp observed.json expected.classic.ubuntu-core.$SPREAD_BACKEND.$arch.json
     fi
 debug: |
     echo "When something goes wrong we can display a human-readable diff"
     arch=$(./snap-arch.py)
     if [ -e /snap/core/current ]; then
-        diff -u observed.json expected.classic.core.$arch.json || :
+        diff -u observed.json expected.classic.core.$SPREAD_BACKEND.$arch.json || :
     else
-        diff -u observed.json expected.classic.ubuntu-core.$arch.json || :
+        diff -u observed.json expected.classic.ubuntu-core.$SPREAD_BACKEND.$arch.json || :
     fi
     echo "And pastebin the raw table for analysis"
     apt-get install pastebinit
