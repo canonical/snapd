@@ -72,6 +72,7 @@ var implicitClassicSlots = []string{
 	"modem-manager",
 	"network-manager",
 	"ofono",
+	"openvswitch",
 	"optical-drive",
 	"pulseaudio",
 	"screen-inhibit-control",

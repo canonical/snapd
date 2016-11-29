@@ -69,6 +69,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkObserveInterface(),
 	NewNetworkSetupObserveInterface(),
 	NewOpenglInterface(),
+	NewOpenvSwitchInterface(),
 	NewOpenvSwitchSupportInterface(),
 	NewOpticalDriveInterface(),
 	NewProcessControlInterface(),
