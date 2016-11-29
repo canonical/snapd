@@ -30,7 +30,7 @@ import (
 
 type cmdAck struct {
 	AckOptions struct {
-		AssertionFile string
+		AssertionFile flags.Filename
 	} `positional-args:"true" required:"true"`
 }
 
@@ -68,7 +68,7 @@ func (x *cmdAck) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := ackFile(x.AckOptions.AssertionFile); err != nil {
+	if err := ackFile(string(x.AckOptions.AssertionFile)); err != nil {
 		return fmt.Errorf("cannot assert: %v", err)
 	}
 	return nil
