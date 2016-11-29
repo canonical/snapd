@@ -194,10 +194,10 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
-		Initial: 10 * time.Millisecond,
-		Factor:  1.67,
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
 	},
 ))
 
