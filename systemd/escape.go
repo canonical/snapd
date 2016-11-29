@@ -47,7 +47,7 @@ func EscapeUnitNamePath(in string) string {
 	// leading "." is special
 	if in[0] == '.' {
 		fmt.Fprintf(buf, `\x%x`, in[0])
-		in = in[1:len(in)]
+		in = in[1:]
 	}
 
 	// replace all special chars

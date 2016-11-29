@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"fmt"
 	"regexp"
 
 	. "gopkg.in/check.v1"
@@ -83,27 +84,27 @@ func (s *ValidateSuite) TestValidateEpoch(c *C) {
 
 func (s *ValidateSuite) TestValidateHook(c *C) {
 	validHooks := []*HookInfo{
-		&HookInfo{Name: "a"},
-		&HookInfo{Name: "aaa"},
-		&HookInfo{Name: "a-a"},
-		&HookInfo{Name: "aa-a"},
-		&HookInfo{Name: "a-aa"},
-		&HookInfo{Name: "a-b-c"},
+		{Name: "a"},
+		{Name: "aaa"},
+		{Name: "a-a"},
+		{Name: "aa-a"},
+		{Name: "a-aa"},
+		{Name: "a-b-c"},
 	}
 	for _, hook := range validHooks {
 		err := ValidateHook(hook)
 		c.Assert(err, IsNil)
 	}
 	invalidHooks := []*HookInfo{
-		&HookInfo{Name: ""},
-		&HookInfo{Name: "a a"},
-		&HookInfo{Name: "a--a"},
-		&HookInfo{Name: "-a"},
-		&HookInfo{Name: "a-"},
-		&HookInfo{Name: "0"},
-		&HookInfo{Name: "123"},
-		&HookInfo{Name: "123abc"},
-		&HookInfo{Name: "日本語"},
+		{Name: ""},
+		{Name: "a a"},
+		{Name: "a--a"},
+		{Name: "-a"},
+		{Name: "a-"},
+		{Name: "0"},
+		{Name: "123"},
+		{Name: "123abc"},
+		{Name: "日本語"},
 	}
 	for _, hook := range invalidHooks {
 		err := ValidateHook(hook)
@@ -149,8 +150,26 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "oneshot"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
+	for _, t := range []struct {
+		daemon string
+		ok     bool
+	}{
+		// good
+		{"", true},
+		{"simple", true},
+		{"forking", true},
+		{"oneshot", true},
+		{"dbus", true},
+		{"notify", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+		}
+	}
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {

@@ -39,10 +39,13 @@ type cmdList struct {
 	Positional struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
+
+	All bool `long:"all"`
 }
 
 func init() {
-	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} }, nil, nil)
+	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
+		map[string]string{"all": i18n.G("Show all revisions")}, nil)
 }
 
 type snapsByName []*client.Snap
@@ -56,12 +59,12 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return listSnaps(x.Positional.Snaps)
+	return listSnaps(x.Positional.Snaps, x.All)
 }
 
-func listSnaps(names []string) error {
+func listSnaps(names []string, all bool) error {
 	cli := Client()
-	snaps, err := cli.List(names)
+	snaps, err := cli.List(names, &client.ListOptions{All: all})
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
@@ -80,20 +83,7 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		// TODO: make JailMode a flag in the snap itself
-		jailMode := snap.Confinement == client.DevmodeConfinement && !snap.DevMode
-		notes := &Notes{
-			Private:  snap.Private,
-			DevMode:  snap.DevMode,
-			JailMode: jailMode,
-			TryMode:  snap.TryMode,
-			// FIXME: a bit confusing, a installed snap
-			//        is either "active" or "installed", so
-			//        if it is not "active" it means it is
-			//        diabled.
-			Disabled: snap.Status == client.StatusInstalled,
-			Broken:   snap.Broken != "",
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromLocal(snap))
 	}
 
 	return nil

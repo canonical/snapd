@@ -256,7 +256,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
+		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
 	}
 	return res[0], nil
 }
@@ -416,10 +416,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	targetFn := snapsup.MountFile()
 	if snapsup.DownloadInfo == nil {
+		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
 		if err != nil {
 			return err
 		}

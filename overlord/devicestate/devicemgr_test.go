@@ -118,6 +118,10 @@ func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
 }
 
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
+}
+
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
@@ -733,6 +737,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(1024)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",

@@ -279,7 +279,7 @@ func (t *Task) AtTime() time.Time {
 const (
 	// Messages logged in tasks are guaranteed to use the time formatted
 	// per RFC3339 plus the following strings as a prefix, so these may
-	// be handled programatically and parsed or stripped for presentation.
+	// be handled programmatically and parsed or stripped for presentation.
 	LogInfo  = "INFO"
 	LogError = "ERROR"
 )
