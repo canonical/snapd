@@ -193,9 +193,9 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	// Initialize tokenizer and obtain first path segment.
 	char *path_segment = strtok_r(path_copy, "/", &path_walker);
 	while (path_segment) {
-		// Try to create the directory. It's okay if it already existed, but
-		// any other error is fatal. Reset errno before attempting this as it
-		// may stay stale (errno is not reset if mkdirat(2) returns
+		// Try to create the directory.  It's okay if it already existed, but
+		// return with error on any other error. Reset errno before attempting
+		// this as it may stay stale (errno is not reset if mkdirat(2) returns
 		// successfully).
 		errno = 0;
 		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
