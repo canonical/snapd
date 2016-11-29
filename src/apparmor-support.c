@@ -43,15 +43,15 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		die("cannot query current apparmor profile");
 	}
 	// Look at label, if it is non empty then we are confined. 
-	if (strcmp(label, "") != 0) {
+	if (label != NULL && strcmp(label, "") != 0) {
 		apparmor->is_confined = true;
 	} else {
 		apparmor->is_confined = false;
 	}
 	// Look at mode, it must be one of the well known strings.
-	if (strcmp(mode, SC_AA_COMPLAIN_STR) == 0) {
+	if (mode != NULL && strcmp(mode, SC_AA_COMPLAIN_STR) == 0) {
 		apparmor->mode = SC_AA_COMPLAIN;
-	} else if (strcmp(mode, SC_AA_ENFORCE_STR) == 0) {
+	} else if (mode != NULL && strcmp(mode, SC_AA_ENFORCE_STR) == 0) {
 		apparmor->mode = SC_AA_ENFORCE;
 	} else {
 		apparmor->mode = SC_AA_INVALID;
