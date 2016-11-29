@@ -3536,7 +3536,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
-		NumOfCalls: 5,
+		NumOfCalls: 6,
 	},
 }
 
