@@ -7,6 +7,7 @@ prepare: |
     touch bar.snap
     snap install core
     snap install test-snapd-tools
+    . "$TESTSLIB/mkpinentry.sh"
     expect -d -f key.exp0
 
 restore: |
