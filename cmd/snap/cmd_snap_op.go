@@ -309,22 +309,14 @@ func showDone(names []string, op string) error {
 
 	for _, snap := range snaps {
 		channelStr := ""
-		if snap.Channel != "" {
+		if snap.Channel != "" && snap.Channel != "stable" {
 			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
 		}
 		switch op {
 		case "install":
-			if snap.Developer != "" {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
-			} else {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
-			}
+			fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 		case "upgrade":
-			if snap.Developer != "" {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' upgraded\n"), snap.Name, channelStr, snap.Version, snap.Developer)
-			} else {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
-			}
+			fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
 		default:
 			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
 		}
