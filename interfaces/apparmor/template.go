@@ -253,6 +253,7 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
   @{PROC}/@{pid}/task/ r,
+  @{PROC}/@{pid}/task/[0-9]*/smaps r,
   @{PROC}/@{pid}/task/[0-9]*/stat r,
   @{PROC}/@{pid}/task/[0-9]*/statm r,
   @{PROC}/@{pid}/task/[0-9]*/status r,
