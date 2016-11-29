@@ -180,7 +180,7 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -201,7 +201,7 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -226,7 +226,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -251,7 +251,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -276,7 +276,7 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--dangerous", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -500,7 +500,7 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--edge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -647,7 +647,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"stable"}]}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"edge"}]}\n`)
 
 		default:
 			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
@@ -659,8 +659,9 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*one \(stable\) 1.0 from 'bar' installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(stable\) 2.0 from 'baz' installed`)
+	// note that (stable) is omitted
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(edge\) 2.0 installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
