@@ -387,7 +387,6 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: true
   screen-inhibit-control:
     allow-installation:
       slot-snap-type:
