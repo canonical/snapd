@@ -911,11 +911,10 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	query := u.Query()
 
+	query.Set("channel", channel)
 	if !revision.Unset() {
 		query.Set("revision", revision.String())
-		query.Set("channel", "") // sidestep the channel map
-	} else if channel != "" {
-		query.Set("channel", channel)
+		query.Set("channel", "")
 	}
 
 	// if devmode then don't restrict by confinement as either is fine
