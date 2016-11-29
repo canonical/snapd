@@ -33,6 +33,7 @@
 // changed without breaking apparmor functionality.
 #define SC_AA_ENFORCE_STR "enforce"
 #define SC_AA_COMPLAIN_STR "complain"
+#define SC_AA_UNCONFINED_STR "unconfined"
 
 void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 {
@@ -43,7 +44,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		die("cannot query current apparmor profile");
 	}
 	// Look at label, if it is non empty then we are confined. 
-	if (label != NULL && strcmp(label, "") != 0) {
+	if (label != NULL && strcmp(label, SC_AA_UNCONFINED_STR) != 0) {
 		apparmor->is_confined = true;
 	} else {
 		apparmor->is_confined = false;
