@@ -100,8 +100,7 @@ func NewTextProgress() *TextProgress {
 
 // Start starts showing progress
 func (t *TextProgress) Start(label string, total float64) {
-	t.pbar = pb.New64(0)
-	t.pbar.Total = int64(total)
+	t.pbar = pb.New64(int64(total))
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
 	t.pbar.Prefix(label)

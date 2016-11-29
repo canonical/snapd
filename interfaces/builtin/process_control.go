@@ -41,6 +41,7 @@ const processControlConnectedPlugSecComp = `
 # Usage: reserved
 
 setpriority
+sched_setaffinity
 `
 
 // NewProcessControlInterface returns a new "process-control" interface.

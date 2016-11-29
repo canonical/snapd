@@ -71,6 +71,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewOpenglInterface())
 	c.Check(all, DeepContains, builtin.NewOpticalDriveInterface())
 	c.Check(all, DeepContains, builtin.NewProcessControlInterface())
+	c.Check(all, DeepContains, builtin.NewRawUsbInterface())
 	c.Check(all, DeepContains, builtin.NewRemovableMediaInterface())
 	c.Check(all, DeepContains, builtin.NewScreenInhibitControlInterface())
 	c.Check(all, DeepContains, builtin.NewSnapdControlInterface())
@@ -82,6 +83,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewTpmInterface())
 	c.Check(all, DeepContains, builtin.NewUPowerObserveInterface())
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
-	c.Check(all, DeepContains, builtin.NewUsbRawInterface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 }

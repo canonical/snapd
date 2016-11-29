@@ -51,6 +51,7 @@ var implicitSlots = []string{
 	"ppp",
 	"process-control",
 	"realsense",
+	"raw-usb",
 	"removable-media",
 	"shutdown",
 	"snapd-control",
@@ -60,7 +61,6 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
-	"usb-raw",
 }
 
 var implicitClassicSlots = []string{
