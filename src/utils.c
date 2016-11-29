@@ -201,8 +201,9 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
 			return -1;
 		}
-		// Open the parent directory we just made (and close the
-		// previous one) so we can continue down the path.
+		// Open the parent directory we just made (and close the previous one
+		// (but not the special value AT_FDCWD) so we can continue down the
+		// path.
 		int previous_fd = fd;
 		fd = openat(fd, path_segment, open_flags);
 		if (previous_fd != AT_FDCWD && close(previous_fd) != 0) {
