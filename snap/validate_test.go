@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"fmt"
 	"regexp"
 
 	. "gopkg.in/check.v1"
@@ -149,8 +150,26 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "oneshot"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
+	for _, t := range []struct {
+		daemon string
+		ok     bool
+	}{
+		// good
+		{"", true},
+		{"simple", true},
+		{"forking", true},
+		{"oneshot", true},
+		{"dbus", true},
+		{"notify", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+		}
+	}
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {

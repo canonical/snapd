@@ -319,35 +319,35 @@ const commonPrefix = `
 @{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
-	opts: interfaces.ConfinementOptions{},
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected) {
-
-}
-`,
+	// By default apparmor is enforcing mode.
+	opts:    interfaces.ConfinementOptions{},
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n",
 }, {
+	// Snippets are injected in the space between "{" and "}"
 	opts:    interfaces.ConfinementOptions{},
 	snippet: "snippet",
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected) {
-snippet
-}
-`,
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
 }, {
-	opts: interfaces.ConfinementOptions{DevMode: true},
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-
-}
-`,
-}, {
+	// DevMode switches apparmor to non-enforcing (complain) mode.
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-snippet
-}
-`}}
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+}, {
+	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
+	opts:    interfaces.ConfinementOptions{DevMode: true},
+	snippet: "snippet",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+}, {
+	// Classic confinement uses apparmor in complain mode by default.
+	opts:    interfaces.ConfinementOptions{Classic: true},
+	snippet: "snippet",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+}, {
+	// Classic confinement in JailMode uses enforcing apparmor.
+	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	snippet: "snippet",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
+}}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant

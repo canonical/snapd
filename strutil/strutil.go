@@ -21,6 +21,8 @@ package strutil
 
 import (
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -43,4 +45,15 @@ func MakeRandomString(length int) string {
 	}
 
 	return out
+}
+
+// Quoted formats a slice of strings to a quoted list of
+// comma-separated strings, e.g. `"snap1", "snap2"`
+func Quoted(names []string) string {
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = strconv.Quote(name)
+	}
+
+	return strings.Join(quoted, ", ")
 }

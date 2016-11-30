@@ -145,7 +145,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.Confineme
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
 	policy := defaultTemplate
-	if opts.DevMode && !opts.JailMode {
+	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAll(policy, attachComplain)
 	}
 	// TODO: add support for opts.Classic later
