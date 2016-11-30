@@ -40,7 +40,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
