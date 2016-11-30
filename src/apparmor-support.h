@@ -32,6 +32,8 @@ enum sc_apparmor_mode {
 	SC_AA_ENFORCE = 1,
 	// The enforcement mode is "complain"
 	SC_AA_COMPLAIN,
+	// The enforcement mode is "mixed"
+	SC_AA_MIXED,
 };
 
 /**
