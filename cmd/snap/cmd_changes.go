@@ -46,7 +46,7 @@ type cmdChanges struct {
 
 type cmdChange struct {
 	Positional struct {
-		ID string `positional-arg-name:"<id>" required:"yes"`
+		ID changeID `positional-arg-name:"<id>" required:"yes"`
 	} `positional-args:"yes"`
 }
 
@@ -115,7 +115,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(c.Positional.ID)
+	chg, err := cli.Change(string(c.Positional.ID))
 	if err != nil {
 		return err
 	}
