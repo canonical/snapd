@@ -606,7 +606,7 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		if attempt.Count() > 1 {
-			delta := time.Since(startTime)/time.Millisecond
+			delta := time.Since(startTime) / time.Millisecond
 			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
 		}
 		resp, err = s.doRequest(client, reqOptions, user)
@@ -627,7 +627,7 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 
 	if attempt.Count() > 1 {
 		var status string
-		delta := time.Since(startTime)/time.Millisecond
+		delta := time.Since(startTime) / time.Millisecond
 		if err != nil {
 			status = err.Error()
 		} else if resp != nil {
