@@ -26,13 +26,13 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/dustin/go-humanize"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type infoCmd struct {
@@ -159,7 +159,7 @@ func (x *infoCmd) Execute([]string) error {
 		if size == 0 {
 			size = both.DownloadSize
 		}
-		fmt.Fprintf(w, "size:\t%s\n", humanize.Bytes(uint64(size)))
+		fmt.Fprintf(w, "size:\t%s\n", strutil.SizeToStr(size))
 		if len(both.Apps) > 0 {
 			apps := make([]string, len(both.Apps))
 			for i, a := range both.Apps {
