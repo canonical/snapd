@@ -36,4 +36,20 @@ void write_string_to_file(const char *filepath, const char *buf);
 __attribute__ ((format(printf, 3, 4)))
 int must_snprintf(char *str, size_t size, const char *format, ...);
 
+/**
+ * Safely create a given directory.
+ *
+ * NOTE: non-fatal functions don't die on errors. It is the responsibility of
+ * the caller to call die() or handle the error appropriately.
+ *
+ * This function behaves like "mkdir -p" (recursive mkdir) with the exception
+ * that each directory is carefully created in a way that avoids symlink
+ * attacks. The preceding directory is kept openat(2) (along with O_DIRECTORY)
+ * and the next directory is created using mkdirat(2), this sequence continues
+ * while there are more directories to process.
+ *
+ * The function returns -1 in case of any error.
+ **/
+__attribute__ ((warn_unused_result))
+int sc_nonfatal_mkpath(const char *const path, mode_t mode);
 #endif

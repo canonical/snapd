@@ -15,22 +15,27 @@
  *
  */
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "utils.h"
+#include "cleanup-funcs.h"
 
 void die(const char *msg, ...)
 {
+	int saved_errno = errno;
 	va_list va;
 	va_start(va, msg);
 	vfprintf(stderr, msg, va);
 	va_end(va);
 
 	if (errno != 0) {
-		perror(". errmsg");
+		fprintf(stderr, ": %s\n", strerror(saved_errno));
 	} else {
 		fprintf(stderr, "\n");
 	}
@@ -150,4 +155,65 @@ int must_snprintf(char *str, size_t size, const char *format, ...)
 		die("failed to snprintf %s", str);
 
 	return n;
+}
+
+int sc_nonfatal_mkpath(const char *const path, mode_t mode)
+{
+	// If asked to create an empty path, return immediately.
+	if (strlen(path) == 0) {
+		return 0;
+	}
+	// We're going to use strtok_r, which needs to modify the path, so we'll
+	// make a copy of it.
+	char *path_copy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	path_copy = strdup(path);
+	if (path_copy == NULL) {
+		return -1;
+	}
+	// Open flags to use while we walk the user data path:
+	// - Don't follow symlinks
+	// - Don't allow child access to file descriptor
+	// - Only open a directory (fail otherwise)
+	const int open_flags = O_NOFOLLOW | O_CLOEXEC | O_DIRECTORY;
+
+	// We're going to create each path segment via openat/mkdirat calls instead
+	// of mkdir calls, to avoid following symlinks and placing the user data
+	// directory somewhere we never intended for it to go. The first step is to
+	// get an initial file descriptor.
+	int fd __attribute__ ((cleanup(sc_cleanup_close))) = AT_FDCWD;
+	if (path_copy[0] == '/') {
+		fd = open("/", open_flags);
+		if (fd < 0) {
+			return -1;
+		}
+	}
+	// strtok_r needs a pointer to keep track of where it is in the string.
+	char *path_walker = NULL;
+
+	// Initialize tokenizer and obtain first path segment.
+	char *path_segment = strtok_r(path_copy, "/", &path_walker);
+	while (path_segment) {
+		// Try to create the directory.  It's okay if it already existed, but
+		// return with error on any other error. Reset errno before attempting
+		// this as it may stay stale (errno is not reset if mkdirat(2) returns
+		// successfully).
+		errno = 0;
+		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
+			return -1;
+		}
+		// Open the parent directory we just made (and close the previous one
+		// (but not the special value AT_FDCWD) so we can continue down the
+		// path.
+		int previous_fd = fd;
+		fd = openat(fd, path_segment, open_flags);
+		if (previous_fd != AT_FDCWD && close(previous_fd) != 0) {
+			return -1;
+		}
+		if (fd < 0) {
+			return -1;
+		}
+		// Obtain the next path segment.
+		path_segment = strtok_r(NULL, "/", &path_walker);
+	}
+	return 0;
 }

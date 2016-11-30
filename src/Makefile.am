@@ -14,8 +14,6 @@ snap_discard_ns_SOURCES = \
 	ns-support.h \
 	apparmor-support.c \
 	apparmor-support.h \
-	user-support.c \
-	user-support.h \
 	utils.c \
 	utils.h \
 	secure-getenv.c \
@@ -96,8 +94,6 @@ snap_confine_unit_tests_SOURCES = \
 	unit-tests-main.c \
 	classic.c \
 	classic.h \
-	user-support.c \
-	user-support.h \
 	quirks.c \
 	quirks.h \
 	unit-tests.c \
