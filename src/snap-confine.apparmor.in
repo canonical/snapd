@@ -54,6 +54,13 @@
 
     # changing profile
     @{PROC}/[0-9]*/attr/exec w,
+    # Reading current profile
+    @{PROC}/[0-9]*/attr/current r,
+
+    # To find where apparmor is mounted
+    @{PROC}/[0-9]*/mounts r,
+    # To find if apparmor is enabled
+    /sys/module/apparmor/parameters/enabled r,
 
     # Don't allow changing profile to unconfined or profiles that start with
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
