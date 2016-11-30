@@ -39,7 +39,7 @@ type cmdBuy struct {
 	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string
+		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -59,7 +59,7 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(x.Positional.SnapName, x.Currency)
+	return buySnap(string(x.Positional.SnapName), x.Currency)
 }
 
 func buySnap(snapName, currency string) error {
