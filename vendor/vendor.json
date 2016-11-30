@@ -15,12 +15,6 @@
 			"revisionTime": "2014-05-03T19:37:39Z"
 		},
 		{
-			"checksumSHA1": "RqDlQ3BLWYnTsXF/cXNMx5rvG5Q=",
-			"path": "github.com/dustin/go-humanize",
-			"revision": "bd88f87ad3a420f7bcf05e90566fd1ceb351fa7f",
-			"revisionTime": "2016-09-23T15:54:41Z"
-		},
-		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
 			"path": "github.com/gorilla/context",
 			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",

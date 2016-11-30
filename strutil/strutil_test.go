@@ -42,3 +42,23 @@ func (ts *MakeRandomStringTestSuite) TestMakeRandomString(c *C) {
 	s2 := MakeRandomString(5)
 	c.Assert(s2, Equals, "4PQyl")
 }
+
+func (ts *MakeRandomStringTestSuite) TestSizeToStr(c *C) {
+	for _, t := range []struct {
+		size int64
+		str  string
+	}{
+		{0, "0 B"},
+		{1, "1 B"},
+		{400, "400 B"},
+		{1000, "1 kB"},
+		{1000 + 1, "1 kB"},
+		{900 * 1000, "900 kB"},
+		{1000 * 1000, "1 MB"},
+		{20 * 1000 * 1000, "20 MB"},
+		{1000 * 1000 * 1000, "1 GB"},
+		{31 * 1000 * 1000 * 1000, "31 GB"},
+	} {
+		c.Check(SizeToStr(t.size), Equals, t.str)
+	}
+}
