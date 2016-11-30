@@ -57,7 +57,7 @@
     # Reading current profile
     @{PROC}/[0-9]*/attr/current r,
 
-    # Probably to find where apparmor is mounted
+    # To find where apparmor is mounted
     @{PROC}/[0-9]*/mounts r,
     # To find if apparmor is enabled
     /sys/module/apparmor/parameters/enabled r,
