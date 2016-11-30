@@ -17,28 +17,45 @@
  *
  */
 
-package strutil
+package strutil_test
 
 import (
 	"math/rand"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
-type MakeRandomStringTestSuite struct{}
+type strutilSuite struct{}
 
-var _ = Suite(&MakeRandomStringTestSuite{})
+var _ = check.Suite(&strutilSuite{})
 
-func (ts *MakeRandomStringTestSuite) TestMakeRandomString(c *C) {
+func (ts *strutilSuite) TestMakeRandomString(c *check.C) {
 	// for our tests
 	rand.Seed(1)
 
-	s1 := MakeRandomString(10)
-	c.Assert(s1, Equals, "pw7MpXh0JB")
+	s1 := strutil.MakeRandomString(10)
+	c.Assert(s1, check.Equals, "pw7MpXh0JB")
 
-	s2 := MakeRandomString(5)
-	c.Assert(s2, Equals, "4PQyl")
+	s2 := strutil.MakeRandomString(5)
+	c.Assert(s2, check.Equals, "4PQyl")
+}
+
+func (*strutilSuite) TestQuoted(c *check.C) {
+	for _, t := range []struct {
+		in  []string
+		out string
+	}{
+		{nil, ""},
+		{[]string{}, ""},
+		{[]string{"one"}, `"one"`},
+		{[]string{"one", "two"}, `"one", "two"`},
+		{[]string{"one", `tw"`}, `"one", "tw\""`},
+	} {
+		c.Check(strutil.Quoted(t.in), check.Equals, t.out, check.Commentf("expected %#v -> %s", t.in, t.out))
+	}
 }
