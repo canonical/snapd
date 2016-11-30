@@ -33,6 +33,7 @@
 // changed without breaking apparmor functionality.
 #define SC_AA_ENFORCE_STR "enforce"
 #define SC_AA_COMPLAIN_STR "complain"
+#define SC_AA_MIXED_STR "mixed"
 #define SC_AA_UNCONFINED_STR "unconfined"
 
 void sc_init_apparmor_support(struct sc_apparmor *apparmor)
@@ -54,6 +55,8 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		apparmor->mode = SC_AA_COMPLAIN;
 	} else if (mode != NULL && strcmp(mode, SC_AA_ENFORCE_STR) == 0) {
 		apparmor->mode = SC_AA_ENFORCE;
+	} else if (mode != NULL && strcmp(mode, SC_AA_MIXED_STR) == 0) {
+		apparmor->mode = SC_AA_MIXED;
 	} else {
 		apparmor->mode = SC_AA_INVALID;
 	}
