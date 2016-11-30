@@ -53,7 +53,7 @@ func SizeToStr(size int64) string {
 	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 	for _, suf := range suffixes {
 		if size < 1000 {
-			return fmt.Sprintf("%d %s", size, suf)
+			return fmt.Sprintf("%d%s", size, suf)
 		}
 		size /= 1000
 	}
