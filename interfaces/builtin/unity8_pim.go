@@ -128,7 +128,7 @@ socket
 
 var unity8PimConnectedPlugSecComp = []byte(`
 # Description: Allow using EDS service. Reserved because this gives
-#  privileged access to the bluez service.
+#  privileged access to the eds service.
 # Usage: reserved
 
 # Can communicate with DBus system service
