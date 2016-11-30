@@ -189,7 +189,7 @@ func (x *infoCmd) Execute([]string) error {
 			}
 
 			fmt.Fprintf(w, "tracking:\t%s\n", local.Channel)
-			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\n", local.Version, local.Revision, notes)
+			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 		if remote != nil && remote.Channels != nil {
@@ -200,7 +200,7 @@ func (x *infoCmd) Execute([]string) error {
 				if m == nil {
 					continue
 				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\n", ch, m.Version, m.Revision, NotesFromRef(m))
+				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromRef(m))
 			}
 		}
 	}
