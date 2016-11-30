@@ -60,6 +60,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
+		"top-commands:\n  - cmd1\n  - cmd2\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -76,6 +77,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.SnapName(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
+	c.Check(snapDecl.TopCommands(), DeepEquals, []string{"cmd1", "cmd2"})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -96,7 +98,7 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 	c.Check(snapDecl.SnapName(), Equals, "")
 }
 
-func (sds *snapDeclSuite) TestMissingRefreshControl(c *C) {
+func (sds *snapDeclSuite) TestMissingRefreshControlTopCommands(c *C) {
 	encoded := "type: snap-declaration\n" +
 		"authority-id: canonical\n" +
 		"series: 16\n" +
@@ -112,6 +114,7 @@ func (sds *snapDeclSuite) TestMissingRefreshControl(c *C) {
 	c.Assert(err, IsNil)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.RefreshControl(), HasLen, 0)
+	c.Check(snapDecl.TopCommands(), HasLen, 0)
 }
 
 const (
@@ -126,6 +129,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
+		"top-commands:\n  - cmd1\n  - cmd2\n" +
 		"plugs:\n  interface1: true\n" +
 		"slots:\n  interface2: true\n" +
 		sds.tsLine +
@@ -148,6 +152,9 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
 		{"slots:\n  interface2: true\n", "slots: \n", `"slots" header must be a map`},
 		{"slots:\n  interface2: true\n", "slots:\n  intf1:\n    foo: bar\n", `slot rule for interface "intf1" must specify at least one of.*`},
+		{"top-commands:\n  - cmd1\n  - cmd2\n", "top-commands: cmd0\n", `"top-commands" header must be a list of strings`},
+		{"top-commands:\n  - cmd1\n  - cmd2\n", "top-commands:\n  -\n    - nested\n", `"top-commands" header must be a list of strings`},
+		{"top-commands:\n  - cmd1\n  - cmd2\n", "top-commands:\n  - cmd_1\n  - cmd_2\n", `"top-commands" header contains an invalid element: "cmd_1"`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
