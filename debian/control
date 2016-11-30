@@ -39,6 +39,7 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
+         ca-certificates,
          gnupg1 | gnupg,
          snap-confine (>= 1.0.43),
          squashfs-tools,
