@@ -86,16 +86,18 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 		}
 
 		for _, t := range chg.Tasks {
-			switch {
-			case t.Status != "Doing":
-				continue
-			case t.Progress.Total == 1:
-				pb.Spin(t.Summary)
+			if len(t.Log) > 0 {
 				nowLog := lastLogStr(t.Log)
 				if lastLog[t.ID] != nowLog {
 					pb.Notify(nowLog)
 					lastLog[t.ID] = nowLog
 				}
+			}
+			switch {
+			case t.Status != "Doing" && t.Status != "Undoing":
+				continue
+			case t.Progress.Total == 1:
+				pb.Spin(t.Summary)
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
