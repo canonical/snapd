@@ -125,7 +125,7 @@ var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
 	switch app.Daemon {
-	case "", "simple", "forking", "oneshot", "dbus":
+	case "", "simple", "forking", "oneshot", "dbus", "notify":
 		// valid
 	default:
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
