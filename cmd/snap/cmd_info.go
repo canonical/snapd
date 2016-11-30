@@ -153,19 +153,12 @@ func (x *infoCmd) Execute([]string) error {
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
 		fmt.Fprintf(w, "description:\t%q\n", both.Description)
-
-		// slightly stupid as download and install size are the same
-		size := both.InstalledSize
-		if size == 0 {
-			size = both.DownloadSize
-		}
-		fmt.Fprintf(w, "size:\t%s\n", strutil.SizeToStr(size))
 		if len(both.Apps) > 0 {
 			apps := make([]string, len(both.Apps))
 			for i, a := range both.Apps {
 				apps[i] = a.Name
 			}
-			fmt.Fprintf(w, "apps:\t%s\n", strutil.Quoted(apps))
+			fmt.Fprintf(w, "apps:\t[%s]\n", strutil.Quoted(apps))
 		}
 
 		// TODO: have publisher; use publisher here,

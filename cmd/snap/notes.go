@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func getPriceString(prices map[string]float64, suggestedCurrency, status string) string {
@@ -58,11 +59,13 @@ type Notes struct {
 	TryMode  bool
 	Disabled bool
 	Broken   bool
+	Size     int64
 }
 
 func NotesFromRef(ref *snap.Ref) *Notes {
 	return &Notes{
 		DevMode: ref.Confinement != client.StrictConfinement,
+		Size:    ref.Size,
 	}
 }
 
@@ -70,6 +73,7 @@ func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 	notes := &Notes{
 		Private: snap.Private,
 		DevMode: snap.Confinement == client.DevModeConfinement,
+		Size:    snap.DownloadSize,
 	}
 	if resInfo != nil {
 		notes.Price = getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status)
@@ -87,6 +91,7 @@ func NotesFromLocal(snap *client.Snap) *Notes {
 		TryMode:  snap.TryMode,
 		Disabled: snap.Status != client.StatusActive,
 		Broken:   snap.Broken != "",
+		Size:     snap.InstalledSize,
 	}
 }
 
@@ -107,6 +112,10 @@ func (n *Notes) String() string {
 	if n.Disabled {
 		// TRANSLATORS: if possible, a single short word
 		ns = append(ns, i18n.G("disabled"))
+	}
+
+	if n.Size > 0 {
+		ns = append(ns, strutil.SizeToStr(n.Size))
 	}
 
 	if n.Price != "" {
