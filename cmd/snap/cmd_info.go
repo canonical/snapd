@@ -165,7 +165,7 @@ func (x *infoCmd) Execute([]string) error {
 			for i, a := range both.Apps {
 				apps[i] = a.Name
 			}
-			fmt.Fprintf(w, "apps:\t%q\n", strutil.Quoted(apps))
+			fmt.Fprintf(w, "apps:\t%s\n", strutil.Quoted(apps))
 		}
 
 		// TODO: have publisher; use publisher here,
