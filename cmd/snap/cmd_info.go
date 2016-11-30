@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/jessevdk/go-flags"
@@ -166,7 +165,7 @@ func (x *infoCmd) Execute([]string) error {
 			for i, a := range both.Apps {
 				apps[i] = a.Name
 			}
-			fmt.Fprintf(w, "apps:\t%q\n", strings.Join(apps, ","))
+			fmt.Fprintf(w, "apps:\t%q\n", strutil.Quoted(apps))
 		}
 
 		// TODO: have publisher; use publisher here,
