@@ -494,13 +494,11 @@ slots:
   unity8-calendar:
     allow-installation:
       slot-snap-type:
-        - core
         - app
     deny-auto-connection: true
   unity8-contacts:
     allow-installation:
       slot-snap-type:
-        - core
         - app
     deny-auto-connection: true
   upower-observe:
