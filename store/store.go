@@ -194,10 +194,10 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
-		Initial: 10 * time.Millisecond,
-		Factor:  1.67,
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
 	},
 ))
 
@@ -602,7 +602,13 @@ type requestOptions struct {
 
 // retryRequest uses defaultRetryStrategy to call doRequest with retry
 func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		if attempt.Count() > 1 {
+			delta := time.Since(startTime) / time.Millisecond
+			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+		}
 		resp, err = s.doRequest(client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
@@ -617,6 +623,17 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		}
 
 		break
+	}
+
+	if attempt.Count() > 1 {
+		var status string
+		delta := time.Since(startTime) / time.Millisecond
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
 	}
 
 	return resp, err
