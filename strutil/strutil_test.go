@@ -20,6 +20,7 @@
 package strutil_test
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 
@@ -75,6 +76,7 @@ func (ts *strutilSuite) TestSizeToStr(c *check.C) {
 		{20 * 1000 * 1000, "20 MB"},
 		{1000 * 1000 * 1000, "1 GB"},
 		{31 * 1000 * 1000 * 1000, "31 GB"},
+		{math.MaxInt64, "9 EB"},
 	} {
 		c.Check(strutil.SizeToStr(t.size), check.Equals, t.str)
 	}

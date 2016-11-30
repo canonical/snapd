@@ -50,14 +50,14 @@ func MakeRandomString(length int) string {
 
 // Convert the given size in btes to a readable string
 func SizeToStr(size int64) string {
-	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB"}
+	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 	for _, suf := range suffixes {
 		if size < 1000 {
 			return fmt.Sprintf("%d %s", size, suf)
 		}
 		size /= 1000
 	}
-	panic("unreachable")
+	panic("SizeToStr got a size bigger than math.MaxInt64")
 }
 
 // Quoted formats a slice of strings to a quoted list of
