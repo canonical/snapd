@@ -191,20 +191,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			arg.Description = desc
 		}
 	}
-	// Add the experimental command
-	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
-	experimentalCommand.Hidden = true
-	if err != nil {
-		logger.Panicf("cannot add command %q: %v", "experimental", err)
-	}
-	// Add all the sub-commands of the experimental command
-	for _, c := range experimentalCommands {
-		cmd, err := experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
-		if err != nil {
-			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
-		}
-		cmd.Hidden = c.hidden
-	}
 	return parser
 }
 
