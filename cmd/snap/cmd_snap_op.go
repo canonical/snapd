@@ -173,7 +173,7 @@ and the snap can easily be enabled again.
 type cmdRemove struct {
 	Revision   string `long:"revision"`
 	Positional struct {
-		Snaps []string `positional-arg-name:"<snap>"`
+		Snaps []installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -181,7 +181,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	name := x.Positional.Snaps[0]
 
 	cli := Client()
-	changeID, err := cli.Remove(name, opts)
+	changeID, err := cli.Remove(string(name), opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapNotInstalled {
 		fmt.Fprintf(Stderr, e.Message+"\n")
 		return nil
@@ -199,7 +199,10 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
-	names := x.Positional.Snaps
+	names := make([]string, len(x.Positional.Snaps))
+	for i, s := range x.Positional.Snaps {
+		names[i] = string(s)
+	}
 
 	cli := Client()
 	changeID, err := cli.RemoveMany(names, opts)
@@ -370,7 +373,7 @@ type cmdInstall struct {
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Positional struct {
-		Snaps []string `positional-arg-name:"<snap>"`
+		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -475,15 +478,20 @@ func (x *cmdInstall) Execute([]string) error {
 		Dangerous: dangerous,
 	}
 
-	if len(x.Positional.Snaps) == 1 {
-		return x.installOne(x.Positional.Snaps[0], opts)
+	names := make([]string, len(x.Positional.Snaps))
+	for i, name := range x.Positional.Snaps {
+		names[i] = string(name)
+	}
+
+	if len(names) == 1 {
+		return x.installOne(names[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
-	return x.installMany(x.Positional.Snaps, nil)
+	return x.installMany(names, nil)
 }
 
 type cmdRefresh struct {
@@ -494,7 +502,7 @@ type cmdRefresh struct {
 	List             bool   `long:"list"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	Positional       struct {
-		Snaps []string `positional-arg-name:"<snap>"`
+		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
@@ -583,6 +591,10 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
+	names := make([]string, len(x.Positional.Snaps))
+	for i, name := range x.Positional.Snaps {
+		names[i] = string(name)
+	}
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
@@ -591,7 +603,7 @@ func (x *cmdRefresh) Execute([]string) error {
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
 		}
-		return refreshOne(x.Positional.Snaps[0], opts)
+		return refreshOne(names[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -602,7 +614,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
-	return refreshMany(x.Positional.Snaps, nil)
+	return refreshMany(names, nil)
 }
 
 type cmdTry struct {
@@ -677,13 +689,13 @@ func (x *cmdTry) Execute([]string) error {
 
 type cmdEnable struct {
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdEnable) Execute([]string) error {
 	cli := Client()
-	name := x.Positional.Snap
+	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
 	changeID, err := cli.Enable(name, opts)
 	if err != nil {
@@ -701,13 +713,13 @@ func (x *cmdEnable) Execute([]string) error {
 
 type cmdDisable struct {
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdDisable) Execute([]string) error {
 	cli := Client()
-	name := x.Positional.Snap
+	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
 	changeID, err := cli.Disable(name, opts)
 	if err != nil {
@@ -727,7 +739,7 @@ type cmdRevert struct {
 	modeMixin
 	Revision   string `long:"revision"`
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
@@ -751,7 +763,7 @@ func (x *cmdRevert) Execute(args []string) error {
 	}
 
 	cli := Client()
-	name := x.Positional.Snap
+	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
