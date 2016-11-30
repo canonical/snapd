@@ -82,7 +82,3 @@ func (iface *RealsenseInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot)
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *RealsenseInterface) LegacyAutoConnect() bool {
-	return false
-}
