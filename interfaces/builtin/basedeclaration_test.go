@@ -144,6 +144,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"opengl":                 true,
 		"optical-drive":          true,
 		"pulseaudio":             true,
+		"realsense":              true,
 		"screen-inhibit-control": true,
 		"unity7":                 true,
 		"upower-observe":         true,
