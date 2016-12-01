@@ -59,6 +59,7 @@ check("test-snapd-tools", res[2],
    ("tracking", equals, "stable"),
    ("installed", matches, verRevNotesRx("-")),
    ("apps", exists),
+   ("updated", exists),
    ("channels", check,
     ("stable", matches, verRevNotesRx("-")),
     ("candidate", matches, verRevNotesRx("-")),
@@ -74,6 +75,7 @@ check("test-snapd-devmode", res[3],
    ("description", equals, "A basic buildable snap that asks for devmode confinement"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
+   ("updated", exists),
 )
 
 check("core", res[4],
@@ -84,6 +86,7 @@ check("core", res[4],
       ("description", exists),
       ("tracking", exists),
       ("installed", exists),
+      ("updated", exists),
       ("channels", exists),
 )
 
