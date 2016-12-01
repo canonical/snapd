@@ -63,7 +63,9 @@ snap_confine_SOURCES = \
 	ns-support.c \
 	ns-support.h \
 	apparmor-support.c \
-	apparmor-support.h
+	apparmor-support.h \
+	error.c \
+	error.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -106,7 +108,8 @@ snap_confine_unit_tests_SOURCES = \
 	ns-support-test.c \
 	apparmor-support.c \
 	apparmor-support.h \
-	mount-opt-test.c
+	mount-opt-test.c \
+	error-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
