@@ -71,6 +71,10 @@ check("test-snapd-devmode", res[3],
    ("summary", equals, "Basic snap with devmode confinement"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
+   ("channels", check,
+    ("beta", matches, verRevNotesRx("devmode")),
+    ("edge", matches, verRevNotesRx("devmode")),
+   ),
 )
 
 check("core", res[4],

@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var api = []*Command{
@@ -559,7 +560,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", false, snap.R(0), user)
+	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -810,16 +811,6 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 
 }
 
-// quotedNames formats a slice of snap names (or other strings) to a
-// quoted list of comma separated names, e.g. `"snap1", "snap2"`
-func quotedNames(names []string) string {
-	quoted := make([]string, len(names))
-	for i, name := range names {
-		quoted[i] = strconv.Quote(name)
-	}
-	return strings.Join(quoted, ", ")
-}
-
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
 	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
@@ -835,14 +826,14 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	case 0:
 		// not really needed but be paranoid
 		if len(inst.Snaps) != 0 {
-			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", quotedNames(inst.Snaps))
+			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", strutil.Quoted(inst.Snaps))
 		}
 		// FIXME: instead don't generated a change(?) at all
 		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(updated)
+		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
@@ -862,7 +853,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(inst.Snaps)
+		quoted := strutil.Quoted(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
@@ -934,7 +925,7 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(inst.Snaps)
+		quoted := strutil.Quoted(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), quoted)
 	}
