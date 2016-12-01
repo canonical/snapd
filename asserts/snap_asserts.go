@@ -40,7 +40,7 @@ type SnapDeclaration struct {
 	refreshControl []string
 	plugRules      map[string]*PlugRule
 	slotRules      map[string]*SlotRule
-	topCommands    []string
+	autoAliases    []string
 	timestamp      time.Time
 }
 
@@ -84,9 +84,9 @@ func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
 	return snapdcl.slotRules[interfaceName]
 }
 
-// TopCommands returns the optional top-level commands granted to this snap.
-func (snapdcl *SnapDeclaration) TopCommands() []string {
-	return snapdcl.topCommands
+// AutoAliases returns the optional auto-aliases granted to this snap.
+func (snapdcl *SnapDeclaration) AutoAliases() []string {
+	return snapdcl.autoAliases
 }
 
 // Implement further consistency checks.
@@ -117,7 +117,7 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	}
 }
 
-var validAppCommand = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
@@ -174,7 +174,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	topCommands, err := checkStringListMatches(assert.headers, "top-commands", validAppCommand)
+	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		refreshControl: refControl,
 		plugRules:      plugRules,
 		slotRules:      slotRules,
-		topCommands:    topCommands,
+		autoAliases:    autoAliases,
 		timestamp:      timestamp,
 	}, nil
 }
