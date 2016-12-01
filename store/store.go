@@ -894,9 +894,9 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		return nil, err
 	}
 
-	channels := make(map[string]*snap.ChannelSnapInfo, 4)
+	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
 	for _, item := range results.Payload.SnapInfos {
-		channels[item.Channel] = &snap.ChannelSnapInfo{
+		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(item.Revision),
 			Confinement: snap.ConfinementType(item.Confinement),
 			Version:     item.Version,
@@ -906,7 +906,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		}
 	}
 
-	return channels, nil
+	return channelInfos, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
