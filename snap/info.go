@@ -162,12 +162,12 @@ type Info struct {
 	MustBuy bool
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*Ref
+	Channels    map[string]*ChannelSnapInfo
 }
 
-// Ref is the minimum information that can be used to clearly
+// ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
-type Ref struct {
+type ChannelSnapInfo struct {
 	Revision    Revision        `json:"revision"`
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`

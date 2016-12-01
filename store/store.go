@@ -353,8 +353,8 @@ type sectionResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The fields we are interested in for snap.Refs
-var refFields = getStructFields(snap.Ref{})
+// The fields we are interested in for snap.ChannelSnapInfos
+var refFields = getStructFields(snap.ChannelSnapInfo{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta"
@@ -847,7 +847,7 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 // the details endpoint provides the real thing for us. The main
 // difference between this pseudo one and the real thing is that a
 // channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.Ref, error) {
+func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
 	snaps := make([]currentSnapJson, 4)
 	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
 		snaps[i] = currentSnapJson{
@@ -885,7 +885,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			Refs []*snap.Ref `json:"clickindex:package"`
+			ChannelSnapInfos []*snap.ChannelSnapInfo `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -894,8 +894,8 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		return nil, err
 	}
 
-	channels := make(map[string]*snap.Ref, 4)
-	for _, item := range results.Payload.Refs {
+	channels := make(map[string]*snap.ChannelSnapInfo, 4)
+	for _, item := range results.Payload.ChannelSnapInfos {
 		channels[item.Channel] = item
 	}
 
