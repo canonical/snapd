@@ -112,13 +112,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, backendtest.SambaYamlV1WithNmbd, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 		_, err := os.Stat(profile)
-		if !opts.Classic || opts.JailMode {
-			// file called "snap.sambda.nmbd" was created
-			c.Check(err, IsNil)
-		} else {
-			// Verify that the profile was *not* created
-			c.Check(os.IsNotExist(err), Equals, true)
-		}
+		// file called "snap.sambda.nmbd" was created
+		c.Check(err, IsNil)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
@@ -130,13 +125,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithHooks(c *C) {
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.configure")
 
 		_, err := os.Stat(profile)
-		if !opts.Classic || opts.JailMode {
-			// Verify that profile "snap.samba.hook.configure" was created.
-			c.Check(err, IsNil)
-		} else {
-			// Verify that the profile was *not* created
-			c.Check(os.IsNotExist(err), Equals, true)
-		}
+		// Verify that profile "snap.samba.hook.configure" was created.
+		c.Check(err, IsNil)
 		s.RemoveSnap(c, snapInfo)
 	}
 }
