@@ -42,11 +42,6 @@ update_core_snap_with_snap_exec_snapctl() {
 prepare_classic() {
     apt_install_local ${SPREAD_PATH}/../snapd_*.deb
 
-    if [ "$REMOTE_STORE" = staging ]; then
-        . $TESTSLIB/store.sh
-        setup_staging_store
-    fi
-
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
@@ -80,6 +75,11 @@ prepare_classic() {
             systemctl start $unit
         done
         systemctl start snapd.socket
+    fi
+
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
     fi
 }
 
@@ -144,14 +144,6 @@ slots:
         number: 100
         direction: out
 EOF
-
-        # configure remote store
-        if [ "$REMOTE_STORE" = "staging" ]; then
-            . $TESTSLIB/store.sh
-            target_dir=$UNPACKD/$(dirname "$STORE_CONFIG")
-            mkdir -p "$target_dir"
-            cp -av "$STORE_CONFIG" "$target_dir"
-        fi
 
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
