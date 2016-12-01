@@ -87,5 +87,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewUPowerObserveInterface())
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
 	c.Check(all, DeepContains, builtin.NewUnity8CalendarInterface())
+	c.Check(all, DeepContains, builtin.NewUnity8ContactsInterface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 }
