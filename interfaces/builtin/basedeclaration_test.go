@@ -477,7 +477,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe": true,
 		"lxd":              true,
 		"mir":              true,
-		"udisks2":          true,	
+		"udisks2":          true,
 	}
 
 	for _, iface := range all {
