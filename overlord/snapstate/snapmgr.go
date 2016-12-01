@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -971,7 +972,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	_, snapst, err := snapSetupAndState(t)
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -984,6 +985,14 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	pb := &TaskProgressAdapter{task: t}
 	st.Unlock()
 	err = m.backend.StartSnapServices(currentInfo, pb)
+	if err != nil && snapsup.DevMode {
+		_, ok := err.(wrappers.ServicesStartError)
+		if ok {
+			pb.Notify(err.Error())
+			pb.Notify("ignoring service startup error because of --devmode")
+			err = nil
+		}
+	}
 	st.Lock()
 	return err
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -72,15 +73,23 @@ func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 	return genSocketFile(app), nil
 }
 
+type ServicesStartError []string
+
+func (e ServicesStartError) Error() string {
+	return fmt.Sprintf("%s failed to stay active; see journalctl", strutil.Quoted(e))
+}
+
 // StartSnapServices starts service units for the applications from the snap which are services.
 func StartSnapServices(s *snap.Info, inter interacter) error {
+	wait4 := make(map[*snap.AppInfo]string, len(s.Apps))
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
 		}
+
 		// daemon-reload and enable plus start
-		serviceName := filepath.Base(app.ServiceFile())
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
+		serviceName := app.ServiceFileBase()
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -93,6 +102,8 @@ func StartSnapServices(s *snap.Info, inter interacter) error {
 			return err
 		}
 
+		wait4[app] = ""
+
 		if app.Socket {
 			socketName := filepath.Base(app.ServiceSocketFile())
 			// enable the socket
@@ -104,6 +115,58 @@ func StartSnapServices(s *snap.Info, inter interacter) error {
 				return err
 			}
 		}
+	}
+
+	maxTout := 30 * time.Second
+	tf := time.Now().Add(maxTout)
+	// status fluctuates while waiting for things to start & etc;
+	// try to get 10 consecutive OKs before considering it failed
+	// or actually OK.
+outer:
+	for time.Now().Before(tf) {
+		final := true
+		stable := true
+
+		for j := 0; j < 10; j++ {
+			time.Sleep(50 * time.Millisecond)
+
+			for app, old := range wait4 {
+				s, err := sysd.ServiceStatus(app.ServiceFileBase())
+				if err != nil {
+					stable = false
+					continue
+				}
+
+				if old != s.ActiveState {
+					stable = false
+				}
+
+				if !(s.ActiveState == "active" || s.ActiveState == "inactive") {
+					final = false
+				}
+
+				wait4[app] = s.ActiveState
+			}
+
+			if !stable {
+				continue outer
+			}
+		}
+		if final {
+			break
+		}
+	}
+
+	var broken []string
+	for app, state := range wait4 {
+		if state != "active" {
+			inter.Notify(fmt.Sprintf("service %q failed to stay active.", app.Name))
+			broken = append(broken, app.Name)
+		}
+	}
+
+	if len(broken) > 0 {
+		return ServicesStartError(broken)
 	}
 
 	return nil
@@ -152,7 +215,7 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		serviceName := filepath.Base(app.ServiceFile())
+		serviceName := app.ServiceFileBase()
 		tout := serviceStopTimeout(app)
 		if err := sysd.Stop(serviceName, tout); err != nil {
 			if !systemd.IsTimeout(err) {
@@ -182,7 +245,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		}
 		nservices++
 
-		serviceName := filepath.Base(app.ServiceFile())
+		serviceName := app.ServiceFileBase()
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
@@ -300,7 +363,7 @@ WantedBy={{.SocketsTarget}}
 		MountUnit          string
 	}{
 		App:                appInfo,
-		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
+		ServiceFileName:    appInfo.ServiceFileBase(),
 		SocketsTarget:      systemd.SocketsTarget,
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
