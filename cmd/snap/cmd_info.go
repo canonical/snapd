@@ -200,7 +200,7 @@ func (x *infoCmd) Execute([]string) error {
 				if m == nil {
 					continue
 				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromRef(m))
+				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
 			}
 		}
 	}
