@@ -354,7 +354,7 @@ type sectionResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // The fields we are interested in for snap.ChannelSnapInfos
-var refFields = getStructFields(snap.ChannelSnapInfo{})
+var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta"
@@ -858,7 +858,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  snaps,
-		Fields: refFields,
+		Fields: channelSnapInfoFields,
 	})
 	if err != nil {
 		return nil, err
@@ -885,7 +885,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			SnapInfos []*snapDetails `json:"clickindex:package"`
+			SnapDetails []*snapDetails `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -895,7 +895,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 
 	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.SnapInfos {
+	for _, item := range results.Payload.SnapDetails {
 		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(item.Revision),
 			Confinement: snap.ConfinementType(item.Confinement),
