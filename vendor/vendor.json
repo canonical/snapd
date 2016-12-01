@@ -67,10 +67,6 @@
 			"revisionTime": "2015-07-22T06:53:40Z"
 		},
 		{
-			"path": "github.com/path/of/dependency",
-			"revision": ""
-		},
-		{
 			"checksumSHA1": "G1Zy6KNKWSz6Nx6GAgaKM2yPDLg=",
 			"path": "github.com/testing-cabal/subunit-go",
 			"revision": "00b258565a5cf3adaa24b68d31c9e6ec3d2cdbe7",
