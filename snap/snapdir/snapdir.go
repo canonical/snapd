@@ -56,6 +56,8 @@ func (s *SnapDir) Install(targetPath, mountDir string) error {
 	return os.Symlink(s.path, targetPath)
 }
 
+func (s *SnapDir) PreRemove() error { return nil }
+
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }

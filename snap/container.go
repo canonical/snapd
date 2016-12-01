@@ -44,6 +44,9 @@ type Container interface {
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
 	Install(targetPath, mountDir string) error
 
+	// PreRemove gets a snap ready for removal
+	PreRemove() error
+
 	// Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
 }

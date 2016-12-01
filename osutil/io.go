@@ -33,7 +33,16 @@ type AtomicWriteFlags uint
 const (
 	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
 	AtomicWriteFollow AtomicWriteFlags = 1 << iota
+	AtomicWriteImmutable
 )
+
+func (f AtomicWriteFlags) follow() bool {
+	return f&AtomicWriteFollow != 0
+}
+
+func (f AtomicWriteFlags) immutable() bool {
+	return f&AtomicWriteImmutable != 0
+}
 
 // AtomicWriteFile updates the filename atomically and works otherwise
 // like io/ioutil.WriteFile()
@@ -45,7 +54,7 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags Atomi
 }
 
 func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
-	if flags&AtomicWriteFollow != 0 {
+	if flags.follow() {
 		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
 				filename = fn
@@ -95,8 +104,29 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		return err
 	}
 
+	if flags.immutable() {
+		oldfd, err := os.Open(filename)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err == nil {
+			defer oldfd.Close()
+			err = ChAttr(oldfd, -FS_IMMUTABLE_FL)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := os.Rename(tmp, filename); err != nil {
 		return err
+	}
+
+	if flags.immutable() {
+		err = ChAttr(fd, FS_IMMUTABLE_FL)
+		if err != nil {
+			return err
+		}
 	}
 
 	return dir.Sync()

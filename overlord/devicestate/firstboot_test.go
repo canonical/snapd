@@ -73,6 +73,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
 	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
 
@@ -95,6 +96,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 	s.systemctl.Restore()
 	s.mockUdevAdm.Restore()
 

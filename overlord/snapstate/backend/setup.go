@@ -80,12 +80,16 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 
 	// snapPath may either be a file or a (broken) symlink to a dir
 	snapPath := s.MountFile()
-	if _, err := os.Lstat(snapPath); err == nil {
+	if snapf, err := snap.Open(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		if typ == snap.TypeKernel {
 			if err := boot.RemoveKernelAssets(s); err != nil {
 				return err
 			}
+		}
+
+		if err := snapf.PreRemove(); err != nil {
+			return err
 		}
 
 		// remove the snap

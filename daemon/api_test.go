@@ -132,6 +132,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 }
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	muxVars = s.muxVars
 	s.restoreRelease = release.MockReleaseInfo(&release.OS{
 		ID:        "ubuntu",
@@ -142,6 +143,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 }
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {

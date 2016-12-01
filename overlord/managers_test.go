@@ -101,6 +101,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
@@ -137,6 +138,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	ms.restoreTrusted()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
@@ -959,6 +961,7 @@ type authContextSetupSuite struct {
 }
 
 func (s *authContextSetupSuite) SetUpTest(c *C) {
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
@@ -1031,6 +1034,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 func (s *authContextSetupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.restoreTrusted()
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 }
 
 func (s *authContextSetupSuite) TestStoreID(c *C) {
