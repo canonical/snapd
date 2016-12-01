@@ -94,7 +94,7 @@ func (g *Grubenv) Save() error {
 		}
 	}
 	if w.Len() > 1024 {
-		return fmt.Errorf("cannot write grubenv %q: bigger than 1024 bytes (%d)", w.Len())
+		return fmt.Errorf("cannot write grubenv %q: bigger than 1024 bytes (%d)", g.path, w.Len())
 	}
 	// fill up with "#" at the envgit
 	for i := w.Len(); i < 1024; i++ {
