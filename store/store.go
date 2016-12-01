@@ -51,6 +51,8 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
 )
 
@@ -600,10 +602,22 @@ type requestOptions struct {
 	Data         []byte
 }
 
+func cancelled(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 // retryRequest uses defaultRetryStrategy to call doRequest with retry
-func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
+func (s *Store) retryRequest(client *http.Client, ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err = s.doRequest(client, reqOptions, user)
+		if ctx != nil && cancelled(ctx) {
+			return nil, ctx.Err()
+		}
+		resp, err = s.doRequest(client, ctx, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -623,13 +637,18 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+func (s *Store) doRequest(client *http.Client, ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.Do(req)
+	var resp *http.Response
+	if ctx != nil {
+		resp, err = ctxhttp.Do(ctx, client, req)
+	} else {
+		resp, err = client.Do(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +684,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 			// close previous response and retry
 			// TODO: make this non-recursive or add a recursion limit
 			resp.Body.Close()
-			return s.doRequest(client, reqOptions, user)
+			return s.doRequest(client, ctx, reqOptions, user)
 		}
 	}
 
@@ -799,7 +818,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -872,7 +891,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		Data:        jsonData,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -934,7 +953,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1039,7 +1058,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,7 +1109,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1205,7 +1224,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1257,7 +1276,7 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -1294,7 +1313,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, ctx)
 	if err != nil {
 		return err
 	}
@@ -1307,7 +1326,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, ctx context.Context) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1339,7 +1358,10 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 
 	var resp *http.Response
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err = s.doRequest(newHTTPClient(nil), reqOptions, user)
+		if ctx != nil && cancelled(ctx) {
+			return ctx.Err()
+		}
+		resp, err = s.doRequest(newHTTPClient(nil), ctx, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -1398,7 +1420,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1499,7 +1521,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1621,7 +1643,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1690,7 +1712,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
 	if err != nil {
 		return err
 	}

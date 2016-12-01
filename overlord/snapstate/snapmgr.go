@@ -424,10 +424,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(snapsup.Name(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(snapsup.Name(), targetFn, &storeInfo.DownloadInfo, meter, user, nil)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(snapsup.Name(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(snapsup.Name(), targetFn, snapsup.DownloadInfo, meter, user, nil)
 	}
 	if err != nil {
 		return err
