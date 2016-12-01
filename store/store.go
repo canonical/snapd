@@ -885,7 +885,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			ChannelSnapInfos []*snap.ChannelSnapInfo `json:"clickindex:package"`
+			SnapInfos []*snapDetails `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -895,8 +895,15 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 
 	channels := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.ChannelSnapInfos {
-		channels[item.Channel] = item
+	for _, item := range results.Payload.SnapInfos {
+		channels[item.Channel] = &snap.ChannelSnapInfo{
+			Revision:    snap.R(item.Revision),
+			Confinement: snap.ConfinementType(item.Confinement),
+			Version:     item.Version,
+			Channel:     item.Channel,
+			Epoch:       item.Epoch,
+			Size:        item.DownloadSize,
+		}
 	}
 
 	return channels, nil
