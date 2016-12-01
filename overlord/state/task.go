@@ -25,8 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 type progress struct {
@@ -58,13 +56,9 @@ type Task struct {
 	readyTime time.Time
 
 	atTime time.Time
-
-	context context.Context
-	cancel  context.CancelFunc
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Task{
 		state:   state,
 		id:      id,
@@ -73,8 +67,6 @@ func newTask(state *State, id, kind, summary string) *Task {
 		data:    make(customData),
 
 		spawnTime: timeNow(),
-		context:   ctx,
-		cancel:    cancel,
 	}
 }
 
@@ -190,11 +182,6 @@ func (t *Task) Status() Status {
 	return t.status
 }
 
-// Context return the context for this task.
-func (t *Task) Context() context.Context {
-	return t.context
-}
-
 // SetStatus sets the task status, overriding the default behavior (see Status method).
 func (t *Task) SetStatus(new Status) {
 	t.state.writing()
@@ -202,9 +189,6 @@ func (t *Task) SetStatus(new Status) {
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()
-	}
-	if new == AbortStatus && t.context != nil {
-		t.cancel()
 	}
 	chg := t.Change()
 	if chg != nil {
