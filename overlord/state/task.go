@@ -190,6 +190,11 @@ func (t *Task) Status() Status {
 	return t.status
 }
 
+// Context return the context for this task.
+func (t *Task) Context() context.Context {
+	return t.context
+}
+
 // SetStatus sets the task status, overriding the default behavior (see Status method).
 func (t *Task) SetStatus(new Status) {
 	t.state.writing()
