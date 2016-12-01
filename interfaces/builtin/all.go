@@ -21,9 +21,10 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
-var allInterfaces = []interfaces.Interface{
+var defaultInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&BoolFileInterface{},
 	&BrowserSupportInterface{},
@@ -54,7 +55,6 @@ var allInterfaces = []interfaces.Interface{
 	NewCupsControlInterface(),
 	NewDcdbasControlInterface(),
 	NewFirewallControlInterface(),
-	NewFuseSupportInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
 	NewHomeInterface(),
@@ -87,7 +87,19 @@ var allInterfaces = []interfaces.Interface{
 	NewX11Interface(),
 }
 
+var disabledInterfacesOnUbuntu1404 = []interfaces.Interface{
+	NewFuseSupportInterface(),
+}
+
+func isUbuntu1404() bool {
+	return release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"
+}
+
 // Interfaces returns all of the built-in interfaces.
 func Interfaces() []interfaces.Interface {
-	return allInterfaces
+	enabledInterfaces := defaultInterfaces
+	if !isUbuntu1404() {
+		enabledInterfaces = append(enabledInterfaces, disabledInterfacesOnUbuntu1404...)
+	}
+	return enabledInterfaces
 }
