@@ -326,10 +326,6 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
 
-	Socket       bool
-	SocketMode   string
-	ListenStream string
-
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
