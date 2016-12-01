@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/discardns"
 )
 
 func Test(t *testing.T) {
@@ -45,6 +46,8 @@ type backendSuite struct {
 	backendtest.BackendSuite
 
 	iface2 *interfaces.TestInterface
+
+	discardedNamespace bool
 }
 
 var _ = Suite(&backendSuite{})
@@ -60,6 +63,11 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.iface2 = &interfaces.TestInterface{InterfaceName: "iface2"}
 	err = s.Repo.AddInterface(s.iface2)
 	c.Assert(err, IsNil)
+
+	discardns.DiscardSnapNamespace = func(snapName string) error {
+		s.discardedNamespace = true
+		return nil
+	}
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -163,4 +171,46 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
 		c.Assert(osutil.FileExists(fn), Equals, true, Commentf("Expected mount file for %q", binary))
 	}
+}
+
+func (s *backendSuite) TestSetupDiscardsNamespaceOnChange(c *C) {
+	fsEntryIF1 := "/src-1 /dst-1 none bind,ro 0 0"
+	fsEntryIF2 := "/src-1 /dst-2 none bind,ro 0 0"
+	fsEntryIF3 := ""
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF1), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF1), nil
+	}
+
+	oldSnapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
+
+	s.discardedNamespace = false
+	// Snippet didn't change so there's are no bind mount updates which need a discard of the old namespace
+	oldSnapInfo = s.UpdateSnap(c, oldSnapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
+	c.Assert(s.discardedNamespace, Equals, false)
+
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF2), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF2), nil
+	}
+
+	// Snippet has changed again, bind mounts should be refreshed which needs a discard of the old namespace
+	oldSnapInfo = s.UpdateSnap(c, oldSnapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 2)
+	c.Assert(s.discardedNamespace, Equals, true)
+
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF3), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF3), nil
+	}
+
+	s.discardedNamespace = false
+	// Snippet has changed again, bind mounts should be refreshed which needs a discard of the old namespace
+	s.UpdateSnap(c, oldSnapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 2)
+	c.Assert(s.discardedNamespace, Equals, true)
 }
