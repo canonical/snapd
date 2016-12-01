@@ -20,6 +20,7 @@
 package partition
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -72,7 +73,7 @@ func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 
 func (g *grub) SetBootVars(values map[string]string) error {
 	env := grubenv.NewGrubenv(g.envFile())
-	if err := env.Load(); err != nil {
+	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	for k, v := range values {
