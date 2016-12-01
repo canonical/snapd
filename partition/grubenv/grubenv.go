@@ -26,6 +26,7 @@ import (
 	"os"
 )
 
+// FIXME: support for escaping (embedded \n in grubenv) missing
 type Grubenv struct {
 	env      map[string]string
 	ordering []string
