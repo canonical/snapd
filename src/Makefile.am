@@ -65,7 +65,9 @@ snap_confine_SOURCES = \
 	apparmor-support.c \
 	apparmor-support.h \
 	error.c \
-	error.h
+	error.h \
+	snap-confine-args.c \
+	snap-confine-args.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -109,7 +111,8 @@ snap_confine_unit_tests_SOURCES = \
 	apparmor-support.c \
 	apparmor-support.h \
 	mount-opt-test.c \
-	error-test.c
+	error-test.c \
+	snap-confine-args-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
