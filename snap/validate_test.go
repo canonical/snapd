@@ -144,8 +144,6 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", SocketMode: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", ListenStream: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 }
 

@@ -145,7 +145,7 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 			return nil, nil
 		}
 	case []interface{}:
-		lst, err := checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), validAccountID)
+		lst, err := checkStringListMatches(headers, name, validAccountID)
 		if err == nil {
 			return lst, nil
 		}

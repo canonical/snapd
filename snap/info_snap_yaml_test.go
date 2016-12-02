@@ -1330,10 +1330,7 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
-   socket-mode: socket_mode
-   listen-stream: listen_stream
    bus-name: busName
-   socket: yes
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1347,9 +1344,6 @@ apps:
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",
-			Socket:          true,
-			SocketMode:      "socket_mode",
-			ListenStream:    "listen_stream",
 			BusName:         "busName",
 		},
 	})

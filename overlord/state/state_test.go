@@ -221,25 +221,25 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 10*time.Millisecond)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 80*time.Millisecond)
 	defer restore()
 
 	boom := errors.New("boom")
 	retries := 0
-	error := func() error {
+	errFn := func() error {
 		retries++
 		return boom
 	}
-	b := &fakeStateBackend{error: error}
+	b := &fakeStateBackend{error: errFn}
 	st := state.New(b)
 	st.Lock()
 
 	// implicit checkpoint will panic after all failed retries
 	t0 := time.Now()
-	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10ms of retries every 2ms: boom")
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 80ms of retries every 2ms: boom")
 	// we did at least a couple
-	c.Check(retries > 2, Equals, true)
-	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
+	c.Check(retries > 2, Equals, true, Commentf("expected more than 2 retries got %v", retries))
+	c.Check(time.Since(t0) > 80*time.Millisecond, Equals, true)
 }
 
 func (ss *stateSuite) TestImplicitCheckpointModifiedOnly(c *C) {
