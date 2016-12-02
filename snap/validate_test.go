@@ -273,3 +273,16 @@ slots:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
 }
+
+func (s *ValidateSuite) TestIllegalAliasName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo$]
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use letters, digits, and dash, underscore or dot as separator`)
+}
