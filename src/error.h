@@ -120,14 +120,14 @@ void sc_cleanup_error(struct sc_error **ptr);
  * The error message is derived from the data in the error, using the special
  * errno domain to provide additional information if that is available.
  **/
-void sc_error_die(struct sc_error *error);
+void sc_die_on_error(struct sc_error *error);
 
 /**
  * Forward an error to the caller.
  *
  * This tries to forward an error to the caller. If this is impossible because
  * the caller did not provide a location for the error to be stored then the
- * sc_error_die() is called as a safety measure.
+ * sc_die_on_error() is called as a safety measure.
  **/
 __attribute__ ((nonnull(1)))
 void sc_error_forward(struct sc_error **recepient, struct sc_error *error);

@@ -117,24 +117,24 @@ static void test_sc_error_msg__NULL()
 	    ("cannot obtain error message from NULL error\n");
 }
 
-static void test_sc_error_die__NULL()
+static void test_sc_die_on_error__NULL()
 {
-	// Check that sc_error_die() does nothing if called with NULL error.
+	// Check that sc_die_on_error() does nothing if called with NULL error.
 	if (g_test_subprocess()) {
-		sc_error_die(NULL);
+		sc_die_on_error(NULL);
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_passed();
 }
 
-static void test_sc_error_die__regular()
+static void test_sc_die_on_error__regular()
 {
-	// Check that sc_error_die() dies if called with an error.
+	// Check that sc_die_on_error() dies if called with an error.
 	if (g_test_subprocess()) {
 		struct sc_error *err =
 		    sc_error_init("domain", 42, "just testing");
-		sc_error_die(err);
+		sc_die_on_error(err);
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -142,13 +142,13 @@ static void test_sc_error_die__regular()
 	g_test_trap_assert_stderr("just testing\n");
 }
 
-static void test_sc_error_die__errno()
+static void test_sc_die_on_error__errno()
 {
-	// Check that sc_error_die() dies if called with an errno-based error.
+	// Check that sc_die_on_error() dies if called with an errno-based error.
 	if (g_test_subprocess()) {
 		struct sc_error *err =
 		    sc_error_init_from_errno(ENOENT, "just testing");
-		sc_error_die(err);
+		sc_die_on_error(err);
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -237,10 +237,12 @@ static void __attribute__ ((constructor)) init()
 			test_sc_error_domain__NULL);
 	g_test_add_func("/error/sc_error_code/NULL", test_sc_error_code__NULL);
 	g_test_add_func("/error/sc_error_msg/NULL", test_sc_error_msg__NULL);
-	g_test_add_func("/error/sc_error_die/NULL", test_sc_error_die__NULL);
-	g_test_add_func("/error/sc_error_die/regular",
-			test_sc_error_die__regular);
-	g_test_add_func("/error/sc_error_die/errno", test_sc_error_die__errno);
+	g_test_add_func("/error/sc_die_on_error/NULL",
+			test_sc_die_on_error__NULL);
+	g_test_add_func("/error/sc_die_on_error/regular",
+			test_sc_die_on_error__regular);
+	g_test_add_func("/error/sc_die_on_error/errno",
+			test_sc_die_on_error__errno);
 	g_test_add_func("/error/sc_error_formward/nothing",
 			test_sc_error_forward__nothing);
 	g_test_add_func("/error/sc_error_formward/something_somewhere",
