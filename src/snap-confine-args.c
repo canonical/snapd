@@ -83,7 +83,6 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				break;
 			} else if (strcmp(argv[optind], "--classic") == 0) {
 				args->is_classic_confinement = true;
-				continue;
 			} else {
 				// Report unhandled option switches
 				err =
