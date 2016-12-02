@@ -132,7 +132,8 @@ void sc_die_on_error(struct sc_error *error);
  *
  * Change of ownership takes place and the error is now stored in the recipient.
  **/
-__attribute__ ((nonnull(1)))
+// NOTE: There's no nonnull(1) attribute as the recipient *can* be NULL. With
+// the attribute in place GCC optimizes some things out and tests fail.
 void sc_error_forward(struct sc_error **recipient, struct sc_error *error);
 
 /**
