@@ -140,7 +140,13 @@ func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = i18n.G(`
-The snap tool interacts with the snapd daemon to control the snappy software platform.
+Install, configure, refresh and remove snap packages. Snaps are
+'universal' packages that work across many different Linux systems,
+enabling secure distribution of the latest apps and utilities for
+cloud, servers, desktops and the internet of things.
+
+This is the CLI for snapd, a background service that takes care of
+snaps on the system. Start with 'snap list' to see installed snaps.
 `)
 	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
 

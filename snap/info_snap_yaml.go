@@ -65,10 +65,6 @@ type appYaml struct {
 	BusName string `yaml:"bus-name,omitempty"`
 
 	Environment map[string]string `yaml:"environment,omitempty"`
-
-	Socket       bool   `yaml:"socket,omitempty"`
-	ListenStream string `yaml:"listen-stream,omitempty"`
-	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
 type hookYaml struct {
@@ -230,9 +226,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 			StopCommand:     yApp.StopCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
-			Socket:          yApp.Socket,
-			SocketMode:      yApp.SocketMode,
-			ListenStream:    yApp.ListenStream,
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 		}
