@@ -612,12 +612,12 @@ func cancelled(ctx context.Context) bool {
 }
 
 // retryRequest uses defaultRetryStrategy to call doRequest with retry
-func (s *Store) retryRequest(client *http.Client, ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
+func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		if ctx != nil && cancelled(ctx) {
 			return nil, ctx.Err()
 		}
-		resp, err = s.doRequest(client, ctx, reqOptions, user)
+		resp, err = s.doRequest(ctx, client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -637,7 +637,7 @@ func (s *Store) retryRequest(client *http.Client, ctx context.Context, reqOption
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
@@ -684,7 +684,7 @@ func (s *Store) doRequest(client *http.Client, ctx context.Context, reqOptions *
 			// close previous response and retry
 			// TODO: make this non-recursive or add a recursion limit
 			resp.Body.Close()
-			return s.doRequest(client, ctx, reqOptions, user)
+			return s.doRequest(ctx, client, reqOptions, user)
 		}
 	}
 
@@ -818,7 +818,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, nil, reqOptions, user)
+	resp, err := s.doRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -891,7 +891,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		Data:        jsonData,
 	}
 
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -953,7 +953,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1058,7 +1058,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1109,7 +1109,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1224,7 +1224,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1276,7 +1276,7 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, ctx context.Context) error {
+func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -1313,7 +1313,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, ctx)
+	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
 	if err != nil {
 		return err
 	}
@@ -1326,7 +1326,7 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, ctx context.Context) error {
+var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1361,7 +1361,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 		if ctx != nil && cancelled(ctx) {
 			return ctx.Err()
 		}
-		resp, err = s.doRequest(newHTTPClient(nil), ctx, reqOptions, user)
+		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -1420,7 +1420,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
+	return download(nil, deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1521,7 +1521,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1643,7 +1643,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1712,7 +1712,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, nil, reqOptions, user)
+	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
 	if err != nil {
 		return err
 	}
