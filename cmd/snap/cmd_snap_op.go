@@ -23,8 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -377,6 +380,21 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+func setupAbortHandler(changeId string) {
+	// Intercept sigint
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		cli := Client()
+		_, err := cli.Abort(changeId)
+		if err != nil {
+			fmt.Fprintf(Stderr, err.Error()+"\n")
+		}
+		os.Exit(1)
+	}()
+}
+
 func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
@@ -396,6 +414,8 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
@@ -428,6 +448,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
