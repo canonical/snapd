@@ -90,6 +90,7 @@ int main(int argc, char **argv)
 		if (group_name == NULL) {
 			die("SNAP_NAME is not set");
 		}
+		sc_reassociate_with_pid1_mount_ns();
 		sc_initialize_ns_groups();
 		struct sc_ns_group *group = NULL;
 		group = sc_open_ns_group(group_name, 0);

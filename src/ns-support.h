@@ -23,6 +23,17 @@
 #include "apparmor-support.h"
 
 /**
+ * Re-associate the current process with the mount namespace of pid 1.
+ *
+ * This function inspects the mount namespace of the current process and that
+ * of pid 1. In case they differ the current process is re-associated with the
+ * mount namespace of pid 1.
+ *
+ * This function should be called before sc_initialize_ns_groups().
+ **/
+void sc_reassociate_with_pid1_mount_ns();
+
+/**
  * Initialize namespace sharing.
  *
  * This function must be called once in each process that wishes to create or
