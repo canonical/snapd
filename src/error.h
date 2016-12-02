@@ -68,8 +68,8 @@ struct sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt,
 /**
  * Get the error domain out of an error object.
  *
- * The error domain acts as a namespace for error codes. The return value must
- * not be released in any way.
+ * The error domain acts as a namespace for error codes.
+ * No change of ownership takes place.
  **/
 __attribute__ ((warn_unused_result, nonnull, returns_nonnull))
 const char *sc_error_domain(struct sc_error *err);
@@ -91,6 +91,7 @@ int sc_error_code(struct sc_error *err);
  * Get the error message out of an error object.
  *
  * The error message is bound to the life-cycle of the error object.
+ * No change of ownership takes place.
  **/
 __attribute__ ((warn_unused_result, nonnull, returns_nonnull))
 const char *sc_error_msg(struct sc_error *err);
@@ -128,9 +129,11 @@ void sc_die_on_error(struct sc_error *error);
  * This tries to forward an error to the caller. If this is impossible because
  * the caller did not provide a location for the error to be stored then the
  * sc_die_on_error() is called as a safety measure.
+ *
+ * Change of ownership takes place and the error is now stored in the recipient.
  **/
 __attribute__ ((nonnull(1)))
-void sc_error_forward(struct sc_error **recepient, struct sc_error *error);
+void sc_error_forward(struct sc_error **recipient, struct sc_error *error);
 
 /**
  * Check if a given error matches the specified domain and code.

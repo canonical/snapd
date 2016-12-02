@@ -124,10 +124,10 @@ void sc_die_on_error(struct sc_error *error)
 	}
 }
 
-void sc_error_forward(struct sc_error **recepient, struct sc_error *error)
+void sc_error_forward(struct sc_error **recipient, struct sc_error *error)
 {
-	if (recepient != NULL) {
-		*recepient = error;
+	if (recipient != NULL) {
+		*recipient = error;
 	} else {
 		sc_die_on_error(error);
 	}
