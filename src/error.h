@@ -18,6 +18,8 @@
 #ifndef SNAP_CONFINE_ERROR_H
 #define SNAP_CONFINE_ERROR_H
 
+#include <stdbool.h>
+
 /**
  * This module defines APIs for simple error management.
  *
@@ -124,5 +126,13 @@ void sc_error_die(struct sc_error *error);
  * sc_error_die() is called as a safety measure.
  **/
 void sc_error_forward(struct sc_error **recepient, struct sc_error *error);
+
+/**
+ * Check if a given error matches the specified domain and code.
+ *
+ * It is okay to match a NULL error, the function simply returns false in that
+ * case. The domain cannot be NULL though.
+ **/
+bool sc_error_match(struct sc_error *error, const char *domain, int code);
 
 #endif

@@ -185,6 +185,34 @@ static void test_sc_error_forward__something_nowhere()
 	g_test_trap_assert_stderr("just testing\n");
 }
 
+static void test_sc_error_match__typical()
+{
+	// NULL error doesn't match anything.
+	g_assert_false(sc_error_match(NULL, "domain", 42));
+
+	// Non-NULL error matches if domain and code both match.
+	struct sc_error *err = sc_error_init("domain", 42, "just testing");
+	g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
+	g_assert_true(sc_error_match(err, "domain", 42));
+	g_assert_false(sc_error_match(err, "domain", 1));
+	g_assert_false(sc_error_match(err, "other-domain", 42));
+	g_assert_false(sc_error_match(err, "other-domain", 1));
+}
+
+static void test_sc_error_match__NULL_domain()
+{
+	if (g_test_subprocess()) {
+		// Using a NULL domain is a fatal bug.
+		g_assert_false(sc_error_match(NULL, NULL, 42));
+		g_test_message("expected not to reach this place");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("cannot match error to a NULL domain\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/error/sc_error_init", test_sc_error_init);
@@ -205,4 +233,8 @@ static void __attribute__ ((constructor)) init()
 			test_sc_error_forward__something_somewhere);
 	g_test_add_func("/error/sc_error_formward/something_nowhere",
 			test_sc_error_forward__something_nowhere);
+	g_test_add_func("/error/sc_error_match/typical",
+			test_sc_error_match__typical);
+	g_test_add_func("/error/sc_error_match/NULL_domain",
+			test_sc_error_match__NULL_domain);
 }
