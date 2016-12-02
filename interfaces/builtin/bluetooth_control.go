@@ -43,6 +43,8 @@ const bluetoothControlConnectedPlugAppArmor = `
 
   # Requires CONFIG_BT_VHCI to be loaded
   /dev/vhci                       rw,
+  # Requires CONFIG_UHID
+  /dev/uhid                       rw,
 `
 
 const bluetoothControlConnectedPlugSecComp = `
