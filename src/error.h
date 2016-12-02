@@ -49,7 +49,7 @@ struct sc_error;
  *
  * This function calls die() in case of memory allocation failure.
  **/
-__attribute__ ((format(printf, 3, 4)))
+__attribute__ ((warn_unused_result, format(printf, 3, 4), returns_nonnull))
 struct sc_error *sc_error_init(const char *domain, int code, const char *msgfmt,
 			       ...);
 
@@ -61,7 +61,7 @@ struct sc_error *sc_error_init(const char *domain, int code, const char *msgfmt,
  *
  * This function calls die() in case of memory allocation failure.
  **/
-__attribute__ ((format(printf, 2, 3)))
+__attribute__ ((warn_unused_result, format(printf, 2, 3), returns_nonnull))
 struct sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt,
 					  ...);
 
@@ -71,6 +71,7 @@ struct sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt,
  * The error domain acts as a namespace for error codes. The return value must
  * not be released in any way.
  **/
+__attribute__ ((warn_unused_result, nonnull, returns_nonnull))
 const char *sc_error_domain(struct sc_error *err);
 
 /**
@@ -83,6 +84,7 @@ const char *sc_error_domain(struct sc_error *err);
  * can rely on programmatically. This can be used to return an error message
  * without having to allocate a distinct code for each one.
  **/
+__attribute__ ((warn_unused_result, nonnull))
 int sc_error_code(struct sc_error *err);
 
 /**
@@ -90,6 +92,7 @@ int sc_error_code(struct sc_error *err);
  *
  * The error message is bound to the life-cycle of the error object.
  **/
+__attribute__ ((warn_unused_result, nonnull, returns_nonnull))
 const char *sc_error_msg(struct sc_error *err);
 
 /**
@@ -105,6 +108,7 @@ void sc_error_free(struct sc_error *error);
  * This function is designed to be used with
  * __attribute__((cleanup(sc_cleanup_error))).
  **/
+__attribute__ ((nonnull))
 void sc_cleanup_error(struct sc_error **ptr);
 
 /**
@@ -125,6 +129,7 @@ void sc_error_die(struct sc_error *error);
  * the caller did not provide a location for the error to be stored then the
  * sc_error_die() is called as a safety measure.
  **/
+__attribute__ ((nonnull(1)))
 void sc_error_forward(struct sc_error **recepient, struct sc_error *error);
 
 /**
@@ -133,6 +138,7 @@ void sc_error_forward(struct sc_error **recepient, struct sc_error *error);
  * It is okay to match a NULL error, the function simply returns false in that
  * case. The domain cannot be NULL though.
  **/
+__attribute__ ((warn_unused_result, nonnull(2)))
 bool sc_error_match(struct sc_error *error, const char *domain, int code);
 
 #endif
