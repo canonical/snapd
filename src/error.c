@@ -142,5 +142,6 @@ bool sc_error_match(struct sc_error *error, const char *domain, int code)
 	if (error == NULL) {
 		return false;
 	}
-	return strcmp(error->domain, domain) == 0 && error->code == code;
+	return strcmp(sc_error_domain(error), domain) == 0
+	    && sc_error_code(error) == code;
 }
