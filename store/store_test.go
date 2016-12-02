@@ -452,10 +452,10 @@ func (t *remoteRepoTestSuite) TestDownloadCancellation(c *C) {
 		close(result)
 	}()
 
-	<- syncCh
+	<-syncCh
 	cancel()
 
-	err := <- result
+	err := <-result
 	c.Check(n, Equals, 1)
 	c.Assert(err, Equals, "The download has been cancelled: context canceled")
 }
