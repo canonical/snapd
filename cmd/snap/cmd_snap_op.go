@@ -22,9 +22,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
