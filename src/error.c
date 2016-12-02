@@ -110,7 +110,7 @@ void sc_cleanup_error(struct sc_error **ptr)
 	*ptr = NULL;
 }
 
-void sc_error_die(struct sc_error *error)
+void sc_die_on_error(struct sc_error *error)
 {
 	if (error != NULL) {
 		if (strcmp(sc_error_domain(error), SC_ERRNO_DOMAIN) == 0) {
@@ -129,7 +129,7 @@ void sc_error_forward(struct sc_error **recepient, struct sc_error *error)
 	if (recepient != NULL) {
 		*recepient = error;
 	} else {
-		sc_error_die(error);
+		sc_die_on_error(error);
 	}
 }
 
