@@ -146,7 +146,7 @@ func (s *imageSuite) Snap(name, channel string, devmode bool, revision snap.Revi
 	return s.storeSnapInfo[name], nil
 }
 
-func (s *imageSuite) Download(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, ctx context.Context) error {
+func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
 	return osutil.CopyFile(s.downloadedSnaps[name], targetFn, 0)
 }
 

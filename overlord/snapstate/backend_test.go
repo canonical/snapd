@@ -201,7 +201,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState, ctx context.Context) error {
+func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
 	var macaroon string
