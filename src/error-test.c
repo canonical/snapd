@@ -68,7 +68,10 @@ static void test_sc_error_domain__NULL()
 {
 	// Check that sc_error_domain() dies if called with NULL error.
 	if (g_test_subprocess()) {
-		sc_error_domain(NULL);
+		// NOTE: the code below fools gcc 5.4 but your mileage may vary.
+		struct sc_error *err = NULL;
+		const char *domain = sc_error_domain(err);
+		(void)(domain);
 		g_test_message("expected not to reach this place");
 		g_test_fail();
 		return;
@@ -83,7 +86,10 @@ static void test_sc_error_code__NULL()
 {
 	// Check that sc_error_code() dies if called with NULL error.
 	if (g_test_subprocess()) {
-		sc_error_code(NULL);
+		// NOTE: the code below fools gcc 5.4 but your mileage may vary.
+		struct sc_error *err = NULL;
+		int code = sc_error_code(err);
+		(void)(code);
 		g_test_message("expected not to reach this place");
 		g_test_fail();
 		return;
@@ -97,7 +103,10 @@ static void test_sc_error_msg__NULL()
 {
 	// Check that sc_error_msg() dies if called with NULL error.
 	if (g_test_subprocess()) {
-		sc_error_msg(NULL);
+		// NOTE: the code below fools gcc 5.4 but your mileage may vary.
+		struct sc_error *err = NULL;
+		const char *msg = sc_error_msg(err);
+		(void)(msg);
 		g_test_message("expected not to reach this place");
 		g_test_fail();
 		return;
@@ -171,11 +180,13 @@ static void test_sc_error_forward__something_nowhere()
 {
 	// Check that forwarding a real error nowhere calls die()
 	if (g_test_subprocess()) {
+		// NOTE: the code below fools gcc 5.4 but your mileage may vary.
+		struct sc_error **err_ptr = NULL;
 		struct sc_error *err =
 		    sc_error_init("domain", 42, "just testing");
 		g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
 		g_assert_nonnull(err);
-		sc_error_forward(NULL, err);
+		sc_error_forward(err_ptr, err);
 		g_test_message("expected not to reach this place");
 		g_test_fail();
 		return;
@@ -201,9 +212,12 @@ static void test_sc_error_match__typical()
 
 static void test_sc_error_match__NULL_domain()
 {
+	// Using a NULL domain is a fatal bug.
 	if (g_test_subprocess()) {
-		// Using a NULL domain is a fatal bug.
-		g_assert_false(sc_error_match(NULL, NULL, 42));
+		// NOTE: the code below fools gcc 5.4 but your mileage may vary.
+		struct sc_error *err = NULL;
+		const char *domain = NULL;
+		g_assert_false(sc_error_match(err, domain, 42));
 		g_test_message("expected not to reach this place");
 		g_test_fail();
 		return;
