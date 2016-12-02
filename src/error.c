@@ -100,6 +100,7 @@ void sc_error_free(struct sc_error *err)
 {
 	if (err != NULL) {
 		free(err->msg);
+		err->msg = NULL;
 		free(err);
 	}
 }
