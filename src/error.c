@@ -132,3 +132,14 @@ void sc_error_forward(struct sc_error **recepient, struct sc_error *error)
 		sc_error_die(error);
 	}
 }
+
+bool sc_error_match(struct sc_error *error, const char *domain, int code)
+{
+	if (domain == NULL) {
+		die("cannot match error to a NULL domain");
+	}
+	if (error == NULL) {
+		return false;
+	}
+	return strcmp(error->domain, domain) == 0 && error->code == code;
+}
