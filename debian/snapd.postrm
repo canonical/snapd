@@ -11,7 +11,6 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    systemctl stop snap.mount.service
     mounts=$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
     services=$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
@@ -42,7 +41,7 @@ if [ "$1" = "purge" ]; then
             rm -rf "/var/snap/$snap/common"
             rm -f "/var/snap/$snap/current"
             # opportunistic remove (may fail if there are still revisions left
-            for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/snap" "/var/snap"; do
+            for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/var/snap"; do
                 if [ -d "$d" ]; then
                     rmdir --ignore-fail-on-non-empty $d || true
                 fi
@@ -60,6 +59,10 @@ if [ "$1" = "purge" ]; then
         umount -l "$mnt" || true
     done
     umount -l /run/snapd/ns/ || true
+
+    # prepare removal of /snap
+    systemctl stop snap.mount.service
+    rmdir --ignore-fail-on-non-empty /snap
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
