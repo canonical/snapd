@@ -1434,5 +1434,5 @@ apps:
     aliases: [bar]
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both "foo" and "bar"`)
+	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }
