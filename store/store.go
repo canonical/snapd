@@ -1362,6 +1362,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+
+		if ctx != nil && cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue

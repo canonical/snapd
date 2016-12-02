@@ -424,6 +424,42 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (t *remoteRepoTestSuite) TestDownloadCancellation(c *C) {
+	// the channel used by mock server to request cancellation from the test
+	syncCh := make(chan struct{})
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "foo")
+		syncCh <- struct{}{}
+		io.WriteString(w, "bar")
+		time.Sleep(time.Duration(1) * time.Second)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	result := make(chan string)
+	go func() {
+		sha3 := ""
+		var buf SillyBuffer
+		err := download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+		result <- err.Error()
+		close(result)
+	}()
+
+	<- syncCh
+	cancel()
+
+	err := <- result
+	c.Check(n, Equals, 1)
+	c.Assert(err, Equals, "The download has been cancelled: context canceled")
+}
+
 type nopeSeeker struct{ io.ReadWriter }
 
 func (nopeSeeker) Seek(int64, int) (int64, error) {
