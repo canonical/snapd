@@ -86,33 +86,36 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		const char *group_name = getenv("SNAP_NAME");
-		if (group_name == NULL) {
-			die("SNAP_NAME is not set");
+		if (sc_args_is_classic_confinement(args) == false) {
+			const char *group_name = getenv("SNAP_NAME");
+			if (group_name == NULL) {
+				die("SNAP_NAME is not set");
+			}
+			sc_initialize_ns_groups();
+			struct sc_ns_group *group = NULL;
+			group = sc_open_ns_group(group_name, 0);
+			sc_lock_ns_mutex(group);
+			sc_create_or_join_ns_group(group, &apparmor);
+			if (sc_should_populate_ns_group(group)) {
+				sc_populate_mount_ns(security_tag);
+				sc_preserve_populated_ns_group(group);
+			}
+			sc_unlock_ns_mutex(group);
+			sc_close_ns_group(group);
+			// Reset path as we cannot rely on the path from the host OS to
+			// make sense. The classic distribution may use any PATH that makes
+			// sense but we cannot assume it makes sense for the core snap
+			// layout. Note that the /usr/local directories are explicitly
+			// left out as they are not part of the core snap.
+			debug
+			    ("resetting PATH to values in sync with core snap");
+			setenv("PATH",
+			       "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
+			struct snappy_udev udev_s;
+			if (snappy_udev_init(security_tag, &udev_s) == 0)
+				setup_devices_cgroup(security_tag, &udev_s);
+			snappy_udev_cleanup(&udev_s);
 		}
-		sc_initialize_ns_groups();
-		struct sc_ns_group *group = NULL;
-		group = sc_open_ns_group(group_name, 0);
-		sc_lock_ns_mutex(group);
-		sc_create_or_join_ns_group(group, &apparmor);
-		if (sc_should_populate_ns_group(group)) {
-			sc_populate_mount_ns(security_tag);
-			sc_preserve_populated_ns_group(group);
-		}
-		sc_unlock_ns_mutex(group);
-		sc_close_ns_group(group);
-		// Reset path as we cannot rely on the path from the host OS to
-		// make sense. The classic distribution may use any PATH that makes
-		// sense but we cannot assume it makes sense for the core snap
-		// layout. Note that the /usr/local directories are explicitly
-		// left out as they are not part of the core snap.
-		debug("resetting PATH to values in sync with core snap");
-		setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
-		struct snappy_udev udev_s;
-		if (snappy_udev_init(security_tag, &udev_s) == 0)
-			setup_devices_cgroup(security_tag, &udev_s);
-		snappy_udev_cleanup(&udev_s);
-
 		// The rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
