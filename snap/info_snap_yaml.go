@@ -110,7 +110,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	// Collect all apps, their aliases and hooks
-	if err := setAppsAndAliasesFromSnapYaml(y, snap); err != nil {
+	if err := setAppsFromSnapYaml(y, snap); err != nil {
 		return nil, err
 	}
 	setHooksFromSnapYaml(y, snap)
@@ -223,7 +223,7 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
-func setAppsAndAliasesFromSnapYaml(y snapYaml, snap *Info) error {
+func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{

@@ -89,7 +89,7 @@ func Validate(info *Info) error {
 	// validate aliases
 	for alias, app := range info.Aliases {
 		if !validAlias.MatchString(alias) {
-			return fmt.Errorf("cannot have %q as alias name for app %q - use letters, digits, and dash, underscore or dot as separator", alias, app.Name)
+			return fmt.Errorf("cannot have %q as alias name for app %q - use only letters, digits, dash, underscore and dot characters", alias, app.Name)
 		}
 	}
 

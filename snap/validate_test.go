@@ -284,5 +284,5 @@ apps:
 	c.Assert(err, IsNil)
 
 	err = Validate(info)
-	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use letters, digits, and dash, underscore or dot as separator`)
+	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }
