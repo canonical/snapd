@@ -342,11 +342,13 @@ func (mx *channelMixin) asksForChannel() bool {
 type modeMixin struct {
 	DevMode  bool `long:"devmode"`
 	JailMode bool `long:"jailmode"`
+	Classic  bool `long:"classic"`
 }
 
 var modeDescs = mixinDescs{
 	"devmode":  i18n.G("Request non-enforcing security"),
 	"jailmode": i18n.G("Override a snap's request for non-enforcing security"),
+	"classic":  i18n.G("Consent to use classic confinement"),
 }
 
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
@@ -474,6 +476,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Channel:   x.Channel,
 		DevMode:   x.DevMode,
 		JailMode:  x.JailMode,
+		Classic:   x.Classic,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
