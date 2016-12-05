@@ -719,6 +719,7 @@ type snapInstruction struct {
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
+	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
@@ -789,9 +790,11 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 }
 
 var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errClassicJailmodeConflict = errors.New("cannot use classic and jailmode flags together")
+var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
-func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
+func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags{}
 	if jailMode {
@@ -801,11 +804,20 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 		if devMode {
 			return flags, errModeConflict
 		}
+		if classic {
+			return flags, errClassicJailmodeConflict
+		}
 		flags.JailMode = true
 	}
-	if devMode || devModeOS {
+	if devMode {
+		if classic {
+			return flags, errClassicDevmodeConflict
+		}
+	}
+	if !classic && (devMode || devModeOS) {
 		flags.DevMode = true
 	}
+	flags.Classic = classic
 
 	return flags, nil
 
@@ -862,7 +874,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -887,7 +899,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -946,7 +958,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1232,7 +1244,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	dangerousOK := isTrue(form, "dangerous")
 	devmode := isTrue(form, "devmode")
-	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
+	flags, err := modeFlags(devmode, isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
