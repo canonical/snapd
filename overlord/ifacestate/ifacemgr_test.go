@@ -142,9 +142,16 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	i := 0
 	task := ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
+	var hookSetup hookstate.HookSetup
+	err = task.Get("hook-setup", &hookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "prepare-plug-plug", Optional: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "prepare-slot-slot", Optional: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
