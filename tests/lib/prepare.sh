@@ -135,13 +135,16 @@ setup_reflash_magic() {
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
 
-        # add a gpio slot
+        # add gpio and iio slots
         cat >> $UNPACKD/meta/snap.yaml <<-EOF
 slots:
     gpio-pin:
         interface: gpio
         number: 100
         direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
 EOF
 
         # build new core snap for the image
@@ -211,6 +214,7 @@ EOF
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
