@@ -255,7 +255,7 @@ func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 
-// NeedsDevMode retursn whether the snap needs devmode.
+// NeedsDevMode returns whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevModeConfinement
 }
