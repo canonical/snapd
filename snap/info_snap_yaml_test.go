@@ -1330,10 +1330,7 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
-   socket-mode: socket_mode
-   listen-stream: listen_stream
    bus-name: busName
-   socket: yes
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1347,9 +1344,6 @@ apps:
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",
-			Socket:          true,
-			SocketMode:      "socket_mode",
-			ListenStream:    "listen_stream",
 			BusName:         "busName",
 		},
 	})
@@ -1398,4 +1392,41 @@ confinement: classic
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
+}
+
+func (s *YamlSuite) TestSnapYamlAliases(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo]
+  bar:
+    aliases: [bar, bar1]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].Aliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].Aliases, DeepEquals, []string{"bar", "bar1"})
+
+	c.Check(info.Aliases, DeepEquals, map[string]*snap.AppInfo{
+		"foo":  info.Apps["foo"],
+		"bar":  info.Apps["bar"],
+		"bar1": info.Apps["bar"],
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlAliasesConflict(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [bar]
+  bar:
+    aliases: [bar]
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }

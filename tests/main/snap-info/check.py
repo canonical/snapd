@@ -76,6 +76,10 @@ check("test-snapd-devmode", res[3],
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
    ("updated", exists),
+   ("channels", check,
+    ("beta", matches, verRevNotesRx("devmode")),
+    ("edge", matches, verRevNotesRx("devmode")),
+   ),
 )
 
 check("core", res[4],
