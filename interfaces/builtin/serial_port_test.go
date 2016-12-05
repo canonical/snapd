@@ -82,10 +82,10 @@ slots:
         path: path
     bad-path-2:
         interface: serial-port
-        path: /dev/tty0
+        path: /dev/tty
     bad-path-3:
         interface: serial-port
-        path: /dev/ttyUSB9271
+        path: /dev/usb
     bad-interface: other-interface
 `, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
@@ -248,13 +248,13 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-	expectedSnippet2 := []byte(`/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,
+	expectedSnippet2 := []byte(`/dev/tty* rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
-	expectedSnippet3 := []byte(`/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,
+	expectedSnippet3 := []byte(`/dev/tty* rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

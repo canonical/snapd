@@ -43,7 +43,7 @@ func (iface *SerialPortInterface) String() string {
 
 // Pattern to match allowed serial device nodes, path attributes will be
 // compared to this for validity when not using udev identification
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$")
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[a-zA-Z0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
@@ -150,7 +150,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		if iface.hasUsbAttrs(slot) {
 			// This apparmor rule must match serialDeviceNodePattern
 			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,\n"), nil
+			return []byte("/dev/tty* rw,\n"), nil
 		}
 
 		// Path to fixed device node (no udev tagging)
