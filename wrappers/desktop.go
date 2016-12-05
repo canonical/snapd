@@ -61,6 +61,13 @@ var validDesktopFilePrefixes = []string{
 	"Keywords=",
 	"StartupNotify=",
 	"StartupWMClass=",
+	// unity extension
+	"X-Ayatana-Desktop-Shortcuts=",
+	"TargetEnvironment=",
+}
+
+var validDesktopFileSuffixes = []string{
+	"Shortcut Group]",
 }
 
 // name desktop file keys are localized as key[LOCALE]=:
@@ -96,6 +103,16 @@ func trimLang(s string) string {
 		return t[1:]
 	}
 	return s
+}
+
+func isValidDesktopFileSuffix(line string) bool {
+	for _, prefix := range validDesktopFileSuffixes {
+		if strings.HasSuffix(line, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isValidLocalizedDesktopFilePrefix(line string) bool {
@@ -145,7 +162,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		}
 
 		// ignore everything we have not whitelisted
-		if !isValidDesktopFilePrefix(line) && !isValidLocalizedDesktopFilePrefix(line) {
+		if !isValidDesktopFilePrefix(line) && !isValidLocalizedDesktopFilePrefix(line) && !isValidDesktopFileSuffix(line) {
 			continue
 		}
 		// rewrite exec lines to an absolute path for the binary
