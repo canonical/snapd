@@ -101,7 +101,7 @@ func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"
-		const udevRule string = `KERNEL="%s", TAG+="%s"`
+		const udevRule string = `KERNEL=="%s", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
