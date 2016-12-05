@@ -363,10 +363,15 @@ var defaultTemplate = []byte(`
 }
 `)
 
-// classicTemplate contains apparmor template used for snaps with classic confinement.
+// classicTemplate contains apparmor template used for snaps with classic
+// confinement. This template was Designed by jdstrand:
+// https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
+//
+// The classic template intentionally provides no confinement and is used
+// simply to ensure that processes have the proper command-specific security
+// label instead of 'unconfined'.
 //
 // It can be overridden for testing using MockClassicTemplate().
-// Designed by jdstrand https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
 var classicTemplate = []byte(`
 #include <tunables/global>
 
