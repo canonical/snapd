@@ -53,6 +53,8 @@ type Snap struct {
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
+
+	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
 }
 
 type AppInfo struct {
@@ -78,7 +80,7 @@ const (
 	TypeOS     = "os"
 
 	StrictConfinement  = "strict"
-	DevmodeConfinement = "devmode"
+	DevModeConfinement = "devmode"
 )
 
 type ResultInfo struct {
@@ -94,14 +96,28 @@ type FindOptions struct {
 	Private bool
 	Prefix  bool
 	Query   string
+	Section string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
+type ListOptions struct {
+	All bool
+}
+
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) List(names []string) ([]*Snap, error) {
-	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
+func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
+	if opts == nil {
+		opts = &ListOptions{}
+	}
+
+	q := make(url.Values)
+	if opts.All {
+		q.Add("select", "all")
+	}
+
+	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +145,16 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
+// Sections returns the list of existing snap sections in the store
+func (client *Client) Sections() ([]string, error) {
+	var sections []string
+	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap sections: %s", err)
+	}
+	return sections, nil
+}
+
 // Find returns a list of snaps available for install from the
 // store for this system and that match the query
 func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
@@ -149,6 +175,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	case opts.Private:
 		q.Set("select", "private")
+	}
+	if opts.Section != "" {
+		q.Set("section", opts.Section)
 	}
 
 	return client.snapsFromPath("/v2/find", q)

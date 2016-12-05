@@ -28,58 +28,58 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type UsbRawSuite struct {
+type RawUsbSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UsbRawSuite{
-	iface: builtin.NewUsbRawInterface(),
+var _ = Suite(&RawUsbSuite{
+	iface: builtin.NewRawUsbInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "usb-raw",
-			Interface: "usb-raw",
+			Name:      "raw-usb",
+			Interface: "raw-usb",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "usb-raw",
-			Interface: "usb-raw",
+			Name:      "raw-usb",
+			Interface: "raw-usb",
 		},
 	},
 })
 
-func (s *UsbRawSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "usb-raw")
+func (s *RawUsbSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "raw-usb")
 }
 
-func (s *UsbRawSuite) TestSanitizeSlot(c *C) {
+func (s *RawUsbSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "usb-raw",
-		Interface: "usb-raw",
+		Name:      "raw-usb",
+		Interface: "raw-usb",
 	}})
-	c.Assert(err, ErrorMatches, "usb-raw slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "raw-usb slots are reserved for the operating system snap")
 }
 
-func (s *UsbRawSuite) TestSanitizePlug(c *C) {
+func (s *RawUsbSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *UsbRawSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *RawUsbSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "usb-raw"`)
+		PanicMatches, `slot is not of interface "raw-usb"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "usb-raw"`)
+		PanicMatches, `plug is not of interface "raw-usb"`)
 }
 
-func (s *UsbRawSuite) TestUsedSecuritySystems(c *C) {
+func (s *RawUsbSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

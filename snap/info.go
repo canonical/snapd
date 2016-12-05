@@ -144,6 +144,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
+	Aliases          map[string]*AppInfo
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
@@ -162,6 +163,18 @@ type Info struct {
 	MustBuy bool
 
 	Screenshots []ScreenshotInfo
+	Channels    map[string]*ChannelSnapInfo
+}
+
+// ChannelSnapInfo is the minimum information that can be used to clearly
+// distinguish different revisions of the same snap.
+type ChannelSnapInfo struct {
+	Revision    Revision        `json:"revision"`
+	Confinement ConfinementType `json:"confinement"`
+	Version     string          `json:"version"`
+	Channel     string          `json:"channel"`
+	Epoch       string          `json:"epoch"`
+	Size        int64           `json:"size"`
 }
 
 // Name returns the blessed name for the snap.
@@ -245,7 +258,7 @@ func (s *Info) XdgRuntimeDirs() string {
 
 // NeedsDevMode retursn whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
-	return s.Confinement == DevmodeConfinement
+	return s.Confinement == DevModeConfinement
 }
 
 // DownloadInfo contains the information to download a snap.
@@ -307,6 +320,7 @@ type AppInfo struct {
 	Snap *Info
 
 	Name    string
+	Aliases []string
 	Command string
 
 	Daemon          string
@@ -314,10 +328,6 @@ type AppInfo struct {
 	StopCommand     string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
-
-	Socket       bool
-	SocketMode   string
-	ListenStream string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

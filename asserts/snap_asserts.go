@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"regexp"
 	"time"
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
@@ -39,6 +40,7 @@ type SnapDeclaration struct {
 	refreshControl []string
 	plugRules      map[string]*PlugRule
 	slotRules      map[string]*SlotRule
+	autoAliases    []string
 	timestamp      time.Time
 }
 
@@ -82,6 +84,11 @@ func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
 	return snapdcl.slotRules[interfaceName]
 }
 
+// AutoAliases returns the optional auto-aliases granted to this snap.
+func (snapdcl *SnapDeclaration) AutoAliases() []string {
+	return snapdcl.autoAliases
+}
+
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
@@ -106,9 +113,11 @@ var _ consistencyChecker = (*SnapDeclaration)(nil)
 // Prerequisites returns references to this snap-declaration's prerequisite assertions.
 func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
+		{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
 	}
 }
+
+var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
@@ -165,11 +174,17 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
+	if err != nil {
+		return nil, err
+	}
+
 	return &SnapDeclaration{
 		assertionBase:  assert,
 		refreshControl: refControl,
 		plugRules:      plugRules,
 		slotRules:      slotRules,
+		autoAliases:    autoAliases,
 		timestamp:      timestamp,
 	}, nil
 }
@@ -332,8 +347,8 @@ var _ consistencyChecker = (*SnapRevision)(nil)
 func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	return []*Ref{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
-		&Ref{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
+		{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
 	}
 }
 
@@ -457,8 +472,8 @@ var _ consistencyChecker = (*Validation)(nil)
 // Prerequisites returns references to this validation's prerequisite assertions.
 func (validation *Validation) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
+		{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
 	}
 }
 

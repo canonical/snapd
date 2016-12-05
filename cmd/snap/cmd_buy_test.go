@@ -444,7 +444,7 @@ func (s *BuySnapSuite) TestBuySnapFailsNotAcceptedTerms(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
 Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")

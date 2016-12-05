@@ -230,6 +230,10 @@ func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState)
 	panic("Never expected fakeStore.Assertion to be called")
 }
 
+func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
+	panic("Sections called")
+}
+
 type fakeSnappyBackend struct {
 	ops fakeOps
 
@@ -440,10 +444,10 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  ss.Name(),
-		revno: ss.Revision(),
+		name:  snapsup.Name(),
+		revno: snapsup.Revision(),
 	})
 }
