@@ -314,9 +314,17 @@ func showDone(names []string, op string) error {
 		}
 		switch op {
 		case "install":
-			fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
-		case "upgrade":
-			fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
+			}
+		case "refresh":
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
+			}
 		default:
 			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
 		}
@@ -502,13 +510,13 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	var upgraded []string
-	if err := chg.Get("snap-names", &upgraded); err != nil && err != client.ErrNoData {
+	var refreshed []string
+	if err := chg.Get("snap-names", &refreshed); err != nil && err != client.ErrNoData {
 		return err
 	}
 
-	if len(upgraded) > 0 {
-		return showDone(upgraded, "upgrade")
+	if len(refreshed) > 0 {
+		return showDone(refreshed, "refresh")
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -531,7 +539,7 @@ func refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	return showDone([]string{name}, "upgrade")
+	return showDone([]string{name}, "refresh")
 }
 
 func listRefresh() error {
