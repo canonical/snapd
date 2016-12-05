@@ -75,7 +75,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 	targetFn = filepath.Join(targetDir, baseName)
 
 	pb := progress.NewTextProgress()
-	if err = sto.Download(nil, name, targetFn, &snap.DownloadInfo, pb, opts.User); err != nil {
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, opts.User); err != nil {
 		return "", nil, err
 	}
 
