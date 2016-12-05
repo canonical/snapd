@@ -346,9 +346,9 @@ type modeMixin struct {
 }
 
 var modeDescs = mixinDescs{
-	"devmode":  i18n.G("Request non-enforcing security"),
-	"jailmode": i18n.G("Override a snap's request for non-enforcing security"),
-	"classic":  i18n.G("Consent to use classic confinement"),
+	"classic":  i18n.G("Put snap in classic mode and disable security confinement"),
+	"devmode":  i18n.G("Put snap in development mode and disable security confinement"),
+	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
 
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
