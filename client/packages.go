@@ -81,6 +81,7 @@ const (
 
 	StrictConfinement  = "strict"
 	DevModeConfinement = "devmode"
+	ClassicConfinement = "classic"
 )
 
 type ResultInfo struct {
