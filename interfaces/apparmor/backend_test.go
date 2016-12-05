@@ -341,12 +341,12 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// Classic confinement uses apparmor in complain mode by default.
 	opts:    interfaces.ConfinementOptions{Classic: true},
 	snippet: "snippet",
-	content: "\n(classic)" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	snippet: "snippet",
-	content: "\n(classic)" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
+	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
@@ -358,7 +358,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n"))
 	defer restoreTemplate()
 	restoreClassicTemplate := apparmor.MockClassicTemplate([]byte("\n" +
-		"(classic)\n" +
+		"#classic\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
