@@ -2894,8 +2894,6 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	command := testutil.MockCommand(c, "snap", "")
-	defer command.Restore()
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
@@ -2946,8 +2944,6 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	command := testutil.MockCommand(c, "snap", "")
-	defer command.Restore()
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
@@ -2990,8 +2986,6 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	command := testutil.MockCommand(c, "snap", "")
-	defer command.Restore()
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
@@ -3034,8 +3028,6 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	command := testutil.MockCommand(c, "snap", "")
-	defer command.Restore()
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
