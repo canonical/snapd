@@ -56,7 +56,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
 	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
-	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
 	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
 	c.Check(all, DeepContains, builtin.NewKernelModuleControlInterface())
@@ -83,4 +82,11 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewUPowerObserveInterface())
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
+
+	// Handle platform-specific tests here.
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
+	} else {
+		c.Check(all, Not(DeepContains), builtin.NewFuseSupportInterface)
+	}
 }

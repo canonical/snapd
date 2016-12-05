@@ -149,7 +149,7 @@ prepare: |
          add-apt-repository ppa:thomas-voss/trusty
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
-         apt-get install -y cgroup-lite apparmor init-system-helpers libapparmor1 seccomp libseccomp2 sudo systemd util-linux
+         apt-get install -y apparmor seccomp systemd
          # make sure that go is available in the path on trusty.
          export PATH=/usr/lib/go-1.6/bin:${PATH}
     fi

@@ -10,6 +10,7 @@ Build-Depends: bash-completion,
                gettext,
                gnupg2,
                golang-any (>=2:1.6) | golang-1.6,
+               init-system-helpers,
                python3,
                python3-markdown,
                squashfs-tools
@@ -38,10 +39,13 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
+         cgroup-lite,
          gnupg1 | gnupg,
          snap-confine (>= 1.0.43),
          squashfs-tools,
+         sudo,
          systemd,
+         util-linux,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
