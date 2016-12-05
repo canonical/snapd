@@ -120,10 +120,16 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c 
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.modem-manager.app"),`)
 }
 
-func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabelOnClassic(c *C) {
-	slot := &interfaces.Slot{}
+func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelNot(c *C) {
+	release.OnClassic = false
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
+}
+
+func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
@@ -141,11 +147,25 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+}
+
+func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "allow own=\"org.freedesktop.ModemManager1\"")
+	c.Assert(string(snippet), testutil.Contains, "allow send_destination=\"org.freedesktop.ModemManager1\"")
+}
+
+func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "deny own=\"org.freedesktop.ModemManager1\"")
+	c.Assert(string(snippet), testutil.Contains, "deny send_destination=\"org.freedesktop.ModemManager1\"")
 }

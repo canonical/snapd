@@ -209,7 +209,11 @@ func checkStringListInMap(m map[string]interface{}, name, what string, pattern *
 }
 
 func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
-	return checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), anyString)
+	return checkStringListMatches(headers, name, anyString)
+}
+
+func checkStringListMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) ([]string, error) {
+	return checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), pattern)
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
