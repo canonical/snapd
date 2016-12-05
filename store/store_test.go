@@ -1421,7 +1421,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 	c.Check(result.Name(), Equals, "hello-world")
-	c.Check(result.Channels, DeepEquals, map[string]*snap.Ref{
+	c.Check(result.Channels, DeepEquals, map[string]*snap.ChannelSnapInfo{
 		"stable": {
 			Revision:    snap.R(1),
 			Version:     "v1",
