@@ -1,0 +1,3 @@
+#!/bin/sh
+
+cat /dev/iio:device0
