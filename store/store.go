@@ -1415,6 +1415,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	_, err = io.Copy(mw, resp.Body)
 	pbar.Finished()
 
+	if cancelled(ctx) {
+		return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+	}
+
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
 		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
