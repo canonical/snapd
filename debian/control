@@ -43,15 +43,20 @@ Depends: adduser,
          snap-confine (>= 1.0.43),
          squashfs-tools,
          systemd,
-         xdelta,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Conflicts: snap (<< 2013-11-29-1ubuntu1), snappy
+Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
- Manage an Ubuntu system with snappy.
+ Install, configure, refresh and remove snap packages. Snaps are
+ 'universal' packages that work across many different Linux systems,
+ enabling secure distribution of the latest apps and utilities for
+ cloud, servers, desktops and the internet of things.
+ .
+ This is the CLI for snapd, a background service that takes care of
+ snaps on the system. Start with 'snap list' to see installed snaps.
 
 Package: ubuntu-snappy
 Architecture: all

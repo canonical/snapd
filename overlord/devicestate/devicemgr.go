@@ -40,7 +40,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -359,7 +360,7 @@ func (m *DeviceManager) Stop() {
 }
 
 func useStaging() bool {
-	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
 func deviceAPIBaseURL() string {

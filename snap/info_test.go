@@ -142,6 +142,7 @@ func makeTestSnap(c *C, yaml string) string {
 	snapSource := filepath.Join(tmp, "snapsrc")
 
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
@@ -181,7 +182,7 @@ confinement: devmode`
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {

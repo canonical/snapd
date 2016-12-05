@@ -26,6 +26,7 @@ import (
 	"unicode"
 
 	"github.com/cheggaaa/pb"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Meter is an interface to show progress to the user
@@ -100,8 +101,7 @@ func NewTextProgress() *TextProgress {
 
 // Start starts showing progress
 func (t *TextProgress) Start(label string, total float64) {
-	t.pbar = pb.New64(0)
-	t.pbar.Total = int64(total)
+	t.pbar = pb.New64(int64(total))
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
 	t.pbar.Prefix(label)
@@ -195,5 +195,5 @@ func MakeProgressBar() Meter {
 var attachedToTerminal = func() bool {
 	fd := int(os.Stdin.Fd())
 
-	return isatty(fd)
+	return terminal.IsTerminal(fd)
 }

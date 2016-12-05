@@ -39,7 +39,7 @@ type cmdBuy struct {
 	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string
+		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -59,7 +59,7 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(x.Positional.SnapName, x.Currency)
+	return buySnap(string(x.Positional.SnapName), x.Currency)
 }
 
 func buySnap(snapName, currency string) error {
@@ -105,7 +105,7 @@ func buySnap(snapName, currency string) error {
 				return fmt.Errorf(i18n.G(`You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			}
 		}

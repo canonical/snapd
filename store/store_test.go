@@ -61,7 +61,6 @@ type remoteRepoTestSuite struct {
 	device    *auth.DeviceState
 
 	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
-	origBackoffs     []int
 	mockXDelta       *testutil.MockCmd
 }
 
@@ -214,8 +213,6 @@ func createTestDevice() *auth.DeviceState {
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
-	t.origBackoffs = downloadBackoffs
-	downloadBackoffs = []int{2, 5, 0}
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
@@ -241,7 +238,6 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
-	downloadBackoffs = t.origBackoffs
 	t.mockXDelta.Restore()
 }
 
@@ -483,7 +479,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
-	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
+	c.Check(n, Equals, 5)
 }
 
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
@@ -1376,6 +1372,84 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) {
+	// this test will break and should be melded into TestUbuntuStoreRepositoryDetails,
+	// above, when the store provides the channels as part of details
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/details/hello-world")
+			c.Check(r.URL.Query().Get("channel"), Equals, "")
+			w.Header().Set("X-Suggested-Currency", "GBP")
+			w.WriteHeader(http.StatusOK)
+
+			io.WriteString(w, MockDetailsJSON)
+		case 1:
+			c.Check(r.URL.Path, Equals, "/metadata")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, `{"_embedded":{"clickindex:package": [
+{"channel": "stable",    "confinement": "strict",  "revision": 1, "version": "v1"},
+{"channel": "candidate", "confinement": "strict",  "revision": 2, "version": "v2"},
+{"channel": "beta",      "confinement": "devmode", "revision": 8, "version": "v8"},
+{"channel": "edge",      "confinement": "devmode", "revision": 9, "version": "v9"}
+]}}`)
+		default:
+			c.Fatalf("unexpected request to %q", r.URL.Path)
+		}
+		n++
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	bulkURI, err := url.Parse(mockServer.URL + "/metadata")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		DetailsURI: detailsURI,
+		BulkURI:    bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	result, err := repo.Snap("hello-world", "", false, snap.R(0), nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Check(result.Name(), Equals, "hello-world")
+	c.Check(result.Channels, DeepEquals, map[string]*snap.ChannelSnapInfo{
+		"stable": {
+			Revision:    snap.R(1),
+			Version:     "v1",
+			Confinement: snap.StrictConfinement,
+			Channel:     "stable",
+		},
+		"candidate": {
+			Revision:    snap.R(2),
+			Version:     "v2",
+			Confinement: snap.StrictConfinement,
+			Channel:     "candidate",
+		},
+		"beta": {
+			Revision:    snap.R(8),
+			Version:     "v8",
+			Confinement: snap.DevModeConfinement,
+			Channel:     "beta",
+		},
+		"edge": {
+			Revision:    snap.R(9),
+			Version:     "v9",
+			Confinement: snap.DevModeConfinement,
+			Channel:     "edge",
+		},
+	})
+	c.Check(snap.Validate(result), IsNil)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -1464,6 +1538,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	defer mockPurchasesServer.Close()
 
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+	c.Assert(err, IsNil)
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
@@ -1672,16 +1747,29 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 
 		name := query.Get("name")
 		q := query.Get("q")
+		section := query.Get("section")
 
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
+			c.Check(section, Equals, "")
 		case 1:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
+			c.Check(section, Equals, "")
+		case 2:
+			c.Check(r.URL.Path, Equals, "/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "")
+			c.Check(section, Equals, "db")
+		case 3:
+			c.Check(r.URL.Path, Equals, "/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "hello")
+			c.Check(section, Equals, "db")
 		default:
 			c.Fatalf("what? %d", n)
 		}
@@ -1705,9 +1793,72 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	for _, query := range []Search{
 		{Query: "hello", Prefix: true},
 		{Query: "hello"},
+		{Section: "db"},
+		{Query: "hello", Section: "db"},
 	} {
 		repo.Find(&query, nil)
 	}
+}
+
+/* acquired via:
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/snaps/sections'
+*/
+const MockSectionsJSON = `{
+  "_embedded": {
+    "clickindex:sections": [
+      {
+        "name": "featured"
+      }, 
+      {
+        "name": "database"
+      }
+    ]
+  }, 
+  "_links": {
+    "curies": [
+      {
+        "href": "https://search.apps.ubuntu.com/docs/#reltype-{rel}", 
+        "name": "clickindex", 
+        "templated": true, 
+        "type": "text/html"
+      }
+    ], 
+    "self": {
+      "href": "http://search.apps.ubuntu.com/api/v1/snaps/sections"
+    }
+  }
+}
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/snaps/sections")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockSectionsJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	searchSectionsURI, _ := serverURL.Parse("/snaps/sections")
+	cfg := Config{
+		SectionsURI: searchSectionsURI,
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	sections, err := repo.Sections(t.user)
+	c.Check(err, IsNil)
+	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
@@ -1757,9 +1908,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, nil)
-	_, err := repo.Find(&Search{}, nil)
-	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
+	_, err := repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
 	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user)
 	c.Check(err, Equals, ErrBadQuery)
@@ -2121,7 +2270,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
@@ -2673,6 +2822,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	repo := New(&cfg, nil)
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
 	c.Assert(n, Equals, 6)
 }
 
