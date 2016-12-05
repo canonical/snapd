@@ -619,7 +619,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 			delta := time.Since(startTime) / time.Millisecond
 			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
 		}
-		if ctx != nil && cancelled(ctx) {
+		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
 
@@ -835,7 +835,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(nil, s.client, reqOptions, user)
+	resp, err := s.doRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -908,7 +908,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		Data:        jsonData,
 	}
 
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -969,7 +969,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1074,7 +1074,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1125,7 +1125,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1240,7 +1240,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1374,12 +1374,12 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 	var resp *http.Response
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if ctx != nil && cancelled(ctx) {
+		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 
-		if ctx != nil && cancelled(ctx) {
+		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if err != nil {
@@ -1440,7 +1440,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(nil, deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1541,7 +1541,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1663,7 +1663,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1732,7 +1732,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(nil, s.client, reqOptions, user)
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
 	if err != nil {
 		return err
 	}
