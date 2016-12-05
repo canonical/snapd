@@ -40,7 +40,7 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	return interfaces.ConfinementOptions{
 		DevMode:  flags.DevMode,
 		JailMode: flags.JailMode,
-		// TODO: map Classic when it shows up in snapstate.Flags
+		Classic:  flags.Classic,
 	}
 }
 
