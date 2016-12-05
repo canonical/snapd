@@ -43,7 +43,7 @@ func (iface *IioInterface) String() string {
 // Pattern to match allowed iio device nodes. It is gonna be used to check the
 // validity of the path attributes in case the udev is not used for
 // identification
-var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio-device[0-9]")
+var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]")
 
 // Check validity of the defined slot
 func (iface *IioInterface) SanitizeSlot(slot *interfaces.Slot) error {
