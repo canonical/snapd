@@ -1168,7 +1168,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			RealName:  "store",
 			Developer: "foo",
 		},
-		Channels: map[string]*snap.Ref{
+		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
 			},

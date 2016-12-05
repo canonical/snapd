@@ -1393,3 +1393,40 @@ confinement: classic
 	c.Assert(err, IsNil)
 	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
 }
+
+func (s *YamlSuite) TestSnapYamlAliases(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo]
+  bar:
+    aliases: [bar, bar1]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].Aliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].Aliases, DeepEquals, []string{"bar", "bar1"})
+
+	c.Check(info.Aliases, DeepEquals, map[string]*snap.AppInfo{
+		"foo":  info.Apps["foo"],
+		"bar":  info.Apps["bar"],
+		"bar1": info.Apps["bar"],
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlAliasesConflict(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [bar]
+  bar:
+    aliases: [bar]
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
+}

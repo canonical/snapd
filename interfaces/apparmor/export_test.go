@@ -40,3 +40,10 @@ func MockTemplate(fakeTemplate []byte) (restore func()) {
 	defaultTemplate = fakeTemplate
 	return func() { defaultTemplate = orig }
 }
+
+// MockClassicTemplate replaces the classic apprmor template.
+func MockClassicTemplate(fakeTemplate []byte) (restore func()) {
+	orig := classicTemplate
+	classicTemplate = fakeTemplate
+	return func() { classicTemplate = orig }
+}
