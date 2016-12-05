@@ -391,7 +391,6 @@ func setupAbortHandler(changeId string) {
 		if err != nil {
 			fmt.Fprintf(Stderr, err.Error()+"\n")
 		}
-		os.Exit(1)
 	}()
 }
 
