@@ -378,7 +378,7 @@ var classicTemplate = []byte(`
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
-  # set file rules so that exec() inherit our profile unless there is
+  # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,
   /** rwlkm,
