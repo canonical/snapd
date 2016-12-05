@@ -237,6 +237,26 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {
+	snap := &snap.Info{}
+
+	desktopContent := []byte(`[Desktop Entry]
+Version=1.0
+Name=Firefox Web Browser
+X-Ayatana-Desktop-Shortcuts=NewWindow;Private
+
+[NewWindow Shortcut Group]
+Name=Open a New Window
+TargetEnvironment=Unity
+
+[Private Shortcut Group]
+Name=Private Mode
+TargetEnvironment=Unity`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, string(desktopContent))
+}
+
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
 	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
