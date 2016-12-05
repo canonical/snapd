@@ -55,7 +55,7 @@ type interfaceManagerSuite struct {
 	extraIfaces     []interfaces.Interface
 	secBackend      *interfaces.TestSecurityBackend
 	restoreBackends func()
-	command         *testutil.MockCmd
+	mockSnapCmd     *testutil.MockCmd
 	storeSigning    *assertstest.StoreStack
 }
 
@@ -63,6 +63,8 @@ var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootKey, storeKey)
+
+	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
 	state := state.New(nil)
@@ -88,9 +90,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
-	if s.command != nil {
-		s.command.Restore()
-	}
+	s.mockSnapCmd.Restore()
 
 	if s.privateMgr != nil {
 		s.privateMgr.Stop()
@@ -161,7 +161,6 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.command = testutil.MockCommand(c, "snap", "")
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -1189,8 +1188,6 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	s.command = testutil.MockCommand(c, "snap", "")
-
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -1230,8 +1227,6 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
-	s.command = testutil.MockCommand(c, "snap", "")
-
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
