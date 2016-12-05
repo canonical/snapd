@@ -35,6 +35,7 @@ type SnapOptions struct {
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
 	JailMode         bool   `json:"jailmode,omitempty"`
+	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 }
