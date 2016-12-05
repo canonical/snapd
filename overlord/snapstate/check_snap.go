@@ -113,6 +113,9 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	if s.NeedsDevMode() && !flags.DevModeAllowed() {
 		return fmt.Errorf("snap %q requires devmode or confinement override", s.Name())
 	}
+	if s.NeedsClassic() && !flags.Classic {
+		return fmt.Errorf("snap %q requires consent to use classic confinement", s.Name())
+	}
 
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
