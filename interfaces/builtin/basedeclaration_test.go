@@ -353,6 +353,7 @@ var (
 		"fwupd":            {"app"},
 		"gpio":             {"core", "gadget"},
 		"hidraw":           {"core", "gadget"},
+		"history":          {"app"},
 		"i2c":              {"core", "gadget"},
 		"location-control": {"app"},
 		"location-observe": {"app"},

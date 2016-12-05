@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -212,10 +213,16 @@ func (iface *HistoryInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 }
 
 func (iface *HistoryInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
+	}
 	return nil
 }
 
 func (iface *HistoryInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
+	}
 	return nil
 }
 

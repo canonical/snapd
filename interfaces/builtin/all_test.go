@@ -41,6 +41,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.FwupdInterface{})
 	c.Check(all, Contains, &builtin.GpioInterface{})
 	c.Check(all, Contains, &builtin.HidrawInterface{})
+	c.Check(all, Contains, &builtin.HistoryInterface{})
 	c.Check(all, Contains, &builtin.I2cInterface{})
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
