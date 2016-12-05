@@ -1394,12 +1394,16 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	mw := io.MultiWriter(w, h, pbar)
 	_, err = io.Copy(mw, resp.Body)
 	pbar.Finished()
+	if err != nil {
+		return err
+	}
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
 		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
 	}
-	return err
+
+	return nil
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
