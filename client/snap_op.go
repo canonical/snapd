@@ -191,6 +191,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
 		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("classic", strconv.FormatBool(action.Classic)),
 		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {
