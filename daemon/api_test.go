@@ -2458,22 +2458,33 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		refreshSnapDecls = true
 		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
-
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-		c.Check(names, check.HasLen, 0)
-		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
-	}
-
 	d := s.daemon(c)
-	inst := &snapInstruction{Action: "refresh"}
-	st := d.overlord.State()
-	st.Lock()
-	summary, _, _, err := snapUpdateMany(inst, st)
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh snaps "fake1", "fake2"`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+
+	for _, tst := range []struct {
+		snaps []string
+		msg   string
+	}{
+		{nil, "Refresh all snaps: no updates"},
+		{[]string{"fake"}, `Refresh snap "fake"`},
+		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
+	} {
+		refreshSnapDecls = false
+
+		snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+			c.Check(names, check.HasLen, 0)
+			t := s.NewTask("fake-refresh-all", "Refreshing everything")
+			return tst.snaps, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		}
+
+		inst := &snapInstruction{Action: "refresh"}
+		st := d.overlord.State()
+		st.Lock()
+		summary, _, _, err := snapUpdateMany(inst, st)
+		st.Unlock()
+		c.Assert(err, check.IsNil)
+		c.Check(summary, check.Equals, tst.msg)
+		c.Check(refreshSnapDecls, check.Equals, true)
+	}
 }
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
