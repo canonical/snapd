@@ -152,7 +152,6 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
-		fmt.Fprintf(w, "description:\t%q\n", both.Description)
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
