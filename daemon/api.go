@@ -840,7 +840,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 		// FIXME: instead don't generated a change(?) at all
 		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
-		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
+		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
 		quoted := quotedNames(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
