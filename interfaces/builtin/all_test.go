@@ -88,6 +88,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
 		c.Check(all, Not(DeepContains), builtin.NewFuseSupportInterface())
 	} else {
-		c.Check(all, DeepContains, builtin.NewFuseSupportInterface)
+		c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
 	}
 }
