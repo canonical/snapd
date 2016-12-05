@@ -113,11 +113,14 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.Confineme
 
 func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
+	if opts.Classic && !opts.JailMode {
+		// NOTE: This is understood by snap-confine
+		buffer.WriteString("@unrestricted\n")
+	}
 	if opts.DevMode && !opts.JailMode {
-		// NOTE: This is understood by ubuntu-core-launcher
+		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
 	}
-	// TODO: Add support for classic confinement later
 
 	buffer.Write(defaultTemplate)
 	for _, snippet := range snippets[securityTag] {

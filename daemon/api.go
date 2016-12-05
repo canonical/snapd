@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -560,7 +560,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", false, snap.R(0), user)
+	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
 	if err != nil {
 		return InternalError("%v", err)
 	}
