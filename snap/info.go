@@ -260,6 +260,11 @@ func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevModeConfinement
 }
 
+// NeedsClassic  returns whether the snap needs classic confinement consent.
+func (s *Info) NeedsClassic() bool {
+	return s.Confinement == ClassicConfinement
+}
+
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
