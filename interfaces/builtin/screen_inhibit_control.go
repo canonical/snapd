@@ -79,6 +79,5 @@ func NewScreenInhibitControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  screenInhibitControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

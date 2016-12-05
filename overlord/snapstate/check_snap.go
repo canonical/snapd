@@ -21,9 +21,12 @@ package snapstate
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -39,17 +42,61 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 }
 
-func checkAssumes(s *snap.Info) error {
+func checkAssumes(si *snap.Info) error {
 	missing := ([]string)(nil)
-	for _, flag := range s.Assumes {
+	for _, flag := range si.Assumes {
+		if strings.HasPrefix(flag, "snapd") && checkVersion(flag[5:]) {
+			continue
+		}
 		if !featureSet[flag] {
 			missing = append(missing, flag)
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(missing, ", "))
+		hint := "try to refresh the core snap"
+		if release.OnClassic {
+			hint = "try to update snapd and refresh the core snap"
+		}
+		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.Name(), strings.Join(missing, ", "), hint)
 	}
 	return nil
+}
+
+var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)?`)
+
+func checkVersion(version string) bool {
+	req := versionExp.FindStringSubmatch(version)
+	if req == nil || req[0] != version {
+		return false
+	}
+
+	if cmd.Version == "unknown" {
+		return true // Development tree.
+	}
+
+	cur := versionExp.FindStringSubmatch(cmd.Version)
+	if cur == nil {
+		return false
+	}
+
+	for i := 1; i < len(req); i++ {
+		if req[i] == "" {
+			return true
+		}
+		if cur[i] == "" {
+			return false
+		}
+		reqN, err1 := strconv.Atoi(req[i])
+		curN, err2 := strconv.Atoi(cur[i])
+		if err1 != nil || err2 != nil {
+			panic("internal error: version regexp is broken")
+		}
+		if curN != reqN {
+			return curN > reqN
+		}
+	}
+
+	return true
 }
 
 var openSnapFile = backend.OpenSnapFile
@@ -92,7 +139,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 }
 
 // CheckSnapCallback defines callbacks for checking a snap for installation or refresh.
-type CheckSnapCallback func(s *state.State, snap, curSnap *snap.Info, flags Flags) error
+type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags) error
 
 var checkSnapCallbacks []CheckSnapCallback
 

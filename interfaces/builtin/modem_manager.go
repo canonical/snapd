@@ -1160,7 +1160,7 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
+		var new []byte
 		if release.OnClassic {
 			// If we're running on classic ModemManager will be part
 			// of the OS snap and will run unconfined.
@@ -1207,10 +1207,6 @@ func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *ModemManagerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

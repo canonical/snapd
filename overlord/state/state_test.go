@@ -221,25 +221,25 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 10*time.Millisecond)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 80*time.Millisecond)
 	defer restore()
 
 	boom := errors.New("boom")
 	retries := 0
-	error := func() error {
+	errFn := func() error {
 		retries++
 		return boom
 	}
-	b := &fakeStateBackend{error: error}
+	b := &fakeStateBackend{error: errFn}
 	st := state.New(b)
 	st.Lock()
 
 	// implicit checkpoint will panic after all failed retries
 	t0 := time.Now()
-	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10ms of retries every 2ms: boom")
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 80ms of retries every 2ms: boom")
 	// we did at least a couple
-	c.Check(retries > 2, Equals, true)
-	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
+	c.Check(retries > 2, Equals, true, Commentf("expected more than 2 retries got %v", retries))
+	c.Check(time.Since(t0) > 80*time.Millisecond, Equals, true)
 }
 
 func (ss *stateSuite) TestImplicitCheckpointModifiedOnly(c *C) {
@@ -327,6 +327,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 
 	var v int
 	err = chg0.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(chg0.Status(), Equals, state.ErrorStatus)
@@ -392,6 +393,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
 	t1.SetProgress("snap", 5, 10)
+	t1.JoinLane(42)
+	t1.JoinLane(43)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
@@ -432,6 +435,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	var v int
 	err = task0_1.Get("a", &v)
+	c.Check(err, IsNil)
 	c.Check(v, Equals, 1)
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
@@ -439,6 +443,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	c.Assert(task0_1.Lanes(), DeepEquals, []int{42, 43})
 
 	task0_2 := tasks0[t2ID]
 	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
@@ -534,6 +540,8 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 	st.NewTask("download", "...")
 	st.NewTask("download", "...")
 
+	c.Assert(st.NewLane(), Equals, 1)
+
 	// implicit checkpoint
 	st.Unlock()
 
@@ -549,6 +557,9 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+
+	c.Assert(st2.NewLane(), Equals, 2)
+
 }
 
 func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
@@ -647,6 +658,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.NewChange("install", "...") },
 		func() { st.NewTask("download", "...") },
 		func() { st.UnmarshalJSON(nil) },
+		func() { st.NewLane() },
 	}
 
 	reads := []func(){
@@ -659,7 +671,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
 		func() { st.Prune(time.Hour, time.Hour) },
-		func() { st.NumTask() },
+		func() { st.TaskCount() },
 	}
 
 	for i, f := range reads {
@@ -737,7 +749,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t3.Status(), Equals, state.DoStatus)
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
-	c.Check(st.NumTask(), Equals, 3)
+	c.Check(st.TaskCount(), Equals, 3)
 }
 
 func (ss *stateSuite) TestPruneEmptyChange(c *C) {

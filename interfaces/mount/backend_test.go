@@ -130,8 +130,8 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 		return []byte(fsEntryIF2), nil
 	}
 
-	// devMode is irrelevant for this security backend
-	s.InstallSnap(c, false, mockSnapYaml, 0)
+	// confinement options are irrelevant to this security backend
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
 
 	// ensure both security snippets for iface/iface2 are combined
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntryIF1, fsEntryIF2), "\n")
@@ -157,7 +157,7 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 
 	// Ensure that backend.Setup() creates the required dir on demand
 	os.Remove(dirs.SnapMountPolicyDir)
-	s.InstallSnap(c, false, mockSnapYaml, 0)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
 
 	for _, binary := range []string{"app1", "app2", "hook.configure"} {
 		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))

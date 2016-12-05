@@ -27,7 +27,6 @@ import (
 var (
 	// services
 	GenerateSnapServiceFile = generateSnapServiceFile
-	GenerateSnapSocketFile  = generateSnapSocketFile
 
 	// desktop
 	SanitizeDesktopFile = sanitizeDesktopFile

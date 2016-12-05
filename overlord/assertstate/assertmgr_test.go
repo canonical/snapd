@@ -94,7 +94,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -108,6 +108,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 
 func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
+}
+
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
 }
 
 func (s *assertMgrSuite) SetUpTest(c *C) {
@@ -410,7 +414,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -419,7 +423,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 			Revision: snap.R(10),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -448,7 +452,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -457,7 +461,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 			Revision: snap.R(33),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -481,7 +485,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -490,7 +494,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 			Revision: snap.R(10),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -535,7 +539,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -544,7 +548,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 			Revision: snap.R(10),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()

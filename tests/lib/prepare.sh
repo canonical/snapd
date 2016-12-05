@@ -45,9 +45,10 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        # FIXME: go back to stable once we have a stable release with
-        #        the snap-exec fix
-        snap install --candidate core
+        # use parameterized core channel (defaults to edge) instead
+        # of a fixed one and close to stable in order to detect defects
+        # earlier
+        snap install --${CORE_CHANNEL} core
         snap list | grep core
 
         echo "Ensure that the grub-editenv list output is empty on classic"
@@ -83,7 +84,7 @@ setup_reflash_magic() {
         apt_install_local ${SPREAD_PATH}/../snapd_*.deb
         apt-get clean
 
-        snap install --edge core
+        snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
         snap install --devmode --edge ubuntu-image
@@ -129,6 +130,15 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+
+        # add a gpio slot
+        cat >> $UNPACKD/meta/snap.yaml <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+EOF
 
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
@@ -272,10 +282,23 @@ prepare_all_snap() {
     echo "Kernel has a store revision"
     snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
-    # Snapshot the fresh state
+    # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        # we need to ensure that we also restore the boot environment
+        # fully for tests that break it
+        BOOT=""
+        if ls /boot/uboot/*; then
+            BOOT=/boot/uboot/
+        elif ls /boot/grub/*; then
+            BOOT=/boot/grub/
+        else
+            echo "Cannot determine bootdir in /boot:"
+            ls /boot
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
 }
