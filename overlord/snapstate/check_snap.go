@@ -115,7 +115,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	}
 	if s.NeedsClassic() {
 		if !release.OnClassic {
-			return fmt.Errorf("snap %q requires classic confinement which is only available on classic systems")
+			return fmt.Errorf("snap %q requires classic confinement which is only available on classic systems", s.Name())
 		}
 		if !flags.Classic {
 			return fmt.Errorf("snap %q requires consent to use classic confinement", s.Name())
