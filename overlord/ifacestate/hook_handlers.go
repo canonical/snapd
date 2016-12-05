@@ -17,8 +17,6 @@
  *
  */
 
-// Package ifacestate implements the manager and state aspects
-// responsible for the maintenance of interfaces the system.
 package ifacestate
 
 import (
@@ -41,7 +39,7 @@ func (h *collectAttrHandler) Error(err error) error {
 	return nil
 }
 
-// SetupHooks sets hooks of InterfaceManager up
+// setupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
 	prepPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return &collectAttrHandler{}

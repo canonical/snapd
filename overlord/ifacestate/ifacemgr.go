@@ -44,6 +44,7 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
 	}
