@@ -35,7 +35,7 @@ execute: |
 
     echo "`snap auto-import` spooled assertions if it can not talk to snapd"
     snap auto-import
-    ls /var/lib/snapd/auto-import
+    ls /run/snapd/auto-import
     umount /mnt
     systemctl start snapd.service snapd.socket
 
@@ -43,9 +43,9 @@ execute: |
     snap auto-import
     snap known account-key | grep "name: test-store"
 
-    nr=$(ls /var/lib/snapd/auto-import|wc -l)
+    nr=$(ls /run/snapd/auto-import|wc -l)
     if [ "$nr" != "0" ]; then
-        echo "Expected an empty /var/lib/snapd/auto-import got:"
-        ls /var/lib/snapd/auto-import
+        echo "Expected an empty /run/snapd/auto-import got:"
+        ls /run/snapd/auto-import
         exit 1
     fi

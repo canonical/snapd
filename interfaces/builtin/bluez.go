@@ -86,6 +86,13 @@ var bluezPermanentSlotAppArmor = []byte(`
       bus=system
       path=/org/bluez{,/**}
       interface=org.freedesktop.DBus.**,
+
+  # Allow access to hostname system service
+  dbus (receive, send)
+      bus=system
+      path=/org/freedesktop/hostname1
+      interface=org.freedesktop.DBus.Properties
+      peer=(label=unconfined),
 `)
 
 var bluezConnectedPlugAppArmor = []byte(`
@@ -231,10 +238,6 @@ func (iface *BluezInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *BluezInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *BluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

@@ -441,6 +441,7 @@ apps:
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
 	c.Check(info.Developer, Equals, "bar")
+	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
 
 	snapRev42, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": digest,
@@ -492,7 +493,7 @@ apps:
 	c.Check(snapRev50.(*asserts.SnapRevision).SnapID(), Equals, fooSnapID)
 	c.Check(snapRev50.(*asserts.SnapRevision).SnapRevision(), Equals, 50)
 
-	// check udpated wrapper
+	// check updated wrapper
 	symlinkTarget, err := os.Readlink(info.Apps["bar"].WrapperPath())
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, "/usr/bin/snap")
@@ -701,6 +702,8 @@ version: @VERSION@
 	ms.serveSnap(snapPath, revno)
 
 	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0)
+	c.Check(updated, IsNil)
+	c.Check(tss, IsNil)
 	// no validation we, get an error
 	c.Check(err, ErrorMatches, `cannot refresh "foo" to revision 50: no validation by "bar"`)
 

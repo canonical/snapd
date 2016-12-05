@@ -21,6 +21,8 @@ package strutil
 
 import (
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,7 +35,7 @@ const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 
 // MakeRandomString returns a random string of length length
 //
-// The vowels are omited to avoid that words are created by pure
+// The vowels are omitted to avoid that words are created by pure
 // chance. Numbers are included.
 func MakeRandomString(length int) string {
 
@@ -43,4 +45,15 @@ func MakeRandomString(length int) string {
 	}
 
 	return out
+}
+
+// Quoted formats a slice of strings to a quoted list of
+// comma-separated strings, e.g. `"snap1", "snap2"`
+func Quoted(names []string) string {
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = strconv.Quote(name)
+	}
+
+	return strings.Join(quoted, ", ")
 }

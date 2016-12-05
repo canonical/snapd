@@ -23,18 +23,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
-
-func (s *SnapSuite) TestFindNothingFails(c *check.C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatalf("it reached the server")
-	})
-	_, err := snap.Parser().ParseArgs([]string{"find"})
-	c.Assert(err, check.ErrorMatches, `you need to specify a query. Try.*`)
-}
 
 const findJSON = `
 {
@@ -101,29 +94,40 @@ const findJSON = `
 }
 `
 
-func (s *SnapSuite) TestFind(c *check.C) {
+func (s *SnapSuite) TestFindSnapName(c *check.C) {
 	n := 0
+
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			if q.Get("q") == "" {
+				v, ok := q["section"]
+				c.Check(ok, check.Equals, true)
+				c.Check(v, check.DeepEquals, []string{""})
+			}
 			fmt.Fprintln(w, findJSON)
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
 		}
-
 		n++
 	})
+
 	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
 hello +2.10 +canonical +- +GNU Hello, the "hello world" snap
 hello-world +6.1 +canonical +- +Hello world example
 hello-huge +1.0 +noise +- +a really big snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+
+	s.ResetStdStreams()
 }
 
 const findHelloJSON = `
@@ -308,4 +312,53 @@ func (s *SnapSuite) TestFindPricedAndBought(c *check.C) {
 hello +2.10 +canonical +bought +GNU Hello, the "hello world" snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestFindNothingMeansFeaturedSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			c.Check(r.URL.Query().Get("section"), check.Equals, "featured")
+			fmt.Fprintln(w, findJSON)
+		default:
+			c.Fatalf("expected to get 1 request, now on %d", n+1)
+		}
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"find"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestSectionCompletion(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"foo", "bar", "baz"},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	c.Check(snap.SectionName("").Complete(""), check.DeepEquals, []flags.Completion{
+		{Item: "foo"},
+		{Item: "bar"},
+		{Item: "baz"},
+	})
+
+	c.Check(snap.SectionName("").Complete("f"), check.DeepEquals, []flags.Completion{
+		{Item: "foo"},
+	})
 }

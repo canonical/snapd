@@ -32,8 +32,8 @@ type StoreService interface {
 	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
-
-	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
+	Sections(user *auth.UserState) ([]string, error)
+	Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 

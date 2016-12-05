@@ -79,7 +79,6 @@ TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedSocketUsingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "simple", "")
 	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking\n", "\n[Install]\nWantedBy=multi-user.target")
 )
 
@@ -195,103 +194,4 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(wrapperText, Equals, expectedDbusService)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker.sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	content, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(content, Equals, `[Unit]
-# Auto-generated, DO NO EDIT
-Description=Socket for snap application xkcd-webserver.xkcd-webserver
-Requires=snap-xkcd\x2dwebserver-44.mount
-Wants=network-online.target
-After=snap-xkcd\x2dwebserver-44.mount network-online.target
-X-Snappy=yes
-
-[Socket]
-ListenStream=/var/run/docker.sock
-SocketMode=0660
-
-[Install]
-WantedBy=sockets.target
-`)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker!sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	_, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, NotNil)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:            "xkcd-webserver",
-		Command:         "bin/foo start",
-		StopCommand:     "bin/foo stop",
-		PostStopCommand: "bin/foo post-stop",
-		StopTimeout:     timeout.DefaultTimeout,
-		Socket:          true,
-		Daemon:          "simple",
-	}
-
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
-	srv := &snap.AppInfo{
-		Name: "foo",
-		Snap: &snap.Info{},
-	}
-
-	// no socket mode means 0660
-	content, err := wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
-
-	// SocketMode itself is honored
-	srv.SocketMode = "0600"
-	content, err = wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
-
 }

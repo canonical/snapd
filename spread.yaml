@@ -16,6 +16,7 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: "true"
     MANAGED_DEVICE: "false"
+    CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
 
 backends:
     linode:
@@ -106,7 +107,7 @@ prepare: |
 
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
-    if [ $(bootenv snap_mode) = "try" ]; then
+    if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
@@ -134,6 +135,8 @@ prepare: |
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
+        # stop and disable autorefresh
+        systemctl disable --now snapd.refresh.timer
         exit 0
     fi
 
@@ -146,24 +149,12 @@ prepare: |
     # utilities
     apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
 
-    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
-    # in trusty
-    add-apt-repository --update ppa:snappy-dev/image
-    # this should not be needed but apparently it is :/
-    apt-get update
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
     go get -u github.com/kardianos/govendor
     govendor sync
-
-    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
-    #        hits xenial-updates
-    apt-get install -y snap-confine
-
-    # and remove the image PPA again
-    add-apt-repository --remove ppa:snappy-dev/image
 
     # increment version so upgrade can work
     dch -i "testing build"
@@ -197,6 +188,12 @@ prepare: |
     go get ./tests/lib/fakestore/cmd/fakestore
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
+
+restore: |
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # start and enable autorefresh
+        systemctl enable --now snapd.refresh.timer
+    fi
 
 suites:
     tests/main/:

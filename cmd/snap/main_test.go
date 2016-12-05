@@ -95,6 +95,12 @@ func (s *BaseSnapSuite) Stderr() string {
 	return s.stderr.String()
 }
 
+func (s *BaseSnapSuite) ResetStdStreams() {
+	s.stdin.Reset()
+	s.stdout.Reset()
+	s.stderr.Reset()
+}
+
 func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })

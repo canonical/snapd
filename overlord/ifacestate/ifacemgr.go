@@ -24,7 +24,7 @@ package ifacestate
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -65,7 +65,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
-	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
+	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
