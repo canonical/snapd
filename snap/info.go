@@ -144,6 +144,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
+	Aliases          map[string]*AppInfo
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
@@ -318,6 +319,7 @@ type AppInfo struct {
 	Snap *Info
 
 	Name    string
+	Aliases []string
 	Command string
 
 	Daemon          string
@@ -325,10 +327,6 @@ type AppInfo struct {
 	StopCommand     string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
-
-	Socket       bool
-	SocketMode   string
-	ListenStream string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
