@@ -21,6 +21,7 @@ package builtin_test
 
 import (
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	. "github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
