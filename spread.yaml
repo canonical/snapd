@@ -37,7 +37,12 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
     qemu:
+        environment:
+            APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-16.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -197,6 +202,15 @@ prepare: |
     go get ./tests/lib/fakestore/cmd/fakestore
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
+
+restore-each: |
+    # Ensure that we don't have stranded processes around
+    test "$(pgrep -c ubuntu-core-launcher)" -eq 0
+    test "$(pgrep -c snap-confine)" -eq 0
+    # See the note above about discarding namespaces
+    /usr/lib/snapd/snap-discard-ns hello-world || true
+    /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
+    test "$(dmesg | grep DENIED | wc -l)" -eq 0
 
 suites:
     tests/main/:

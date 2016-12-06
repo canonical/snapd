@@ -12,8 +12,8 @@ decode_mount_opts_SOURCES = \
 snap_discard_ns_SOURCES = \
 	ns-support.c \
 	ns-support.h \
-	user-support.c \
-	user-support.h \
+	apparmor-support.c \
+	apparmor-support.h \
 	utils.c \
 	utils.h \
 	secure-getenv.c \
@@ -61,7 +61,9 @@ snap_confine_SOURCES = \
 	mountinfo.c \
 	mountinfo.h \
 	ns-support.c \
-	ns-support.h
+	ns-support.h \
+	apparmor-support.c \
+	apparmor-support.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -92,8 +94,6 @@ snap_confine_unit_tests_SOURCES = \
 	unit-tests-main.c \
 	classic.c \
 	classic.h \
-	user-support.c \
-	user-support.h \
 	quirks.c \
 	quirks.h \
 	unit-tests.c \
@@ -104,6 +104,8 @@ snap_confine_unit_tests_SOURCES = \
 	verify-executable-name-test.c \
 	mountinfo-test.c \
 	ns-support-test.c \
+	apparmor-support.c \
+	apparmor-support.h \
 	mount-opt-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)

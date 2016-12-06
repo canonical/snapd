@@ -36,9 +36,6 @@
 #include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#ifdef HAVE_APPARMOR
-#include <sys/apparmor.h>
-#endif				// ifdef HAVE_APPARMOR
 
 #include "utils.h"
 #include "user-support.h"
@@ -175,7 +172,9 @@ static bool sc_is_ns_group_dir_private()
 void sc_initialize_ns_groups()
 {
 	debug("creating namespace group directory %s", sc_ns_dir);
-	mkpath(sc_ns_dir);
+	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
+		die("cannot create namespace group directory %s", sc_ns_dir);
+	}
 	debug("opening namespace group directory %s", sc_ns_dir);
 	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	dir_fd = open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
@@ -320,7 +319,8 @@ void sc_unlock_ns_mutex(struct sc_ns_group *group)
 	debug("released lock for namespace group %s", group->name);
 }
 
-void sc_create_or_join_ns_group(struct sc_ns_group *group)
+void sc_create_or_join_ns_group(struct sc_ns_group *group,
+				struct sc_apparmor *apparmor)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX];
@@ -412,15 +412,12 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		// It will do so by bind-mounting the SC_NS_MNT_FILE after the parent
 		// process calls unshare() and finishes setting up the namespace
 		// completely.
-#ifdef HAVE_APPARMOR
 		// Change the hat to a sub-profile that has limited permissions
 		// necessary to accomplish the capture of the mount namespace.
 		debug
 		    ("changing apparmor hat of the support process for mount namespace capture");
-		if (aa_change_hat("mount-namespace-capture-helper", 0) < 0) {
-			die("cannot change apparmor hat of the support process for mount namespace capture");
-		}
-#endif
+		sc_maybe_aa_change_hat(apparmor,
+				       "mount-namespace-capture-helper", 0);
 		// Configure the child to die as soon as the parent dies. In an odd
 		// case where the parent is killed then we don't want to complete our
 		// task or wait for anything.

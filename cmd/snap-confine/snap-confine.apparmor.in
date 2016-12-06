@@ -14,6 +14,7 @@
     # normal libs in order
     /lib/@{multiarch}/libapparmor.so* mr,
     /lib/@{multiarch}/libcgmanager.so* mr,
+    /lib/@{multiarch}/libdl-[0-9]*.so* mr,
     /lib/@{multiarch}/libnih.so* mr,
     /lib/@{multiarch}/libnih-dbus.so* mr,
     /lib/@{multiarch}/libdbus-1.so* mr,
@@ -53,6 +54,13 @@
 
     # changing profile
     @{PROC}/[0-9]*/attr/exec w,
+    # Reading current profile
+    @{PROC}/[0-9]*/attr/current r,
+
+    # To find where apparmor is mounted
+    @{PROC}/[0-9]*/mounts r,
+    # To find if apparmor is enabled
+    /sys/module/apparmor/parameters/enabled r,
 
     # Don't allow changing profile to unconfined or profiles that start with
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
@@ -156,6 +164,9 @@
     pivot_root,
     # cleanup 
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
+    umount /var/lib/snapd/hostfs/sys/,
+    umount /var/lib/snapd/hostfs/dev/,
+    umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
     # set up snap-specific private /tmp dir
@@ -213,6 +224,10 @@
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
     /{dev,run}/shm/{,*/,*/*/} rw,
+
+    # for creating the user XDG_RUNTIME_DIR: /run/user, /run/user/UID and
+    # /run/user/UID/<name>
+    /run/user/{,[0-9]*/,[0-9]*/*/} rw,
 
     # Workaround https://launchpad.net/bugs/359338 until upstream handles
     # stacked filesystems generally.

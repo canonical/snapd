@@ -20,6 +20,8 @@
 
 #include <stdbool.h>
 
+#include "apparmor-support.h"
+
 /**
  * Initialize namespace sharing.
  *
@@ -114,7 +116,8 @@ void sc_unlock_ns_mutex(struct sc_ns_group *group);
  *
  * @returns true if the mount namespace needs to be populated
  **/
-void sc_create_or_join_ns_group(struct sc_ns_group *group);
+void sc_create_or_join_ns_group(struct sc_ns_group *group,
+				struct sc_apparmor *apparmor);
 
 /**
  * Check if the namespace needs to be populated.

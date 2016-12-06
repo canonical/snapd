@@ -22,9 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#ifdef HAVE_APPARMOR
-#include <sys/apparmor.h>
-#endif				// ifdef HAVE_APPARMOR
 
 #include "classic.h"
 #include "mount-support.h"
@@ -39,6 +36,7 @@
 #include "ns-support.h"
 #include "quirks.h"
 #include "secure-getenv.h"
+#include "apparmor-support.h"
 
 int main(int argc, char **argv)
 {
@@ -79,6 +77,8 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 #endif
+	struct sc_apparmor apparmor;
+	sc_init_apparmor_support(&apparmor);
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 		struct sc_ns_group *group = NULL;
 		group = sc_open_ns_group(group_name, 0);
 		sc_lock_ns_mutex(group);
-		sc_create_or_join_ns_group(group);
+		sc_create_or_join_ns_group(group, &apparmor);
 		if (sc_should_populate_ns_group(group)) {
 			sc_populate_mount_ns(security_tag);
 			sc_preserve_populated_ns_group(group);
@@ -127,17 +127,10 @@ int main(int argc, char **argv)
 	}
 	// Ensure that the user data path exists.
 	setup_user_data();
+	setup_user_xdg_runtime_dir();
 
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
-#ifdef HAVE_APPARMOR
-	int rc = 0;
-	// set apparmor rules
-	rc = aa_change_onexec(security_tag);
-	if (rc != 0) {
-		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
-			die("aa_change_onexec failed with %i", rc);
-	}
-#endif				// ifdef HAVE_APPARMOR
+	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP
 	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
