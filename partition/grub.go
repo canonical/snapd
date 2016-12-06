@@ -59,25 +59,25 @@ func (g *grub) envFile() string {
 func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env := grubenv.NewGrubenv(g.envFile())
+	env := grubenv.NewEnv(g.envFile())
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
 
 	for _, name := range names {
-		out[name] = env.Getenv(name)
+		out[name] = env.Get(name)
 	}
 
 	return out, nil
 }
 
 func (g *grub) SetBootVars(values map[string]string) error {
-	env := grubenv.NewGrubenv(g.envFile())
+	env := grubenv.NewEnv(g.envFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	for k, v := range values {
-		env.Setenv(k, v)
+		env.Set(k, v)
 	}
 	return env.Save()
 }

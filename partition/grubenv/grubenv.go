@@ -27,25 +27,25 @@ import (
 )
 
 // FIXME: support for escaping (embedded \n in grubenv) missing
-type Grubenv struct {
+type Env struct {
 	env      map[string]string
 	ordering []string
 
 	path string
 }
 
-func NewGrubenv(path string) *Grubenv {
-	return &Grubenv{
+func NewEnv(path string) *Env {
+	return &Env{
 		env:  make(map[string]string),
 		path: path,
 	}
 }
 
-func (g *Grubenv) Getenv(name string) string {
+func (g *Env) Get(name string) string {
 	return g.env[name]
 }
 
-func (g *Grubenv) Setenv(key, value string) {
+func (g *Env) Set(key, value string) {
 	for i, k := range g.ordering {
 		if k == key {
 			g.ordering = append(g.ordering[:i], g.ordering[i+1:]...)
@@ -56,7 +56,7 @@ func (g *Grubenv) Setenv(key, value string) {
 	g.env[key] = value
 }
 
-func (g *Grubenv) Load() error {
+func (g *Env) Load() error {
 	buf, err := ioutil.ReadFile(g.path)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (g *Grubenv) Load() error {
 	return nil
 }
 
-func (g *Grubenv) Save() error {
+func (g *Env) Save() error {
 	w := bytes.NewBuffer(nil)
 	w.Grow(1024)
 
