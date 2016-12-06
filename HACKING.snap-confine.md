@@ -8,6 +8,7 @@ To get started from a pristine tree you want to do this:
 
 ```
 ./mkversion.sh
+cd cmd/
 autoreconf -i -f
 ./configure --prefix=/usr --libexecdir=/usr/lib/snapd --with-nvidia-ubuntu
 ```

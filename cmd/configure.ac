@@ -1,6 +1,6 @@
 AC_PREREQ([2.69])
-AC_INIT([snap-confine], m4_esyscmd_s([cat cmd/VERSION]), [snapcraft@lists.ubuntu.com])
-AC_CONFIG_SRCDIR([cmd/snap-confine/snap-confine.c])
+AC_INIT([snap-confine], m4_esyscmd_s([cat VERSION]), [snapcraft@lists.ubuntu.com])
+AC_CONFIG_SRCDIR([snap-confine/snap-confine.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign])
@@ -161,5 +161,5 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
 
-AC_CONFIG_FILES([Makefile cmd/snap-confine/Makefile cmd/snap-confine/tests/Makefile cmd/snap-confine/manpages/Makefile])
+AC_CONFIG_FILES([Makefile snap-confine/Makefile snap-confine/tests/Makefile snap-confine/manpages/Makefile])
 AC_OUTPUT
