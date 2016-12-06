@@ -42,26 +42,26 @@ func (g *grubenvTestSuite) SetUpTest(c *C) {
 	g.envPath = filepath.Join(c.MkDir(), "grubenv")
 }
 
-func (g *grubenvTestSuite) TestSetenv(c *C) {
-	env := grubenv.NewGrubenv(g.envPath)
+func (g *grubenvTestSuite) TestSet(c *C) {
+	env := grubenv.NewEnv(g.envPath)
 	c.Check(env, NotNil)
 
-	env.Setenv("key", "value")
-	c.Check(env.Getenv("key"), Equals, "value")
+	env.Set("key", "value")
+	c.Check(env.Get("key"), Equals, "value")
 }
 
 func (g *grubenvTestSuite) TestSave(c *C) {
-	env := grubenv.NewGrubenv(g.envPath)
+	env := grubenv.NewEnv(g.envPath)
 	c.Check(env, NotNil)
 
-	env.Setenv("key7", "value7")
-	env.Setenv("key1", "value1")
-	env.Setenv("key2", "value2")
-	env.Setenv("key3", "value3")
-	env.Setenv("key4", "value4")
-	env.Setenv("key5", "value5")
-	env.Setenv("key6", "value6")
-	env.Setenv("key7", "value7")
+	env.Set("key7", "value7")
+	env.Set("key1", "value1")
+	env.Set("key2", "value2")
+	env.Set("key3", "value3")
+	env.Set("key4", "value4")
+	env.Set("key5", "value5")
+	env.Set("key6", "value6")
+	env.Set("key7", "value7")
 
 	err := env.Save()
 	c.Assert(err, IsNil)
