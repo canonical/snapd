@@ -1233,8 +1233,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	dangerousOK := isTrue(form, "dangerous")
-	devmode := isTrue(form, "devmode")
-	flags, err := modeFlags(devmode, isTrue(form, "jailmode"), isTrue(form, "classic"))
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
@@ -1313,7 +1312,7 @@ out:
 		case asserts.ErrNotFound:
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
-			if !devmode {
+			if !isTrue(form, "devmode") {
 				msg := "cannot find signatures with metadata for snap"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)
