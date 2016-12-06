@@ -18,6 +18,9 @@ cmd/snap-confine/decode-mount-opts
 .*.swp
 *.o
 
+# manual pages
+cmd/snap-confine/manpages/*.[1-9]
+
 # test-driver
 *.log
 *.trs
@@ -43,6 +46,3 @@ install-sh
 missing
 stamp-h1
 test-driver
-
-# manual pages
-docs/*.[1-9]
