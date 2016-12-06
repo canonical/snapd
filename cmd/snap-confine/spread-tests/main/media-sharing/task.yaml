@@ -15,7 +15,7 @@ execute: |
     test -e /media/dst/canary
 restore: |
     snap remove snapd-hacker-toolbelt
-    # If this doesn't work maybe it is because the test didn't execute corretly
+    # If this doesn't work maybe it is because the test didn't execute correctly
     umount /media/dst || true
     rm -f /media/src/canary
     rmdir /media/src
