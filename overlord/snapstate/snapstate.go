@@ -38,7 +38,7 @@ import (
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.TaskSet, error) {
 	if snapsup.Flags.Classic && !release.OnClassic {
-		return nil, fmt.Errorf("Classic confinement is only supported on classic systems")
+		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 	}
 	if err := checkChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
