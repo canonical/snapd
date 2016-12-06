@@ -58,6 +58,8 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 func (snapsup *SnapSetup) Name() string {
@@ -309,6 +311,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
+	runner.AddHandler("toggle-aliases", m.doToggleAliases, m.undoToggleAliases)
+	// TODO: untoggle-aliases?
+	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoToggleAliases)
 	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 

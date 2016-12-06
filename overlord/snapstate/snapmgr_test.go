@@ -778,6 +778,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
+		"clear-aliases",
 		"discard-conns",
 	})
 }
@@ -2085,7 +2086,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" {
+		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2215,7 +2216,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" {
+		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2383,7 +2384,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		if t.Kind() != "discard-conns" {
+		if t.Kind() != "discard-conns" && t.Kind() != "clear-aliases" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 
@@ -4224,7 +4225,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 7*2)
+	c.Assert(s.state.TaskCount(), Equals, 8*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -4233,6 +4234,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
+			"clear-aliases",
 			"discard-conns",
 		})
 	}
