@@ -101,8 +101,9 @@ func (g *Env) Save() error {
 	if w.Len() > 1024 {
 		return fmt.Errorf("cannot write grubenv %q: bigger than 1024 bytes (%d)", g.path, w.Len())
 	}
-	for i := w.Len(); i < 1024; i++ {
-		w.Write([]byte("#"))
+	content := w.Bytes()[:w.Cap()]
+	for i := w.Len(); i < len(content); i++ {
+		content[i] = '#'
 	}
 
 	// write in place to avoid the file moving on disk
@@ -111,7 +112,7 @@ func (g *Env) Save() error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(w.Bytes()); err != nil {
+	if _, err := f.Write(content); err != nil {
 		return err
 	}
 	if err := f.Sync(); err != nil {
