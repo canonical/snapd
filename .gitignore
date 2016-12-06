@@ -15,6 +15,7 @@ cmd/snap-confine/snap-confine-unit-tests
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-confine/decode-mount-opts
 *~
+.*.swp
 *.o
 
 # test-driver
