@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <sys/utsname.h>
 
 // needed for search mappings
 #include <linux/can.h>
@@ -500,6 +501,77 @@ static void preprocess_filter(FILE * f, struct preprocess *p)
 	return;
 }
 
+static uint32_t uts_machine_to_seccomp_arch(const char *uts_machine)
+{
+	if (strcmp(uts_machine, "i686") == 0)
+		return SCMP_ARCH_X86;
+	else if (strcmp(uts_machine, "x86_64") == 0)
+		return SCMP_ARCH_X86_64;
+	else if (strncmp(uts_machine, "armv7", 5) == 0)
+		return SCMP_ARCH_ARM;
+	else if (strncmp(uts_machine, "aarch64", 7) == 0)
+		return SCMP_ARCH_AARCH64;
+	else if (strncmp(uts_machine, "ppc64le", 7) == 0)
+		return SCMP_ARCH_PPC64LE;
+	else if (strncmp(uts_machine, "ppc64", 5) == 0)
+		return SCMP_ARCH_PPC64;
+	else if (strncmp(uts_machine, "ppc", 3) == 0)
+		return SCMP_ARCH_PPC;
+	else if (strncmp(uts_machine, "s390x", 5) == 0)
+		return SCMP_ARCH_S390X;
+	return 0;
+}
+
+static uint32_t get_hostarch(void)
+{
+	struct utsname uts;
+	if (uname(&uts) < 0)
+		die("uname() failed");
+	uint32_t arch = uts_machine_to_seccomp_arch(uts.machine);
+	if (arch > 0)
+		return arch;
+	// Just return the seccomp userspace native arch if we can't detect the
+	// kernel host arch.
+	return seccomp_arch_native();
+}
+
+static void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
+{
+	uint32_t native_arch = seccomp_arch_native();	// seccomp userspace
+	uint32_t host_arch = get_hostarch();	// kernel
+	uint32_t compat_arch = 0;
+
+	debug("host arch (kernel) is '%d'", host_arch);
+	debug("native arch (userspace) is '%d'", native_arch);
+
+	// For architectures that support a compat architecure, when the
+	// kernel and userspace match, add the compat arch, otherwise add
+	// the kernel arch to support the kernel's arch (eg, 64bit kernels with
+	// 32bit userspace).
+	if (host_arch == native_arch) {
+		switch (host_arch) {
+		case SCMP_ARCH_X86_64:
+			compat_arch = SCMP_ARCH_X86;
+			break;
+		case SCMP_ARCH_AARCH64:
+			compat_arch = SCMP_ARCH_ARM;
+			break;
+		case SCMP_ARCH_PPC64:
+			compat_arch = SCMP_ARCH_PPC;
+			break;
+		default:
+			break;
+		}
+	} else
+		compat_arch = host_arch;
+
+	if (compat_arch > 0 && seccomp_arch_exist(ctx, compat_arch) == -EEXIST) {
+		debug("adding compat arch '%d'", compat_arch);
+		if (seccomp_arch_add(ctx, compat_arch) < 0)
+			die("seccomp_arch_add(..., compat_arch) failed");
+	}
+}
+
 scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 {
 	int rc = 0;
@@ -521,6 +593,9 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 		errno = ENOMEM;
 		die("seccomp_init() failed");
 	}
+	// Setup native arch and any compatibility archs
+	sc_add_seccomp_archs(ctx);
+
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
 	// AppArmor. Unfortunately this means that security policies must be
 	// very careful to not allow the following otherwise apps can escape

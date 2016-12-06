@@ -18,83 +18,10 @@
 #include "user-support.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include "utils.h"
-
-// TODO: rename and move to utils.h
-void mkpath(const char *const path)
-{
-	// If asked to create an empty path, return immediately.
-	if (strlen(path) == 0) {
-		return;
-	}
-	// We're going to use strtok_r, which needs to modify the path, so
-	// we'll make a copy of it.
-	char *path_copy = strdup(path);
-	if (path_copy == NULL) {
-		die("failed to create user data directory");
-	}
-	// Open flags to use while we walk the user data path:
-	// - Don't follow symlinks
-	// - Don't allow child access to file descriptor
-	// - Only open a directory (fail otherwise)
-	int open_flags = O_NOFOLLOW | O_CLOEXEC | O_DIRECTORY;
-
-	// We're going to create each path segment via openat/mkdirat calls
-	// instead of mkdir calls, to avoid following symlinks and placing the
-	// user data directory somewhere we never intended for it to go. The
-	// first step is to get an initial file descriptor.
-	int fd = AT_FDCWD;
-	if (path_copy[0] == '/') {
-		fd = open("/", open_flags);
-		if (fd < 0) {
-			free(path_copy);
-			die("failed to create user data directory");
-		}
-	}
-	// strtok_r needs a pointer to keep track of where it is in the string.
-	char *path_walker;
-
-	// Initialize tokenizer and obtain first path segment.
-	char *path_segment = strtok_r(path_copy, "/", &path_walker);
-	while (path_segment) {
-		// Try to create the directory. It's okay if it already
-		// existed, but any other error is fatal.
-		if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
-			close(fd);	// we die regardless of return code
-			free(path_copy);
-			die("failed to create user data directory");
-		}
-		// Open the parent directory we just made (and close the
-		// previous one) so we can continue down the path.
-		int previous_fd = fd;
-		fd = openat(fd, path_segment, open_flags);
-		if (close(previous_fd) != 0) {
-			free(path_copy);
-			die("could not close path segment");
-		}
-		if (fd < 0) {
-			free(path_copy);
-			die("failed to create user data directory");
-		}
-		// Obtain the next path segment.
-		path_segment = strtok_r(NULL, "/", &path_walker);
-	}
-
-	// Close the descriptor for the final directory in the path.
-	if (close(fd) != 0) {
-		free(path_copy);
-		die("could not close final directory");
-	}
-
-	free(path_copy);
-}
 
 void setup_user_data()
 {
@@ -102,10 +29,37 @@ void setup_user_data()
 
 	if (user_data == NULL)
 		return;
+
 	// Only support absolute paths.
 	if (user_data[0] != '/') {
 		die("user data directory must be an absolute path");
 	}
 
-	mkpath(user_data);
+	debug("creating user data directory: %s", user_data);
+	if (sc_nonfatal_mkpath(user_data, 0755) < 0) {
+		die("cannot create user data directory: %s", user_data);
+	};
+}
+
+void setup_user_xdg_runtime_dir()
+{
+	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+
+	if (xdg_runtime_dir == NULL)
+		return;
+	// Only support absolute paths.
+	if (xdg_runtime_dir[0] != '/') {
+		die("XDG_RUNTIME_DIR must be an absolute path");
+	}
+
+	errno = 0;
+	debug("creating user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
+	if (sc_nonfatal_mkpath(xdg_runtime_dir, 0755) < 0) {
+		die("cannot create user XDG_RUNTIME_DIR directory: %s",
+		    xdg_runtime_dir);
+	}
+	// if successfully created the directory (ie, not EEXIST), then chmod it.
+	if (errno == 0 && chmod(xdg_runtime_dir, 0700) != 0) {
+		die("cannot change permissions of user XDG_RUNTIME_DIR directory to 0700");
+	}
 }
