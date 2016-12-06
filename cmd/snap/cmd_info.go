@@ -134,8 +134,12 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 func formatDescr(descr string, max int) string {
 	out := bytes.NewBuffer(nil)
 	for _, line := range strings.Split(descr, "\n") {
-		for _, chunk := range strutil.WordWrap(line, max) {
-			fmt.Fprintf(out, "  %s\n", chunk)
+		if len(line) > max {
+			for _, chunk := range strutil.WordWrap(line, max) {
+				fmt.Fprintf(out, "  %s\n", chunk)
+			}
+		} else {
+			fmt.Fprintf(out, "  %s\n", line)
 		}
 	}
 
