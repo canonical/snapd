@@ -443,6 +443,11 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
 
+	// verify well-known connection in rule
+	c.Check(string(snippet), testutil.Contains, "peer=(name=org.test-session-connected, label=")
+
+	// verify interface in rule
+
 	// verify individual path in rules
 	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session-connected{,/**}\"\n")
 
@@ -461,6 +466,9 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 
 	// verify bind rule not present
 	c.Check(string(snippet), Not(testutil.Contains), "dbus (bind)")
+
+	// verify well-known connection in rule
+	c.Check(string(snippet), testutil.Contains, "peer=(name=org.test-system-connected, label=")
 
 	// verify individual path in rules
 	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system-connected{,/**}\"\n")

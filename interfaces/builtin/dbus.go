@@ -151,6 +151,18 @@ dbus (send)
 # allow connected snaps to ###DBUS_NAME###
 dbus (receive, send)
     bus=###DBUS_BUS###
+    peer=(name=###DBUS_NAME###, label=###SLOT_SECURITY_TAGS###),
+# For KDE applications, also support alternation since they use org.kde.foo-PID
+# as their 'well-known' name. snapd does not allow ###DBUS_NAME### to end with
+# '-[0-9]+', so this is ok.
+dbus (receive, send)
+    bus=###DBUS_BUS###
+    peer=(name=###DBUS_NAME###-[1-9]{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}, label=###SLOT_SECURITY_TAGS###),
+
+# allow connected snaps to all paths via ###DBUS_INTERFACE### to allow full
+# integration with connected snaps.
+dbus (receive, send)
+    bus=###DBUS_BUS###
     interface=###DBUS_INTERFACE###
     peer=(label=###SLOT_SECURITY_TAGS###),
 
