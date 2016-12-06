@@ -159,21 +159,21 @@ static void test_sc_die_on_error__errno()
 static void test_sc_error_forward__nothing()
 {
 	// Check that forwarding NULL does exactly that.
-	struct sc_error *recepient = (void *)0xDEADBEEF;
+	struct sc_error *recipient = (void *)0xDEADBEEF;
 	struct sc_error *err = NULL;
-	sc_error_forward(&recepient, err);
-	g_assert_null(recepient);
+	sc_error_forward(&recipient, err);
+	g_assert_null(recipient);
 }
 
 static void test_sc_error_forward__something_somewhere()
 {
 	// Check that forwarding a real error works OK.
-	struct sc_error *recepient = NULL;
+	struct sc_error *recipient = NULL;
 	struct sc_error *err = sc_error_init("domain", 42, "just testing");
 	g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
 	g_assert_nonnull(err);
-	sc_error_forward(&recepient, err);
-	g_assert_nonnull(recepient);
+	sc_error_forward(&recipient, err);
+	g_assert_nonnull(recipient);
 }
 
 static void test_sc_error_forward__something_nowhere()

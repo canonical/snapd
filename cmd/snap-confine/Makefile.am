@@ -177,7 +177,7 @@ install-exec-local:
 
 install-exec-hook:
 if CAPS_OVER_SETUID
-# Ensure that snap-confine has CAP_SYS_ADMIN capabilitiy
+# Ensure that snap-confine has CAP_SYS_ADMIN capability
 	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
 else
 # Ensure that snap-confine is +s (setuid)

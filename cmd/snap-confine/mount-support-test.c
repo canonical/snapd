@@ -36,7 +36,7 @@ static void test_get_nextpath__typical()
 	size_t offset = 0;
 	size_t fulllen = strlen(path);
 
-	// Prepare path for useage with get_nextpath() by replacing
+	// Prepare path for usage with get_nextpath() by replacing
 	// all path separators with the NUL byte.
 	replace_slashes_with_NUL(path, fulllen);
 
@@ -56,7 +56,7 @@ static void test_get_nextpath__weird()
 	size_t offset = 0;
 	size_t fulllen = strlen(path);
 
-	// Prepare path for useage with get_nextpath() by replacing
+	// Prepare path for usage with get_nextpath() by replacing
 	// all path separators with the NUL byte.
 	replace_slashes_with_NUL(path, fulllen);
 

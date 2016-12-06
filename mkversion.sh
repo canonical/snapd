@@ -1,13 +1,9 @@
 #!/bin/sh
-set -e
-
-if [ -z "$GOPACKAGE" ]; then
-    # not being run from 'go generate'
-    cd "$(dirname "$0")"
-fi
+set -ue
+cd "$(dirname "$0")"
 
 if which git >/dev/null; then
-    v="$( git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+    v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
     o=git
 fi
 
