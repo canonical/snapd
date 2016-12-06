@@ -31,7 +31,6 @@ var unity8ContactsPermanentSlotAppArmor = `
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
-
 # Allow binding the service to the requested connection name
 dbus (bind)
 	bus=session
@@ -42,6 +41,52 @@ dbus (bind)
 dbus (bind)
 	bus=session
 	name=com.canonical.pim,
+
+# LP: #1319546. Apps shouldn't talk directly to bute, but allow it for
+# now for trusted apps until buteo is integrated with push
+# notifications.
+dbus (bind)
+	bus=session
+	name=com.meego.msyncd,
+
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our address-book services.
+
+########################
+# EDS - AddressBook
+########################
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/AddressBookView/**
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/**
+	interface=org.gnome.evolution.dataserver.AddressBook
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBookView/**
+	peer=(label=unconfined),
+
+##########################
+# Canonical - AddressBook
+##########################
+dbus (receive, send)
+	bus=session
+	path=/com/canonical/pim/AddressBook
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/com/canonical/pim/AddressBookView
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	peer=(label=unconfined),
 `
 
 const unity8ContactsConnectedSlotAppArmor = `
@@ -54,88 +99,43 @@ const unity8ContactsConnectedSlotAppArmor = `
 ########################
 dbus (receive, send)
 	bus=session
-	path=/org/gnome/evolution/dataserver/AddressBookFactory,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookFactory
-	interface=org.gnome.evolution.dataserver.AddressBookFactory,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/AddressBookFactory
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/AddressBookView/**,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookView/**
-	interface=org.gnome.evolution.dataserver.AddressBookView,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
-	path=/org/gnome/evolution/dataserver/AddressBookView/**
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBook/**
-	interface=org.gnome.evolution.dataserver.Subprocess.Backend,
+	path=/org/gnome/evolution/dataserver/Subprocess/**
+	interface=org.gnome.evolution.dataserver.AddressBook
 	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBookView/**
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/**
-	interface=org.gnome.evolution.dataserver.AddressBook,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/**
-	interface=org.gnome.evolution.dataserver.DirectBook,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/**
-	interface=org.freedesktop.DBus.*,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 
-########################
+##########################
 # Canonical - AddressBook
-########################
-dbus (receive, send)
-	bus=session
-	path=/com/canonical/pim/AddressBook,
-	peer=(label=###PLUG_SECURITY_TAGS###),
+##########################
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBook
-	interface=com.canonical.pim.AddressBook,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-    path=/com/canonical/pim/AddressBook
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
-	path=/com/canonical/pim/AddressBookView,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBookView
-	interface=com.canonical.pim.AddressBookView,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
-    path=/com/canonical/pim/AddressBookView
-	interface=org.freedesktop.DBus.*,
+	peer=(label=###PLUG_SECURITY_TAGS###),
+
+# LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
+# now for trusted apps until buteo is integrated with push
+# notifications.
+dbus (receive, send)
+	bus=session
+	path=/synchronizer{,/**}
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -145,36 +145,50 @@ var unity8ContactsConnectedPlugAppArmor = `
 #  fixed, this can be moved out of reserved status.
 # Usage: reserved
 
+########################
+# EDS - AddressBook
+########################
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/AddressBookFactory
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/Subprocess/**
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/gnome/evolution/dataserver/AddressBookView/**
+	peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/AddressBookView/**
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/**
+	interface=org.gnome.evolution.dataserver.AddressBook
+	peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBookView/**
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
+##########################
+# Canonical - AddressBook
+##########################
 dbus (receive, send)
-     bus=session
-     path=/com/canonical/pim/AddressBook
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/com/canonical/pim/AddressBook
+	peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
-     bus=session
-     path=/com/canonical/pim/AddressBookView/**
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/com/canonical/pim/AddressBookView
+	peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+	bus=session
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
 # now for trusted apps until buteo is integrated with push
 # notifications.
 dbus (receive, send)
-     bus=session
-     path=/synchronizer{,/**}
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/synchronizer{,/**}
+	peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 var unity8ContactsPermanentSlotDBus = `
@@ -188,6 +202,10 @@ var unity8ContactsPermanentSlotDBus = `
 	<allow send_destination="com.canonical.pim"/>
 	<allow send_destination="com.canonical.pim.AddressBook"/>
 	<allow send_destination="com.canonical.pim.AddressBookView"/>
+
+	<allow own="com.meego.msyncd"/>
+	<allow send_destination="com.meego.msyncd"/>
+	<allow send_interface="com.meego.msyncd"/>
 `
 
 // NewUnity8ContactsInterface returns a new "unity8-contacts" interface.
@@ -195,8 +213,8 @@ func NewUnity8ContactsInterface() interfaces.Interface {
 	return &unity8PimCommonInterface{
 		name: "unity8-contacts",
 		permanentSlotAppArmor: unity8ContactsPermanentSlotAppArmor,
-		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,
 		connectedSlotAppArmor: unity8ContactsConnectedSlotAppArmor,
+		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,
 		permanentSlotDBus:     unity8ContactsPermanentSlotDBus,
 	}
 }
