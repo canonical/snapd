@@ -1,0 +1,20 @@
+summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1597842
+details: |
+    The snap execution environment is expected to contain the /usr/src
+    directory from the classic distribution. Certain snaps may use that to
+    access kernel sources.
+prepare: |
+    # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
+    snap install --devmode snapd-hacker-toolbelt
+    mv /usr/src /usr/src.orig || true
+    mkdir -p /usr/src
+    echo canary > /usr/src/.canary
+execute: |
+    export PATH=/snap/bin:$PATH
+    echo "The canary file in /usr/src can be read"
+    [ "$(snapd-hacker-toolbelt.busybox cat /usr/src/.canary)" = "canary" ]
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -f /usr/src/.canary
+    rmdir /usr/src
+    mv /usr/src.orig /usr/src || true
