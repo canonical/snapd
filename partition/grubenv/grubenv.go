@@ -46,12 +46,17 @@ func (g *Env) Get(name string) string {
 }
 
 func (g *Env) Set(key, value string) {
-	for i, k := range g.ordering {
-		if k == key {
-			g.ordering = append(g.ordering[:i], g.ordering[i+1:]...)
+	var contains = func(needle string, haystack []string) bool {
+		for _, k := range haystack {
+			if k == key {
+				return true
+			}
 		}
+		return false
 	}
-	g.ordering = append(g.ordering, key)
+	if !contains(key, g.ordering) {
+		g.ordering = append(g.ordering, key)
+	}
 
 	g.env[key] = value
 }
@@ -69,8 +74,8 @@ func (g *Env) Load() error {
 	}
 	rawEnv := bytes.Split(buf, []byte("\n"))
 	for _, env := range rawEnv[1:] {
-		l := bytes.Split(env, []byte("="))
-		// be liberal what you accept
+		l := bytes.SplitN(env, []byte("="), 2)
+		// be liberal in what you accept
 		if len(l) < 2 {
 			continue
 		}
@@ -96,7 +101,6 @@ func (g *Env) Save() error {
 	if w.Len() > 1024 {
 		return fmt.Errorf("cannot write grubenv %q: bigger than 1024 bytes (%d)", g.path, w.Len())
 	}
-	// fill up with "#" at the envgit
 	for i := w.Len(); i < 1024; i++ {
 		w.Write([]byte("#"))
 	}

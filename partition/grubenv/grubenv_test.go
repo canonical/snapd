@@ -54,7 +54,6 @@ func (g *grubenvTestSuite) TestSave(c *C) {
 	env := grubenv.NewEnv(g.envPath)
 	c.Check(env, NotNil)
 
-	env.Set("key7", "value7")
 	env.Set("key1", "value1")
 	env.Set("key2", "value2")
 	env.Set("key3", "value3")
@@ -62,6 +61,8 @@ func (g *grubenvTestSuite) TestSave(c *C) {
 	env.Set("key5", "value5")
 	env.Set("key6", "value6")
 	env.Set("key7", "value7")
+	// set "key1" again, ordering (position) does not change
+	env.Set("key1", "value1")
 
 	err := env.Save()
 	c.Assert(err, IsNil)
