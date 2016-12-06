@@ -112,7 +112,7 @@ AM_CONDITIONAL([NVIDIA_UBUNTU], [test "x$enable_nvidia_ubuntu" = "xyes"])
 
 AS_IF([test "x$enable_nvidia_ubuntu" = "xyes"], [
     AC_DEFINE([NVIDIA_UBUNTU], [1],
-        [Support for propietary nvidia drivers (Ubuntu)])])
+        [Support for proprietary nvidia drivers (Ubuntu)])])
 
 # Enable special support for hosts with proprietary nvidia drivers on Arch.
 AC_ARG_ENABLE([nvidia-arch],
@@ -126,7 +126,7 @@ AM_CONDITIONAL([NVIDIA_ARCH], [test "x$enable_nvidia_arch" = "xyes"])
 
 AS_IF([test "x$enable_nvidia_arch" = "xyes"], [
     AC_DEFINE([NVIDIA_ARCH], [1],
-        [Support for propietary nvidia drivers (Arch)])])
+        [Support for proprietary nvidia drivers (Arch)])])
 
 AC_ARG_ENABLE([merged-usr],
     AS_HELP_STRING([--enable-merged-usr], [Enable support for merged /usr directory]),

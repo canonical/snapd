@@ -97,7 +97,7 @@
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
-    # the next line is for clasic system
+    # the next line is for classic system
     mount options=(rw rbind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
     # the next line is for core system
     mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,

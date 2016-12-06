@@ -585,7 +585,7 @@ void sc_populate_mount_ns(const char *security_tag)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Remeber if we are on classic, some things behave differently there.
+	// Remember if we are on classic, some things behave differently there.
 	bool on_classic = is_running_on_classic_distribution();
 	if (on_classic) {
 		const struct sc_mount mounts[] = {
