@@ -198,6 +198,46 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("update", "...").AddAll(ts)
+
+	_, err = snapstate.Alias(s.state, "some-snap", []string{"alias1"})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Alias(s.state, "some-snap", []string{"alias1"})
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("alias", "...").AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
 func (s *snapmgrTestSuite) TestDoUndoToggleAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
