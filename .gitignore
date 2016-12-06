@@ -2,6 +2,7 @@ share
 tags
 .coverage
 cmd/version_generated.go
+cmd/VERSION
 *~
 *.swp
 vendor/*/
