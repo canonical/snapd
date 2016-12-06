@@ -76,7 +76,7 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 			}
 			aliases = append(aliases, &backend.Alias{
 				Name:   alias,
-				Target: filepath.Base(curInfo.Aliases[alias].WrapperPath()),
+				Target: filepath.Base(aliasApp.WrapperPath()),
 			})
 		}
 		// TODO: check Disabled => remove
