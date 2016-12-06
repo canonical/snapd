@@ -82,12 +82,11 @@ func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 }
 
 func NotesFromLocal(snap *client.Snap) *Notes {
-	jailMode := snap.Confinement == client.DevModeConfinement && !snap.DevMode
 	return &Notes{
 		Private:  snap.Private,
-		DevMode:  snap.DevMode,
-		Classic:  !jailMode && snap.Confinement == client.ClassicConfinement,
-		JailMode: jailMode,
+		DevMode:  !snap.JailMode && (snap.DevMode || snap.Confinement == client.DevModeConfinement),
+		Classic:  !snap.JailMode && (snap.Confinement == client.ClassicConfinement),
+		JailMode: snap.JailMode,
 		TryMode:  snap.TryMode,
 		Disabled: snap.Status != client.StatusActive,
 		Broken:   snap.Broken != "",
