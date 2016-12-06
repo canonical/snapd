@@ -152,15 +152,6 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%q\n", both.Summary)
-		fmt.Fprintf(w, "description:\t%q\n", both.Description)
-		if len(both.Apps) > 0 {
-			apps := make([]string, len(both.Apps))
-			for i, a := range both.Apps {
-				apps[i] = a.Name
-			}
-			fmt.Fprintf(w, "apps:\t[%s]\n", strutil.Quoted(apps))
-		}
-
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
