@@ -27,7 +27,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ojii/gettext.go"
+	/* this is actually "github.com/ojii/gettext.go", however because
+	     https://github.com/ojii/gettext.go/pull/4
+	   is not merged as of this writtting we want to use this fork
+	*/
+	"github.com/mvo5/gettext.go"
 
 	"github.com/snapcore/snapd/osutil"
 )
