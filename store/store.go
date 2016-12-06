@@ -649,7 +649,6 @@ func (s *Store) retryRequestDec(ctx context.Context, client *http.Client, reqOpt
 				dec := json.NewDecoder(resp.Body)
 				if err := dec.Decode(&result); err != nil {
 					if shouldRetryError(attempt, err) {
-						fmt.Println("OH!")
 						continue
 					}
 					resp.Body.Close()
@@ -1189,7 +1188,8 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var sectionData sectionResults
+	resp, err := s.retryRequestDec(context.TODO(), s.client, reqOptions, user, &sectionData, decodeOnHTTP200)
 	if err != nil {
 		return nil, err
 	}
@@ -1203,12 +1203,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
 	}
 
-	var sectionData sectionResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&sectionData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
-	}
 	var sectionNames []string
 	for _, s := range sectionData.Payload.Sections {
 		sectionNames = append(sectionNames, s.Name)
@@ -1800,7 +1794,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var customer storeCustomer
+	resp, err := s.retryRequestDec(context.TODO(), s.client, reqOptions, user, &customer, decodeOnHTTP200)
 	if err != nil {
 		return err
 	}
@@ -1809,11 +1804,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
-		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
 		}
