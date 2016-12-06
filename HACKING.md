@@ -184,7 +184,7 @@ To get started from a pristine tree you want to do this:
 ./mkversion.sh
 cd cmd/
 autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd --with-nvidia-ubuntu
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
