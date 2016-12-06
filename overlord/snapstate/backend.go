@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+
+	"golang.org/x/net/context"
 )
 
 // A StoreService can find, list available updates and download snaps.
@@ -33,7 +35,7 @@ type StoreService interface {
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
-	Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
+	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 

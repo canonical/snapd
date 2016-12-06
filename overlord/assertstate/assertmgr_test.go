@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -94,7 +95,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
