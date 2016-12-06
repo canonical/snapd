@@ -1,5 +1,5 @@
 #!/bin/sh
-set -xue
+set -ue
 cd "$(dirname "$0")"
 
 if which git >/dev/null; then
