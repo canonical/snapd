@@ -804,7 +804,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	case devMode && classic:
 		return flags, errClassicDevmodeConflict
 	}
-	// NOTE: jailmode and classic are allowed together In that setting,
+	// NOTE: jailmode and classic are allowed together. In that setting,
 	// jailmode overrides classic and the app gets regular (non-classic)
 	// confinement.
 	flags.JailMode = jailMode
