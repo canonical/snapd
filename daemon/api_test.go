@@ -305,6 +305,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":    "/v2/snaps/foo",
 			"private":     false,
 			"devmode":     false,
+			"jailmode":    false,
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
