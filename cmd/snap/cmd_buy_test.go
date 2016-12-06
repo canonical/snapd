@@ -100,13 +100,13 @@ func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
 func (s *BuySnapSuite) TestBuyInvalidCharacters(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy", "a:b"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "cannot buy snap \"a:b\": invalid characters in name")
+	c.Check(err.Error(), check.Equals, "cannot buy snap: invalid characters in name")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 
 	_, err = snap.Parser().ParseArgs([]string{"buy", "c*d"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "cannot buy snap \"c*d\": invalid characters in name")
+	c.Check(err.Error(), check.Equals, "cannot buy snap: invalid characters in name")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -158,7 +158,7 @@ func (s *BuySnapSuite) TestBuyFreeSnapFails(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "cannot buy snap \"hello\": snap is free")
+	c.Check(err.Error(), check.Equals, "cannot buy snap: snap is free")
 	c.Assert(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -257,9 +257,16 @@ const loginJson = `
 }
 `
 
+func archWithBrokenDevPtmx() error {
+	if ubuArch := arch.UbuntuArchitecture(); ubuArch == "ppc64el" || ubuArch == "powerpc" {
+		return fmt.Errorf("/dev/ptmx ioctl not working on %s", ubuArch)
+	}
+	return nil
+}
+
 func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
-	if arch.UbuntuArchitecture() == "ppc64el" {
-		c.Skip("ioctl not working on ppc64el")
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
 	}
 
 	mockServer := &buyTestMockSnapServer{
@@ -277,7 +284,6 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 					Checker: func(r *http.Request) {
 						var postData struct {
 							SnapID   string  `json:"snap-id"`
-							SnapName string  `json:"snap-name"`
 							Price    float64 `json:"price"`
 							Currency string  `json:"currency"`
 						}
@@ -286,7 +292,6 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 						c.Assert(err, check.IsNil)
 
 						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-						c.Check(postData.SnapName, check.Equals, "hello")
 						c.Check(postData.Price, check.Equals, 2.99)
 						c.Check(postData.Currency, check.Equals, "GBP")
 					},
@@ -306,7 +311,7 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
 for 2.99GBP. Press ctrl-c to cancel.
-Password: 
+Password of "hello@mail.com": 
 Thanks for purchasing "hello". You may now install it on any of your devices
 with 'snap install hello'.
 `)
@@ -325,8 +330,8 @@ const buySnapPaymentDeclinedJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
-	if arch.UbuntuArchitecture() == "ppc64el" {
-		c.Skip("ioctl not working on ppc64el")
+	if err := archWithBrokenDevPtmx(); err != nil {
+		c.Skip(err.Error())
 	}
 
 	mockServer := &buyTestMockSnapServer{
@@ -344,7 +349,6 @@ func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
 					Checker: func(r *http.Request) {
 						var postData struct {
 							SnapID   string  `json:"snap-id"`
-							SnapName string  `json:"snap-name"`
 							Price    float64 `json:"price"`
 							Currency string  `json:"currency"`
 						}
@@ -353,7 +357,6 @@ func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
 						c.Assert(err, check.IsNil)
 
 						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-						c.Check(postData.SnapName, check.Equals, "hello")
 						c.Check(postData.Price, check.Equals, 2.99)
 						c.Check(postData.Currency, check.Equals, "GBP")
 					},
@@ -375,7 +378,7 @@ payment details at https://my.ubuntu.com/payment/edit and try again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
 for 2.99GBP. Press ctrl-c to cancel.
-Password: 
+Password of "hello@mail.com": 
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -441,7 +444,7 @@ func (s *BuySnapSuite) TestBuySnapFailsNotAcceptedTerms(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
 Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")

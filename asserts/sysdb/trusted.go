@@ -21,9 +21,9 @@ package sysdb
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -130,7 +130,7 @@ func init() {
 // Trusted returns a copy of the current set of trusted assertions as used by Open.
 func Trusted() []asserts.Assertion {
 	trusted := []asserts.Assertion(nil)
-	if os.Getenv("SNAPPY_USE_STAGING_STORE") != "1" {
+	if !osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
 		trusted = append(trusted, trustedAssertions...)
 	} else {
 		trusted = append(trusted, trustedStagingAssertions...)

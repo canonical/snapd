@@ -220,9 +220,9 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		c.Assert(task, NotNil)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := patch.Patch4TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -242,9 +242,9 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := patch.Patch4TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, true)
+	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
 	var idx int
@@ -274,9 +274,9 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := patch.Patch4TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -295,9 +295,9 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 	task := st.Task("4")
 	c.Assert(task, NotNil)
 
-	ss, err := patch.Patch4TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, true)
+	c.Check(snapsup.Flags.Revert(), Equals, true)
 
 	var had bool
 	var idx int
@@ -327,9 +327,9 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		// is not fully done yet)
 		task.SetStatus(state.DoneStatus)
 
-		ss, err := patch.Patch4TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -349,9 +349,9 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := patch.Patch4TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, false)
+	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool
 	var idx int
@@ -384,9 +384,9 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 		task.Clear("had-candidate")
 		task.SetStatus(state.DoStatus)
 
-		ss, err := patch.Patch4TaskSnapSetup(task)
+		snapsup, err := patch.Patch4TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		c.Check(ss.Flags.Revert(), Equals, false)
+		c.Check(snapsup.Flags.Revert(), Equals, false)
 
 		var had bool
 		var idx int
@@ -405,9 +405,9 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 	task := st.Task("16")
 	c.Assert(task, NotNil)
 
-	ss, err := patch.Patch4TaskSnapSetup(task)
+	snapsup, err := patch.Patch4TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Check(ss.Flags.Revert(), Equals, false)
+	c.Check(snapsup.Flags.Revert(), Equals, false)
 
 	var had bool
 	var idx int

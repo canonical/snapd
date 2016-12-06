@@ -70,10 +70,11 @@ network packet,
 /run/udev/data/* r,
 
 # Allow access to configuration files generated on the fly
-# from netplan
+# from netplan and let NetworkManager store its DHCP leases
+# in the dhcp subdirectory so that console-conf can access
+# it.
+/run/NetworkManager/ w,
 /run/NetworkManager/{,**} r,
-
-# Allow writing dhcp files to a well-known system location
 /run/NetworkManager/dhcp/{,**} w,
 
 # Needed by the ifupdown plugin to check which interfaces can
@@ -409,7 +410,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
+		var new []byte
 		if release.OnClassic {
 			// If we're running on classic NetworkManager will be part
 			// of the OS snap and will run unconfined.
@@ -447,10 +448,6 @@ func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

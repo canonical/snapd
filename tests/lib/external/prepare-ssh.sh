@@ -1,5 +1,5 @@
 #!/bin/sh
-set -x
+set -ex
 
 INSTANCE_IP="${1:-localhost}"
 INSTANCE_PORT="${2:-8022}"

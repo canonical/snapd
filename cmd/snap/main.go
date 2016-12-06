@@ -140,7 +140,13 @@ func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = i18n.G(`
-The snap tool interacts with the snapd daemon to control the snappy software platform.
+Install, configure, refresh and remove snap packages. Snaps are
+'universal' packages that work across many different Linux systems,
+enabling secure distribution of the latest apps and utilities for
+cloud, servers, desktops and the internet of things.
+
+This is the CLI for snapd, a background service that takes care of
+snaps on the system. Start with 'snap list' to see installed snaps.
 `)
 	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
 
@@ -153,7 +159,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 
 		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
-
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
@@ -191,20 +196,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			arg.Name = name
 			arg.Description = desc
 		}
-	}
-	// Add the experimental command
-	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
-	experimentalCommand.Hidden = true
-	if err != nil {
-		logger.Panicf("cannot add command %q: %v", "experimental", err)
-	}
-	// Add all the sub-commands of the experimental command
-	for _, c := range experimentalCommands {
-		cmd, err := experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
-		if err != nil {
-			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
-		}
-		cmd.Hidden = c.hidden
 	}
 	return parser
 }

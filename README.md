@@ -1,4 +1,6 @@
-[![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url]
+[![Build Status][travis-image]][travis-url]
+[![Go Report Card][goreportcard-image]][goreportcard-url]
+
 # snapd
 
 The snapd and snap tools enable systems to work with .snap files. See
@@ -28,6 +30,9 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
 [travis-url]: https://travis-ci.org/snapcore/snapd
+
+[goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
+[goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
 
 [coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
 [coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master

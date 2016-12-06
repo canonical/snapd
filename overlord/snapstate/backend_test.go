@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -199,7 +201,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) (string, error) {
+func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
 	var macaroon string
@@ -215,7 +217,7 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
 
-	return "downloaded-snap-path", nil
+	return nil
 }
 
 func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
@@ -228,6 +230,10 @@ func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
 
 func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Never expected fakeStore.Assertion to be called")
+}
+
+func (f *fakeStore) Sections(user *auth.UserState) ([]string, error) {
+	panic("Sections called")
 }
 
 type fakeSnappyBackend struct {
@@ -440,10 +446,10 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  ss.Name(),
-		revno: ss.Revision(),
+		name:  snapsup.Name(),
+		revno: snapsup.Revision(),
 	})
 }

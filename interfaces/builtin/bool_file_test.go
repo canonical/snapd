@@ -237,7 +237,3 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetPanicksOnUnsanitizedSlo
 		s.iface.PermanentSlotSnippet(s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
-
-func (s *BoolFileInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
-}

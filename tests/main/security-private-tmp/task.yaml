@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     echo "When a temporary file is created by one snap"
-    expect -f tmp-create.exp
+    expect -d -f tmp-create.exp
 
     if [ -e /usr/lib/snapd/snap-discard-ns ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"

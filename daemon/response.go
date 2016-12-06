@@ -127,6 +127,10 @@ const (
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
+
+	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
+	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 )
 
 type errorValue interface{}

@@ -152,7 +152,7 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	defer restore()
 
 	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", "SNAP", &snap.SideInfo{Revision: snap.R(42)})
 	err := boot.SetNextBoot(snapInfo)
 	c.Assert(err, IsNil)
 
@@ -222,4 +222,30 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snap_kernel": "krnl_40.snap",
 	})
+}
+
+func (s *kernelOSSuite) TestInUse(c *C) {
+	for _, t := range []struct {
+		bootVarKey   string
+		bootVarValue string
+
+		snapName string
+		snapRev  snap.Revision
+
+		inUse bool
+	}{
+		// in use
+		{"snap_kernel", "kernel_41.snap", "kernel", snap.R(41), true},
+		{"snap_try_kernel", "kernel_82.snap", "kernel", snap.R(82), true},
+		{"snap_core", "core_21.snap", "core", snap.R(21), true},
+		{"snap_try_core", "core_42.snap", "core", snap.R(42), true},
+		// not in use
+		{"snap_core", "core_111.snap", "core", snap.R(21), false},
+		{"snap_try_core", "core_111.snap", "core", snap.R(21), false},
+		{"snap_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
+		{"snap_try_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
+	} {
+		s.bootloader.BootVars[t.bootVarKey] = t.bootVarValue
+		c.Assert(boot.InUse(t.snapName, t.snapRev), Equals, t.inUse, Commentf("unexpected result: %s %s %v", t.snapName, t.snapRev, t.inUse))
+	}
 }

@@ -31,11 +31,12 @@ endif
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
+BUILDFLAGS:=-buildmode=pie -pkgdir=$(CURDIR)/_build/std
 GCCGOFLAGS=
 ifeq ($(GCCGO),yes)
 GOARCH := $(shell go env GOARCH)
 GOOS := $(shell go env GOOS)
-
+BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
 endif
@@ -49,10 +50,24 @@ endif
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
 
+override_dh_clean:
+ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
+	# this will be set by the GITHUB webhook to trigger a autopkgtest
+	# we only need to run "govendor sync" here and then its ready
+	(export GOPATH="/tmp/go"; \
+	  mkdir -p $$GOPATH/src/github.com/snapcore/; \
+          cp -ar . $$GOPATH/src/github.com/snapcore/snapd; \
+	  go get -u github.com/kardianos/govendor; \
+	  (cd $$GOPATH/src/github.com/snapcore/snapd ; $$GOPATH/bin/govendor sync); \
+	  cp -ar $$GOPATH/src/github.com/snapcore/snapd/vendor/ .; \
+        )
+endif
+	dh_clean
+
 override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(TAGS) $(GCCGOFLAGS)
+	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 
 override_dh_auto_test:
