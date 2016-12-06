@@ -1,8 +1,7 @@
-summary: Run internal unit tests
-# This is blacklisted on debian because we first have to get the dpkg-vendor patches
-systems: [-debian-8]
+summary: Run the test suite for C code
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 execute: |
-    cd /home/spread/
+    cd cmd/
     autoreconf --install --force
     ./configure
-    make -C src check-unit-tests
+    make -C check-unit-tests snap-confine
