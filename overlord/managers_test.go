@@ -887,6 +887,23 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	return info
 }
 
+func (ms *mgrsSuite) removeSnap(c *C, name string) {
+	st := ms.o.State()
+
+	ts, err := snapstate.Remove(st, name, snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("remove-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remove-snap change failed with: %v", chg.Err()))
+}
+
 func (ms *mgrsSuite) TestHappyRevert(c *C) {
 	st := ms.o.State()
 	st.Lock()
@@ -942,6 +959,75 @@ apps:
 		p := filepath.Join(dirs.SnapBlobDir, fn)
 		c.Assert(osutil.FileExists(p), Equals, true)
 	}
+}
+
+func (ms *mgrsSuite) TestHappyAlias(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	fooYaml := `name: foo
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    aliases: [foo_]
+  bar:
+    command: bin/bar
+    aliases: [bar,bar1]
+`
+	ms.installLocalTestSnap(c, fooYaml)
+
+	ts, err := snapstate.Alias(st, "foo", []string{"foo_", "bar", "bar1"})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("alias", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("alias change failed with: %v", chg.Err()))
+
+	foo_Alias := filepath.Join(dirs.SnapBinariesDir, "foo_")
+	dest, err := os.Readlink(foo_Alias)
+	c.Assert(err, IsNil)
+
+	c.Check(dest, Equals, "foo")
+
+	barAlias := filepath.Join(dirs.SnapBinariesDir, "bar")
+	dest, err = os.Readlink(barAlias)
+	c.Assert(err, IsNil)
+
+	c.Check(dest, Equals, "foo.bar")
+
+	bar1Alias := filepath.Join(dirs.SnapBinariesDir, "bar1")
+	dest, err = os.Readlink(bar1Alias)
+	c.Assert(err, IsNil)
+
+	c.Check(dest, Equals, "foo.bar")
+
+	var aliasStates map[string]*snapstate.AliasState
+	err = st.Get("aliases", &aliasStates)
+	c.Assert(err, IsNil)
+	c.Check(aliasStates, DeepEquals, map[string]*snapstate.AliasState{
+		"foo_": {Enabled: "foo"},
+		"bar":  {Enabled: "foo"},
+		"bar1": {Enabled: "foo"},
+	})
+
+	ms.removeSnap(c, "foo")
+
+	c.Check(osutil.IsSymlink(foo_Alias), Equals, false)
+	c.Check(osutil.IsSymlink(barAlias), Equals, false)
+	c.Check(osutil.IsSymlink(bar1Alias), Equals, false)
+
+	aliasStates = nil
+	err = st.Get("aliases", &aliasStates)
+	c.Assert(err, IsNil)
+	c.Check(aliasStates, HasLen, 0)
 }
 
 type authContextSetupSuite struct {

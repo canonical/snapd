@@ -293,7 +293,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
 apps:
   cmd1:
-    aliases: [alias1]
+    aliases: [alias1, alias1.cmd1]
 `))
 		if err != nil {
 			panic(err)
