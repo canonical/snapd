@@ -195,6 +195,14 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
 	content: "@complain\ndefault\nsnippet\n",
+}, {
+	opts:    interfaces.ConfinementOptions{Classic: true},
+	snippet: "snippet",
+	content: "@unrestricted\ndefault\nsnippet\n",
+}, {
+	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	snippet: "snippet",
+	content: "default\nsnippet\n",
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
