@@ -161,5 +161,5 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
 
-AC_CONFIG_FILES([Makefile cmd/snap-confine/Makefile cmd/snap-confine/tests/Makefile docs/Makefile])
+AC_CONFIG_FILES([Makefile cmd/snap-confine/Makefile cmd/snap-confine/tests/Makefile cmd/snap-confine/manpages/Makefile])
 AC_OUTPUT

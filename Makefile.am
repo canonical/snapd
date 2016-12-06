@@ -1,4 +1,4 @@
-SUBDIRS = cmd/snap-confine cmd/snap-confine/tests docs
+SUBDIRS = cmd/snap-confine
 EXTRA_DIST = VERSION
 
 .PHONY: check-syntax
