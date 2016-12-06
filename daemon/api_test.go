@@ -400,7 +400,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"oldDefaultSnapCoreName",
 		"errModeConflict",
 		"errNoJailMode",
-		"errClassicJailmodeConflict",
 		"errClassicDevmodeConflict",
 		// snapInstruction vars:
 		"snapInstructionDispTable",

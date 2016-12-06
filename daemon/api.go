@@ -790,37 +790,27 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 }
 
 var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
-var errClassicJailmodeConflict = errors.New("cannot use classic and jailmode flags together")
 var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags{}
-	if jailMode {
-		if devModeOS {
-			return flags, errNoJailMode
-		}
-		if devMode {
-			return flags, errModeConflict
-		}
-		if classic {
-			return flags, errClassicJailmodeConflict
-		}
-		flags.JailMode = true
+	devModeOS := release.ReleaseInfo.ForceDevMode()
+	switch {
+	case jailMode && devModeOS:
+		return flags, errNoJailMode
+	case jailMode && devMode:
+		return flags, errModeConflict
+	case devMode && classic:
+		return flags, errClassicDevmodeConflict
 	}
-	if devMode {
-		if classic {
-			return flags, errClassicDevmodeConflict
-		}
-	}
-	if !classic && (devMode || devModeOS) {
-		flags.DevMode = true
-	}
+	// NOTE: jailmode and classic are allowed together In that setting,
+	// jailmode overrides classic and the app gets regular (non-classic)
+	// confinement.
+	flags.JailMode = jailMode
 	flags.Classic = classic
-
+	flags.DevMode = devMode || devModeOS && !classic
 	return flags, nil
-
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
