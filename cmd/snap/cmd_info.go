@@ -133,21 +133,10 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 // - ignore \r
 func formatDescr(descr string, max int) string {
 	out := bytes.NewBuffer(nil)
-
-	descr = strings.Replace(descr, "\r", "", -1)
 	for _, line := range strings.Split(descr, "\n") {
-		n := 0
-		fmt.Fprintf(out, "  ")
-		for _, word := range strings.Fields(line) {
-			if n+len(word) > max {
-				fmt.Fprintf(out, "\n  ")
-				n = 0
-			}
-			fmt.Fprintf(out, word)
-			fmt.Fprintf(out, " ")
-			n += len(word) + 1
+		for _, chunk := range strutil.WordWrap(line, max) {
+			fmt.Fprintf(out, "  %s\n", chunk)
 		}
-		fmt.Fprintf(out, "\n")
 	}
 
 	return strings.TrimSuffix(out.String(), "\n")
@@ -185,7 +174,9 @@ func (x *infoCmd) Execute([]string) error {
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
-		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, 77))
+		// FIXME: find out for real
+		termWidth := 77
+		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
