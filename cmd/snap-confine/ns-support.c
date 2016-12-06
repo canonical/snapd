@@ -283,7 +283,7 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
 
 void sc_close_ns_group(struct sc_ns_group *group)
 {
-	debug("releasing resources associated wih namespace group %s",
+	debug("releasing resources associated with namespace group %s",
 	      group->name);
 	close(group->dir_fd);
 	close(group->lock_fd);

@@ -1,7 +1,11 @@
 summary: Run the test suite for C code
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 execute: |
-    cd cmd/
+    apt-get install --yes \
+        autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev \
+        libseccomp-dev libudev-dev pkg-config python3-docutils udev
+    cd $SPREAD_PATH/cmd/
     autoreconf --install --force
-    ./configure
-    make -C check-unit-tests snap-confine
+    ./configure \
+        --prefix=/usr/ --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+    make -C snap-confine check-unit-tests

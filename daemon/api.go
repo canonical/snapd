@@ -719,6 +719,7 @@ type snapInstruction struct {
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
+	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
@@ -788,27 +789,28 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
-func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	flags := snapstate.Flags{}
-	if jailMode {
-		if devModeOS {
-			return flags, errNoJailMode
-		}
-		if devMode {
-			return flags, errModeConflict
-		}
-		flags.JailMode = true
+	devModeOS := release.ReleaseInfo.ForceDevMode()
+	switch {
+	case jailMode && devModeOS:
+		return flags, errNoJailMode
+	case jailMode && devMode:
+		return flags, errDevJailModeConflict
+	case devMode && classic:
+		return flags, errClassicDevmodeConflict
 	}
-	if devMode || devModeOS {
-		flags.DevMode = true
-	}
-
+	// NOTE: jailmode and classic are allowed together. In that setting,
+	// jailmode overrides classic and the app gets regular (non-classic)
+	// confinement.
+	flags.JailMode = jailMode
+	flags.Classic = classic
+	flags.DevMode = devMode || devModeOS && !classic
 	return flags, nil
-
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
@@ -862,7 +864,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -887,7 +889,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -946,7 +948,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1231,8 +1233,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	dangerousOK := isTrue(form, "dangerous")
-	devmode := isTrue(form, "devmode")
-	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
@@ -1311,7 +1312,7 @@ out:
 		case asserts.ErrNotFound:
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
-			if !devmode {
+			if !isTrue(form, "devmode") {
 				msg := "cannot find signatures with metadata for snap"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)
