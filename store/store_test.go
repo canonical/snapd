@@ -1786,6 +1786,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		q := query.Get("q")
 		section := query.Get("section")
 
+		// write dummy json so that Find doesn't re-try due to json decoder EOF error
+		io.WriteString(w, "{}")
+
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, Equals, "/search")
@@ -2019,7 +2022,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
+	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character '<' looking for beginning of value\) when requesting "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
