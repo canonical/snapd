@@ -1,0 +1,20 @@
+summary: Check that the docker snap works
+
+systems: [ubuntu-16.04-64]
+
+prepare: |
+    snap install docker
+
+debug: |
+    cat /var/log/syslog
+    dmesg
+
+execute: |
+    echo "docker info works"
+    docker info
+
+    echo "and so does docker run"
+    docker run --rm hello-world > docker.out
+    cat docker.out | MATCHES "Hello from Docker!"
+
+    echo "FIXME: we also want armhf which needs a "armhf" prefix"
