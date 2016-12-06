@@ -38,11 +38,16 @@ dbus (bind)
 	name=org.gnome.evolution.dataserver.AddressBook9,
 dbus (bind)
 	bus=session
-	name=org.gnome.evolution.dataserver.Subprocess.Backend.*,
+	name=org.gnome.evolution.dataserver.Subprocess.Backend.AddressBook*,
 dbus (bind)
 	bus=session
 	name=com.canonical.pim,
+`
 
+const unity8ContactsConnectedSlotAppArmor = `
+# Allow service to interact with connected clients
+# DBus accesses
+#include <abstractions/dbus-session-strict>
 
 ########################
 # EDS - AddressBook
@@ -50,48 +55,56 @@ dbus (bind)
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookFactory,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookFactory
 	interface=org.gnome.evolution.dataserver.AddressBookFactory,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookFactory
 	interface=org.freedesktop.DBus.*,
-
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookView/**,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookView/**
 	interface=org.gnome.evolution.dataserver.AddressBookView,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookView/**
 	interface=org.freedesktop.DBus.*,
-
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBook/**
 	interface=org.gnome.evolution.dataserver.Subprocess.Backend,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBookView/**
 	interface=org.freedesktop.DBus.*,
-
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
 	interface=org.gnome.evolution.dataserver.AddressBook,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
 	interface=org.gnome.evolution.dataserver.DirectBook,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
 	interface=org.freedesktop.DBus.*,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 
 ########################
 # Canonical - AddressBook
@@ -99,27 +112,33 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBook,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBook
 	interface=com.canonical.pim.AddressBook,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
     path=/com/canonical/pim/AddressBook
 	interface=org.freedesktop.DBus.*,
-
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBookView,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBookView
 	interface=com.canonical.pim.AddressBookView,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
     path=/com/canonical/pim/AddressBookView
 	interface=org.freedesktop.DBus.*,
+	peer=(label=###PLUG_SECURITY_TAGS###),
 `
+
 var unity8ContactsConnectedPlugAppArmor = `
 # Description: Can access contacts. This policy group is reserved for vetted
 #  applications only in this version of the policy. Once LP: #1227821 is
@@ -129,24 +148,24 @@ var unity8ContactsConnectedPlugAppArmor = `
 dbus (receive, send)
      bus=session
      path=/org/gnome/evolution/dataserver/AddressBookFactory
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
      bus=session
      path=/org/gnome/evolution/dataserver/Subprocess/**
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
      bus=session
      path=/org/gnome/evolution/dataserver/AddressBookView/**
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive, send)
      bus=session
      path=/com/canonical/pim/AddressBook
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
      bus=session
      path=/com/canonical/pim/AddressBookView/**
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
@@ -155,7 +174,7 @@ dbus (receive, send)
 dbus (receive, send)
      bus=session
      path=/synchronizer{,/**}
-     peer=(label=unconfined),
+     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 var unity8ContactsPermanentSlotDBus = `
@@ -173,10 +192,11 @@ var unity8ContactsPermanentSlotDBus = `
 
 // NewUnity8ContactsInterface returns a new "unity8-contacts" interface.
 func NewUnity8ContactsInterface() interfaces.Interface {
-	return &unity8PimInterface{
+	return &unity8PimCommonInterface{
 		name: "unity8-contacts",
 		permanentSlotAppArmor: unity8ContactsPermanentSlotAppArmor,
 		connectedPlugAppArmor: unity8ContactsConnectedPlugAppArmor,
+		connectedSlotAppArmor: unity8ContactsConnectedSlotAppArmor,
 		permanentSlotDBus:     unity8ContactsPermanentSlotDBus,
 	}
 }
