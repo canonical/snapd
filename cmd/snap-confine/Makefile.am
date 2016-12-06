@@ -1,3 +1,4 @@
+SUBDIRS = manpages tests
 libexec_PROGRAMS = snap-confine snap-discard-ns
 noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
