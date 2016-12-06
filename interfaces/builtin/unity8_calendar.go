@@ -35,74 +35,71 @@ dbus (bind)
 	name="org.gnome.evolution.dataserver.Calendar7",
 dbus (bind)
 	bus=session
-	name=org.gnome.evolution.dataserver.Subprocess.Backend.Calendar*,
+	name="org.gnome.evolution.dataserver.Subprocess.Backend.Calendar*",
+dbus (bind)
+	bus=session
+	name="com.canonical.SyncMonitor",
+
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our calendar services.
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/CalendarFactory
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/CalendarView/**
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/**
+	interface=org.gnome.evolution.dataserver.Calendar
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
+	peer=(label=unconfined),
+
+# LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
+# now for trusted apps until sync-monitor is integrated with push
+# notifications.
+dbus (receive, send)
+	bus=session
+	path=/com/canonical/SyncMonitor
+	peer=(label=unconfined),
 `
 
 const unity8CalendarConnectedSlotAppArmor = `
 # Allow service to interact with connected clients
 # DBus accesses
-#include <abstractions/dbus-session-strict>
-
 
 ########################
 # Calendar
 ########################
 dbus (receive, send)
 	bus=session
-	path=/org/gnome/evolution/dataserver/CalendarFactory,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
 	path=/org/gnome/evolution/dataserver/CalendarFactory
-	interface=org.gnome.evolution.dataserver.CalendarFactory,
 	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/CalendarFactory
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/CalendarView/**,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/CalendarView/**
-	interface=org.gnome.evolution.dataserver.CalendarView,
 	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/CalendarView/**
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
-	interface=org.gnome.evolution.dataserver.Subprocess.Backend,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
-	interface=org.freedesktop.DBus.*,
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
 dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
-	interface=org.gnome.evolution.dataserver.Calendar,
+	interface=org.gnome.evolution.dataserver.Calendar
 	peer=(label=###PLUG_SECURITY_TAGS###),
-
 dbus (receive, send)
 	bus=session
-	path=/org/gnome/evolution/dataserver/Subprocess/**
-	interface=org.freedesktop.DBus.*,
+	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
+	peer=(label=###PLUG_SECURITY_TAGS###),
+
+# LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
+# now for trusted apps until sync-monitor is integrated with push
+# notifications.
+dbus (receive, send)
+	bus=session
+	path=/com/canonical/SyncMonitor
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -112,29 +109,38 @@ const unity8CalendarConnectedPlugAppArmor = `
 #  is fixed, this can be moved out of reserved status.
 # Usage: reserved
 
+########################
+# Calendar
+########################
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/CalendarFactory
- 	 peer=(label=###SLOT_SECURITY_TAGS###),
-
+	bus=session
+	path=/org/gnome/evolution/dataserver/CalendarFactory
+	peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/Subprocess/**
-     peer=(label=###SLOT_SECURITY_TAGS###),
-
+	bus=session
+	path=/org/gnome/evolution/dataserver/CalendarView/**
+	peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/CalendarView/**
-	 peer=(label=###SLOT_SECURITY_TAGS###),
-
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/**
+	interface=org.gnome.evolution.dataserver.Calendar
+	peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+	bus=session
+	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
+	peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+	bus=session
+	path=/com/canonical/SyncMonitor
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
 # now for trusted apps until sync-monitor is integrated with push
 # notifications.
 dbus (receive, send)
-     bus=session
-     path=/synchronizer{,/**}
-	 peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/com/canonical/SyncMonitor
+	peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const unity8CalendarPermanentSlotDBus = `
@@ -150,8 +156,8 @@ func NewUnity8CalendarInterface() interfaces.Interface {
 	return &unity8PimCommonInterface{
 		name: "unity8-calendar",
 		permanentSlotAppArmor: unity8CalendarPermanentSlotAppArmor,
-		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,
 		connectedSlotAppArmor: unity8CalendarConnectedSlotAppArmor,
+		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,
 		permanentSlotDBus:     unity8CalendarPermanentSlotDBus,
 	}
 }

@@ -34,6 +34,7 @@ var unity8PimCommonPermanentSlotAppArmor = []byte(`
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
+
 dbus (send)
 	bus=session
 	path=/org/freedesktop/DBus
@@ -59,24 +60,17 @@ dbus (bind)
 `)
 
 var unity8PimCommonConnectedSlotAppArmor = []byte(`
+# Allow service to interact with connected clients
+# DBus accesses
+#include <abstractions/dbus-session-strict>
+
+
 ########################
 # SourceManager
 ########################
 dbus (receive, send)
 	bus=session
-	path=/org/gnome/evolution/dataserver/SourceManager{,/**},
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
-	interface=org.gnome.evolution.dataserver.Source{,.*},
-	peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive, send)
-	bus=session
-	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
-	interface=org.freedesktop.DBus.*,
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
@@ -86,29 +80,29 @@ var unity8PimCommonConnectedPlugAppArmor = []byte(`
 
 # Allow all access to eds service
 dbus (receive, send)
-    bus=session
-    peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
-     bus=session
-     path=/org/freedesktop/DBus
-     interface=org.freedesktop.DBus
-     member={Request,Release}Name
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/freedesktop/DBus
+	interface=org.freedesktop.DBus
+	member={Request,Release}Name
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
-     bus=session
-     path=/org/freedesktop/*
-     interface=org.freedesktop.DBus.Properties
-	 peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/freedesktop/*
+	interface=org.freedesktop.DBus.Properties
+	peer=(label=###SLOT_SECURITY_TAGS###),
 
 ########################
 # SourceManager
 ########################
 dbus (receive, send)
-     bus=session
-     path=/org/gnome/evolution/dataserver/SourceManager{,/**}
-     peer=(label=###SLOT_SECURITY_TAGS###),
+	bus=session
+	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
+	peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
 var unity8PimCommonPermanentSlotSecComp = []byte(`
@@ -174,8 +168,8 @@ var unity8PimCommonPermanentSlotDBus = []byte(`
 type unity8PimCommonInterface struct {
 	name                  string
 	permanentSlotAppArmor string
-	connectedPlugAppArmor string
 	connectedSlotAppArmor string
+	connectedPlugAppArmor string
 	permanentSlotDBus     string
 }
 
@@ -193,11 +187,10 @@ func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
 
-		originalSnippet := []byte(unity8PimCommonConnectedPlugAppArmor)
-		originalSnippet = append(originalSnippet, iface.connectedPlugAppArmor...)
-
+		originalSnippet := append([]byte(unity8PimCommonConnectedPlugAppArmor), iface.connectedPlugAppArmor...)
 		snippet := bytes.Replace(originalSnippet, old, new, -1)
 
+		// classic mode
 		if release.OnClassic {
 			// Let confined apps access unconfined service on classic
 			classicSnippet := bytes.Replace(originalSnippet, old, []byte("unconfined"), -1)
@@ -215,7 +208,7 @@ func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(unity8PimCommonConnectedPlugAppArmor)
+		snippet := []byte(unity8PimCommonPermanentSlotAppArmor)
 		snippet = append(snippet, iface.permanentSlotAppArmor...)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
