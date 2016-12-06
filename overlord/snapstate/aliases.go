@@ -183,6 +183,9 @@ func (m *SnapManager) undoToggleAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapName := snapsup.Name()
 	aliasStates, err := getAliases(st)
+	if err != nil {
+		return err
+	}
 	if aliasStates == nil {
 		aliasStates = make(map[string]*AliasState)
 	}
