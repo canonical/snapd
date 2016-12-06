@@ -48,7 +48,7 @@ flags are available using
     go help get
 
 At this point you will have the git local repository of the `snapd` source at
-`$GOPATH/github.com/snapcore/snapd`. The source for any
+`$GOPATH/src/github.com/snapcore/snapd`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
@@ -59,7 +59,7 @@ Dependencies are handled via `govendor`. Get it via:
 
 After a fresh checkout, move to the snapd source directory:
 
-    cd $GOPATH/github.com/snapcore/snapd
+    cd $GOPATH/src/github.com/snapcore/snapd
 
 And then, run:
 
@@ -153,12 +153,12 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 or with systemd version >= 230
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you
@@ -168,3 +168,6 @@ should then
 
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
+
+To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
+It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.

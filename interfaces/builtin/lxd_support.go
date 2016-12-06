@@ -73,11 +73,6 @@ func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LxdSupportInterface) LegacyAutoConnect() bool {
-	// since limited to lxd.canonical, we can auto-connect
-	return true
-}
-
 func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

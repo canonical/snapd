@@ -449,8 +449,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -491,7 +491,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
@@ -520,7 +520,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
-	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
@@ -536,12 +536,12 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, ss *snapstate.SnapSetup) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -553,12 +553,12 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("remove-profiles", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -570,12 +570,12 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("discard-conns", "")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
 		},
 	}
-	task.Set("snap-setup", ss)
+	task.Set("snap-setup", snapsup)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
@@ -930,11 +930,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// The snap was setup with DevMode equal to true.
+	// The snap was setup with DevModeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
@@ -1217,8 +1217,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
@@ -1262,8 +1262,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
 
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
@@ -1384,9 +1384,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
-	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
-	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
@@ -1439,4 +1439,90 @@ func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) 
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
+}
+
+// Test that setup-snap-security gets undone correctly when a snap is installed
+// but the installation fails (the security profiles are removed).
+func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
+	// Create the interface manager
+	mgr := s.manager(c)
+
+	// Mock a snap and remove the side info from the state (it is implicitly
+	// added by mockSnap) so that we can emulate a undo during a fresh
+	// install.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+	s.state.Lock()
+	snapstate.Set(s.state, snapInfo.Name(), nil)
+	s.state.Unlock()
+
+	// Add a change that undoes "setup-snap-security"
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.state.Lock()
+	change.Tasks()[0].SetStatus(state.UndoStatus)
+	s.state.Unlock()
+
+	// Turn the crank
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the change got undone.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.UndoneStatus)
+
+	// Ensure that since we had no prior revisions of this snap installed the
+	// undo task removed the security profile from the system.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 1)
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{snapInfo.Name()})
+}
+
+// Test that setup-snap-security gets undone correctly when a snap is refreshed
+// but the installation fails (the security profiles are restored to the old state).
+func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
+	// Create the interface manager
+	mgr := s.manager(c)
+
+	// Mock a snap. The mockSnap call below also puts the side info into the
+	// state so it seems like it was installed already.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Add a change that undoes "setup-snap-security"
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.state.Lock()
+	change.Tasks()[0].SetStatus(state.UndoStatus)
+	s.state.Unlock()
+
+	// Turn the crank
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the change got undone.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.UndoneStatus)
+
+	// Ensure that since had a revision in the state the undo task actually
+	// setup the security of the snap we had in the state.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 }
