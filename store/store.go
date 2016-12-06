@@ -610,6 +610,74 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
+type decodeCondFunc func(*http.Response) bool
+var decodeOnHTTP200 = func (resp *http.Response) bool {
+	if resp.StatusCode == http.StatusOK {
+		//ct := resp.Header.Get("Content-Type")
+		//return ct == halJsonContentType
+		return true
+	}
+	return false
+}
+
+// retryRequest uses defaultRetryStrategy to call doRequest with retry
+func (s *Store) retryRequestDec(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState,  result interface{}, shouldDecode decodeCondFunc) (resp *http.Response, err error) {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		if attempt.Count() > 1 {
+			delta := time.Since(startTime) / time.Millisecond
+			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+		}
+		if cancelled(ctx) {
+			return nil, ctx.Err()
+		}
+
+		resp, err = s.doRequest(ctx, client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		} else {
+			if shouldDecode(resp) {
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(&result); err != nil {
+					if shouldRetryError(attempt, err) {
+						fmt.Println("OH!")
+						continue
+					}
+					resp.Body.Close()
+					return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
+				}
+			}
+		}
+
+		// break out from retry loop
+		break
+	}
+
+	if attempt.Count() > 1 {
+		var status string
+		delta := time.Since(startTime) / time.Millisecond
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
+	}
+
+	return resp, err
+}
+
+
+
 // retryRequest uses defaultRetryStrategy to call doRequest with retry
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
@@ -976,7 +1044,8 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var remote snapDetails
+	resp, err := s.retryRequestDec(context.TODO(), s.client, reqOptions, user, &remote, decodeOnHTTP200)
 	if err != nil {
 		return nil, err
 	}
@@ -991,13 +1060,6 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	default:
 		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
 		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
 	}
 
 	info := infoFromRemote(remote)
@@ -1081,7 +1143,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+
+	var searchData searchResults
+	resp, err := s.retryRequestDec(context.TODO(), s.client, reqOptions, user, &searchData, decodeOnHTTP200)
 	if err != nil {
 		return nil, err
 	}
@@ -1094,13 +1158,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
@@ -1247,7 +1304,9 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var updateData searchResults
+	resp, err := s.retryRequestDec(context.TODO(), s.client, reqOptions, user, &updateData, decodeOnHTTP200)
+
 	if err != nil {
 		return nil, err
 	}
@@ -1256,12 +1315,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for updates")
-	}
-
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
