@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,15 +17,8 @@
  *
  */
 
-package progress
+package i18n // import "github.com/snapcore/snapd/i18n/dumb"
 
-/*
-#include <unistd.h>
-*/
-import "C"
-
-// isatty is a wrapper around isatty(3).
-// Returns true if the specified fd is associated with a tty.
-func isatty(fd int) bool {
-	return C.isatty(C.int(fd)) == 1
+func G(s string) string {
+	return s
 }
