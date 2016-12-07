@@ -437,11 +437,6 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  telephony-history:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
   time-control:
     allow-installation:
       slot-snap-type:
@@ -472,6 +467,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8-communication-history:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:

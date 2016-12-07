@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var telephonyHistoryPermanentSlotAppArmor = []byte(`
+var unity8CommunicationHistoryPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the history service. Reserved because this
 #  gives privileged access to the system.
 # Usage: reserved
@@ -60,7 +60,7 @@ dbus (bind)
 	name="org.freedesktop.Telepathy.Client.HistoryDaemonObserver",
 `)
 
-var telephonyHistoryConnectedSlotAppArmor = []byte(`
+var unity8CommunicationHistoryConnectedSlotAppArmor = []byte(`
 # Allow service to interact with connected clients
 # DBus accesses
 
@@ -87,7 +87,7 @@ dbus (receive, send)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
-var telephonyHistoryConnectedPlugAppArmor = []byte(`
+var unity8CommunicationHistoryConnectedPlugAppArmor = []byte(`
 # Description: Can access the history-service. This policy group is reserved
 #  for vetted applications only in this version of the policy. A future
 #  version of the policy may move this out of reserved status.
@@ -116,7 +116,7 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
-var telephonyHistoryPermanentSlotSecComp = []byte(`
+var unity8CommunicationHistoryPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the history service. Reserved because this
 # gives
 #  privileged access to the system.
@@ -143,7 +143,7 @@ socketpair
 socket
 `)
 
-var telephonyHistoryConnectedPlugSecComp = []byte(`
+var unity8CommunicationHistoryConnectedPlugSecComp = []byte(`
 # Description: Allow using history service. Reserved because this gives
 #  privileged access to the history service.
 # Usage: reserved
@@ -159,7 +159,7 @@ sendmsg
 socket
 `)
 
-var telephonyHistoryPermanentSlotDBus = []byte(`
+var unity8CommunicationHistoryPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.canonical.HistoryService"/>
 	<allow own="org.freedesktop.Telepathy.Client.HistoryDaemonObserver"/>
@@ -173,78 +173,78 @@ var telephonyHistoryPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-type TelephonyHistoryInterface struct{}
+type Unity8CommunicationHistoryInterface struct{}
 
-func (iface *TelephonyHistoryInterface) Name() string {
-	return "telephony-history"
+func (iface *Unity8CommunicationHistoryInterface) Name() string {
+	return "unity8-communication-history"
 }
 
-func (iface *TelephonyHistoryInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *Unity8CommunicationHistoryInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *TelephonyHistoryInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *Unity8CommunicationHistoryInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(telephonyHistoryConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace(unity8CommunicationHistoryConnectedPlugAppArmor, old, new, -1)
 
 		if release.OnClassic {
-			classicSnippet := bytes.Replace(telephonyHistoryConnectedPlugAppArmor, old, []byte("unconfined"), -1)
+			classicSnippet := bytes.Replace(unity8CommunicationHistoryConnectedPlugAppArmor, old, []byte("unconfined"), -1)
 			// Let confined apps access unconfined ofono on classic
 			snippet = append(snippet, classicSnippet...)
 		}
 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return telephonyHistoryConnectedPlugSecComp, nil
+		return unity8CommunicationHistoryConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
 
-func (iface *TelephonyHistoryInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *Unity8CommunicationHistoryInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return telephonyHistoryPermanentSlotAppArmor, nil
+		return unity8CommunicationHistoryPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
-		return telephonyHistoryPermanentSlotSecComp, nil
+		return unity8CommunicationHistoryPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
-		return telephonyHistoryPermanentSlotDBus, nil
+		return unity8CommunicationHistoryPermanentSlotDBus, nil
 	}
 	return nil, nil
 }
 
-func (iface *TelephonyHistoryInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *Unity8CommunicationHistoryInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(telephonyHistoryConnectedSlotAppArmor), old, new, -1)
+		snippet := bytes.Replace([]byte(unity8CommunicationHistoryConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
 }
 
-func (iface *TelephonyHistoryInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *Unity8CommunicationHistoryInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *TelephonyHistoryInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *Unity8CommunicationHistoryInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *TelephonyHistoryInterface) LegacyAutoConnect() bool {
+func (iface *Unity8CommunicationHistoryInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *TelephonyHistoryInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *Unity8CommunicationHistoryInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
