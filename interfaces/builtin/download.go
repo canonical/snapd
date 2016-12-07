@@ -53,17 +53,17 @@ dbus (receive)
      peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
      bus=session
-     path=/com/canonical/applications/download/@{SNAP_LABEL_DBUS}/**
+     path=/com/canonical/applications/download/@{PROFILE_DBUS}/**
      interface=com.canonical.applications.Download
      peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
      bus=session
-     path=/com/canonical/applications/download/@{SNAP_LABEL_DBUS}/**
+     path=/com/canonical/applications/download/@{PROFILE_DBUS}/**
      interface=org.freedesktop.DBus.Properties
      peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive, send)
      bus=session
-     path=/com/canonical/applications/download/@{SNAP_LABEL_DBUS}/**
+     path=/com/canonical/applications/download/@{PROFILE_DBUS}/**
      interface=com.canonical.applications.GroupDownload
      peer=(label=###SLOT_SECURITY_TAGS###),
 # Be explicit about the allowed members we can send to
