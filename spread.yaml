@@ -38,7 +38,12 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
     qemu:
+        environment:
+            APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-16.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-64:
                 username: ubuntu
                 password: ubuntu

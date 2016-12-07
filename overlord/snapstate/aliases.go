@@ -33,41 +33,22 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type AliasState struct {
-	// Enabled tracks for which snap the alias has been enabled, "" if none
-	Enabled string `json:"enabled,omitempty"`
-	// Auto is true if the alias has been auto-enabled
-	// TODO: Auto bool `json:"auto,omitempy"`
-	// Disabled tracks the possibly many snap for which the alias has
-	// been forcefully disabled
-	// TODO: Disabled []string `json:"disabled,omitempty"`
-}
-
-type aliasStateMap map[string]*AliasState
-
-func getAliases(st *state.State) (aliasStateMap, error) {
-	var aliasStates map[string]*AliasState
-	err := st.Get("aliases", &aliasStates)
-	if err != nil && err != state.ErrNoState {
+func getAliases(st *state.State, snapName string) (map[string]string, error) {
+	var allAliases map[string]*json.RawMessage
+	err := st.Get("aliases", &allAliases)
+	if err != nil {
 		return nil, err
 	}
-	return aliasStates, nil
-}
-
-func (m aliasStateMap) get(alias string) AliasState {
-	var aliasState AliasState
-	if got := m[alias]; got != nil {
-		aliasState = *got
+	raw := allAliases[snapName]
+	if raw == nil {
+		return nil, state.ErrNoState
 	}
-	return aliasState
-}
-
-func (m aliasStateMap) set(alias string, aliasState *AliasState) {
-	if *aliasState != (AliasState{}) {
-		m[alias] = aliasState
-	} else {
-		delete(m, alias)
+	var aliases map[string]string
+	err = json.Unmarshal([]byte(*raw), &aliases)
+	if err != nil {
+		return nil, fmt.Errorf("cannot unmarshal snap aliases state: %v", err)
 	}
+	return aliases, nil
 }
 
 // Alias enables the aliases for snap
@@ -255,13 +236,13 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	aliasStates, err := getAliases(st)
-	if err != nil {
+	aliasStatuses, err := getAliases(st, snapName)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	var aliases []*backend.Alias
-	for alias, aliasState := range aliasStates {
-		if aliasState.Enabled == snapName {
+	for alias, aliasStatus := range aliasStatuses {
+		if aliasStatus == "enabled" {
 			aliasApp := curInfo.Aliases[alias]
 			if aliasApp == nil {
 				// not a known alias anymore, skip
@@ -275,8 +256,9 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 		// TODO: check Disabled => remove
 	}
 	aliases, err = m.backend.MissingAliases(aliases)
+	// TODO: check and error on mismatching (instead of absent) aliases?
 	if err != nil {
-		return fmt.Errorf("cannot establish missing enabled aliases for snap %q: %v", snapName, err)
+		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
 	}
 	t.Set("add", aliases)
 	st.Unlock()
@@ -300,7 +282,7 @@ func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	rmAliases, err := m.backend.MatchingAliases(adding)
 	if err != nil {
-		return fmt.Errorf("cannot establish matching enabled aliases for snap %q: %v", snapName, err)
+		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
 	}
 	st.Unlock()
 	defer st.Lock()
@@ -322,15 +304,21 @@ func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func checkSnapAliasConflict(st *state.State, snapName string) error {
-	aliasStates, err := getAliases(st)
+	var allAliases map[string]map[string]string
+	err := st.Get("aliases", &allAliases)
+	if err == state.ErrNoState {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	prefix := fmt.Sprintf("%s.", snapName)
-	for alias, aliasState := range aliasStates {
-		if alias == snapName || strings.HasPrefix(alias, prefix) {
-			if aliasState.Enabled != "" {
-				return fmt.Errorf("snap %q command namespace conflicts with enabled alias %q for %q", snapName, alias, aliasState.Enabled)
+	for otherSnap, aliasStatuses := range allAliases {
+		for alias, aliasStatus := range aliasStatuses {
+			if aliasStatus == "enabled" {
+				if alias == snapName || strings.HasPrefix(alias, prefix) {
+					return fmt.Errorf("snap %q command namespace conflicts with enabled alias %q for %q", snapName, alias, otherSnap)
+				}
 			}
 		}
 	}

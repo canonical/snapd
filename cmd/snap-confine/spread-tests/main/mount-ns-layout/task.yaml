@@ -1,0 +1,46 @@
+summary: Ensure that the mount namespace a given layout
+details: |
+    This test analyzes /proc/self/mountinfo which contains a representation of
+    the mount table of the current process. The mount table is a very sensitive
+    part of the confinement design. This test measures the effective table,
+    normalizes it (to remove some inherent randomness of certain identifiers
+    and make it uniform regardless of particular names of block devices, snap
+    revisions, etc.) and then compares it to a canned copy.
+
+    There are several reference tables, one for core (aka all-snap system) and
+    one for classic. At this time only classic systems are measured and tested.
+    The classic systems are further divided into those using the core snap and
+    those using the older ubuntu-core snap. Lastly, they are divided by
+    architectures to take account any architecture specific differences.
+prepare: |
+    echo "Having installed a busybox"
+    snap install snapd-hacker-toolbelt
+execute: |
+    echo "We can map the kernel architecture name to snap architecture name"
+    arch=$(./snap-arch.py)
+    echo "We can run busybox true so that snap-confine creates a mount namespace"
+    snapd-hacker-toolbelt.busybox true
+    echo "Using nsenter we can move to that namespace, inspect and normalize the mount table"
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | ./process.py > observed.json
+    echo "We can now compare the obtained mount table to expected values"
+    if [ -e /snap/core/current ]; then
+        cmp observed.json expected.classic.core.$SPREAD_BACKEND.$arch.json
+    else
+        cmp observed.json expected.classic.ubuntu-core.$SPREAD_BACKEND.$arch.json
+    fi
+debug: |
+    echo "When something goes wrong we can display a human-readable diff"
+    arch=$(./snap-arch.py)
+    if [ -e /snap/core/current ]; then
+        diff -u observed.json expected.classic.core.$SPREAD_BACKEND.$arch.json || :
+    else
+        diff -u observed.json expected.classic.ubuntu-core.$SPREAD_BACKEND.$arch.json || :
+    fi
+    echo "And pastebin the raw table for analysis"
+    apt-get install pastebinit
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | pastebinit
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -f observed.json
