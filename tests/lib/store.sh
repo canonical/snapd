@@ -34,7 +34,7 @@ teardown_staging_store(){
 
 setup_fake_store(){
     local top_dir=$1
-    shift
+
     mkdir -p $top_dir/asserts
     # debugging
     systemctl status fakestore || true
