@@ -39,8 +39,10 @@ func (s *snapmgrTestSuite) TestDoSetupAliases(c *C) {
 		Current: snap.R(11),
 		Active:  true,
 	})
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+		},
 	})
 
 	t := s.state.NewTask("setup-aliases", "test")
@@ -84,8 +86,10 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 		Current: snap.R(11),
 		Active:  true,
 	})
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+		},
 	})
 
 	t := s.state.NewTask("setup-aliases", "test")
