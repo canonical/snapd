@@ -24,7 +24,7 @@ execute: |
 restore: |
     rm -rf $SPREAD_PATH/cmd/build
     find $SPREAD_PATH/cmd/ -name Makefile.in -exec rm -f {} \;
-    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,compile,install-sh,depcomp}
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
     apt-get autoremove --yes $EXTRA_PKGS
 debug: |
     cd $SPREAD_PATH/cmd/
