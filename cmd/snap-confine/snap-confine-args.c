@@ -71,72 +71,80 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 			ignore_first_tag = true;
 		}
 	}
-	// Parse arguments that we've got
+
+	// Parse option switches.
 	int optind;
 	for (optind = 1; optind < argc; ++optind) {
 		// Look at all the options switches that start with the minus sign ('-')
-		if (argv[optind][0] == '-') {
-			// Handle option switches
-			if (strcmp(argv[optind], "--version") == 0) {
-				args->is_version_query = true;
-				// NOTE: --version short-circuits the parser to finish
-				break;
-			} else if (strcmp(argv[optind], "--classic") == 0) {
-				args->is_classic_confinement = true;
-			} else {
-				// Report unhandled option switches
-				err =
-				    sc_error_init(SC_ARGS_DOMAIN,
-						  SC_ARGS_ERR_USAGE,
-						  "unrecognized command line option: %s",
-						  argv[optind]);
-				goto out;
-			}
+		if (argv[optind][0] != '-') {
+			// On first non-switch argument break the loop. The next loop looks
+			// just for non-option arguments. This ensures that options and
+			// positional arguments cannot be mixed.
+			break;
+		}
+		// Handle option switches
+		if (strcmp(argv[optind], "--version") == 0) {
+			args->is_version_query = true;
+			// NOTE: --version short-circuits the parser to finish
+			goto done;
+		} else if (strcmp(argv[optind], "--classic") == 0) {
+			args->is_classic_confinement = true;
 		} else {
-			// Handle positional arguments
-			if (args->security_tag == NULL) {
-				// The first positional argument (that is not an option switch)
-				// becomes the security tag.
-				if (ignore_first_tag) {
-					// Unless we are called as ubuntu-core-launcher, then we
-					// just swallow and ignore that security tag altogether.
-					ignore_first_tag = false;
-					continue;
-				}
-				args->security_tag = strdup(argv[optind]);
-				if (args->security_tag == NULL) {
-					die("cannot allocate memory for security tag");
-				}
-			} else if (args->executable == NULL) {
-				// The second positional argument becomes the executable name.
-				args->executable = strdup(argv[optind]);
-				if (args->executable == NULL) {
-					die("cannot allocate memory for executable name");
-				}
-				// No more positional arguments are required.
-				// Stop the parsing process.
-				break;
-			}
+			// Report unhandled option switches
+			err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
+					    "unrecognized command line option: %s",
+					    argv[optind]);
+			goto out;
 		}
 	}
 
-	if (args->is_version_query == false) {
-		// Ensure that we have the security tag
+	// Parse positional arguments.
+	//
+	// NOTE: optind is not reset, we just continue from where we left off in
+	// the loop above.
+	for (; optind < argc; ++optind) {
 		if (args->security_tag == NULL) {
-			err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
-					    "application or hook security tag was not provided");
-			goto out;
-		}
-		// Ensure that we have the executable name
-		if (args->executable == NULL) {
-			err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
-					    "executable name was not provided");
-			goto out;
+			// The first positional argument becomes the security tag.
+			if (ignore_first_tag) {
+				// Unless we are called as ubuntu-core-launcher, then we just
+				// swallow and ignore that security tag altogether.
+				ignore_first_tag = false;
+				continue;
+			}
+			args->security_tag = strdup(argv[optind]);
+			if (args->security_tag == NULL) {
+				die("cannot allocate memory for security tag");
+			}
+		} else if (args->executable == NULL) {
+			// The second positional argument becomes the executable name.
+			args->executable = strdup(argv[optind]);
+			if (args->executable == NULL) {
+				die("cannot allocate memory for executable name");
+			}
+			// No more positional arguments are required.
+			// Stop the parsing process.
+			break;
 		}
 	}
+
+	// Verify that all mandatory positional arguments are present.
+	// Ensure that we have the security tag
+	if (args->security_tag == NULL) {
+		err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
+				    "application or hook security tag was not provided");
+		goto out;
+	}
+	// Ensure that we have the executable name
+	if (args->executable == NULL) {
+		err = sc_error_init(SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE,
+				    "executable name was not provided");
+		goto out;
+	}
+
+	int i;
+ done:
 	// "shift" the argument vector left, except for argv[0], to "consume" the
 	// arguments that were scanned / parsed correctly.
-	int i;
 	for (i = 1; optind + i < argc; ++i) {
 		argv[i] = argv[optind + i];
 	}
