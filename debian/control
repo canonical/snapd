@@ -45,7 +45,7 @@ Depends: adduser,
          squashfs-tools,
          sudo,
          systemd,
-         util-linux,
+         util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
