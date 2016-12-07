@@ -24,9 +24,10 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
-var historyPermanentSlotAppArmor = []byte(`
+var telephonyHistoryPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the history service. Reserved because this
 #  gives privileged access to the system.
 # Usage: reserved
@@ -57,25 +58,36 @@ dbus (bind)
 dbus (bind)
 	bus=session
 	name="org.freedesktop.Telepathy.Client.HistoryDaemonObserver",
+`)
+
+var telephonyHistoryConnectedSlotAppArmor = []byte(`
+# Allow service to interact with connected clients
+# DBus accesses
+
+#include <abstractions/dbus-session-strict>
 
 ########################
 # Telepathy
 ########################
 dbus (receive, send)
 	bus=session
-	path=/org/freedesktop/Telepathy,
+	path=/org/freedesktop/Telepathy
+    peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
-	path=/org/freedesktop/Telepathy/Client,
+	path=/org/freedesktop/Telepathy/Client
+    peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
-	path=/org/freedesktop/Telepathy/Client/HistoryDaemonObserver,
+	path=/org/freedesktop/Telepathy/Client/HistoryDaemonObserver
+    peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (receive, send)
 	bus=session
-	path=/org/freedesktop/Telepathy/AccountManager,
+	path=/org/freedesktop/Telepathy/AccountManager
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
-var historyConnectedPlugAppArmor = []byte(`
+var telephonyHistoryConnectedPlugAppArmor = []byte(`
 # Description: Can access the history-service. This policy group is reserved
 #  for vetted applications only in this version of the policy. A future
 #  version of the policy may move this out of reserved status.
@@ -86,37 +98,25 @@ var historyConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=session
     peer=(label=###SLOT_SECURITY_TAGS###),
-
-#dbus (send)
-#     bus=session
-#     path=/org/freedesktop/DBus
-#     interface=org.freedesktop.DBus
-#     member={Request,Release}Name
-#     peer=(name=org.freedesktop.DBus),
-#dbus (send)
-#     bus=session
-#     path=/org/freedesktop/*
-#     interface=org.freedesktop.DBus.Properties
-#     peer=(label=unconfined)
 dbus (send)
-     bus=session
-     path=/com/canonical/HistoryService
-     peer=(name=com.canonical.HistoryService,label=unconfined),
+    bus=session
+    path=/com/canonical/HistoryService
+    peer=(name=com.canonical.HistoryService,label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
-     bus=session
-     path=/com/canonical/HistoryService
-     peer=(label=unconfined),
+    bus=session
+    path=/com/canonical/HistoryService
+    peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (send)
-     bus=session
-     path=/com/canonical/HistoryService/**
-     peer=(name=com.canonical.HistoryService,label=unconfined),
+    bus=session
+    path=/com/canonical/HistoryService/**
+    peer=(name=com.canonical.HistoryService,label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
-     bus=session
-     path=/com/canonical/HistoryService/**
-     peer=(label=unconfined),
+    bus=session
+    path=/com/canonical/HistoryService/**
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
-var historyPermanentSlotSecComp = []byte(`
+var telephonyHistoryPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the history service. Reserved because this
 # gives
 #  privileged access to the system.
@@ -143,7 +143,7 @@ socketpair
 socket
 `)
 
-var historyConnectedPlugSecComp = []byte(`
+var telephonyHistoryConnectedPlugSecComp = []byte(`
 # Description: Allow using history service. Reserved because this gives
 #  privileged access to the history service.
 # Usage: reserved
@@ -159,7 +159,7 @@ sendmsg
 socket
 `)
 
-var historyPermanentSlotDBus = []byte(`
+var telephonyHistoryPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.canonical.HistoryService"/>
 	<allow own="org.freedesktop.Telepathy.Client.HistoryDaemonObserver"/>
@@ -173,64 +173,78 @@ var historyPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-type HistoryInterface struct{}
+type TelephonyHistoryInterface struct{}
 
-func (iface *HistoryInterface) Name() string {
-	return "history"
+func (iface *TelephonyHistoryInterface) Name() string {
+	return "telephony-history"
 }
 
-func (iface *HistoryInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TelephonyHistoryInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *HistoryInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TelephonyHistoryInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(historyConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace(telephonyHistoryConnectedPlugAppArmor, old, new, -1)
+
+		if release.OnClassic {
+			classicSnippet := bytes.Replace(telephonyHistoryConnectedPlugAppArmor, old, []byte("unconfined"), -1)
+			// Let confined apps access unconfined ofono on classic
+			snippet = append(snippet, classicSnippet...)
+		}
+
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return historyConnectedPlugSecComp, nil
+		return telephonyHistoryConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
 
-func (iface *HistoryInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TelephonyHistoryInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return historyPermanentSlotAppArmor, nil
+		return telephonyHistoryPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
-		return historyPermanentSlotSecComp, nil
+		return telephonyHistoryPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
-		return historyPermanentSlotDBus, nil
+		return telephonyHistoryPermanentSlotDBus, nil
 	}
 	return nil, nil
 }
 
-func (iface *HistoryInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TelephonyHistoryInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace([]byte(telephonyHistoryConnectedSlotAppArmor), old, new, -1)
+		return snippet, nil
+	}
 	return nil, nil
 }
 
-func (iface *HistoryInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *TelephonyHistoryInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *HistoryInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *TelephonyHistoryInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *HistoryInterface) LegacyAutoConnect() bool {
+func (iface *TelephonyHistoryInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *HistoryInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *TelephonyHistoryInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

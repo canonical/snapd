@@ -260,11 +260,6 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
-  history:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-auto-connection: true
   i2c:
     allow-installation:
       slot-snap-type:
@@ -441,6 +436,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  telephony-history:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-auto-connection: true
   time-control:
     allow-installation:

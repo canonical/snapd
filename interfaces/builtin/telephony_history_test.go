@@ -27,58 +27,58 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type HistoryInterfaceSuite struct {
+type TelephonyHistoryInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HistoryInterfaceSuite{
-	iface: &builtin.HistoryInterface{},
+var _ = Suite(&TelephonyHistoryInterfaceSuite{
+	iface: &builtin.TelephonyHistoryInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "history"},
-			Name:      "history",
-			Interface: "history",
+			Snap:      &snap.Info{SuggestedName: "telephony-history"},
+			Name:      "telephony-history",
+			Interface: "telephony-history",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "history",
-			Interface: "history",
+			Name:      "telephony-history",
+			Interface: "telephony-history",
 		},
 	},
 })
 
-func (s *HistoryInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "history")
+func (s *TelephonyHistoryInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "telephony-history")
 }
 
-func (s *HistoryInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *TelephonyHistoryInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "history",
-		Interface: "history",
+		Name:      "telephony-history",
+		Interface: "telephony-history",
 	}})
 	c.Assert(err, IsNil)
 }
 
-func (s *HistoryInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *TelephonyHistoryInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *HistoryInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *TelephonyHistoryInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "history"`)
+		PanicMatches, `slot is not of interface "telephony-history"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "history"`)
+		PanicMatches, `plug is not of interface "telephony-history"`)
 }
 
-func (s *HistoryInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *TelephonyHistoryInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
