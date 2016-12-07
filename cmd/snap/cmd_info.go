@@ -124,7 +124,7 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 	return nil
 }
 
-// formatDescr formats a given string (typcially a snap description)
+// formatDescr formats a given string (typically a snap description)
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
