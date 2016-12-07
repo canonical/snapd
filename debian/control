@@ -2,8 +2,13 @@ Source: snapd
 Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: bash-completion,
+Build-Depends: autoconf,
+               automake,
+               autotools-dev,
+               bash-completion,
                debhelper (>= 9),
+               dh-apparmor,
+               dh-autoreconf,
                dh-golang (>=1.7),
                dh-systemd,
                fakeroot,
@@ -11,9 +16,17 @@ Build-Depends: bash-completion,
                gnupg2,
                golang-any (>=2:1.6) | golang-1.6,
                golang-github-gosexy-gettext-dev,
+               indent,
+               libapparmor-dev,
+               libglib2.0-dev,
+               libseccomp-dev,
+               libudev-dev,
+               pkg-config,
                python3,
+               python3-docutils,
                python3-markdown,
-               squashfs-tools
+               squashfs-tools,
+               udev
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
@@ -39,15 +52,21 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
+         apparmor (>= 2.10.95-0ubuntu2.2),
          gnupg1 | gnupg,
-         snap-confine (>= 1.0.43),
          squashfs-tools,
          systemd,
          ${misc:Depends},
          ${shlibs:Depends}
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Conflicts: snap (<< 2013-11-29-1ubuntu1)
+Replaces: snap-confine,
+          ubuntu-core-launcher,
+          ubuntu-snappy (<< 1.9),
+          ubuntu-snappy-cli (<< 1.9)
+Breaks: snap-confine,
+        ubuntu-core-launcher,
+        ubuntu-snappy (<< 1.9),
+        ubuntu-snappy-cli (<< 1.9)
+Conflicts: snap (<< 2013-11-29-1ubuntu1), snap-confine, ubuntu-core-launcher
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Install, configure, refresh and remove snap packages. Snaps are
