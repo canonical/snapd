@@ -80,8 +80,13 @@ func Quoted(names []string) string {
 func WordWrap(s string, max int) []string {
 	n := 0
 
-	out := []string{}
+	var out []string
 	line := bytes.NewBuffer(nil)
+	// FIXME: we want to be smarter here. to quote Gustavo: "The
+	// logic here is corrupting the spacing of the original line,
+	// which means indentation and tabling will be gone. A better
+	// approach would be finding the break point and then using
+	// the original content instead of rewriting it."
 	for _, word := range strings.Fields(s) {
 		if n+len(word) > max && n > 0 {
 			out = append(out, line.String())
