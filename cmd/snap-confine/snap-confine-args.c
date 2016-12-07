@@ -44,7 +44,7 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				    "cannot parse arguments, argc or argv are NULL");
 		goto out;
 	}
-	// Use local copies of argc and argv.
+	// Use dereferenced versions of argcp and argvp for convenience.
 	int argc = *argcp;
 	char **argv = *argvp;
 
