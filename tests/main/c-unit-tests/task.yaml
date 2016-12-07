@@ -9,19 +9,15 @@ prepare: |
     rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
     find $SPREAD_PATH/cmd/ -name Makefile.in -exec rm -f {} \;
     make -C $SPREAD_PATH/cmd distclean || true
-    # Poke snap so that restore doesn't crash with
-    # "Failed to start snapd.socket: Unit snapd.socket is masked."
-    snap --version
 execute: |
-    # Do an out-of-tree build in the autogarbage directory
-    mkdir -p $SPREAD_PATH/cmd/autogarbage
     # Refresh autotools build system
     cd $SPREAD_PATH/cmd/
     touch before
     touch after
     find . > before
     autoreconf --install --force
-    # Configure for out-of-tree build
+    # Do an out-of-tree build in the autogarbage directory
+    mkdir -p $SPREAD_PATH/cmd/autogarbage
     cd $SPREAD_PATH/cmd/autogarbage
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
