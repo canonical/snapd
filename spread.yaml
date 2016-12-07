@@ -100,7 +100,8 @@ prepare-each: |
     journalctl --rotate
     sleep .1
     journalctl --vacuum-time=1ms
-    dmesg -c > /dev/null
+    id
+    sudo dmesg -c > /dev/null
 
 debug-each: |
     journalctl -u snapd
