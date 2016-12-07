@@ -26,6 +26,8 @@ import (
     "github.com/snapcore/snapd/interfaces"
 )
 
+/* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
+   are deliberately left out of this profile due to their privileged nature. */
 var downloadConnectedPlugAppArmor = []byte(`
 # Description: Can access the download manager.
 # Usage: common
@@ -103,25 +105,6 @@ dbus (send)
      interface=com.canonical.applications.DownloadManager
      member=isGSMDownloadAllowed
      peer=(label=###SLOT_SECURITY_TAGS###),
-# Explicitly deny DownloadManager APIs apps shouldn't have access to in order
-# to make sure they aren't accidentally added in the future (see LP: #1277578
-# for details)
-audit deny dbus (send)
-     bus=session
-     interface=com.canonical.applications.DownloadManager
-     member=allowGSMDownload,
-audit deny dbus (send)
-     bus=session
-     interface=com.canonical.applications.DownloadManager
-     member=createMmsDownload,
-audit deny dbus (send)
-     bus=session
-     interface=com.canonical.applications.DownloadManager
-     member=exit,
-audit deny dbus (send)
-     bus=session
-     interface=com.canonical.applications.DownloadManager
-     member=setDefaultThrottle,
 `)
 
 var downloadPermanentSlotAppArmor = []byte(`
