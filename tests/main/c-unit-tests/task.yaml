@@ -1,16 +1,30 @@
 summary: Run the test suite for C code
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 environment:
-    EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev \
-        libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils \
-        udev
+    EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils udev
 prepare: |
     apt-get install --yes $EXTRA_PKGS
+    rm -rf $SPREAD_PATH/cmd/build
+    mkdir -p $SPREAD_PATH/cmd/build
 execute: |
+    # Clean the source directory in case the user was building in the tree locally.
+    make -C $SPREAD_PATH/cmd distclean || true
+    # Refresh autotools build system
     cd $SPREAD_PATH/cmd/
+    touch before
+    touch after
+    find . > before
     autoreconf --install --force
-    ./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+    find . > after
+    # Configure for out-of-tree build
+    cd $SPREAD_PATH/cmd/build
+    $SPREAD_PATH/cmd/configure \
+        --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+    # Build and run unit tests
     make -C snap-confine check-unit-tests
 restore: |
-    make -C $SPREAD_PATH/cmd distclean || true
+    rm -rf $SPREAD_PATH/cmd/autom4te.cache
+    rm -rf $SPREAD_PATH/cmd/build
     apt-get autoremove --yes $EXTRA_PKGS
+debug: |
+    diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
