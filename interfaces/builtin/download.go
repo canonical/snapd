@@ -145,31 +145,6 @@ dbus (send)
     interface=org.freedesktop.DBus
     member="GetConnectionAppArmorSecurityContext"
     peer=(name=org.freedesktop.DBus, label=unconfined),
-
-dbus (send)
-    bus=session
-    path=/com/canonical/applications/download/**
-    interface=org.freedesktop.DBus
-    peer=(name=org.freedesktop.DBus, label=unconfined),
-
-dbus (send)
-    bus=session
-    path=/com/canonical/applications/download/**
-    interface=org.freedesktop.DBus.Properties
-    peer=(name=org.freedesktop.DBus, label=unconfined),
-
-dbus (send)
-     bus=session
-     path=/com/canonical/applications/download/**
-     interface=com.canonical.applications.Download
-     peer=(label=unconfined),
-
-dbus (send)
-     bus=session
-     path=/
-     interface=com.canonical.applications.DownloadManager
-     member=downloadCreated
-     peer=(label=unconfined),
 `)
 
 var downloadConnectedSlotAppArmor = []byte(`
