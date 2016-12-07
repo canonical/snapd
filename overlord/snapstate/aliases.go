@@ -83,7 +83,7 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	aliases, err = m.backend.MissingAliases(aliases)
 	if err != nil {
-		return fmt.Errorf("cannot establish missing enabled aliases for snap %q: %v", snapName, err)
+		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
 	}
 	t.Set("add", aliases)
 	st.Unlock()
@@ -107,7 +107,7 @@ func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	rmAliases, err := m.backend.MatchingAliases(adding)
 	if err != nil {
-		return fmt.Errorf("cannot establish matching enabled aliases for snap %q: %v", snapName, err)
+		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
 	}
 	st.Unlock()
 	defer st.Lock()
