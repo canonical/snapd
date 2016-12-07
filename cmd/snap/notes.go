@@ -60,7 +60,7 @@ type Notes struct {
 	Broken   bool
 }
 
-func NotesFromRef(ref *snap.Ref) *Notes {
+func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
 	return &Notes{
 		DevMode: ref.Confinement != client.StrictConfinement,
 	}
