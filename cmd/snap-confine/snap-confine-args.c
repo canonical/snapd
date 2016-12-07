@@ -46,7 +46,7 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	}
 	// Use dereferenced versions of argcp and argvp for convenience.
 	int argc = *argcp;
-	char **argv = *argvp;
+	char **const argv = *argvp;
 
 	if (argc == 0) {
 		err = sc_error_init(SC_ARGS_DOMAIN, 0,
@@ -71,7 +71,6 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 			ignore_first_tag = true;
 		}
 	}
-
 	// Parse option switches.
 	int optind;
 	for (optind = 1; optind < argc; ++optind) {
@@ -150,8 +149,7 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	}
 	argv[i] = NULL;
 
-	// Write the updated argc and argv back.
-	*argvp = argv;
+	// Write the updated argc back, argv is never modified.
 	*argcp = argc - optind;
 
  out:
