@@ -15,7 +15,6 @@ execute: |
     touch after
     find . > before
     autoreconf --install --force
-    find . > after
     # Configure for out-of-tree build
     cd $SPREAD_PATH/cmd/build
     $SPREAD_PATH/cmd/configure \
@@ -23,8 +22,10 @@ execute: |
     # Build and run unit tests
     make -C snap-confine check-unit-tests
 restore: |
-    rm -rf $SPREAD_PATH/cmd/autom4te.cache
     rm -rf $SPREAD_PATH/cmd/build
+    find $SPREAD_PATH/cmd/ -name Makefile.in -exec rm -f {} \;
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,compile,install-sh,depcomp}
     apt-get autoremove --yes $EXTRA_PKGS
 debug: |
+    find . > after
     diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
