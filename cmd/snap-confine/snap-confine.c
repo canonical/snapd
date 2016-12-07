@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		if (!classic_confinement) {
+		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:
 			 * - snap-confine skips using the snap-specific mount namespace
@@ -105,6 +105,7 @@ int main(int argc, char **argv)
 			 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 			 * - snapd sets up a lenient seccomp profile for snap-confine to use
 			 */
+		} else {
 			const char *group_name = getenv("SNAP_NAME");
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
