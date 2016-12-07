@@ -105,6 +105,8 @@ int main(int argc, char **argv)
 			 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 			 * - snapd sets up a lenient seccomp profile for snap-confine to use
 			 */
+			debug
+			    ("skipping sandbox setup, classic confinement in use");
 		} else {
 			const char *group_name = getenv("SNAP_NAME");
 			if (group_name == NULL) {
