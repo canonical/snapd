@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -194,10 +193,10 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
-		Initial: 10 * time.Millisecond,
-		Factor:  1.67,
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
 	},
 ))
 
@@ -353,8 +352,8 @@ type sectionResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The fields we are interested in for snap.Refs
-var refFields = getStructFields(snap.Ref{})
+// The fields we are interested in for snap.ChannelSnapInfos
+var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta"
@@ -602,7 +601,13 @@ type requestOptions struct {
 
 // retryRequest uses defaultRetryStrategy to call doRequest with retry
 func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		if attempt.Count() > 1 {
+			delta := time.Since(startTime) / time.Millisecond
+			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+		}
 		resp, err = s.doRequest(client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
@@ -617,6 +622,17 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		}
 
 		break
+	}
+
+	if attempt.Count() > 1 {
+		var status string
+		delta := time.Since(startTime) / time.Millisecond
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
 	}
 
 	return resp, err
@@ -847,7 +863,7 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 // the details endpoint provides the real thing for us. The main
 // difference between this pseudo one and the real thing is that a
 // channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.Ref, error) {
+func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
 	snaps := make([]currentSnapJson, 4)
 	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
 		snaps[i] = currentSnapJson{
@@ -858,7 +874,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  snaps,
-		Fields: refFields,
+		Fields: channelSnapInfoFields,
 	})
 	if err != nil {
 		return nil, err
@@ -885,7 +901,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			Refs []*snap.Ref `json:"clickindex:package"`
+			SnapDetails []*snapDetails `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -894,12 +910,19 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		return nil, err
 	}
 
-	channels := make(map[string]*snap.Ref, 4)
-	for _, item := range results.Payload.Refs {
-		channels[item.Channel] = item
+	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
+	for _, item := range results.Payload.SnapDetails {
+		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
+			Revision:    snap.R(item.Revision),
+			Confinement: snap.ConfinementType(item.Confinement),
+			Version:     item.Version,
+			Channel:     item.Channel,
+			Epoch:       item.Epoch,
+			Size:        item.DownloadSize,
+		}
 	}
 
-	return channels, nil
+	return channelInfos, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -911,11 +934,10 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	query := u.Query()
 
+	query.Set("channel", channel)
 	if !revision.Unset() {
 		query.Set("revision", revision.String())
-		query.Set("channel", "") // sidestep the channel map
-	} else if channel != "" {
-		query.Set("channel", channel)
+		query.Set("channel", "")
 	}
 
 	// if devmode then don't restrict by confinement as either is fine
@@ -1360,7 +1382,7 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 	case http.StatusOK, http.StatusPartialContent:
 		break
 	case http.StatusUnauthorized:
-		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
+		return fmt.Errorf("cannot download non-free snap without purchase")
 	default:
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}

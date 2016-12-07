@@ -479,7 +479,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
-	c.Check(n, Equals, 6)
+	c.Check(n, Equals, 5)
 }
 
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
@@ -1421,7 +1421,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 	c.Check(result.Name(), Equals, "hello-world")
-	c.Check(result.Channels, DeepEquals, map[string]*snap.Ref{
+	c.Check(result.Channels, DeepEquals, map[string]*snap.ChannelSnapInfo{
 		"stable": {
 			Revision:    snap.R(1),
 			Version:     "v1",
@@ -2270,7 +2270,7 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
