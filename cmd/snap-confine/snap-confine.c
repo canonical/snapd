@@ -55,7 +55,18 @@ int main(int argc, char **argv)
 		argv++;
 		argc--;
 	}
-
+	// XXX: replace with pull request 2416 in snapd
+	bool classic_confinement = false;
+	if (argc > 2 && strcmp(argv[1], "--classic") == 0) {
+		classic_confinement = true;
+		// Shift remaining arguments left
+		int i;
+		for (i = 1; i + 1 < argc; ++i) {
+			argv[i] = argv[i + 1];
+		}
+		argv[i] = NULL;
+		argc -= 1;
+	}
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
@@ -86,7 +97,7 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		if (sc_args_is_classic_confinement(args) == false) {
+		if (classic_confinement) {
 			const char *group_name = getenv("SNAP_NAME");
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
