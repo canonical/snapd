@@ -376,6 +376,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   optical-drive:
     allow-installation:
       slot-snap-type:
