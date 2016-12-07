@@ -6,6 +6,9 @@ prepare: |
     apt-get install --yes $EXTRA_PKGS
     rm -rf $SPREAD_PATH/cmd/build
     mkdir -p $SPREAD_PATH/cmd/build
+    # poke snap so that restore doesn't crash with
+    # Failed to start snapd.socket: Unit snapd.socket is masked.
+    snap --version
 execute: |
     # Clean the source directory in case the user was building in the tree locally.
     make -C $SPREAD_PATH/cmd distclean || true
