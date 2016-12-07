@@ -82,6 +82,7 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 		// TODO: check Disabled => remove
 	}
 	aliases, err = m.backend.MissingAliases(aliases)
+	// TODO: check and error on mismatching (instead of absent) aliases?
 	if err != nil {
 		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
 	}
