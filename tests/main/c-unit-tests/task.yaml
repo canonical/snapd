@@ -1,14 +1,16 @@
 summary: Run the test suite for C code
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
+environment:
+    EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev \
+        libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils \
+        udev
+prepare: |
+    apt-get install --yes $EXTRA_PKGS
 execute: |
-    apt-get install --yes \
-        autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev \
-        libseccomp-dev libudev-dev pkg-config python3-docutils udev
     cd $SPREAD_PATH/cmd/
     autoreconf --install --force
-    ./configure \
-        --prefix=/usr/ --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+    ./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     make -C snap-confine check-unit-tests
 restore: |
-    cd $SPREAD_PATH/cmd
-    make distclean
+    make -C $SPREAD_PATH/cmd distclean || true
+    apt-get autoremove --yes $EXTRA_PKGS
