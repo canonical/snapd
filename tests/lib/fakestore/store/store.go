@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -339,14 +340,22 @@ type bulkReplyJSON struct {
 	Payload payload `json:"_embedded"`
 }
 
-var someSnapIDtoName = map[string]string{
-	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
-	"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
-	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
-	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
-	"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
-	"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
-	"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+var someSnapIDtoName = map[string]map[string]string{
+	"production": map[string]string{
+		"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+		"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
+		"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
+		"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+		"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
+		"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
+		"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+	},
+	"staging": map[string]string{
+		"xMNMpEm0COPZy7jq9YRwWVLCD9q5peow": "core",
+		"02AHdOomTzby7gTaiLX3M3SGMmXDfLJp": "test-snapd-tools",
+		"uHjTANBWSXSiYzNOUXZNDnOSH3POSqWS": "test-snapd-python-webserver",
+		"edmdK5G9fP1q1bGyrjnaDXS4RkdjiTGV": "test-snapd-go-webserver",
+	},
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -365,7 +374,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName)
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[os.Getenv("REMOTE_STORE")])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
 		return
