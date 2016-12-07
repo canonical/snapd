@@ -567,8 +567,10 @@ func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"foo.bar": {Enabled: "otherfoosnap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"otherfoosnap": {
+			"foo.bar": "enabled",
+		},
 	})
 
 	_, err := snapstate.Install(s.state, "foo", "some-channel", snap.R(0), 0, snapstate.Flags{})
