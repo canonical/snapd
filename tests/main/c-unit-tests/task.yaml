@@ -9,3 +9,6 @@ execute: |
     ./configure \
         --prefix=/usr/ --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     make -C snap-confine check-unit-tests
+restore: |
+    cd $SPREAD_PATH/cmd
+    make distclean
