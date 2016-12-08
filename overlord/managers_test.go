@@ -1009,13 +1009,15 @@ apps:
 
 	c.Check(dest, Equals, "foo.bar")
 
-	var aliasStates map[string]*snapstate.AliasState
-	err = st.Get("aliases", &aliasStates)
+	var allAliases map[string]map[string]string
+	err = st.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, DeepEquals, map[string]*snapstate.AliasState{
-		"foo_": {Enabled: "foo"},
-		"bar":  {Enabled: "foo"},
-		"bar1": {Enabled: "foo"},
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"foo": {
+			"foo_": "enabled",
+			"bar":  "enabled",
+			"bar1": "enabled",
+		},
 	})
 
 	ms.removeSnap(c, "foo")
@@ -1024,10 +1026,10 @@ apps:
 	c.Check(osutil.IsSymlink(barAlias), Equals, false)
 	c.Check(osutil.IsSymlink(bar1Alias), Equals, false)
 
-	aliasStates = nil
-	err = st.Get("aliases", &aliasStates)
+	allAliases = nil
+	err = st.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, HasLen, 0)
+	c.Check(allAliases, HasLen, 0)
 }
 
 type authContextSetupSuite struct {
