@@ -1,6 +1,6 @@
 #! /bin/sh
 
-set -ex
+set -e
 
 if [ -d /run/systemd/system ]; then
     systemctl stop snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service

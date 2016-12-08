@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -ex
+set -e
 
 systemctl_stop() {
     unit="$1"
