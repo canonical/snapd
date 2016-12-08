@@ -53,6 +53,7 @@ Package: snapd
 Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
+         ca-certificates,
          gnupg1 | gnupg,
          squashfs-tools,
          systemd,
