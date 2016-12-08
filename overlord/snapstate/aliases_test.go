@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -153,8 +154,7 @@ func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"toggle-aliases",
-		"setup-aliases",
+		"alias",
 	})
 }
 
@@ -180,11 +180,8 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
-		{
-			op:      "missing-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-		},
 		{
 			op:      "update-aliases",
 			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
@@ -194,11 +191,11 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
-	var aliasStates map[string]*snapstate.AliasState
-	err = s.state.Get("aliases", &aliasStates)
+	var allAliases map[string]map[string]string
+	err = s.state.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, DeepEquals, map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"alias-snap": {"alias1": "enabled"},
 	})
 }
 
@@ -242,7 +239,7 @@ func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoToggleAliases(c *C) {
+func (s *snapmgrTestSuite) TestAliasTotalUndoRunthrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -253,17 +250,20 @@ func (s *snapmgrTestSuite) TestDoUndoToggleAliases(c *C) {
 		Current: snap.R(11),
 		Active:  true,
 	})
-
-	t := s.state.NewTask("toggle-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-		Aliases:  []string{"alias1"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"other-snap": {"alias7": "enabled"},
 	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+
+	chg := s.state.NewChange("alias", "enable an alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", []string{"alias1"})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	tasks := ts.Tasks()
+	last := tasks[len(tasks)-1]
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(t)
+	terr.WaitFor(last)
 	chg.AddTask(terr)
 
 	s.state.Unlock()
@@ -275,14 +275,34 @@ func (s *snapmgrTestSuite) TestDoUndoToggleAliases(c *C) {
 
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
-	var aliasStates map[string]*snapstate.AliasState
-	err := s.state.Get("aliases", &aliasStates)
+	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%v", chg.Err()))
+	expected := fakeOps{
+		{
+			op:      "update-aliases",
+			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+		},
+		{
+			op:      "matching-aliases",
+			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+		},
+		{
+			op:        "update-aliases",
+			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	var allAliases map[string]map[string]string
+	err = s.state.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, HasLen, 0)
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"other-snap": {"alias7": "enabled"},
+	})
 }
 
-func (s *snapmgrTestSuite) TestDoToggleAliasesNoAlias(c *C) {
+func (s *snapmgrTestSuite) TestAliasNoAlias(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -294,13 +314,10 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesNoAlias(c *C) {
 		Active:  true,
 	})
 
-	t := s.state.NewTask("toggle-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "some-snap"},
-		Aliases:  []string{"alias1"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+	chg := s.state.NewChange("alias", "enable an alias")
+	ts, err := snapstate.Alias(s.state, "some-snap", []string{"alias1"})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 
@@ -309,15 +326,11 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesNoAlias(c *C) {
 
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "some-snap", no such alias.*`)
-
-	var aliasStates map[string]*snapstate.AliasState
-	err := s.state.Get("aliases", &aliasStates)
-	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestDoToggleAliasesAliasConflict(c *C) {
+func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -328,17 +341,14 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesAliasConflict(c *C) {
 		Current: snap.R(11),
 		Active:  true,
 	})
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "other-snap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"other-snap": {"alias1": "enabled"},
 	})
 
-	t := s.state.NewTask("toggle-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-		Aliases:  []string{"alias1"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+	chg := s.state.NewChange("alias", "enable an alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", []string{"alias1"})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 
@@ -347,11 +357,11 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesAliasConflict(c *C) {
 
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestDoToggleAliasesSnapCommandSpaceConflict(c *C) {
+func (s *snapmgrTestSuite) TestAliasSnapCommandSpaceConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -370,13 +380,10 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesSnapCommandSpaceConflict(c *C) {
 		Current: snap.R(3),
 	})
 
-	t := s.state.NewTask("toggle-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-		Aliases:  []string{"alias1.cmd1"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+	chg := s.state.NewChange("alias", "enable an alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", []string{"alias1.cmd1"})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 
@@ -385,7 +392,7 @@ func (s *snapmgrTestSuite) TestDoToggleAliasesSnapCommandSpaceConflict(c *C) {
 
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1.cmd1" for "alias-snap", it conflicts with the command namespace of installed snap "alias1".*`)
 }
 
@@ -393,9 +400,9 @@ func (s *snapmgrTestSuite) TestDoClearAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
-		"alias2": {Enabled: "other-snap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {"alias1": "enabled"},
+		"other-snap": {"alias2": "enabled"},
 	})
 
 	t := s.state.NewTask("clear-aliases", "test")
@@ -414,11 +421,11 @@ func (s *snapmgrTestSuite) TestDoClearAliases(c *C) {
 
 	c.Check(t.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 
-	var aliasStates map[string]*snapstate.AliasState
-	err := s.state.Get("aliases", &aliasStates)
+	var allAliases map[string]map[string]string
+	err := s.state.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, DeepEquals, map[string]*snapstate.AliasState{
-		"alias2": {Enabled: "other-snap"},
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"other-snap": {"alias2": "enabled"},
 	})
 }
 
@@ -426,9 +433,9 @@ func (s *snapmgrTestSuite) TestDoUndoClearAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("aliases", map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
-		"alias2": {Enabled: "other-snap"},
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {"alias1": "enabled"},
+		"other-snap": {"alias2": "enabled"},
 	})
 
 	t := s.state.NewTask("clear-aliases", "test")
@@ -453,11 +460,89 @@ func (s *snapmgrTestSuite) TestDoUndoClearAliases(c *C) {
 
 	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
 
-	var aliasStates map[string]*snapstate.AliasState
-	err := s.state.Get("aliases", &aliasStates)
+	var allAliases map[string]map[string]string
+	err := s.state.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
-	c.Check(aliasStates, DeepEquals, map[string]*snapstate.AliasState{
-		"alias1": {Enabled: "alias-snap"},
-		"alias2": {Enabled: "other-snap"},
+
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"alias-snap": {"alias1": "enabled"},
+		"other-snap": {"alias2": "enabled"},
 	})
+}
+
+func (s *snapmgrTestSuite) TestDoUndoClearAliasesConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias9": "enabled",
+		},
+		"other-snap": {"alias2": "enabled"},
+	})
+
+	grabAlias9 := func(t *state.Task, _ *tomb.Tomb) error {
+		st := t.State()
+		st.Lock()
+		defer st.Unlock()
+
+		var allAliases map[string]map[string]string
+		err := st.Get("aliases", &allAliases)
+		c.Assert(err, IsNil)
+		c.Assert(allAliases, DeepEquals, map[string]map[string]string{
+			"other-snap": {"alias2": "enabled"},
+		})
+
+		st.Set("aliases", map[string]map[string]string{
+			"other-snap": {
+				"alias2": "enabled",
+				"alias9": "enabled",
+			},
+		})
+		return nil
+	}
+
+	s.snapmgr.AddAdhocTaskHandler("grab-alias9", grabAlias9, nil)
+
+	t := s.state.NewTask("clear-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	tgrab9 := s.state.NewTask("grab-alias9", "grab alias9 for other-snap")
+	tgrab9.WaitFor(t)
+	chg.AddTask(tgrab9)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tgrab9)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 5; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+
+	var allAliases map[string]map[string]string
+	err := s.state.Get("aliases", &allAliases)
+	c.Assert(err, IsNil)
+
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"alias-snap": {"alias1": "enabled"},
+		"other-snap": {
+			"alias2": "enabled",
+			"alias9": "enabled",
+		},
+	})
+
+	c.Check(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, `.* ERROR cannot enable alias "alias9" for "alias-snap", already enabled for "other-snap"`)
 }
