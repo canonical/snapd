@@ -144,8 +144,6 @@ func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", SocketMode: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Name: "foo", ListenStream: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 }
 
@@ -272,4 +270,17 @@ slots:
 	c.Assert(err, IsNil)
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
+}
+
+func (s *ValidateSuite) TestIllegalAliasName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo$]
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have "foo\$" as alias name for app "foo" - use only letters, digits, dash, underscore and dot characters`)
 }

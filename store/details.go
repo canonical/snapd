@@ -34,6 +34,7 @@ type snapDetails struct {
 	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
+	Epoch            string             `json:"epoch"`
 	IconURL          string             `json:"icon_url"`
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
