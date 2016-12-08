@@ -171,10 +171,6 @@ prepare: |
     go get -u github.com/kardianos/govendor
     govendor sync
 
-    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
-    #        hits xenial-updates
-    apt-get install -y snap-confine
-
     # increment version so upgrade can work
     dch -i "testing build"
 
