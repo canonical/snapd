@@ -354,6 +354,11 @@ slots:
     deny-auto-connection: true
     deny-connection:
       on-classic: false
+  network-namespace-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   network-observe:
     allow-installation:
       slot-snap-type:

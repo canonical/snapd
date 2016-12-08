@@ -65,6 +65,7 @@ var allInterfaces = []interfaces.Interface{
 	NewMountObserveInterface(),
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
+	NewNetworkNamespaceControlInterface(),
 	NewNetworkInterface(),
 	NewNetworkObserveInterface(),
 	NewNetworkSetupObserveInterface(),
