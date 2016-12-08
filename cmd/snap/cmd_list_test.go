@@ -28,6 +28,26 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
+func (s *SnapSuite) TestListHelp(c *check.C) {
+	msg := `Usage:
+  snap.test [OPTIONS] list [list-OPTIONS] [<snap>...]
+
+The list command displays a summary of snaps installed in the current system.
+
+Application Options:
+      --version     Print the version and exit
+
+Help Options:
+  -h, --help        Show this help message
+
+[list command options]
+          --all     Show all revisions
+`
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--help"})
+	c.Assert(err.Error(), check.Equals, msg)
+	c.Assert(rest, check.DeepEquals, []string{})
+}
+
 func (s *SnapSuite) TestList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +193,7 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 {"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "trymode": true}
 ,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode"}
 ,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict"}
-,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode"}
+,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode", "jailmode": true}
 ]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)

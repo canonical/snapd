@@ -80,6 +80,8 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
+		// File() is a dup(); needs closing
+		defer f.Close()
 
 		ucred, err := getUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
 		if err != nil {

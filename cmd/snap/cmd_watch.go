@@ -27,7 +27,7 @@ import (
 
 type cmdWatch struct {
 	Positional struct {
-		ChangeID string `positional-arg-name:"<change-id>"`
+		ChangeID changeID `positional-arg-name:"<change-id>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -51,7 +51,7 @@ func (x *cmdWatch) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	cli := Client()
-	_, err := wait(cli, x.Positional.ChangeID)
+	_, err := wait(cli, string(x.Positional.ChangeID))
 
 	return err
 }
