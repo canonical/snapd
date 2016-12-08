@@ -216,7 +216,7 @@ socket
 type DownloadInterface struct{}
 
 func (iface *DownloadInterface) Name() string {
-    return "download"
+    return "download-manager"
 }
 
 func (iface *DownloadInterface) String() string {

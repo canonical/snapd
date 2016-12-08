@@ -350,7 +350,7 @@ var (
 		"browser-support":  []string{"core"},
 		"content":          []string{"app", "gadget"},
 		"docker-support":   []string{"core"},
-		"download":         []string{"app"},
+		"download-manager": []string{"app"},
 		"fwupd":            []string{"app"},
 		"gpio":             []string{"core", "gadget"},
 		"hidraw":           []string{"core", "gadget"},
