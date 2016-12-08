@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/retry.v1"
@@ -60,7 +61,7 @@ type remoteRepoTestSuite struct {
 	localUser *auth.UserState
 	device    *auth.DeviceState
 
-	origDownloadFunc func(string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
+	origDownloadFunc func(context.Context, string, string, string, *auth.UserState, *Store, io.ReadWriteSeeker, int64, progress.Meter) error
 	mockXDelta       *testutil.MockCmd
 }
 
@@ -265,7 +266,7 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
@@ -277,7 +278,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -289,7 +290,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	partialContentStr := "partial content "
 
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("was downloaded"))
@@ -306,7 +307,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
-	err = t.store.Download("foo", targetFn, &snap.DownloadInfo, nil, nil)
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(targetFn)
@@ -315,7 +316,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
@@ -330,7 +331,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, t.user)
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, t.user)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -340,7 +341,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 
 		w.Write([]byte("I was downloaded"))
@@ -353,7 +354,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, t.localUser)
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, t.localUser)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -364,7 +365,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	}
@@ -375,7 +376,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -383,7 +384,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -398,7 +399,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 
 	// simulate a failed sync
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := t.store.Download("foo", path, &snap.DownloadInfo, nil, nil)
+	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
@@ -417,10 +418,46 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := download("foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
+}
+
+func (t *remoteRepoTestSuite) TestDownloadCancellation(c *C) {
+	// the channel used by mock server to request cancellation from the test
+	syncCh := make(chan struct{})
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "foo")
+		syncCh <- struct{}{}
+		io.WriteString(w, "bar")
+		time.Sleep(time.Duration(1) * time.Second)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	result := make(chan string)
+	go func() {
+		sha3 := ""
+		var buf SillyBuffer
+		err := download(ctx, "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+		result <- err.Error()
+		close(result)
+	}()
+
+	<-syncCh
+	cancel()
+
+	err := <-result
+	c.Check(n, Equals, 1)
+	c.Assert(err, Equals, "The download has been cancelled: context canceled")
 }
 
 type nopeSeeker struct{ io.ReadWriter }
@@ -440,7 +477,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf bytes.Buffer
-	err := download("foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
+	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
 	c.Check(n, Equals, 1)
@@ -457,7 +494,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf SillyBuffer
-	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
+	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
@@ -475,7 +512,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 
 	theStore := New(&Config{}, nil)
 	var buf SillyBuffer
-	err := download("foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
+	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, &buf, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
@@ -543,7 +580,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
 	h := crypto.SHA3_384.New()
 	h.Write([]byte("some data"))
 	sha3 := fmt.Sprintf("%x", h.Sum(nil))
-	err := download("foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil)
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil)
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
 	c.Check(n, Equals, 1)
@@ -608,7 +645,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 
 	for _, testCase := range deltaTests {
 		downloadIndex := 0
-		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 			if testCase.downloads[downloadIndex].error {
 				downloadIndex++
 				return errors.New("Bang")
@@ -626,7 +663,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 		}
 
 		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
-		err := t.store.Download("foo", path, &testCase.info, nil, nil)
+		err := t.store.Download(context.TODO(), "foo", path, &testCase.info, nil, nil)
 
 		c.Assert(err, IsNil)
 		defer os.Remove(path)
@@ -717,7 +754,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 
 	for _, testCase := range downloadDeltaTests {
 		t.store.deltaFormat = testCase.format
-		download = func(name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 			expectedUser := t.user
 			if testCase.useLocalUser {
 				expectedUser = t.localUser
@@ -841,7 +878,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -872,7 +909,7 @@ func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.localUser)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -906,7 +943,7 @@ func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -952,7 +989,7 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1013,7 +1050,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -1050,7 +1087,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 		},
 	}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -3607,6 +3644,6 @@ func (t *remoteRepoTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
 	}
 
 	sto := New(&Config{}, nil)
-	_, err = sto.doRequest(sto.client, reqOptions, t.user)
+	_, err = sto.doRequest(context.TODO(), sto.client, reqOptions, t.user)
 	c.Assert(err, IsNil)
 }

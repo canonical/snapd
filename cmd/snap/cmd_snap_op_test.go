@@ -207,6 +207,25 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"classic": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
@@ -249,6 +268,31 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		postData, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
+		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"classic\"\r\n\r\ntrue\r\n.*")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--classic", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
