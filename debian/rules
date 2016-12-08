@@ -86,7 +86,7 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
 endif
 	dh_clean
 	# XXX: hacky
-	$(MAKE) -C cmd clean || true
+	$(MAKE) -C cmd distclean || true
 
 override_dh_auto_build:
 	# Build golang bits
