@@ -26,6 +26,9 @@ type Flags struct {
 	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode bool `json:"jailmode,omitempty"`
+	// Classic is set when the user has consented to install a snap with
+	// classic confinement and the snap declares that confinement.
+	Classic bool `json:"classic,omitempty"`
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode bool `json:"trymode,omitempty"`
 

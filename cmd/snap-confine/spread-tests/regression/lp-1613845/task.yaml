@@ -1,0 +1,23 @@
+summary: Check that /var/lib/lxd is bind mounted to the real thing if one exists
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+details: |
+    After switching to the chroot-based snap-confine the LXD snap stopped
+    working (even in devmode) because it relied on access to /var/lib/lxd from
+    the host filesystem. While this would never work in an all-snap image it is
+    still important to ensure that it works in classic devmode environment.
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap in devmode"
+    snap install --devmode snapd-hacker-toolbelt
+    echo "Having created a canary file in /var/lib/lxd"
+    mkdir -p /var/lib/lxd
+    echo "test" > /var/lib/lxd/canary
+execute: |
+    cd /
+    echo "We can see the canary file in /var/lib/lxd"
+    [ "$(snapd-hacker-toolbelt.busybox cat /var/lib/lxd/canary)" = "test" ]
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -f /var/lib/lxd/canary
+    # When the host already has LXD installed we cannot just remove this
+    rmdir /var/lib/lxd || :
