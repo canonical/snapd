@@ -63,10 +63,6 @@ func (s *snapmgrTestSuite) TestDoSetupAliases(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	expected := fakeOps{
 		{
-			op:      "missing-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-		},
-		{
 			op:      "update-aliases",
 			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
 		},
@@ -115,10 +111,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 	expected := fakeOps{
-		{
-			op:      "missing-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-		},
 		{
 			op:      "update-aliases",
 			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
