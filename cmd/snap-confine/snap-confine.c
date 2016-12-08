@@ -127,7 +127,9 @@ int main(int argc, char **argv)
 	}
 	// Ensure that the user data path exists.
 	setup_user_data();
+#if 0
 	setup_user_xdg_runtime_dir();
+#endif
 
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
