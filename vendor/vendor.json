@@ -110,10 +110,10 @@
 			"revisionTime": "2016-10-25T18:07:18Z"
 		},
 		{
-			"checksumSHA1": "RDshSIhn01+axeOW8yQ9TR88cZQ=",
+			"checksumSHA1": "t95/FNK2nGCx3e6IARbO7OrcCuY=",
 			"path": "gopkg.in/tomb.v2",
-			"revision": "9dde971544235898fc9720ed594059f79fd3273c",
-			"revisionTime": "2016-11-14T17:47:44Z"
+			"revision": "d5d1b5820637886def9eef33e03a27a9f166942c",
+			"revisionTime": "2016-12-08T15:16:19Z"
 		},
 		{
 			"checksumSHA1": "hiOUviIMDKo7y918uBiEhfJyOkk=",
