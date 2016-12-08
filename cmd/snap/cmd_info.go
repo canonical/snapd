@@ -181,6 +181,7 @@ func (x *infoCmd) Execute([]string) error {
 
 			fmt.Fprintf(w, "tracking:\t%s\n", local.Channel)
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
+			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
 		if remote != nil && remote.Channels != nil {
