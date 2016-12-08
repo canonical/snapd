@@ -81,3 +81,23 @@ func (ts *strutilSuite) TestSizeToStr(c *check.C) {
 		c.Check(strutil.SizeToStr(t.size), check.Equals, t.str)
 	}
 }
+
+func (ts *strutilSuite) TestWordWrap(c *check.C) {
+	for _, t := range []struct {
+		in  string
+		out []string
+		n   int
+	}{
+		// pathological
+		{"12345", []string{"12345"}, 3},
+		{"123 456789", []string{"123", "456789"}, 3},
+		// valid
+		{"abc def ghi", []string{"abc", "def", "ghi"}, 3},
+		{"a b c d e f", []string{"a b", "c d", "e f"}, 3},
+		{"ab cd ef", []string{"ab cd", "ef"}, 5},
+		// intentional (but slightly strange)
+		{"ab            cd", []string{"ab", "cd"}, 2},
+	} {
+		c.Check(strutil.WordWrap(t.in, t.n), check.DeepEquals, t.out)
+	}
+}
