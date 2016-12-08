@@ -2,10 +2,12 @@ TESTS =
 
 all_tests = \
     test_bad_seccomp_filter_args \
+    test_bad_seccomp_filter_args_clone \
     test_bad_seccomp_filter_args_null \
     test_bad_seccomp_filter_args_prctl \
     test_bad_seccomp_filter_args_prio \
     test_bad_seccomp_filter_args_socket \
+    test_bad_seccomp_filter_args_clone \
     test_bad_seccomp_filter_length \
     test_bad_seccomp_filter_missing_trailing_newline \
     test_complain \
@@ -14,6 +16,7 @@ all_tests = \
     test_restrictions \
     test_restrictions_working \
     test_restrictions_working_args \
+    test_restrictions_working_args_clone \
     test_restrictions_working_args_prctl \
     test_restrictions_working_args_prio \
     test_restrictions_working_args_socket \
