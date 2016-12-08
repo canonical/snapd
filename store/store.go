@@ -612,6 +612,20 @@ func cancelled(ctx context.Context) bool {
 
 // retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
 func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, body io.Reader) error {
+		result := success
+		if !ok {
+			result = failure
+		}
+		if result != nil {
+			return json.NewDecoder(body).Decode(result)
+		}
+		return nil
+	})
+}
+
+// retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, body io.Reader) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
@@ -635,22 +649,14 @@ func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, req
 			resp.Body.Close()
 			continue
 		} else {
-			var result interface{}
-			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-				result = success
-			} else {
-				result = failure
-			}
-			if result != nil {
-				dec := json.NewDecoder(resp.Body)
-				if err := dec.Decode(result); err != nil {
-					resp.Body.Close()
-					// retry decoding on EOF and alike
-					if shouldRetryError(attempt, err) {
-						continue
-					} else {
-						return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
-					}
+			err = decode(resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated, resp.Body)
+			if err != nil {
+				resp.Body.Close()
+				// retry decoding on EOF and alike
+				if shouldRetryError(attempt, err) {
+					continue
+				} else {
+					return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
 				}
 			}
 		}
