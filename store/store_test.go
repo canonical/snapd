@@ -234,7 +234,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 		Macaroon: "snapd-macaroon",
 	}
 	t.device = createTestDevice()
-	t.mockXDelta = testutil.MockCommand(c, "xdelta", "")
+	t.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
@@ -604,7 +604,7 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "snap-content-via-delta",
@@ -618,7 +618,7 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
@@ -631,8 +631,8 @@ var deltaTests = []struct {
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta"},
-			{AnonDownloadURL: "delta-url-2", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
+			{AnonDownloadURL: "delta-url-2", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
@@ -685,11 +685,11 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
 	authenticated: false,
-	format:        "xdelta",
+	format:        "xdelta3",
 	expectedURL:   "anon-delta-url",
 	expectError:   false,
 }, {
@@ -697,12 +697,12 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
 	authenticated: true,
 	useLocalUser:  false,
-	format:        "xdelta",
+	format:        "xdelta3",
 	expectedURL:   "auth-delta-url",
 	expectError:   false,
 }, {
@@ -710,12 +710,12 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
 	authenticated: true,
 	useLocalUser:  true,
-	format:        "xdelta",
+	format:        "xdelta3",
 	expectedURL:   "anon-delta-url",
 	expectError:   false,
 }, {
@@ -724,12 +724,12 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
-			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 25},
+			{DownloadURL: "bsdiff-delta-url", Format: "xdelta3", FromRevision: 25, ToRevision: 26},
 		},
 	},
 	authenticated: false,
-	format:        "xdelta",
+	format:        "xdelta3",
 	expectedURL:   "",
 	expectError:   true,
 }, {
@@ -737,7 +737,7 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
 		},
 	},
@@ -799,19 +799,19 @@ var applyDeltaTests = []struct {
 	error           string
 }{{
 	// A supported delta format can be applied.
-	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 	currentRevision: 24,
 	error:           "",
 }, {
 	// An error is returned if the expected current snap does not exist on disk.
-	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 	currentRevision: 23,
 	error:           "snap \"foo\" revision 24 not found",
 }, {
 	// An error is returned if the format is not supported.
 	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
 	currentRevision: 24,
-	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta currently)",
+	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta3 currently)",
 }}
 
 func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
@@ -828,7 +828,8 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
 		err = ioutil.WriteFile(deltaPath, nil, 0644)
 		c.Assert(err, IsNil)
-		// When testing a case where the call to the external xdelta is successful,
+		// When testing a case where the call to the external
+		// xdelta3 is successful,
 		// simulate the resulting .partial.
 		if testCase.error == "" {
 			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
@@ -840,7 +841,7 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		if testCase.error == "" {
 			c.Assert(err, IsNil)
 			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
-				{"xdelta", "patch", deltaPath, currentSnapPath, targetSnapPath + ".partial"},
+				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
 			c.Assert(osutil.FileExists(targetSnapPath), Equals, true)
@@ -2491,19 +2492,19 @@ var MockUpdatesWithDeltasJSON = `
                 "deltas": [{
                     "from_revision": 24,
                     "to_revision": 25,
-                    "format": "xdelta",
+                    "format": "xdelta3",
                     "binary_filesize": 204,
                     "download_sha3_384": "sha3_384_hash",
-                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
-                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta"
+                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta3.delta",
+                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta3.delta"
                 }, {
                     "from_revision": 25,
                     "to_revision": 26,
-                    "format": "xdelta",
+                    "format": "xdelta3",
                     "binary_filesize": 206,
                     "download_sha3_384": "sha3_384_hash",
-                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
-                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta"
+                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta",
+                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta"
                 }]
             }
         ]
@@ -2526,7 +2527,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta`)
+		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta3`)
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var resp struct {
@@ -2577,18 +2578,18 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 	c.Assert(results[0].Deltas[0], Equals, snap.DeltaInfo{
 		FromRevision:    24,
 		ToRevision:      25,
-		Format:          "xdelta",
-		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
-		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
+		Format:          "xdelta3",
+		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta3.delta",
+		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta3.delta",
 		Size:            204,
 		Sha3_384:        "sha3_384_hash",
 	})
 	c.Assert(results[0].Deltas[1], Equals, snap.DeltaInfo{
 		FromRevision:    25,
 		ToRevision:      26,
-		Format:          "xdelta",
-		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
-		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
+		Format:          "xdelta3",
+		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta",
+		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta3.delta",
 		Size:            206,
 		Sha3_384:        "sha3_384_hash",
 	})
