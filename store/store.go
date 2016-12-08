@@ -627,6 +627,8 @@ type decodeStrategy struct {
 	Failure          interface{}
 }
 
+var nilDecodeStrategy = decodeStrategy{nil, nil, nil, nil}
+
 // retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
 func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, ds decodeStrategy) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
@@ -653,7 +655,7 @@ func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, req
 			continue
 		} else {
 			var result interface{}
-			if ds.successCondition(resp) {
+			if ds.successCondition != nil && ds.successCondition(resp) {
 				result = ds.Result
 			} else if ds.failureCondition != nil && ds.failureCondition(resp) {
 				result = ds.Failure
@@ -672,49 +674,6 @@ func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, req
 			}
 		}
 		// break out from retry loop
-		break
-	}
-
-	if attempt.Count() > 1 {
-		var status string
-		delta := time.Since(startTime) / time.Millisecond
-		if err != nil {
-			status = err.Error()
-		} else if resp != nil {
-			status = fmt.Sprintf("%d", resp.StatusCode)
-		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
-	}
-
-	return resp, err
-}
-
-// retryRequest uses defaultRetryStrategy to call doRequest with retry
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
-	var attempt *retry.Attempt
-	startTime := time.Now()
-	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			delta := time.Since(startTime) / time.Millisecond
-			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-		}
-		if cancelled(ctx) {
-			return nil, ctx.Err()
-		}
-
-		resp, err = s.doRequest(ctx, client, reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
-				continue
-			}
-			break
-		}
-
-		if shouldRetryHttpResponse(attempt, resp) {
-			resp.Body.Close()
-			continue
-		}
-
 		break
 	}
 
@@ -1604,7 +1563,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, nilDecodeStrategy)
 	if err != nil {
 		return nil, err
 	}
