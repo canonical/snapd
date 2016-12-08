@@ -358,7 +358,7 @@ var detailFields = getStructFields(snapDetails{})
 var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
 
 // The default delta format if not configured.
-var defaultSupportedDeltaFormat = "xdelta"
+var defaultSupportedDeltaFormat = "xdelta3"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -1454,7 +1454,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return fmt.Errorf("store returned unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
+		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
 	url := deltaInfo.AnonDownloadURL
@@ -1474,14 +1474,14 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
-	if deltaInfo.Format != "xdelta" {
-		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
+	if deltaInfo.Format != "xdelta3" {
+		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
 	partialTargetPath := targetPath + ".partial"
 
-	xdeltaArgs := []string{"patch", deltaPath, snapPath, partialTargetPath}
-	cmd := exec.Command("xdelta", xdeltaArgs...)
+	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
+	cmd := exec.Command("xdelta3", xdelta3Args...)
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {
