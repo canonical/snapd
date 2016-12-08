@@ -1,0 +1,23 @@
+summary: Check that snap-discard-ns works
+# This is blacklisted on debian because debian doesn't use apparmor yet
+systems: [-debian-8]
+details: |
+    The internal snap-discard-ns program is supposed to simply unmount
+    whatever is mounted at /run/snapd/ns/$SNAP_NAME.mnt
+prepare: |
+    mkdir -p /run/snapd/ns/
+    mount --bind /run/snapd/ns /run/snapd/ns
+    mount --make-private /run/snapd/ns
+    touch /run/snapd/ns/foo.mnt
+    unshare --mount=/run/snapd/ns/foo.mnt true
+execute: |
+    /usr/lib/snapd/snap-discard-ns foo
+    ! grep foo.mnt /proc/self/mountinfo
+restore: |
+    umount /run/snapd/ns/foo.mnt || :
+    umount /run/snapd/ns
+    rm /run/snapd/ns/foo.mnt
+    rm /run/snapd/ns/foo.lock
+    # The removal is optional as the directory may contain other files
+    # that we don't want to touch here.
+    rmdir /run/snapd/ns || true

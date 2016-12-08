@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var api = []*Command{
@@ -559,7 +560,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", false, snap.R(0), user)
+	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -718,6 +719,7 @@ type snapInstruction struct {
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
+	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
@@ -787,37 +789,28 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
-func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	flags := snapstate.Flags{}
-	if jailMode {
-		if devModeOS {
-			return flags, errNoJailMode
-		}
-		if devMode {
-			return flags, errModeConflict
-		}
-		flags.JailMode = true
+	devModeOS := release.ReleaseInfo.ForceDevMode()
+	switch {
+	case jailMode && devModeOS:
+		return flags, errNoJailMode
+	case jailMode && devMode:
+		return flags, errDevJailModeConflict
+	case devMode && classic:
+		return flags, errClassicDevmodeConflict
 	}
-	if devMode || devModeOS {
-		flags.DevMode = true
-	}
-
+	// NOTE: jailmode and classic are allowed together. In that setting,
+	// jailmode overrides classic and the app gets regular (non-classic)
+	// confinement.
+	flags.JailMode = jailMode
+	flags.Classic = classic
+	flags.DevMode = devMode || devModeOS && !classic
 	return flags, nil
-
-}
-
-// quotedNames formats a slice of snap names (or other strings) to a
-// quoted list of comma separated names, e.g. `"snap1", "snap2"`
-func quotedNames(names []string) string {
-	quoted := make([]string, len(names))
-	for i, name := range names {
-		quoted[i] = strconv.Quote(name)
-	}
-	return strings.Join(quoted, ", ")
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
@@ -835,14 +828,14 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	case 0:
 		// not really needed but be paranoid
 		if len(inst.Snaps) != 0 {
-			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", quotedNames(inst.Snaps))
+			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", strutil.Quoted(inst.Snaps))
 		}
 		// FIXME: instead don't generated a change(?) at all
 		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
-		quoted := quotedNames(updated)
+		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
@@ -862,7 +855,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(inst.Snaps)
+		quoted := strutil.Quoted(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
@@ -871,7 +864,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -896,7 +889,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -934,7 +927,7 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
 	default:
-		quoted := quotedNames(inst.Snaps)
+		quoted := strutil.Quoted(inst.Snaps)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), quoted)
 	}
@@ -955,7 +948,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1122,13 +1115,21 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+	tsets, err := withEnsureUbuntuCore(st, info.Name(), userID,
+		func() (*state.TaskSet, error) {
+			return snapstateTryPath(st, info.Name(), trydir, flags)
+		},
+	)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
+	chg := newChange(st, "try-snap", msg, tsets, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
 	ensureStateSoon(st)
@@ -1232,8 +1233,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	dangerousOK := isTrue(form, "dangerous")
-	devmode := isTrue(form, "devmode")
-	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
@@ -1312,7 +1312,7 @@ out:
 		case asserts.ErrNotFound:
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
-			if !devmode {
+			if !isTrue(form, "devmode") {
 				msg := "cannot find signatures with metadata for snap"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)

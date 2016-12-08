@@ -253,6 +253,7 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
   @{PROC}/@{pid}/task/ r,
+  @{PROC}/@{pid}/task/[0-9]*/smaps r,
   @{PROC}/@{pid}/task/[0-9]*/stat r,
   @{PROC}/@{pid}/task/[0-9]*/statm r,
   @{PROC}/@{pid}/task/[0-9]*/status r,
@@ -358,6 +359,43 @@ var defaultTemplate = []byte(`
   /sys/devices/**/ r,
   /sys/class/ r,
   /sys/class/**/ r,
+
+###SNIPPETS###
+}
+`)
+
+// classicTemplate contains apparmor template used for snaps with classic
+// confinement. This template was Designed by jdstrand:
+// https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
+//
+// The classic template intentionally provides no confinement and is used
+// simply to ensure that processes have the proper command-specific security
+// label instead of 'unconfined'.
+//
+// It can be overridden for testing using MockClassicTemplate().
+var classicTemplate = []byte(`
+#include <tunables/global>
+
+###VAR###
+
+###PROFILEATTACH### (attach_disconnected) {
+  # set file rules so that exec() inherits our profile unless there is
+  # already a profile for it (eg, snap-confine)
+  / rwkl,
+  /** rwlkm,
+  /** pix,
+
+  capability,
+  change_profile,
+  dbus,
+  network,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  ptrace,
+  signal,
+  unix,
 
 ###SNIPPETS###
 }

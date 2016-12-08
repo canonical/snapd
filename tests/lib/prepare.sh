@@ -282,10 +282,23 @@ prepare_all_snap() {
     echo "Kernel has a store revision"
     snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
-    # Snapshot the fresh state
+    # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        # we need to ensure that we also restore the boot environment
+        # fully for tests that break it
+        BOOT=""
+        if ls /boot/uboot/*; then
+            BOOT=/boot/uboot/
+        elif ls /boot/grub/*; then
+            BOOT=/boot/grub/
+        else
+            echo "Cannot determine bootdir in /boot:"
+            ls /boot
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
 }
