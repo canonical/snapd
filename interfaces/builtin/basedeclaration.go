@@ -217,7 +217,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  download:
+  download-manager:
     allow-installation:
       slot-snap-type:
         - app

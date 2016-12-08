@@ -38,21 +38,21 @@ var _ = Suite(&DownloadInterfaceSuite{
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "download",
-			Interface: "download",
+			Name:      "download-manager",
+			Interface: "download-manager",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "download",
-			Interface: "download",
+			Name:      "download-manager",
+			Interface: "download-manager",
 		},
 	},
 })
 
 func (s *DownloadInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "download")
+	c.Assert(s.iface.Name(), Equals, "download-manager")
 }
 
 func (s *DownloadInterfaceSuite) TestSanitizePlug(c *C) {
@@ -65,17 +65,17 @@ func (s *DownloadInterfaceSuite) TestSanitizeSlot(c *C) {
     c.Assert(err, IsNil)
     err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
         Snap:      &snap.Info{SuggestedName: "some-snap"},
-        Name:      "download",
-        Interface: "download",
+        Name:      "download-manager",
+        Interface: "download-manager",
     }})
     c.Assert(err, IsNil)
 }
 
 func (s *DownloadInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "download"`)
+		PanicMatches, `slot is not of interface "download-manager"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "download"`)
+		PanicMatches, `plug is not of interface "download-manager"`)
 }
 
 func (s *DownloadInterfaceSuite) TestUsedSecuritySystems(c *C) {
