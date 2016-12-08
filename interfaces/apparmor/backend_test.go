@@ -341,7 +341,7 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// Classic confinement uses apparmor in complain mode by default.
 	opts:    interfaces.ConfinementOptions{Classic: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
@@ -351,12 +351,19 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
-	restore := apparmor.MockTemplate([]byte("\n" +
+	restoreTemplate := apparmor.MockTemplate([]byte("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
 		"}\n"))
-	defer restore()
+	defer restoreTemplate()
+	restoreClassicTemplate := apparmor.MockClassicTemplate([]byte("\n" +
+		"#classic\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n"))
+	defer restoreClassicTemplate()
 	for _, scenario := range combineSnippetsScenarios {
 		s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 			if scenario.snippet == "" {
