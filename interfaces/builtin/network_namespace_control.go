@@ -39,7 +39,7 @@ capability sys_admin,
 network netlink raw,
 
 / r,
-/run/netns/ r,     # only 'r' since snappy will create this for us
+/run/netns/ r,     # only 'r' since snap-confine will create this for us
 /run/netns/* rw,
 mount options=(rw, rshared) -> /run/netns/,
 mount options=(rw, bind) /run/netns/ -> /run/netns/,
