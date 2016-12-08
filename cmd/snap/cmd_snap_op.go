@@ -22,9 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -342,11 +345,13 @@ func (mx *channelMixin) asksForChannel() bool {
 type modeMixin struct {
 	DevMode  bool `long:"devmode"`
 	JailMode bool `long:"jailmode"`
+	Classic  bool `long:"classic"`
 }
 
 var modeDescs = mixinDescs{
-	"devmode":  i18n.G("Request non-enforcing security"),
-	"jailmode": i18n.G("Override a snap's request for non-enforcing security"),
+	"classic":  i18n.G("Put snap in classic mode and disable security confinement"),
+	"devmode":  i18n.G("Put snap in development mode and disable security confinement"),
+	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
 
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
@@ -377,6 +382,20 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+func setupAbortHandler(changeId string) {
+	// Intercept sigint
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		cli := Client()
+		_, err := cli.Abort(changeId)
+		if err != nil {
+			fmt.Fprintf(Stderr, err.Error()+"\n")
+		}
+	}()
+}
+
 func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
@@ -396,6 +415,8 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
@@ -428,6 +449,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
@@ -474,6 +497,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Channel:   x.Channel,
 		DevMode:   x.DevMode,
 		JailMode:  x.JailMode,
+		Classic:   x.Classic,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
