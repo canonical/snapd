@@ -194,7 +194,6 @@ var downloadConnectedPlugSecComp = []byte(`
 
 # dbus
 connect
-getsockname
 recvmsg
 send
 sendto
@@ -207,7 +206,6 @@ var downloadPermanentSlotSecComp = []byte(`
 
 # dbus
 connect
-getsockname
 recvmsg
 send
 sendto
