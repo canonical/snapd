@@ -60,7 +60,6 @@ audit deny ptrace (trace), # for all other peers
 
 # 'ip netns exec foo /bin/sh'
 mount options=(rw, rslave) /,
-mount options=(rw, rslave) /,
 mount options=(rw, rslave), # LP: #1648245
 umount /sys/,
 `
