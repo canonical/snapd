@@ -7,7 +7,6 @@ all_tests = \
     test_bad_seccomp_filter_args_prctl \
     test_bad_seccomp_filter_args_prio \
     test_bad_seccomp_filter_args_socket \
-    test_bad_seccomp_filter_args_clone \
     test_bad_seccomp_filter_length \
     test_bad_seccomp_filter_missing_trailing_newline \
     test_complain \
