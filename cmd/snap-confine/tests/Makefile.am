@@ -29,7 +29,7 @@ TESTS += $(all_tests)
 endif
 endif
 
-check: ../src/snap-confine
+check: ../snap-confine
 
 .PHONY: check-syntax
 check-syntax:
