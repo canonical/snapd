@@ -608,6 +608,7 @@ void sc_populate_mount_ns(const char *security_tag)
 #else
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
+			{"/run/netns", true},	// access to the 'ip netns' network namespaces
 			{},
 		};
 		struct sc_mount_config classic_config = {
@@ -624,6 +625,7 @@ void sc_populate_mount_ns(const char *security_tag)
 		// filesystems can use that space for whatever they need.
 		const struct sc_mount mounts[] = {
 			{"/media", true},
+			{"/run/netns", true},
 			{},
 		};
 		struct sc_mount_config all_snap_config = {
