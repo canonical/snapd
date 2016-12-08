@@ -914,24 +914,18 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(context.TODO(), s.client, reqOptions, user)
+	var result ordersResult
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &result, nil, nil})
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	var result ordersResult
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&result); err != nil {
-			return fmt.Errorf("cannot decode known orders from store: %v", err)
-		}
-	case http.StatusUnauthorized:
+	if resp.StatusCode == http.StatusUnauthorized {
 		// TODO handle token expiry and refresh
 		return ErrInvalidCredentials
-	default:
+	}
+	if resp.StatusCode != http.StatusOK {
 		return respToError(resp, "obtain known orders from store")
 	}
 
