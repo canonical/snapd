@@ -84,7 +84,7 @@ umount
 umount2
 
 unshare
-setns
+setns - CLONE_NEWNET
 `
 
 // NewNetworkNamespaceControlInterface returns a new "network-namespace-control" interface.
