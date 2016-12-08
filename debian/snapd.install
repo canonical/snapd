@@ -1,0 +1,12 @@
+etc/apparmor.d/usr.lib.snapd.snap-confine
+lib/udev/rules.d/80-snappy-assign.rules
+lib/udev/snappy-app-dev
+usr/bin/snap
+usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snapctl
+usr/bin/snapd /usr/lib/snapd/
+usr/bin/ubuntu-core-launcher
+usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-discard-ns
+usr/share/man/man1/*
+usr/share/man/man5/*
