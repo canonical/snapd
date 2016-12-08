@@ -117,6 +117,14 @@ capability setuid,
 
 # TUN/TAP
 /dev/net/tun rw,
+
+# Allow applications that are aware of network namespaces to use network
+# namespaces created with 'ip netns' (eg, nsenter --net=/run/netns/...).
+# Applications that are not aware of network namespaces and using
+# 'ip netns exec' should also 'plugs: [ network-namespace-control ]'.
+capability sys_admin,  # for setns()
+/{,run/netns/} r,
+/{,usr/}{,s}bin/nsenter ixr,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-control
@@ -128,6 +136,12 @@ const networkControlConnectedPlugSecComp = `
 
 # for ping and ping6
 capset
+
+# Allow applications that are aware of network namespaces to use network
+# namespaces created with 'ip netns' (eg, nsenter --net=/run/netns/...).
+# Applications that are not aware of network namespaces and using
+# 'ip netns exec' should also 'plugs: [ network-namespace-control ]'.
+setns - CLONE_NEWNET
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.
