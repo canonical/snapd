@@ -621,8 +621,10 @@ var decodeOnHTTP200and201 = func(resp *http.Response) bool {
 }
 
 type decodeStrategy struct {
-	DecodeCondition decodeCondFunc
-	Result          interface{}
+	successCondition decodeCondFunc
+	Result           interface{}
+	failureCondition decodeCondFunc
+	Failure          interface{}
 }
 
 // retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
@@ -650,9 +652,15 @@ func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, req
 			resp.Body.Close()
 			continue
 		} else {
-			if ds.DecodeCondition(resp) {
+			var result interface{}
+			if ds.successCondition(resp) {
+				result = ds.Result
+			} else if ds.failureCondition != nil && ds.failureCondition(resp) {
+				result = ds.Failure
+			}
+			if result != nil {
 				dec := json.NewDecoder(resp.Body)
-				if err := dec.Decode(ds.Result); err != nil {
+				if err := dec.Decode(result); err != nil {
 					resp.Body.Close()
 					// retry decoding on EOF and alike
 					if shouldRetryError(attempt, err) {
@@ -985,7 +993,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		} `json:"_embedded"`
 	}
 
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &results})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &results, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1043,7 +1051,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	}
 
 	var remote snapDetails
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &remote})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &remote, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1143,7 +1151,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &searchData})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &searchData, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1188,7 +1196,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &sectionData})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &sectionData, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1298,7 +1306,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &updateData})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &updateData, nil, nil})
 
 	if err != nil {
 		return nil, err
@@ -1725,8 +1733,14 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		Data:        jsonData,
 	}
 
+	var errorCond = func(resp *http.Response) bool {
+		status := resp.StatusCode
+		return status == http.StatusBadRequest || (status != http.StatusNotFound && status != http.StatusPaymentRequired && status != http.StatusUnauthorized)
+	}
+
 	var orderDetails order
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200and201, &orderDetails})
+	var errorInfo storeErrors
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200and201, &orderDetails, errorCond, &errorInfo})
 	if err != nil {
 		return nil, err
 	}
@@ -1745,11 +1759,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
@@ -1761,11 +1770,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
 }
@@ -1790,7 +1794,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	}
 
 	var customer storeCustomer
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &customer})
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &customer, nil, nil})
 	if err != nil {
 		return err
 	}
