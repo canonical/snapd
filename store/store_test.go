@@ -2023,7 +2023,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character '<' looking for beginning of value\) when requesting "http://\S+[?&]q=hello.*"`)
+	c.Check(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(snaps, HasLen, 0)
 }
 
