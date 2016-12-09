@@ -617,16 +617,26 @@ func removeInactiveRevision(st *state.State, name string, revision snap.Revision
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, active bool) bool {
+func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+	// removing single revisions is generally allowed
+	if !removeAll {
+		return true
+	}
+
+	// required snaps cannot be removed
+	if snapst.Required {
+		return false
+	}
+
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Pruning non active ones
 	// is acceptable.
-	if si.Type == snap.TypeGadget && active {
+	if si.Type == snap.TypeGadget && snapst.Active {
 		return false
 	}
 
 	// You never want to remove an active kernel or OS
-	if (si.Type == snap.TypeKernel || si.Type == snap.TypeOS) && active {
+	if (si.Type == snap.TypeKernel || si.Type == snap.TypeOS) && snapst.Active {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
@@ -697,7 +707,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, active) {
+	if !canRemove(info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
