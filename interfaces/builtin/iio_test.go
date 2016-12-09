@@ -46,6 +46,7 @@ type IioInterfaceSuite struct {
 	testUdevBadValue5     *interfaces.Slot
 	testUdevBadValue6     *interfaces.Slot
 	testUdevBadValue7     *interfaces.Slot
+	testUdevBadValue8     *interfaces.Slot
 	testUdevBadInterface1 *interfaces.Slot
 
 	// Consuming Snap
@@ -81,7 +82,7 @@ slots:
     path: /dev/iio:device2
   test-udev-3:
     interface: iio
-    path: /dev/iio:device0
+    path: /dev/iio:device10000
   test-udev-bad-value-1:
     interface: iio
     path: /dev/iio
@@ -99,8 +100,11 @@ slots:
     path: /dev/iio:devicefoo
   test-udev-bad-value-6:
     interface: iio
-    path: ""
+    path: /dev/iio-device0
   test-udev-bad-value-7:
+    interface: iio
+    path: ""
+  test-udev-bad-value-8:
     interface: iio
   test-udev-bad-interface-1:
     interface: other-interface
@@ -115,6 +119,7 @@ slots:
 	s.testUdevBadValue5 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-5"]}
 	s.testUdevBadValue6 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-6"]}
 	s.testUdevBadValue7 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-7"]}
+	s.testUdevBadValue8 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-8"]}
 	s.testUdevBadInterface1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-interface-1"]}
 
 	// Snap Consumers
@@ -153,16 +158,19 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue6)
-	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(err, ErrorMatches, "iio path attribute must be a valid device node")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue7)
+	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
+
+	err = s.iface.SanitizeSlot(s.testUdevBadValue8)
 	c.Assert(err, ErrorMatches, "iio slot must have a path attribute")
 
 	c.Assert(func() { s.iface.SanitizeSlot(s.testUdevBadInterface1) }, PanicMatches, `slot is not of interface "iio"`)
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	expectedSnippet1 := []byte(`KERNEL="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"
+	expectedSnippet1 := []byte(`KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"
 `)
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
