@@ -62,6 +62,9 @@ audit deny ptrace (trace), # for all other peers
 mount options=(rw, rslave) /,
 mount options=(rw, rslave), # LP: #1648245
 umount /sys/,
+
+# Eg, nsenter --net=/run/netns/... <command>
+/{,usr/}{,s}bin/nsenter ixr,
 `
 
 const networkNamespaceControlConnectedPlugSecComp = `
