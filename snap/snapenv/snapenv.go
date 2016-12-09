@@ -92,7 +92,7 @@ func userEnv(info *snap.Info, home string) map[string]string {
 		"SNAP_USER_DATA":   info.UserDataDir(home),
 		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
 	}
-	// Classic confinement allows snaps to see the real home
+	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {
 		result["HOME"] = info.UserDataDir(home)
 	}
