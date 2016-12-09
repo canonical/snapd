@@ -94,7 +94,6 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	}
 	if info.NeedsClassic() {
 		// Classic confinement allows snaps to see the real home
-		result["HOME"] = home
 	} else {
 		result["HOME"] = info.UserDataDir(home)
 	}
