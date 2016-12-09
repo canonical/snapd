@@ -95,6 +95,9 @@ exclude:
     - .git
 
 prepare-each: |
+    # systemd on 14.04 does not know about --rotate
+    # or --vacuum-time. Gracefully handle both commands
+    # failing.
     journalctl --rotate || true
     sleep .1
     journalctl --vacuum-time=1ms || true

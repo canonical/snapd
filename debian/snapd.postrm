@@ -15,7 +15,7 @@ if [ "$1" = "purge" ]; then
     services=$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
 
     for unit in $mounts; do
-        # ensure its really a snapp mount unit or systemd unit
+        # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
             continue
@@ -27,14 +27,11 @@ if [ "$1" = "purge" ]; then
     systemctl stop snap.mount.service || true
 
     for unit in $services $mounts; do
-        # ensure its really a snapp mount unit or systemd unit
+        # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
             continue
         fi
-
-        echo "Stopping $unit"
-        systemctl_stop "$unit"
 
         # if it is a mount unit, we can find the snap name in the mount
         # unit (we just ignore unit files)
@@ -74,6 +71,7 @@ if [ "$1" = "purge" ]; then
     umount -l /run/snapd/ns/ || true
 
     # prepare removal of /snap
+    umount -l /snap || true
     rmdir --ignore-fail-on-non-empty /snap || true
 
     echo "Removing snapd state"
