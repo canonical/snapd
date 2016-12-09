@@ -164,7 +164,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c, "foo")
 	for i, as := range assertsChain {
 		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
 		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
@@ -235,6 +235,7 @@ snaps:
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode, Equals, true)
+	c.Assert(snapst.Required, Equals, true)
 
 	// check local
 	info, err = snapstate.CurrentInfo(state, "local")
@@ -242,6 +243,11 @@ snaps:
 	c.Assert(info.SnapID, Equals, "")
 	c.Assert(info.Revision, Equals, snap.R("x1"))
 	c.Assert(info.DeveloperID, Equals, "")
+
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(state, "local", &snapst2)
+	c.Assert(err, IsNil)
+	c.Assert(snapst2.Required, Equals, false)
 
 	// and ensure state is now considered seeded
 	var seeded bool
@@ -397,7 +403,7 @@ snaps:
 	c.Assert(info.DeveloperID, Equals, "developerid")
 }
 
-func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {
+func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, reqSnaps ...string) *asserts.Model {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"authority-id": "my-brand",
@@ -409,12 +415,19 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.
 		"kernel":       "pc-kernel",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
+	if len(reqSnaps) != 0 {
+		reqs := make([]interface{}, len(reqSnaps))
+		for i, req := range reqSnaps {
+			reqs[i] = req
+		}
+		headers["required-snaps"] = reqs
+	}
 	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
 	return model.(*asserts.Model)
 }
 
-func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, reqSnaps ...string) []asserts.Assertion {
 	assertChain := []asserts.Assertion{}
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
@@ -426,7 +439,7 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
 	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
 	assertChain = append(assertChain, brandAccKey)
 
-	model := s.makeModelAssertion(c, "my-model")
+	model := s.makeModelAssertion(c, "my-model", reqSnaps...)
 	assertChain = append(assertChain, model)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
@@ -451,8 +464,9 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err = devicestate.ImportAssertionsFromSeed(st)
+	model, err := devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, IsNil)
+	c.Assert(model, NotNil)
 
 	// verify that the model was added
 	db := assertstate.DB(st)
@@ -469,6 +483,9 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model")
+
+	c.Check(model.BrandID(), Equals, "my-brand")
+	c.Check(model.Model(), Equals, "my-model")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
@@ -489,7 +506,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err := devicestate.ImportAssertionsFromSeed(st)
+	_, err := devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
 }
 
@@ -511,7 +528,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err = devicestate.ImportAssertionsFromSeed(st)
+	_, err = devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
 }
 
@@ -532,6 +549,6 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err := devicestate.ImportAssertionsFromSeed(st)
+	_, err := devicestate.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "need a model assertion")
 }

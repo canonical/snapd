@@ -920,6 +920,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision: snap.R(42),
 	})
+	c.Assert(snapst.Required, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -1888,7 +1889,7 @@ version: 1.0`)
 		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision: snap.R(42),
 	}
-	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{})
+	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1921,6 +1922,9 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: someSnap,
 		SideInfo: snapsup.SideInfo,
+		Flags: snapstate.Flags{
+			Required: true,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
@@ -1933,6 +1937,7 @@ version: 1.0`)
 	c.Assert(snapst.Channel, Equals, "")
 	c.Assert(snapst.Sequence[0], DeepEquals, si)
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
+	c.Assert(snapst.Required, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
@@ -3540,8 +3545,8 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, false), Equals, true)
-	c.Check(snapstate.CanRemove(info, true), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false}, true), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, true)
 }
 
 func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
@@ -3550,8 +3555,8 @@ func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, false), Equals, true)
-	c.Check(snapstate.CanRemove(info, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false}, true), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, false)
 }
 
 func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
@@ -3564,11 +3569,31 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	}
 	kernel.RealName = "krnl"
 
-	c.Check(snapstate.CanRemove(os, false), Equals, true)
-	c.Check(snapstate.CanRemove(os, true), Equals, false)
+	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{Active: false}, true), Equals, true)
+	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{Active: true}, true), Equals, false)
 
-	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
-	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
+	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{Active: false}, true), Equals, true)
+	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{Active: true}, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeGadget,
+	}
+	info.RealName = "foo"
+
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
+}
+
+func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeApp,
+	}
+	info.RealName = "foo"
+
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
 }
 
 func revs(seq []*snap.SideInfo) []int {
