@@ -612,20 +612,20 @@ func cancelled(ctx context.Context) bool {
 
 // retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
 func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, body io.Reader) error {
+	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
 		result := success
 		if !ok {
 			result = failure
 		}
 		if result != nil {
-			return json.NewDecoder(body).Decode(result)
+			return json.NewDecoder(resp.Body).Decode(result)
 		}
 		return nil
 	})
 }
 
 // retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, body io.Reader) error) (resp *http.Response, err error) {
+func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
@@ -649,17 +649,17 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 			resp.Body.Close()
 			continue
 		} else {
-			status := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated
+			status := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
 			// always decode on success; decode failures only if body is not empty
 			if status || resp.ContentLength > 0 {
-				err = decode(status, resp.Body)
+				err = decode(status, resp)
+				resp.Body.Close()
 				if err != nil {
-					resp.Body.Close()
 					// retry decoding on EOF and alike
 					if shouldRetryError(attempt, err) {
 						continue
 					} else {
-						return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
+						return nil, err
 					}
 				}
 			}
@@ -869,7 +869,6 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		// TODO handle token expiry and refresh
@@ -942,8 +941,6 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for channel information")
 	}
@@ -999,7 +996,6 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	// check statusCode
 	switch resp.StatusCode {
@@ -1100,8 +1096,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "search")
 	}
@@ -1144,7 +1138,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "sections")
@@ -1255,8 +1248,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	if err != nil {
 		return nil, err
 	}
-
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for updates")
@@ -1554,32 +1545,41 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, nil, nil)
+
+	var asrt asserts.Assertion
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
+		defer resp.Body.Close()
+		var e error
+		if ok {
+			// decode assertion
+			dec := asserts.NewDecoder(resp.Body)
+			asrt, e = dec.Decode()
+		} else {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if e = dec.Decode(&svcErr); e != nil {
+					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
+				}
+				if svcErr.Status == 404 {
+					return &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+		}
+		return e
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
-		}
 		return nil, respToError(resp, "fetch assertion")
 	}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+	return asrt, err
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1684,8 +1684,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 		// user already ordered or order successful
@@ -1738,8 +1736,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if err != nil {
 		return err
 	}
-
-	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
