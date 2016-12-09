@@ -58,13 +58,13 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	required := func(name string) bool {
-		for _, req := range model.RequiredSnaps() {
-			if name == req {
-				return true
-			}
+	var required map[string]bool
+	reqSnaps := model.RequiredSnaps()
+	if len(reqSnaps) > 0 {
+		required = make(map[string]bool, len(reqSnaps))
+		for _, snap := range reqSnaps {
+			required[snap] = true
 		}
-		return false
 	}
 
 	tsAll := []*state.TaskSet{}
@@ -73,7 +73,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		if sn.DevMode {
 			flags.DevMode = true
 		}
-		if required(sn.Name) {
+		if required[sn.Name] {
 			flags.Required = true
 		}
 
