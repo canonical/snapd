@@ -84,6 +84,7 @@ var api = []*Command{
 	snapctlCmd,
 	usersCmd,
 	sectionsCmd,
+	aliasesCmd,
 }
 
 var (
@@ -213,6 +214,12 @@ var (
 		Path:   "/v2/sections",
 		UserOK: true,
 		GET:    getSections,
+	}
+
+	aliasesCmd = &Command{
+		Path: "/v2/aliases",
+		//GET:    getInterfaces,
+		POST: changeAliases,
 	}
 )
 
@@ -2182,4 +2189,49 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 	return SyncResponse(resp, nil)
+}
+
+// aliasAction is an action performed on aliases
+type aliasAction struct {
+	Action  string   `json:"action"`
+	Snap    string   `json:"snap"`
+	Aliases []string `json:"aliases"`
+}
+
+func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
+	var a aliasAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into an alias action: %v", err)
+	}
+	if len(a.Aliases) == 0 {
+		return BadRequest("at least one alias name is required")
+	}
+
+	var summary string
+	var taskset *state.TaskSet
+	var err error
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	switch a.Action {
+	default:
+		return BadRequest("unsupported alias action: %q", a.Action)
+	case "alias":
+		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+	}
+	if err != nil {
+		return BadRequest("%v", err)
+	}
+
+	change := state.NewChange(a.Action, summary)
+	change.Set("snap-names", []string{a.Snap})
+	change.AddAll(taskset)
+
+	state.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
