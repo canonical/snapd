@@ -610,8 +610,27 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequest uses defaultRetryStrategy to call doRequest with retry
-func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
+type decodeCondFunc func(*http.Response) bool
+
+var decodeOnHTTP200 = func(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusOK
+}
+
+var decodeOnHTTP200and201 = func(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated
+}
+
+type decodeStrategy struct {
+	successCondition decodeCondFunc
+	Result           interface{}
+	failureCondition decodeCondFunc
+	Failure          interface{}
+}
+
+var nilDecodeStrategy = decodeStrategy{nil, nil, nil, nil}
+
+// retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, ds decodeStrategy) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
@@ -634,8 +653,27 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		if shouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
+		} else {
+			var result interface{}
+			if ds.successCondition != nil && ds.successCondition(resp) {
+				result = ds.Result
+			} else if ds.failureCondition != nil && ds.failureCondition(resp) {
+				result = ds.Failure
+			}
+			if result != nil {
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(result); err != nil {
+					resp.Body.Close()
+					// retry decoding on EOF and alike
+					if shouldRetryError(attempt, err) {
+						continue
+					} else {
+						return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
+					}
+				}
+			}
 		}
-
+		// break out from retry loop
 		break
 	}
 
@@ -835,24 +873,18 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(context.TODO(), s.client, reqOptions, user)
+	var result ordersResult
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &result, nil, nil})
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	var result ordersResult
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&result); err != nil {
-			return fmt.Errorf("cannot decode known orders from store: %v", err)
-		}
-	case http.StatusUnauthorized:
+	if resp.StatusCode == http.StatusUnauthorized {
 		// TODO handle token expiry and refresh
 		return ErrInvalidCredentials
-	default:
+	}
+	if resp.StatusCode != http.StatusOK {
 		return respToError(resp, "obtain known orders from store")
 	}
 
@@ -908,7 +940,13 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		Data:        jsonData,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var results struct {
+		Payload struct {
+			SnapDetails []*snapDetails `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &results, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -917,17 +955,6 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for channel information")
-	}
-
-	var results struct {
-		Payload struct {
-			SnapDetails []*snapDetails `json:"clickindex:package"`
-		} `json:"_embedded"`
-	}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&results); err != nil {
-		return nil, err
 	}
 
 	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
@@ -976,7 +1003,8 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var remote snapDetails
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &remote, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -991,13 +1019,6 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	default:
 		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
 		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
 	}
 
 	info := infoFromRemote(remote)
@@ -1081,7 +1102,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+
+	var searchData searchResults
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &searchData, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1094,13 +1117,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
@@ -1132,7 +1148,8 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var sectionData sectionResults
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &sectionData, nil, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -1146,12 +1163,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
 	}
 
-	var sectionData sectionResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&sectionData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
-	}
 	var sectionNames []string
 	for _, s := range sectionData.Payload.Sections {
 		sectionNames = append(sectionNames, s.Name)
@@ -1247,7 +1258,9 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var updateData searchResults
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &updateData, nil, nil})
+
 	if err != nil {
 		return nil, err
 	}
@@ -1256,12 +1269,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for updates")
-	}
-
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
@@ -1551,37 +1558,61 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u.RawQuery = v.Encode()
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
-	}
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+	var resp *http.Response
+	var asrt asserts.Assertion
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    u,
+			Accept: asserts.MediaType,
 		}
-		return nil, respToError(resp, "fetch assertion")
-	}
+		resp, err = s.doRequest(context.TODO(), s.client, reqOptions, user)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if err := dec.Decode(&svcErr); err != nil {
+					if shouldRetryError(attempt, err) {
+						continue
+					}
+					return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
+				}
+				if svcErr.Status == 404 {
+					return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+			return nil, respToError(resp, "fetch assertion")
+		}
+
+		// and decode assertion
+		dec := asserts.NewDecoder(resp.Body)
+		asrt, err = dec.Decode()
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return nil, err
+		}
+
+		break // success, break from retry loop
+	}
+	return asrt, err
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1678,7 +1709,15 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+
+	var errorCond = func(resp *http.Response) bool {
+		status := resp.StatusCode
+		return status == http.StatusBadRequest || (status != http.StatusNotFound && status != http.StatusPaymentRequired && status != http.StatusUnauthorized)
+	}
+
+	var orderDetails order
+	var errorInfo storeErrors
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200and201, &orderDetails, errorCond, &errorInfo})
 	if err != nil {
 		return nil, err
 	}
@@ -1688,12 +1727,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 		// user already ordered or order successful
-		var orderDetails order
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&orderDetails); err != nil {
-			return nil, err
-		}
-
 		if orderDetails.State == "Cancelled" {
 			return buyOptionError("payment cancelled")
 		}
@@ -1703,11 +1736,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
@@ -1719,11 +1747,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
 }
@@ -1747,7 +1770,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user)
+	var customer storeCustomer
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, decodeStrategy{decodeOnHTTP200, &customer, nil, nil})
 	if err != nil {
 		return err
 	}
@@ -1756,11 +1780,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
-		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
 		}
