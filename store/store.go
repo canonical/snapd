@@ -610,8 +610,8 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
-func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+// retryRequestDecodeJSON uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
 	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
 		result := success
 		if !ok {
@@ -624,7 +624,7 @@ func (s *Store) retryRequestDecode(ctx context.Context, client *http.Client, req
 	})
 }
 
-// retryRequestDecode uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+// retryRequestDecodeJSON uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
@@ -867,7 +867,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		Accept: jsonContentType,
 	}
 	var result ordersResult
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &result, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
@@ -938,7 +938,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		} `json:"_embedded"`
 	}
 
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &results, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -994,7 +994,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	}
 
 	var remote snapDetails
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1093,7 +1093,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1136,7 +1136,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1245,7 +1245,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &updateData, nil)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
 
 	if err != nil {
 		return nil, err
@@ -1680,7 +1680,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	var orderDetails order
 	var errorInfo storeErrors
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -1733,7 +1733,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 
 	var customer storeCustomer
 	var errors storeErrors
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &customer, &errors)
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
