@@ -51,7 +51,7 @@ func ContextTransaction(context *hookstate.Context) *Transaction {
 	return transaction
 }
 
-func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
+func NewConfigureHandler(context *hookstate.Context) hookstate.Handler {
 	return &configureHandler{context: context}
 }
 

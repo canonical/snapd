@@ -17,7 +17,7 @@
  *
  */
 
-package hookstate_test
+package hook_test
 
 import (
 	"encoding/json"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/hook"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,7 +41,7 @@ func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
 	state       *state.State
-	manager     *hookstate.HookManager
+	manager     *hook.HookManager
 	context     *hookstate.Context
 	mockHandler *hooktest.MockHandler
 	task        *state.Task
@@ -62,7 +63,7 @@ var snapContents = ""
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
-	manager, err := hookstate.Manager(s.state)
+	manager, err := hook.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
 

@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/hookstate/hook"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -60,7 +61,7 @@ func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrSuite struct {
 	state   *state.State
-	hookMgr *hookstate.HookManager
+	hookMgr *hook.HookManager
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
 
@@ -144,7 +145,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	hookMgr, err := hookstate.Manager(s.state)
+	hookMgr, err := hook.Manager(s.state)
 	c.Assert(err, IsNil)
 	mgr, err := devicestate.Manager(s.state, hookMgr)
 	c.Assert(err, IsNil)
@@ -536,7 +537,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
-	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+	r2 := hook.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params

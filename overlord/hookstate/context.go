@@ -88,6 +88,10 @@ func (c *Context) Handler() Handler {
 	return c.handler
 }
 
+func (c *Context) SetHandler(handler Handler) {
+	c.handler = handler
+}
+
 // Lock acquires the lock for this context (required for Set/Get, Cache/Cached),
 // and OnDone/Done).
 func (c *Context) Lock() {

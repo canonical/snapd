@@ -26,7 +26,7 @@ import (
 
 // repository stores all registered handler generators, and generates registered
 // handlers.
-type repository struct {
+type Repository struct {
 	mutex      sync.RWMutex
 	generators []patternGeneratorPair
 }
@@ -39,12 +39,12 @@ type patternGeneratorPair struct {
 }
 
 // NewRepository creates an empty handler generator repository.
-func newRepository() *repository {
-	return &repository{}
+func NewRepository() *Repository {
+	return &Repository{}
 }
 
 // AddHandler adds the provided handler generator to the repository.
-func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator HandlerGenerator) {
+func (r *Repository) AddHandlerGenerator(pattern *regexp.Regexp, generator HandlerGenerator) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -57,7 +57,7 @@ func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator Handl
 // GenerateHandlers calls the handler generators whose patterns match the
 // hook name contained within the provided context, and returns the resulting
 // handlers.
-func (r *repository) generateHandlers(context *Context) []Handler {
+func (r *Repository) GenerateHandlers(context *Context) []Handler {
 	hookName := context.HookName()
 	var handlers []Handler
 
@@ -71,4 +71,19 @@ func (r *repository) generateHandlers(context *Context) []Handler {
 	}
 
 	return handlers
+}
+
+// HandlerGenerator is the function signature required to register for hooks.
+type HandlerGenerator func(*Context) Handler
+
+// Handler is the interface a client must satify to handle hooks.
+type Handler interface {
+	// Before is called right before the hook is to be run.
+	Before() error
+
+	// Done is called right after the hook has finished successfully.
+	Done() error
+
+	// Error is called if the hook encounters an error while running.
+	Error(err error) error
 }

@@ -24,13 +24,8 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
-
-func init() {
-	snapstate.Configure = Configure
-}
 
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
