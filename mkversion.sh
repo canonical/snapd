@@ -7,12 +7,12 @@ if which git >/dev/null; then
     o=git
 fi
 
-if [ -z "$v" ]; then
+if [ -z "${v:-}" ]; then
     v="$(dpkg-parsechangelog --show-field Version)"
     o=debian/changelog
 fi
 
-if [ -z "$v" ]; then
+if [ -z "${v:-}" ]; then
     exit 1
 fi
 
