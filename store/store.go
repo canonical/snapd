@@ -1733,7 +1733,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	}
 
 	var customer storeCustomer
-	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &customer, nil)
+	var errors storeErrors
+	resp, err := s.retryRequestDecode(context.TODO(), s.client, reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
@@ -1755,11 +1756,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	case http.StatusUnauthorized:
 		return ErrInvalidCredentials
 	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
 		if len(errors.Errors) == 0 {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
