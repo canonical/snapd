@@ -41,7 +41,7 @@ Architecture: any
 Depends: adduser,
          ca-certificates,
          gnupg1 | gnupg,
-         snap-confine (>= 1.0.43),
+         snap-confine (>= 2.19),
          squashfs-tools,
          systemd,
          ${misc:Depends},
