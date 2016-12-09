@@ -34,6 +34,11 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
+            # FIXME restore of ubuntu-core does not properly
+            # reset boot variables and key snaps to their pristine state.
+            - ubuntu-core-16-64-fixme:
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -62,6 +67,7 @@ backends:
                 FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
+            echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/99-spread-users
             ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
@@ -74,6 +80,7 @@ backends:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
+            MANAGED_DEVICE: "true"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
