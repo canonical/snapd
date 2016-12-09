@@ -651,16 +651,18 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		} else {
 			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
 			// always decode on success; decode failures only if body is not empty
-			if ok || resp.ContentLength > 0 {
-				err = decode(ok, resp)
+			if !ok && resp.ContentLength == 0 {
 				resp.Body.Close()
-				if err != nil {
-					// retry decoding on EOF and alike
-					if shouldRetryError(attempt, err) {
-						continue
-					} else {
-						return nil, err
-					}
+				break
+			}
+			err = decode(ok, resp)
+			resp.Body.Close()
+			if err != nil {
+				// retry decoding on EOF and alike
+				if shouldRetryError(attempt, err) {
+					continue
+				} else {
+					return nil, err
 				}
 			}
 		}
@@ -1548,7 +1550,6 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 
 	var asrt asserts.Assertion
 	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
-		defer resp.Body.Close()
 		var e error
 		if ok {
 			// decode assertion
