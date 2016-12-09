@@ -43,7 +43,7 @@ func (iface *IioInterface) String() string {
 // Pattern to match allowed iio device nodes. It is gonna be used to check the
 // validity of the path attributes in case the udev is not used for
 // identification
-var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]")
+var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *IioInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -101,7 +101,7 @@ func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"
-		const udevRule string = `KERNEL="%s", TAG+="%s"`
+		const udevRule string = `KERNEL=="%s", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
@@ -120,10 +120,6 @@ func (iface *IioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 // No permissions granted to plug permanently
 func (iface *IioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
-}
-
-func (iface *IioInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *IioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
