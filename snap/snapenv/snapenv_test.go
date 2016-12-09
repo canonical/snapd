@@ -95,7 +95,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	env := userEnv(mockClassicSnapInfo, "/root")
 
 	c.Assert(env, DeepEquals, map[string]string{
-		"HOME":             "/root",
+		// NOTE HOME Is absent! we no longer override it
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", os.Geteuid()),
