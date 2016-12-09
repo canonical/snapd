@@ -610,7 +610,7 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-// retryRequestDecodeJSON uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
 func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
 	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
 		result := success
@@ -624,7 +624,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client,
 	})
 }
 
-// retryRequestDecodeJSON uses defaultRetryStrategy to call doRequest and optionally decode it using a decodeStrategy in retry loop.
+// retryRequest calls doRequest and decodes the response in a retry loop.
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
@@ -658,7 +658,6 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 			err = decode(ok, resp)
 			resp.Body.Close()
 			if err != nil {
-				// retry decoding on EOF and alike
 				if shouldRetryError(attempt, err) {
 					continue
 				} else {
