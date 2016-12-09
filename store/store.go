@@ -649,14 +649,18 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 			resp.Body.Close()
 			continue
 		} else {
-			err = decode(resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated, resp.Body)
-			if err != nil {
-				resp.Body.Close()
-				// retry decoding on EOF and alike
-				if shouldRetryError(attempt, err) {
-					continue
-				} else {
-					return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
+			status := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated
+			// always decode on success; decode failures only if body is not empty
+			if status || resp.ContentLength > 0 {
+				err = decode(status, resp.Body)
+				if err != nil {
+					resp.Body.Close()
+					// retry decoding on EOF and alike
+					if shouldRetryError(attempt, err) {
+						continue
+					} else {
+						return nil, fmt.Errorf("cannot decode reply (got %v) when requesting %q", err, resp.Request.URL)
+					}
 				}
 			}
 		}
