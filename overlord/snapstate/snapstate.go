@@ -628,15 +628,17 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
+	// TODO: use Required for these too
 	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Pruning non active ones
-	// is acceptable.
-	if si.Type == snap.TypeGadget && snapst.Active {
+	// building block for Gadgets. Do not remove their last
+	// revision left.
+	if si.Type == snap.TypeGadget {
 		return false
 	}
 
-	// You never want to remove an active kernel or OS
-	if (si.Type == snap.TypeKernel || si.Type == snap.TypeOS) && snapst.Active {
+	// You never want to remove a kernel or OS Do not remove their
+	// last revision left.
+	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
@@ -680,11 +682,9 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	active := snapst.Active
 	var removeAll bool
 	if revision.Unset() {
-		removeAll = true
 		revision = snapst.Current
+		removeAll = true
 	} else {
-		removeAll = false
-
 		if active {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
@@ -699,6 +699,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		if !revisionInSequence(&snapst, revision) {
 			return nil, &snap.NotInstalledError{name, revision}
 		}
+
+		removeAll = len(snapst.Sequence) == 1
 	}
 
 	info, err := Info(st, name, revision)
@@ -747,7 +749,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		addNext(state.NewTaskSet(stopSnapServices, unlink, removeSecurity))
 	}
 
-	if removeAll || len(snapst.Sequence) == 1 {
+	if removeAll {
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]

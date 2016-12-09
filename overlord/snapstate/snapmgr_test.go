@@ -2397,6 +2397,27 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
+func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
+	si := snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		Active:   false,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(7))
+
+	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3549,17 +3570,16 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, true)
 }
 
-func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
+func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	info := &snap.Info{
 		Type: snap.TypeGadget,
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false}, true), Equals, true)
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{}, true), Equals, false)
 }
 
-func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
+func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
 		Type: snap.TypeOS,
 	}
@@ -3569,11 +3589,9 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	}
 	kernel.RealName = "krnl"
 
-	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{Active: false}, true), Equals, true)
-	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{Active: true}, true), Equals, false)
+	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{}, true), Equals, false)
 
-	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{Active: false}, true), Equals, true)
-	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{Active: true}, true), Equals, false)
+	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{}, true), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
