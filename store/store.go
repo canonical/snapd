@@ -649,10 +649,10 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 			resp.Body.Close()
 			continue
 		} else {
-			status := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
 			// always decode on success; decode failures only if body is not empty
-			if status || resp.ContentLength > 0 {
-				err = decode(status, resp)
+			if ok || resp.ContentLength > 0 {
+				err = decode(ok, resp)
 				resp.Body.Close()
 				if err != nil {
 					// retry decoding on EOF and alike
