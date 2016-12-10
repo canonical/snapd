@@ -55,8 +55,8 @@ capability sys_ptrace,
 # kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until this is
 # the default in snappy kernels, deny but audit as a reminder to get the
 # kernels patched.
-audit deny ptrace (trace) peer=snap.@{SNAP_NAME}.*,
-audit deny ptrace (trace), # for all other peers
+audit deny ptrace (trace) peer=snap.@{SNAP_NAME}.*, # eventually by default
+audit deny ptrace (trace), # for all other peers (process-control or other)
 
 # 'ip netns exec foo /bin/sh'
 mount options=(rw, rslave) /,
