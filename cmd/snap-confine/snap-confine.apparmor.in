@@ -195,10 +195,10 @@
 
     # Support mount profiles via the content interface. This should correspond
     # to permutations of $SNAP, $SNAP_DATA and $SNAP_COMMON for both reading
-    # and writing.
-    mount options=(bind) /snap/*/** -> /snap/*/*/**,
-    mount options=(bind) /snap/*/** -> /var/snap/*/*/**,
-    mount options=(bind) /var/snap/*/** -> /snap/*/*/**,
+    # and writing except for cases where a writable location is bind mounted to
+    # read-only location ($SNAP).
+    mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
+    mount options=(ro bind) /snap/*/** -> /var/snap/*/*/**,
     mount options=(bind) /var/snap/*/** -> /var/snap/*/*/**,
     # But we don't want anyone to touch /snap/bin
     audit deny mount /snap/bin/** -> /**,
