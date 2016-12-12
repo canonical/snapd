@@ -40,7 +40,11 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
-    apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+    apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+    if snap --version |MATCH unknown; then
+        echo "Package build incorrect, no snap --version set"
+        exit 1
+    fi
 
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
@@ -81,7 +85,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
