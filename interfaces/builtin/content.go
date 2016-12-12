@@ -137,24 +137,35 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 	contentSnippet := bytes.NewBuffer(nil)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		if len(iface.path(slot, "write")) > 0 {
+
+		writePaths := iface.path(slot, "write")
+		if len(writePaths) > 0 {
 			fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add an AppArmor rule so that
 # snaps may directly access the slot implementation's files. Due
 # to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
 # is needed for using named sockets within the exported
 # directory.
-/var/snap/%s/%s/** mrwklix,
-`, slot.Snap.Name(), slot.Snap.Revision)
+`)
+			for _, w := range writePaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+					resolveSpecialVariable(w, slot.Snap))
+			}
 		}
-		if len(iface.path(slot, "read")) > 0 {
+
+		readPaths := iface.path(slot, "read")
+		if len(readPaths) > 0 {
 			fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add an AppArmor rule so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/var/snap/%s/%s/** mrkix,
-`, slot.Snap.Name(), slot.Snap.Revision)
+`)
+			for _, r := range readPaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+					resolveSpecialVariable(r, slot.Snap))
+			}
 		}
+
 		return contentSnippet.Bytes(), nil
 	case interfaces.SecurityMount:
 		for _, r := range iface.path(slot, "read") {

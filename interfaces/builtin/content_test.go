@@ -203,7 +203,7 @@ slots:
 # In addition to the bind mount, add an AppArmor rule so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/var/snap/producer/5/** mrkix,
+/snap/producer/5/export/** mrkix,
 `
 	c.Assert(string(content), Equals, expected)
 }
@@ -239,7 +239,7 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
 # is needed for using named sockets within the exported
 # directory.
-/var/snap/producer/5/** mrwklix,
+/var/snap/producer/5/export/** mrwklix,
 `
 	c.Assert(string(content), Equals, expected)
 }
@@ -275,7 +275,7 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
 # is needed for using named sockets within the exported
 # directory.
-/var/snap/producer/5/** mrwklix,
+/var/snap/producer/common/export/** mrwklix,
 `
 	c.Assert(string(content), Equals, expected)
 }
