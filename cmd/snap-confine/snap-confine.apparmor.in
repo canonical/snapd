@@ -197,9 +197,9 @@
     # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
     # $SNAP_{DATA,COMMON} for both reading and writing.
     mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
-    mount options=(ro bind) /snap/*/** -> /var/snap/*/*/**,
-    mount options=(rw bind) /var/snap/*/** -> /var/snap/*/*/**,
-    mount options=(ro bind) /var/snap/*/** -> /var/snap/*/*/**,
+    mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
+    mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
+    mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
     # But we don't want anyone to touch /snap/bin
     audit deny mount /snap/bin/** -> /**,
     audit deny mount /** -> /snap/bin/**,
