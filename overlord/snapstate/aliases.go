@@ -92,11 +92,15 @@ func Alias(st *state.State, snapName string, aliases []string) (*state.TaskSet, 
 
 	snapsup := &SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: snapName},
-		Aliases:  aliases,
 	}
 
 	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Enable aliases for snap %q"), snapsup.Name()))
 	alias.Set("snap-setup", &snapsup)
+	toEnable := map[string]string{}
+	for _, alias := range aliases {
+		toEnable[alias] = "enabled"
+	}
+	alias.Set("aliases", toEnable)
 
 	return state.NewTaskSet(alias), nil
 }
@@ -106,6 +110,11 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var toEnable map[string]string
+	err = t.Get("aliases", &toEnable)
 	if err != nil {
 		return err
 	}
@@ -123,7 +132,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		aliasStatuses = make(map[string]string)
 	}
 	var add []*backend.Alias
-	for _, alias := range snapsup.Aliases {
+	for alias, _ := range toEnable {
 		aliasApp := curInfo.Aliases[alias]
 		if aliasApp == nil {
 			return fmt.Errorf("cannot enable alias %q for %q, no such alias", alias, snapName)
@@ -165,13 +174,18 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var toEnable map[string]string
+	err = t.Get("aliases", &toEnable)
+	if err != nil {
+		return err
+	}
 	snapName := snapsup.Name()
 	curInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
 	var remove []*backend.Alias
-	for _, alias := range snapsup.Aliases {
+	for alias, _ := range toEnable {
 		if oldStatuses[alias] == "enabled" {
 			// nothing to undo
 			continue

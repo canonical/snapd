@@ -58,8 +58,6 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
-
-	Aliases []string `json:"aliases,omitempty"`
 }
 
 func (snapsup *SnapSetup) Name() string {
