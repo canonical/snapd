@@ -1,18 +1,37 @@
 #!/bin/sh
-set -ue
-cd "$(dirname "$0")"
+set -e
+
+# debugging if anything fails is tricky as dh-golang eats up all output
+# uncomment the lines below to get a useful trace if you have to touch
+# this again (my advice is: DON'T)
+#set -x
+#logfile=/tmp/mkversions.log
+#exec >> $logfile 2>&1
+#echo "env: $(set)"
+#echo "mkversion.sh run from: $0"
+#echo "pwd: $(pwd)"
+
+
+# run from go-generate inside "cmd", in this case we need to go to the
+# parent dir
+if [ "$GOPACKAGE" = "cmd" ]; then
+    cd ..
+fi
 
 if which git >/dev/null; then
     v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
     o=git
 fi
 
-if [ -z "${v:-}" ]; then
-    v="$(dpkg-parsechangelog --show-field Version)"
+if [ -z "$v" ]; then
+    # at this point we maybe in _build/src/github etc where we have no
+    # debian/changelog (dh-golang only exports the sources here)
+    # switch to the real source dir for the changelog parsing
+    v="$(cd $(dirname "$0"); dpkg-parsechangelog --show-field Version)";
     o=debian/changelog
 fi
 
-if [ -z "${v:-}" ]; then
+if [ -z "$v" ]; then
     exit 1
 fi
 
