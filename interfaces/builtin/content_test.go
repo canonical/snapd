@@ -200,7 +200,7 @@ slots:
 	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected = `
-# In addition to the bind mount, add an AppArmor rule so that
+# In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 /snap/producer/5/export/** mrkix,
@@ -234,10 +234,10 @@ slots:
 	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected = `
-# In addition to the bind mount, add an AppArmor rule so that
+# In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
-# to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
-# is needed for using named sockets within the exported
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
 # directory.
 /var/snap/producer/5/export/** mrwklix,
 `
@@ -270,10 +270,10 @@ slots:
 	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected = `
-# In addition to the bind mount, add an AppArmor rule so that
+# In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
-# to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
-# is needed for using named sockets within the exported
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
 # directory.
 /var/snap/producer/common/export/** mrwklix,
 `
