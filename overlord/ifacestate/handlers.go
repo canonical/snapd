@@ -334,9 +334,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		BaseDeclaration:     baseDecl,
 	}
 
-	err = ic.Check()
-	if err != nil {
-		return err
+	if plugDecl != nil && slotDecl != nil {
+		err = ic.Check()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = m.repo.Connect(connRef)
