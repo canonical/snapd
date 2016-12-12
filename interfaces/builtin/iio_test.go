@@ -179,7 +179,11 @@ func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := []byte(`/dev/iio:device1 rw,
+	expectedSnippet1 := []byte(`
+# Description: Give access to a specific IIO device on the system.
+
+/dev/iio:device1 rw,
+/sys/bus/iio/devices/iio:device1/{,**} rw,
 `)
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

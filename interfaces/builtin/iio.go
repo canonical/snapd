@@ -28,6 +28,13 @@ import (
 	"strings"
 )
 
+var iioConnectedPlugAppArmor = []byte(`
+# Description: Give access to a specific IIO device on the system.
+
+###IIO_DEVICE_PATH### rw,
+/sys/bus/iio/devices/###IIO_DEVICE_NAME###/{,**} rw,
+`)
+
 // The type for iio interface
 type IioInterface struct{}
 
@@ -96,7 +103,16 @@ func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
+		snippet := bytes.Replace(iioConnectedPlugAppArmor, []byte("###IIO_DEVICE_PATH###"), []byte(cleanedPath), -1)
+
+		// The path is already verified against a regular expression
+		// in SanitizeSlot so we can rely on its structure here and
+		// safely strip the '/dev/' prefix to get the actual name of
+		// the IIO device.
+		deviceName := strings.TrimPrefix(path, "/dev/")
+		snippet = bytes.Replace(snippet, []byte("###IIO_DEVICE_NAME###"), []byte(deviceName), -1)
+
+		return snippet, nil
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
