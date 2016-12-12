@@ -26,14 +26,14 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// ShadowInterface allows sharing shadow between snaps
-type ShadowInterface struct{}
+// OvermountInterface allows sharing overmount between snaps
+type OvermountInterface struct{}
 
-func (iface *ShadowInterface) Name() string {
-	return "shadow"
+func (iface *OvermountInterface) Name() string {
+	return "overmount"
 }
 
-func (iface *ShadowInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *OvermountInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
@@ -51,39 +51,39 @@ func (iface *ShadowInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	paths = append(paths, wpath...)
 	for _, p := range paths {
 		if !cleanSubPath(p) {
-			return fmt.Errorf("shadow interface path is not clean: %q", p)
+			return fmt.Errorf("overmount interface path is not clean: %q", p)
 		}
 	}
 
 	return nil
 }
 
-func (iface *ShadowInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *OvermountInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
-		return fmt.Errorf("shadow plug must contain target path")
+		return fmt.Errorf("overmount plug must contain target path")
 	}
 	if !cleanSubPath(target) {
-		return fmt.Errorf("shadow interface target path is not clean: %q", target)
+		return fmt.Errorf("overmount interface target path is not clean: %q", target)
 	}
 
 	return nil
 }
 
-func (iface *ShadowInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OvermountInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *ShadowInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OvermountInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // path is an internal helper that extract the "read" and "write" attribute
 // of the slot
-func (iface *ShadowInterface) path(slot *interfaces.Slot, name string) []string {
+func (iface *OvermountInterface) path(slot *interfaces.Slot, name string) []string {
 	if name != "read" && name != "write" && name != "execute" {
 		panic("internal error, path can only be used with read/write/execute")
 	}
@@ -103,7 +103,7 @@ func (iface *ShadowInterface) path(slot *interfaces.Slot, name string) []string 
 	return out
 }
 
-func (iface *ShadowInterface) shadowMountSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
+func (iface *OvermountInterface) overmountMountSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
 	snippet := bytes.NewBuffer(nil)
 	for _, r := range iface.path(slot, "read") {
 		fmt.Fprintln(snippet, mountEntry(plug, slot, r, ",ro"))
@@ -123,7 +123,7 @@ func appArmorEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc, mntOpts
 	return fmt.Sprintf("mount options=(ro bind %s) %s/*/** -> %s/** %s,", "/snap", "exec", "/usr/bin", permissions)
 }
 
-func (iface *ShadowInterface) shadowAppArmorSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
+func (iface *OvermountInterface) overmountAppArmorSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
 	snippet := bytes.NewBuffer(nil)
 	for _, r := range iface.path(slot, "read") {
 		fmt.Fprintln(snippet, appArmorEntry(plug, slot, r, "read", "r"))
@@ -137,20 +137,20 @@ func (iface *ShadowInterface) shadowAppArmorSnippet(plug *interfaces.Plug, slot 
 	return snippet.Bytes(), nil
 }
 
-func (iface *ShadowInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OvermountInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityMount:
-		return iface.shadowMountSnippet(plug, slot)
+		return iface.overmountMountSnippet(plug, slot)
 	case interfaces.SecurityAppArmor:
-		return iface.shadowAppArmorSnippet(plug, slot)
+		return iface.overmountAppArmorSnippet(plug, slot)
 	}
 	return nil, nil
 }
 
-func (iface *ShadowInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OvermountInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *ShadowInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	return plug.Attrs["shadow"] == slot.Attrs["shadow"]
+func (iface *OvermountInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+	return plug.Attrs["overmount"] == slot.Attrs["overmount"]
 }

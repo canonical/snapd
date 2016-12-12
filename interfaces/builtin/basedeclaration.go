@@ -433,10 +433,10 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
-  shadow:
+  overmount:
     allow-installation:
       slot-snap-type:
-        - app
+        - core
     deny-auto-connection: false
   shutdown:
     allow-installation:
