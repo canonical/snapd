@@ -141,10 +141,10 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		writePaths := iface.path(slot, "write")
 		if len(writePaths) > 0 {
 			fmt.Fprintf(contentSnippet, `
-# In addition to the bind mount, add an AppArmor rule so that
+# In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
-# to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
-# is needed for using named sockets within the exported
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
 # directory.
 `)
 			for _, w := range writePaths {
@@ -156,7 +156,7 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		readPaths := iface.path(slot, "read")
 		if len(readPaths) > 0 {
 			fmt.Fprintf(contentSnippet, `
-# In addition to the bind mount, add an AppArmor rule so that
+# In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 `)
