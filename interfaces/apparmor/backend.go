@@ -163,11 +163,11 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 			var tagSnippets [][]byte
 
 			if opts.Classic && opts.JailMode {
-				tagSnippets = append(tagSnippets, snippets[securityTag]...)
 				// Add a special internal snippet for snaps using classic confinement
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = append(tagSnippets, classicJailmodeSnippet)
+				tagSnippets = append(tagSnippets, snippets[securityTag]...)
 			} else {
 				tagSnippets = snippets[securityTag]
 			}
