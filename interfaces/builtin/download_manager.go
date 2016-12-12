@@ -121,10 +121,6 @@ dbus (bind)
     bus=session
     name="com.canonical.applications.Downloader",
 
-# Allow writing to app download directories
-owner @{HOME}/snap/*/common/Downloads/    rw,
-owner @{HOME}/snap/*/common/Downloads/**  rwk,
-
 dbus (send)
     bus={system,session}
     path=/org/freedesktop/DBus
@@ -186,6 +182,10 @@ dbus (send)
     path=/com/canonical/applications/download/**
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=###PLUG_SECURITY_TAGS###),
+
+# Allow writing to app download directories
+owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/    rw,
+owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
 
 `)
 
@@ -256,6 +256,9 @@ func (iface *DownloadInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
         old := []byte("###PLUG_SECURITY_TAGS###")
         new := plugAppLabelExpr(plug)
         snippet := bytes.Replace(downloadConnectedSlotAppArmor, old, new, -1)
+        old = []byte("###PLUG_NAME###")
+        new = []byte(plug.Snap.Name())
+        snippet = bytes.Replace(snippet, old, new, -1)
         return snippet, nil
     }
     return nil, nil
