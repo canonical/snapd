@@ -149,7 +149,15 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get purge -y snapd || true
+    # Add the image PPA where some beelding edge stuff resides.  We need this
+    # to get the latest snap-confine before the version is out in the regular
+    # archive.
+    apt-get update
+    apt-get install -y software-properties-common
+    add-apt-repository ppa:snappy-dev/image
+    apt-get update
+
+    apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
     apt-get update
     # utilities
     apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
@@ -214,7 +222,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -223,6 +231,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
         restore-each: |
             $TESTSLIB/reset.sh
