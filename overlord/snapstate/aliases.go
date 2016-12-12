@@ -132,7 +132,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		aliasStatuses = make(map[string]string)
 	}
 	var add []*backend.Alias
-	for alias, _ := range toEnable {
+	for alias := range toEnable {
 		aliasApp := curInfo.Aliases[alias]
 		if aliasApp == nil {
 			return fmt.Errorf("cannot enable alias %q for %q, no such alias", alias, snapName)
@@ -185,7 +185,7 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	var remove []*backend.Alias
-	for alias, _ := range toEnable {
+	for alias := range toEnable {
 		if oldStatuses[alias] == "enabled" {
 			// nothing to undo
 			continue
