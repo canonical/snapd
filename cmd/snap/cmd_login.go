@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -62,8 +61,6 @@ func init() {
 		}})
 }
 
-var ReadPasswordFunc = terminal.ReadPassword
-
 func requestLoginWith2faRetry(email, password string) error {
 	var otp []byte
 	var err error
@@ -96,7 +93,7 @@ func requestLoginWith2faRetry(email, password string) error {
 
 func requestLogin(email string) error {
 	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
-	password, err := ReadPasswordFunc(Terminal)
+	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err

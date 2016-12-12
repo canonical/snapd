@@ -68,7 +68,7 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.Stdin = s.stdin
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
-	snap.ReadPasswordFunc = s.readPassword
+	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 }
@@ -77,7 +77,7 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
-	snap.ReadPasswordFunc = terminal.ReadPassword
+	snap.ReadPassword = terminal.ReadPassword
 
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
