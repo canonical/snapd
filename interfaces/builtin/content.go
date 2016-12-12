@@ -134,16 +134,15 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	contentSnippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-	}
-
 	switch securitySystem {
 	case interfaces.SecurityMount:
+		contentSnippet := bytes.NewBuffer(nil)
+		for _, r := range iface.path(slot, "read") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
+		}
+		for _, w := range iface.path(slot, "write") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
+		}
 		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
