@@ -35,6 +35,7 @@ type SnapOptions struct {
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
 	JailMode         bool   `json:"jailmode,omitempty"`
+	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 }
@@ -190,6 +191,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
 		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("classic", strconv.FormatBool(action.Classic)),
 		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {

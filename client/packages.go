@@ -47,6 +47,7 @@ type Snap struct {
 	Confinement   string        `json:"confinement"`
 	Private       bool          `json:"private"`
 	DevMode       bool          `json:"devmode"`
+	JailMode      bool          `json:"jailmode"`
 	TryMode       bool          `json:"trymode"`
 	Apps          []AppInfo     `json:"apps"`
 	Broken        string        `json:"broken"`
@@ -81,6 +82,7 @@ const (
 
 	StrictConfinement  = "strict"
 	DevModeConfinement = "devmode"
+	ClassicConfinement = "classic"
 )
 
 type ResultInfo struct {
