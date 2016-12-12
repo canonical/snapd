@@ -62,6 +62,8 @@ func init() {
 		}})
 }
 
+var ReadPasswordFunc = terminal.ReadPassword
+
 func requestLoginWith2faRetry(email, password string) error {
 	var otp []byte
 	var err error
@@ -94,7 +96,7 @@ func requestLoginWith2faRetry(email, password string) error {
 
 func requestLogin(email string) error {
 	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
-	password, err := terminal.ReadPassword(Terminal)
+	password, err := ReadPasswordFunc(Terminal)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err
