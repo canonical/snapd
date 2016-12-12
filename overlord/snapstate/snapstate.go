@@ -31,11 +31,15 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.TaskSet, error) {
+	if snapsup.Flags.Classic && !release.OnClassic {
+		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
+	}
 	if err := checkChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
 	}
