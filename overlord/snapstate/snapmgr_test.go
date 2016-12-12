@@ -141,6 +141,7 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
 			"stop-snap-services",
+			"remove-aliases",
 			"unlink-current-snap",
 		)
 	}
@@ -148,6 +149,7 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+		"setup-aliases",
 		"start-snap-services",
 	)
 	for i := 0; i < discards; i++ {
@@ -209,9 +211,11 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
+		"remove-aliases",
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"setup-aliases",
 		"start-snap-services",
 		"run-hook",
 	})
@@ -419,9 +423,11 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"stop-snap-services",
+		"remove-aliases",
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"setup-aliases",
 		"start-snap-services",
 		"run-hook",
 	})
@@ -442,14 +448,13 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	ts, err := snapstate.Enable(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 3)
-	c.Assert(s.state.TaskCount(), Equals, 3)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-snap-services")
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prepare-snap",
+		"link-snap",
+		"setup-aliases",
+		"start-snap-services",
+	})
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -467,12 +472,12 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	ts, err := snapstate.Disable(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 2)
-	c.Assert(s.state.TaskCount(), Equals, 2)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-snap",
+	})
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -556,6 +561,20 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"otherfoosnap": {
+			"foo.bar": "enabled",
+		},
+	})
+
+	_, err := snapstate.Install(s.state, "foo", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "foo" command namespace conflicts with enabled alias "foo\.bar" for "otherfoosnap"`)
 }
 
 // A sneakyStore changes the state when called
@@ -756,6 +775,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
+		"remove-aliases",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
@@ -804,7 +824,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
-	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+	expected := fakeOps{
 		{
 			op:    "storesvc-snap",
 			name:  "some-snap",
@@ -862,6 +882,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: "/snap/some-snap/42",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/42",
 		},
@@ -870,7 +893,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
-	})
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
 	ta := ts.Tasks()
@@ -881,7 +907,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-3]
+	linkTask := ta[len(ta)-4]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
 	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
@@ -994,6 +1020,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
@@ -1021,6 +1051,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/11",
 		},
@@ -1036,6 +1069,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
@@ -1160,6 +1195,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
@@ -1203,6 +1242,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
@@ -1319,6 +1361,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
@@ -1346,6 +1392,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
+			op: "update-aliases",
+		},
+
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/11",
 		},
@@ -1353,6 +1403,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/11",
+		},
+		{
+			op: "matching-aliases",
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "unlink-snap",
@@ -1371,6 +1427,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
@@ -1673,7 +1732,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -1688,8 +1747,8 @@ version: 1.0`)
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
-	c.Check(s.fakeBackend.ops[6].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[7].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[7].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -1748,7 +1807,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops, HasLen, 10)
+	c.Assert(ops, HasLen, 12)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/x2")
 	// and setup-snap
@@ -1765,26 +1824,26 @@ version: 1.0`)
 	c.Check(ops[2].op, Equals, "stop-snap-services")
 	c.Check(ops[2].name, Equals, "/snap/mock/x2")
 
-	c.Check(ops[3].op, Equals, "unlink-snap")
-	c.Check(ops[3].name, Equals, "/snap/mock/x2")
+	c.Check(ops[4].op, Equals, "unlink-snap")
+	c.Check(ops[4].name, Equals, "/snap/mock/x2")
 
-	c.Check(ops[4].op, Equals, "copy-data")
-	c.Check(ops[4].name, Equals, "/snap/mock/x3")
-	c.Check(ops[4].old, Equals, "/snap/mock/x2")
+	c.Check(ops[5].op, Equals, "copy-data")
+	c.Check(ops[5].name, Equals, "/snap/mock/x3")
+	c.Check(ops[5].old, Equals, "/snap/mock/x2")
 
-	c.Check(ops[5].op, Equals, "setup-profiles:Doing")
-	c.Check(ops[5].name, Equals, "mock")
-	c.Check(ops[5].revno, Equals, snap.R(-3))
+	c.Check(ops[6].op, Equals, "setup-profiles:Doing")
+	c.Check(ops[6].name, Equals, "mock")
+	c.Check(ops[6].revno, Equals, snap.R(-3))
 
-	c.Check(ops[6].op, Equals, "candidate")
-	c.Check(ops[6].sinfo, DeepEquals, snap.SideInfo{
+	c.Check(ops[7].op, Equals, "candidate")
+	c.Check(ops[7].sinfo, DeepEquals, snap.SideInfo{
 		RealName: "mock",
 		Revision: snap.R(-3),
 	})
-	c.Check(ops[7].op, Equals, "link-snap")
-	c.Check(ops[7].name, Equals, "/snap/mock/x3")
-	c.Check(ops[8].op, Equals, "start-snap-services")
+	c.Check(ops[8].op, Equals, "link-snap")
 	c.Check(ops[8].name, Equals, "/snap/mock/x3")
+	c.Check(ops[10].op, Equals, "start-snap-services")
+	c.Check(ops[10].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -1844,7 +1903,7 @@ version: 1.0`)
 
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	ops := s.fakeBackend.ops
-	c.Assert(ops, HasLen, 10)
+	c.Assert(ops, HasLen, 12)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/100001")
 	// and setup-snap
@@ -1898,7 +1957,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -1910,8 +1969,8 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
-	c.Check(s.fakeBackend.ops[6].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/some-snap/42")
+	c.Check(s.fakeBackend.ops[7].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[7].name, Equals, "/snap/some-snap/42")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -1961,11 +2020,15 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 8)
+	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -1998,6 +2061,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "some-snap",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
@@ -2072,6 +2137,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
@@ -2120,6 +2189,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "some-snap",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
@@ -2207,6 +2278,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 			stype: "app",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
@@ -2282,6 +2355,8 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			name: "some-snap",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
@@ -2420,7 +2495,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 
 	// ensure garbage collection runs as the last tasks
 	ops := s.fakeBackend.ops
-	c.Assert(ops[len(ops)-7], DeepEquals, fakeOp{
+	c.Assert(ops[len(ops)-8], DeepEquals, fakeOp{
 		op:   "link-snap",
 		name: "/snap/some-snap/11",
 	})
@@ -2582,6 +2657,10 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
@@ -2602,10 +2681,15 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify that the R(2) version is active now and R(7) is still there
@@ -2658,7 +2742,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 8)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2707,6 +2791,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/2",
 		},
@@ -2724,10 +2812,15 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify that the R(7) version is active now
@@ -2786,6 +2879,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/2",
 		},
@@ -2806,6 +2903,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/1",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/1",
 		},
@@ -2813,6 +2913,12 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/1",
+		},
+		{
+			op: "matching-aliases",
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "unlink-snap",
@@ -2828,10 +2934,15 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -2881,6 +2992,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/2",
 		},
@@ -2915,12 +3030,17 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
 
 	// ensure all our tasks ran
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -2991,10 +3111,15 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	var snapst snapstate.SnapState
@@ -3039,10 +3164,16 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	var snapst snapstate.SnapState
@@ -3133,6 +3264,8 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			stype: "app",
 		},
 	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 }
 
@@ -3943,6 +4076,10 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -3970,6 +4107,9 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op: "update-aliases",
+		},
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
@@ -3979,6 +4119,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			revno: snap.R(7),
 		},
 	}
+	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 }
@@ -4049,10 +4190,11 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 6*2)
+	c.Assert(s.state.TaskCount(), Equals, 7*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
+			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
 			"clear-snap",

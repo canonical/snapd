@@ -31,11 +31,22 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.TaskSet, error) {
+	if snapsup.Flags.Classic && !release.OnClassic {
+		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
+	}
+	if !snapst.HasCurrent() { // install?
+		// check that the snap command namespace doesn't conflict with an enabled alias
+		if err := checkSnapAliasConflict(st, snapsup.Name()); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := checkChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
 	}
@@ -88,6 +99,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		addTask(stop)
 		prev = stop
 
+		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
+		addTask(removeAliases)
+		prev = removeAliases
+
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.Name()))
 		addTask(unlink)
 		prev = unlink
@@ -109,6 +124,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.Name(), revisionStr))
 	addTask(linkSnap)
 	prev = linkSnap
+
+	// setup aliases
+	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
+	addTask(setupAliases)
+	prev = setupAliases
 
 	// run new serices
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.Name(), revisionStr))
@@ -545,11 +565,16 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	linkSnap.Set("snap-setup", &snapsup)
 	linkSnap.WaitFor(prepareSnap)
 
+	// setup aliases
+	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
+	setupAliases.Set("snap-setup", &snapsup)
+	setupAliases.WaitFor(linkSnap)
+
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.Name(), snapst.Current))
 	startSnapServices.Set("snap-setup", &snapsup)
-	startSnapServices.WaitFor(linkSnap)
+	startSnapServices.WaitFor(setupAliases)
 
-	return state.NewTaskSet(prepareSnap, linkSnap, startSnapServices), nil
+	return state.NewTaskSet(prepareSnap, linkSnap, setupAliases, startSnapServices), nil
 }
 
 // Disable sets a snap to the inactive state
@@ -587,11 +612,16 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
 	stopSnapServices.Set("snap-setup", &snapsup)
+
+	removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
+	removeAliases.Set("snap-setup-task", stopSnapServices.ID())
+	removeAliases.WaitFor(stopSnapServices)
+
 	unlinkSnap := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system"), snapsup.Name(), snapst.Current))
 	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
-	unlinkSnap.WaitFor(stopSnapServices)
+	unlinkSnap.WaitFor(removeAliases)
 
-	return state.NewTaskSet(stopSnapServices, unlinkSnap), nil
+	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap), nil
 }
 
 func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -722,15 +752,19 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
 
+		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
+		removeAliases.WaitFor(stopSnapServices)
+		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
+
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 		unlink.Set("snap-setup-task", stopSnapServices.ID())
-		unlink.WaitFor(stopSnapServices)
+		unlink.WaitFor(removeAliases)
 
 		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
 		removeSecurity.WaitFor(unlink)
 		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
-		addNext(state.NewTaskSet(stopSnapServices, unlink, removeSecurity))
+		addNext(state.NewTaskSet(stopSnapServices, removeAliases, unlink, removeSecurity))
 	}
 
 	if removeAll || len(snapst.Sequence) == 1 {

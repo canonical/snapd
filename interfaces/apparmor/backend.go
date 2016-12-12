@@ -145,7 +145,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.Confineme
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
 	var policy []byte
-	if opts.Classic {
+	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 	} else {
 		policy = defaultTemplate
