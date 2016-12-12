@@ -87,12 +87,16 @@ func basicEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string) map[string]string {
-	return map[string]string{
-		"HOME":             info.UserDataDir(home),
+	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
 		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
 	}
+	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
+	if !info.NeedsClassic() {
+		result["HOME"] = info.UserDataDir(home)
+	}
+	return result
 }
 
 // envMap creates a map from the given environment string list, e.g. the
