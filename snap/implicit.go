@@ -27,49 +27,39 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-func initImplicitSlots() []string {
-	result := []string{
-		"alsa",
-		"bluetooth-control",
-		"camera",
-		"dcdbas-control",
-		"docker-support",
-		"firewall-control",
-		"hardware-observe",
-		"home",
-		"kernel-module-control",
-		"locale-control",
-		"log-observe",
-		"lxd-support",
-		"mount-observe",
-		"network",
-		"network-bind",
-		"network-control",
-		"network-observe",
-		"network-setup-observe",
-		"opengl",
-		"ppp",
-		"process-control",
-		"raw-usb",
-		"removable-media",
-		"shutdown",
-		"snapd-control",
-		"system-observe",
-		"system-trace",
-		"time-control",
-		"timeserver-control",
-		"timezone-control",
-		"tpm",
-	}
-
-	if !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04") {
-		result = append(result, "fuse-support")
-	}
-
-	return result
+var implicitSlots = []string{
+	"alsa",
+	"bluetooth-control",
+	"camera",
+	"dcdbas-control",
+	"docker-support",
+	"firewall-control",
+	"hardware-observe",
+	"home",
+	"kernel-module-control",
+	"locale-control",
+	"log-observe",
+	"lxd-support",
+	"mount-observe",
+	"network",
+	"network-bind",
+	"network-control",
+	"network-observe",
+	"network-setup-observe",
+	"opengl",
+	"ppp",
+	"process-control",
+	"raw-usb",
+	"removable-media",
+	"shutdown",
+	"snapd-control",
+	"system-observe",
+	"system-trace",
+	"time-control",
+	"timeserver-control",
+	"timezone-control",
+	"tpm",
 }
-
-var implicitSlots = initImplicitSlots()
 
 var implicitClassicSlots = []string{
 	"avahi-observe",
@@ -110,6 +100,9 @@ func AddImplicitSlots(snapInfo *Info) {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
 			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
 		}
+	}
+	if !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04") {
+		snapInfo.Slots["fuse-support"] = makeImplicitSlot(snapInfo, "fuse-support")
 	}
 }
 

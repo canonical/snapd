@@ -34,8 +34,8 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-            # FIXME restore of ubuntu-core does not properly
-            # reset boot variables and key snaps to their pristine state.
+            # FIXME restore of ubuntu-core does not properly reset
+            # boot variables and key snaps to their pristine state.
             - ubuntu-core-16-64-fixme:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
@@ -103,11 +103,14 @@ exclude:
 
 prepare-each: |
     # systemd on 14.04 does not know about --rotate
-    # or --vacuum-time. Gracefully handle both commands
-    # failing.
-    journalctl --rotate || true
-    sleep .1
-    journalctl --vacuum-time=1ms || true
+    # or --vacuum-time.
+    # TODO: Find a way to clean out systemd logs on
+    # systemd 204.
+    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    fi
     dmesg -c > /dev/null
 
 debug-each: |
