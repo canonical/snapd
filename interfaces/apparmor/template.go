@@ -294,10 +294,6 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
-  # Read-only access to the core snap.
-  # This is useful to classic snaps in jailmode.
-  @{INSTALL_DIR}/core/** r,
-
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
@@ -402,4 +398,13 @@ var classicTemplate = []byte(`
 
 ###SNIPPETS###
 }
+`)
+
+// classicJailmodeSnippet contains extra rules that allow snaps using classic
+// confinement, that were put in to jailmode, to execute by at least having
+// access to the core snap (e.g. for the dynamic linker and libc).
+
+var classicJailmodeSnippet = []byte(`
+  # Read-only access to the core snap.
+  @{INSTALL_DIR}/core/** r,
 `)
