@@ -1,0 +1,21 @@
+summary: Check that snap-discard-ns gracefully handles errors
+details: |
+    The internal snap-discard-ns program is supposed to simply unmount
+    whatever is mounted at /run/snapd/ns/$SNAP_NAME.mnt. In case of
+    some specific failures though, we don't expect it to fail.
+prepare: |
+    umount /run/snapd/ns || true
+    rm -rf /run/snapd/ns
+execute: |
+    echo "We can try to discard a namespace before *any* snap runs"
+    /usr/lib/snapd/snap-discard-ns foo
+    echo "We can try to discard a namespace before the .mnt file exits"
+    mkdir -p /run/snapd/ns/
+    /usr/lib/snapd/snap-discard-ns foo
+    echo "We can try to discard a namespace before the .mnt file is mounted"
+    touch /run/snapd/ns/foo.mnt
+    /usr/lib/snapd/snap-discard-ns foo
+restore: |
+    rm /run/snapd/ns/foo.mnt
+    rm /run/snapd/ns/foo.lock
+    rmdir /run/snapd/ns
