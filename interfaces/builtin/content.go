@@ -145,7 +145,7 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 # is needed for using named sockets within the exported
 # directory.
 /var/snap/%s/%s/** mrwklix,
-`, slot.Snap.Name, slot.Snap.Revision)
+`, slot.Snap.Name(), slot.Snap.Revision)
 		}
 		if len(iface.path(slot, "read")) > 0 {
 			fmt.Fprintf(contentSnippet, `
@@ -153,7 +153,7 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 # snaps may directly access the slot implementation's files
 # read-only.
 /var/snap/%s/%s/** mrkix,
-`, slot.Snap.Name, slot.Snap.Revision)
+`, slot.Snap.Name(), slot.Snap.Revision)
 		}
 		return contentSnippet.Bytes(), nil
 	case interfaces.SecurityMount:
