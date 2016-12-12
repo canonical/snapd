@@ -20,10 +20,10 @@
 package store
 
 import (
+	"gopkg.in/retry.v1"
 	"io"
 	"net"
 	"net/http"
-	"gopkg.in/retry.v1"
 )
 
 func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
