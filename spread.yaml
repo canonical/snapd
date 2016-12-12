@@ -223,6 +223,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
         restore-each: |
             $TESTSLIB/reset.sh
