@@ -135,6 +135,19 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		var snippet []byte = nil
+		if len(iface.path(slot, "write")) > 0 {
+			snippet = []byte(fmt.Sprintf(`
+# In addition to the bind mount, add an AppArmor rule so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, this rule
+# is needed for using named sockets within the exported
+# directory.
+/var/snap/%s/%s/** mrwklix,
+`, slot.Snap.Name, slot.Snap.Revision))
+		}
+		return snippet, nil
 	case interfaces.SecurityMount:
 		contentSnippet := bytes.NewBuffer(nil)
 		for _, r := range iface.path(slot, "read") {
