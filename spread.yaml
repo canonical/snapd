@@ -149,6 +149,14 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
+    # Add the image PPA where some beelding edge stuff resides.  We need this
+    # to get the latest snap-confine before the version is out in the regular
+    # archive.
+    apt-get update
+    apt-get install -y software-properties-common
+    add-apt-repository ppa:snappy-dev/image
+    apt-get update
+
     apt-get purge -y snapd || true
     apt-get update
     # utilities
