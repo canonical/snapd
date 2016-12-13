@@ -3575,31 +3575,6 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }
 
-func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := s.daemon(c)
-	eventsCmd.d = d
-	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
-
-	ts := httptest.NewServer(http.HandlerFunc(eventsCmd.GET(eventsCmd, nil, nil).ServeHTTP))
-
-	req, err := http.NewRequest("GET", ts.URL, nil)
-	c.Assert(err, check.IsNil)
-	req.Header.Add("Upgrade", "websocket")
-	req.Header.Add("Connection", "Upgrade")
-	req.Header.Add("Sec-WebSocket-Key", "xxx")
-	req.Header.Add("Sec-WebSocket-Version", "13")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	c.Assert(err, check.IsNil)
-	// upgrades request
-	c.Assert(resp.Header["Upgrade"], check.DeepEquals, []string{"websocket"})
-	// adds subscriber - this happens at the end of the response so close the
-	// server first to prevent problems with sequence ordering
-	ts.Close()
-	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
-}
-
 func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	chg1.Set("snap-names", []string{"funky-snap-name"})
