@@ -1,9 +1,3 @@
-snapd (2.19ubuntu3) trusty; urgency=medium
-
-  * Bump revision for local testing purposes.
-
- -- Thomas Voß <thomas.voss@canonical.com>  Mon, 12 Dec 2016 21:30:34 +0100
-
 snapd (2.19) xenial; urgency=medium
 
   * New upstream release, LP: #1648520
