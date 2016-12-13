@@ -382,8 +382,11 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 		return nil, err
 	}
 
-	// ensure that we only connect to slot with matching attributes
-	// TODO: use interface/policy Checkers when they are available
+	// ensure that we only connect to slot with matching attributes. This
+	// makes sure that the security policy is correct, but does not ensure
+	// that 'snap interfaces' is correct.
+	// TODO: we can fix the 'snap interfaces' issue when interface/policy
+	// checkers when they are available
 	if bus != busPlug || name != namePlug {
 		return nil, nil
 	}
