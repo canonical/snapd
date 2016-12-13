@@ -227,7 +227,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 
 	// Install does not (and gives us a clear error message)
 	_, err = cs.cli.Install("foo", &opts)
-	c.Assert(err, check.Equals, client.ErrNoDangerous)
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 
 	// nor does InstallMany (whether it fails because any option
 	// at all was provided, or because dangerous was provided, is
@@ -291,5 +291,5 @@ func (cs *clientSuite) TestClientOpTryModeDangerous(c *check.C) {
 	snapdir := filepath.Join(c.MkDir(), "/some/path")
 
 	_, err := cs.cli.Try(snapdir, &client.SnapOptions{Dangerous: true})
-	c.Assert(err, check.Equals, client.ErrNoDangerous)
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 }
