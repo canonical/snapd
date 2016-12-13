@@ -193,7 +193,7 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 {"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "trymode": true}
 ,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode"}
 ,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict"}
-,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode"}
+,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode", "jailmode": true}
 ]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
