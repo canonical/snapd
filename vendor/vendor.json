@@ -49,6 +49,12 @@
 			"revisionTime": "2016-12-13T07:12:38Z"
 		},
 		{
+			"checksumSHA1": "wClBtrHsGvzusCkIFdF78Iak6y0=",
+			"path": "github.com/mvo5/gettext.go/pluralforms",
+			"revision": "da4fdf605f1b0e2aa523423db5c0a3f727d62019",
+			"revisionTime": "2016-12-13T07:12:38Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
