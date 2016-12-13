@@ -21,14 +21,12 @@ package builtin
 
 import "github.com/snapcore/snapd/interfaces"
 
-const libvirtConnectedPlugAppArmor = `
-/run/libvirt/libvirt-sock rw,
-/etc/libvirt/* r,
+const openvswitchConnectedPlugAppArmor = `
+/run/openvswitch/db.sock rw,
 `
 
-const libvirtConnectedPlugSecComp = `
+const openvswitchConnectedPlugSecComp = `
 connect
-getsockname
 recv
 recvmsg
 send
@@ -36,15 +34,13 @@ sendto
 sendmsg
 socket
 socketpair
-listen
-accept
 `
 
-func NewLibvirtInterface() interfaces.Interface {
+func NewOpenvSwitchInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "libvirt",
-		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
-		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
+		name: "openvswitch",
+		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
+		connectedPlugSecComp:  openvswitchConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
