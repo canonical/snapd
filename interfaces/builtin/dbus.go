@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
@@ -248,10 +249,9 @@ func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
 	snippet = bytes.Replace(snippet, old, new, -1)
 
 	// convert name to AppArmor dbus path (eg 'org.foo' to '/org/foo{,/**}')
-	dot_re := regexp.MustCompile("\\.")
 	var pathBuf bytes.Buffer
 	pathBuf.WriteString(`"/`)
-	pathBuf.WriteString(dot_re.ReplaceAllString(name, "/"))
+	pathBuf.WriteString(strings.Replace(name, ".", "/", -1))
 	pathBuf.WriteString(`{,/**}"`)
 
 	old = []byte("###DBUS_PATH###")
