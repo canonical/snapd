@@ -43,6 +43,7 @@ var allInterfaces = []interfaces.Interface{
 	&MprisInterface{},
 	&NetworkManagerInterface{},
 	&OfonoInterface{},
+	&OvermountInterface{},
 	&PppInterface{},
 	&PulseAudioInterface{},
 	&SerialPortInterface{},
