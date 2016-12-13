@@ -221,12 +221,6 @@ func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 		return "", "", fmt.Errorf("DBus bus name must not end with -NUMBER")
 	}
 
-	if bus == "" {
-		return "", "", fmt.Errorf("required attribute 'bus' not specified")
-	} else if name == "" {
-		return "", "", fmt.Errorf("required attribute 'name' not specified")
-	}
-
 	return bus, name, nil
 }
 
