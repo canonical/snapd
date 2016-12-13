@@ -4669,5 +4669,36 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestAliasErrors(c *check.C) {
-	// XXX here a scenarios test
+	s.daemon(c)
+
+	errScenarios := []struct {
+		mangle func(*aliasAction)
+		err    string
+	}{
+		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
+		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
+		{func(a *aliasAction) { a.Aliases = nil }, `at least one alias name is required`},
+		{func(a *aliasAction) { a.Snap = "lalala"}, `cannot find snap "lalala"`},
+	}
+
+	for _, scen := range errScenarios {
+		action := &aliasAction{
+			Action:  "alias",
+			Snap:    "alias-snap",
+			Aliases: []string{"alias1"},
+		}
+		scen.mangle(action)
+
+		text, err := json.Marshal(action)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(text)
+		req, err := http.NewRequest("POST", "/v2/aliases", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := changeAliases(aliasesCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
+	}
+
 }
