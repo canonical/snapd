@@ -146,6 +146,28 @@ func formatDescr(descr string, max int) string {
 	return strings.TrimSuffix(out.String(), "\n")
 }
 
+func maybePrintApps(w io.Writer, allApps []client.AppInfo, n int) {
+	if len(allApps) == 0 {
+		return
+	}
+
+	apps := make([]string, len(allApps))
+	for i, a := range allApps {
+		apps[i] = a.Name
+	}
+	// try short line
+	line := fmt.Sprintf("apps:\t[%s]\n", strutil.Quoted(apps))
+	if len(line) < n {
+		fmt.Fprintf(w, line)
+		return
+	}
+	// too many apps, long line
+	fmt.Fprintf(w, "apps:\n")
+	for _, app := range apps {
+		fmt.Fprintf(w, "  - %s\n", app)
+	}
+}
+
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
@@ -182,6 +204,7 @@ func (x *infoCmd) Execute([]string) error {
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
+		maybePrintApps(w, both.Apps, termWidth)
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
