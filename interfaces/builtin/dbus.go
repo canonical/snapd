@@ -81,17 +81,17 @@ dbus (receive)
     member=Introspect
     peer=(label=unconfined),
 
-# allow unconfined clients to all paths via ###DBUS_INTERFACE###
-# on classic
-dbus (receive, send)
+# allow us to respond to unconfined clients via ###DBUS_INTERFACE###
+# on classic (send should be handled via another snappy interface).
+dbus (receive)
     bus=###DBUS_BUS###
     interface=###DBUS_INTERFACE###
     peer=(label=unconfined),
 
-# allow unconfined to all interfaces via ###DBUS_PATH### (eg,
-# org.freedesktop.*, org.gtk.Application, etc) to allow integrating in classic
-# environment.
-dbus (receive, send)
+# allow us to respond to unconfined clients via ###DBUS_PATH### (eg,
+# org.freedesktop.*, org.gtk.Application, etc) on classic (send should be
+# handled via another snappy interface).
+dbus (receive)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
     peer=(label=unconfined),
