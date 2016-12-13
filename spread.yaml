@@ -4,7 +4,8 @@ environment:
     GOPATH: /home/gopath
     REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
-    PATH: $GOPATH/bin:/snap/bin:$PATH
+    # /usr/lib/go-1.6/bin for trusty
+    PATH: /usr/lib/go-1.6/bin:$GOPATH/bin:/snap/bin:$PATH
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
