@@ -276,7 +276,7 @@ func (s *snapmgrTestSuite) TestAliasNoAlias(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot toggle alias "alias1" for "some-snap", no such alias.*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "some-snap", no such alias.*`)
 }
 
 func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
