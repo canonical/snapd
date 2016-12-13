@@ -31,7 +31,8 @@ const pulseaudioConnectedPlugAppArmor = `
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
-owner /run/user/[0-9]*/{,pulse/} rw,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -97,7 +98,8 @@ owner /{,var/}run/pulse/** rwk,
 /usr/share/applications/ r,
 
 owner /run/pulse/native/ rwk,
-owner /run/user/[0-9]*/{,pulse/} rw,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioPermanentSlotSecComp = `
