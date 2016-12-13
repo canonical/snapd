@@ -24,7 +24,7 @@ execute: |
       "architecture": "armhf",
       "gadget": "pi3",
       "kernel": "pi2-kernel",
-      "timestamp": "$(date -Iseconds --utc)"
+      "timestamp": "$(date --utc '+%FT%T%:z')"
     }
     EOF
     echo "Sign the model assertion with our key"
