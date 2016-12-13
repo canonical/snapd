@@ -183,7 +183,8 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 # Description: Give access to a specific IIO device on the system.
 
 /dev/iio:device1 rw,
-/sys/bus/iio/devices/iio:device1/{,**} rw,
+/sys/bus/iio/devices/iio:device1/ r,
+/sys/bus/iio/devices/iio:device1/** rwk,
 `)
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
