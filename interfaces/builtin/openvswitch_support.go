@@ -19,32 +19,19 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
-const libvirtConnectedPlugAppArmor = `
-/run/libvirt/libvirt-sock rw,
-/etc/libvirt/* r,
+const openvswitchSupportConnectedPlugKmod = `
+openvswitch
 `
 
-const libvirtConnectedPlugSecComp = `
-connect
-getsockname
-recv
-recvmsg
-send
-sendto
-sendmsg
-socket
-socketpair
-listen
-accept
-`
-
-func NewLibvirtInterface() interfaces.Interface {
+// NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
+func NewOpenvSwitchSupportInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "libvirt",
-		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
-		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
-		reservedForOS:         true,
+		name:              "openvswitch-support",
+		connectedPlugKMod: openvswitchSupportConnectedPlugKmod,
+		reservedForOS:     true,
 	}
 }
