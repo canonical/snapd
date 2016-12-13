@@ -4678,7 +4678,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
 		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
 		{func(a *aliasAction) { a.Aliases = nil }, `at least one alias name is required`},
-		{func(a *aliasAction) { a.Snap = "lalala"}, `cannot find snap "lalala"`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
 	}
 
 	for _, scen := range errScenarios {
