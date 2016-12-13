@@ -708,15 +708,26 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnects(c *C) {
 
 // The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true)
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, plug *interfaces.Plug) {
+		// Ensure that "test" plug is now saved in the state as auto-connected.
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
+		})
+		// Ensure that "test" is really connected.
+		c.Check(plug.Connections, HasLen, 1)
+	})
 }
 
-// The setup-profiles task will auto-connect plugs with viable candidates when snap declarations are missing.
+// The setup-profiles task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhenMissingDecl(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false)
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, plug *interfaces.Plug) {
+		// Ensure nothing is connected.
+		c.Check(conns, HasLen, 0)
+		c.Check(plug.Connections, HasLen, 0)
+	})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, *interfaces.Plug)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -768,18 +779,7 @@ slots:
 	plug := repo.Plug("consumer", "plug")
 	c.Assert(plug, Not(IsNil))
 
-	if withDecl {
-		// Ensure that "test" plug is now saved in the state as auto-connected.
-		c.Check(conns, DeepEquals, map[string]interface{}{
-			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
-		})
-		// Ensure that "test" is really connected.
-		c.Check(plug.Connections, HasLen, 1)
-	} else {
-		// Ensure nothing is connected.
-		c.Check(conns, HasLen, 0)
-		c.Check(plug.Connections, HasLen, 0)
-	}
+	check(conns, plug)
 }
 
 // The setup-profiles task will only touch connection state for the task it
