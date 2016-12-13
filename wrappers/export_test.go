@@ -30,9 +30,9 @@ var (
 	GenerateSnapSocketFile  = generateSnapSocketFile
 
 	// desktop
-	SanitizeDesktopFile = sanitizeDesktopFile
-	RewriteExecLine     = rewriteExecLine
-	TrimLang            = trimLang
+	SanitizeDesktopFile    = sanitizeDesktopFile
+	RewriteExecLine        = rewriteExecLine
+	IsValidDesktopFileLine = isValidDesktopFileLine
 )
 
 func MockKillWait(wait time.Duration) (restore func()) {
