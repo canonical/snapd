@@ -155,7 +155,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 			continue
 		}
 		expected := autoconnect[iface.Name()]
-		comm := Commentf(iface.Name())
+		comm := Commentf("%s: %v", iface.Name(), expected)
 
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
@@ -347,6 +347,7 @@ var (
 		// other
 		"bluez":            {"app"},
 		"bool-file":        {"core", "gadget"},
+		"boot-config":      {"gadget"},
 		"browser-support":  {"core"},
 		"content":          {"app", "gadget"},
 		"docker-support":   {"core"},
@@ -467,6 +468,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":            true,
+		"boot-config":      true,
 		"docker":           true,
 		"fwupd":            true,
 		"location-control": true,
