@@ -11,12 +11,18 @@ debug: |
     ls /var/lib/snapd/snaps
 
 prepare: |
-    readlink -f /snap/core/current > current-core-symlink
+    readlink /snap/core/current > current-core-symlink
+    readlink -f /snap/core/current > current-core-symlink-target
 
 restore: |
     rm -f  /snap/core/current
     ln -s $(cat current-core-symlink) /snap/core/current
     rm -f current-core-symlink
+    if [ $(readlink -f /snap/core/current) != $(cat current-core-symlink-target) ]; then
+        echo "failed to restore core symlink"
+        echo "$(readlink -f /snap/core/current) != $(cat current-core-symlink-target)"
+        exit 1
+    fi
 
 execute: |
     . $TESTSLIB/names.sh

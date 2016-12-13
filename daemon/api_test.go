@@ -39,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
@@ -104,7 +105,7 @@ func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (s *apiBaseSuite) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("Download not expected to be called")
 }
 
@@ -305,6 +306,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":    "/v2/snaps/foo",
 			"private":     false,
 			"devmode":     false,
+			"jailmode":    false,
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
@@ -314,19 +316,6 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	}
 
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
-}
-
-func (s *apiSuite) TestQuotedNames(c *check.C) {
-	for _, t := range []struct {
-		in  []string
-		out string
-	}{
-		{[]string{}, ""},
-		{[]string{"snap1"}, `"snap1"`},
-		{[]string{"snap1", "snap2"}, `"snap1", "snap2"`},
-	} {
-		c.Check(quotedNames(t.in), check.Equals, t.out)
-	}
 }
 
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
@@ -411,8 +400,9 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"errNothingToInstall",
 		"defaultCoreSnapName",
 		"oldDefaultSnapCoreName",
-		"errModeConflict",
+		"errDevJailModeConflict",
 		"errNoJailMode",
+		"errClassicDevmodeConflict",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
@@ -1180,7 +1170,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			RealName:  "store",
 			Developer: "foo",
 		},
-		Channels: map[string]*snap.Ref{
+		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
 			},
@@ -2471,22 +2461,33 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		refreshSnapDecls = true
 		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
-
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-		c.Check(names, check.HasLen, 0)
-		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
-	}
-
 	d := s.daemon(c)
-	inst := &snapInstruction{Action: "refresh"}
-	st := d.overlord.State()
-	st.Lock()
-	summary, _, _, err := snapUpdateMany(inst, st)
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh snaps "fake1", "fake2"`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+
+	for _, tst := range []struct {
+		snaps []string
+		msg   string
+	}{
+		{nil, "Refresh all snaps: no updates"},
+		{[]string{"fake"}, `Refresh snap "fake"`},
+		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
+	} {
+		refreshSnapDecls = false
+
+		snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+			c.Check(names, check.HasLen, 0)
+			t := s.NewTask("fake-refresh-all", "Refreshing everything")
+			return tst.snaps, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		}
+
+		inst := &snapInstruction{Action: "refresh"}
+		st := d.overlord.State()
+		st.Lock()
+		summary, _, _, err := snapUpdateMany(inst, st)
+		st.Unlock()
+		c.Assert(err, check.IsNil)
+		c.Check(summary, check.Equals, tst.msg)
+		c.Check(refreshSnapDecls, check.Equals, true)
+	}
 }
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {

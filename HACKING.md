@@ -153,12 +153,12 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 or with systemd version >= 230
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you
@@ -168,3 +168,29 @@ should then
 
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
+
+To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
+It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
+
+# Quick intro to hacking on snap-confine
+
+Hey, welcome to the nice, low-level world of snap-confine
+
+## Building the code locally
+
+To get started from a pristine tree you want to do this:
+
+```
+./mkversion.sh
+cd cmd/
+autoreconf -i -f
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+```
+
+This will drop makefiles and let you build stuff. You may find the `make hack`
+target, available in `cmd/snap-confine` handy, it installs the locally built
+version on your system and reloads the apparmor profile.
+
+## Submitting patches
+
+Please run `make fmt` before sending your patches.
