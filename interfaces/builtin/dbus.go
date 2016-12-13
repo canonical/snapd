@@ -54,8 +54,8 @@ dbus (bind)
     name=###DBUS_NAME###,
 
 # For KDE applications, also support alternation since they use org.kde.foo-PID
-# as their 'well-known' name. snapd does not allow ###DBUS_NAME### to end with
-# '-[0-9]+', so this is ok.
+# as their 'well-known' name. snapd does not allow declaring a 'well-known'
+# name that ends with '-[0-9]+', so this is ok.
 dbus (bind)
     bus=###DBUS_BUS###
     name=###DBUS_NAME###-[1-9]{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]},
@@ -80,7 +80,8 @@ dbus (receive)
     member=Introspect
     peer=(label=unconfined),
 
-# allow unconfined clients talk to ###DBUS_NAME### on classic
+# allow unconfined clients to all paths via ###DBUS_INTERFACE###
+# on classic
 dbus (receive, send)
     bus=###DBUS_BUS###
     interface=###DBUS_INTERFACE###
@@ -122,7 +123,7 @@ dbus (receive)
     member=Introspect
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# allow connected snaps to ###DBUS_NAME###
+# allow connected snaps to all paths via ###DBUS_INTERFACE###
 dbus (receive, send)
     bus=###DBUS_BUS###
     interface=###DBUS_INTERFACE###
