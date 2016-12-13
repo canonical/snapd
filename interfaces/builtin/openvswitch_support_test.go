@@ -79,16 +79,8 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) 
 }
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for kmod
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
