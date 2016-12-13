@@ -52,6 +52,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.PulseAudioInterface{})
 	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
+	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
@@ -84,7 +85,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewTimeserverControlInterface())
 	c.Check(all, DeepContains, builtin.NewTimezoneControlInterface())
 	c.Check(all, DeepContains, builtin.NewTpmInterface())
-	c.Check(all, DeepContains, builtin.NewUPowerObserveInterface())
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 }
