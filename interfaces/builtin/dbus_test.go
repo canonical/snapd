@@ -337,7 +337,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify classic rule not present
-	c.Check(string(snippet), Not(testutil.Contains), "# allow unconfined clients talk to org.test-session-slot on classic\n")
+	c.Check(string(snippet), Not(testutil.Contains), "# allow unconfined clients all paths via \"org.test-session-slot{,.*}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
@@ -349,7 +349,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	// verify classic rule
-	c.Check(string(snippet), testutil.Contains, "# allow unconfined clients talk to org.test-session-slot on classic\n")
+	c.Check(string(snippet), testutil.Contains, "# allow unconfined clients to all paths via \"org.test-session-slot{,.*}\"\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
