@@ -137,6 +137,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":        true,
+		"download-manager":       true,
 		"gsettings":              true,
 		"mir":                    true,
 		"network":                true,
@@ -468,6 +469,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":            true,
+		"download-manager": true,
 		"docker":           true,
 		"fwupd":            true,
 		"location-control": true,
