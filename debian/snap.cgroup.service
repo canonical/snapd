@@ -1,5 +1,6 @@
 [Unit]
 Description=Ensure a minimal cgroups setup if systemd is not running as PID 1
+ConditionPathExists=!/run/systemd/initctl/fifo
 ConditionPathExists=/proc/cgroups
 ConditionPathIsMountPoint=/sys/fs/cgroup
 Before=snapd.service
