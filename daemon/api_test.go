@@ -4620,3 +4620,85 @@ func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
+
+// aliases
+
+func (s *apiSuite) TestAliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &aliasAction{
+		Action:  "alias",
+		Snap:    "alias-snap",
+		Aliases: []string{"alias1"},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// sanity check
+	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, true)
+}
+
+func (s *apiSuite) TestAliasErrors(c *check.C) {
+	s.daemon(c)
+
+	errScenarios := []struct {
+		mangle func(*aliasAction)
+		err    string
+	}{
+		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
+		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
+		{func(a *aliasAction) { a.Aliases = nil }, `at least one alias name is required`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+	}
+
+	for _, scen := range errScenarios {
+		action := &aliasAction{
+			Action:  "alias",
+			Snap:    "alias-snap",
+			Aliases: []string{"alias1"},
+		}
+		scen.mangle(action)
+
+		text, err := json.Marshal(action)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(text)
+		req, err := http.NewRequest("POST", "/v2/aliases", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := changeAliases(aliasesCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
+	}
+
+}
