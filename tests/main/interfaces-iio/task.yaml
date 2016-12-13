@@ -1,7 +1,7 @@
 summary: Check that IIO device nodes are accessible through an interface
 
 details: |
-    This test makes sure that the a snap using the IIO interface can access
+    This test makes sure that a snap using the IIO interface can access
     devices nodes exposed by a slot properly.
 
     It modifies the core snap to provide a iio slot. The actual iio device
