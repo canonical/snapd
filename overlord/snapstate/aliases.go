@@ -145,8 +145,8 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var toggles map[string]string
-	err = t.Get("aliases", &toggles)
+	var changes map[string]string
+	err = t.Get("aliases", &changes)
 	if err != nil {
 		return err
 	}
@@ -165,14 +165,25 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	}
 	var add []*backend.Alias
 	var remove []*backend.Alias
-	for alias, newStatus := range toggles {
+	for alias, newStatus := range changes {
 		aliasApp := curInfo.Aliases[alias]
 		if aliasApp == nil {
-			return fmt.Errorf("cannot toggle alias %q for %q, no such alias", alias, snapName)
+			var action string
+			switch newStatus {
+			case "enabled":
+				action = "enable"
+			case "disabled":
+				action = "disable"
+			}
+			return fmt.Errorf("cannot %s alias %q for %q, no such alias", action, alias, snapName)
 		}
 		if aliasStatuses[alias] == newStatus {
 			// nothing to do
 			continue
+		}
+		beAlias := &backend.Alias{
+			Name:   alias,
+			Target: filepath.Base(aliasApp.WrapperPath()),
 		}
 		switch newStatus {
 		case "enabled":
@@ -180,16 +191,10 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 			if err != nil {
 				return err
 			}
-			add = append(add, &backend.Alias{
-				Name:   alias,
-				Target: filepath.Base(aliasApp.WrapperPath()),
-			})
+			add = append(add, beAlias)
 		case "disabled":
 			if aliasStatuses[alias] != "" {
-				remove = append(remove, &backend.Alias{
-					Name:   alias,
-					Target: filepath.Base(aliasApp.WrapperPath()),
-				})
+				remove = append(remove, beAlias)
 			}
 		}
 		aliasStatuses[alias] = newStatus
@@ -217,8 +222,8 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var toggles map[string]string
-	err = t.Get("aliases", &toggles)
+	var changes map[string]string
+	err = t.Get("aliases", &changes)
 	if err != nil {
 		return err
 	}
@@ -230,7 +235,7 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	var add []*backend.Alias
 	var remove []*backend.Alias
 Next:
-	for alias, newStatus := range toggles {
+	for alias, newStatus := range changes {
 		if oldStatuses[alias] == newStatus {
 			// nothing to undo
 			continue
@@ -240,12 +245,13 @@ Next:
 			// unexpected
 			return fmt.Errorf("internal error: cannot re-toggle alias %q for %q, no such alias", alias, snapName)
 		}
+		beAlias := &backend.Alias{
+			Name:   alias,
+			Target: filepath.Base(aliasApp.WrapperPath()),
+		}
 		switch newStatus {
 		case "enabled":
-			remove = append(remove, &backend.Alias{
-				Name:   alias,
-				Target: filepath.Base(aliasApp.WrapperPath()),
-			})
+			remove = append(remove, beAlias)
 		case "disabled":
 			if oldStatuses[alias] != "" {
 				// can actually be reinstated only if it doesn't conflict
@@ -258,10 +264,7 @@ Next:
 					}
 					return err
 				}
-				add = append(add, &backend.Alias{
-					Name:   alias,
-					Target: filepath.Base(aliasApp.WrapperPath()),
-				})
+				add = append(add, beAlias)
 			}
 		}
 	}
