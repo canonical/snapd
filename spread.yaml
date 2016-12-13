@@ -174,12 +174,6 @@ prepare: |
          export PATH=/usr/lib/go-1.6/bin:${PATH}
     fi
 
-    # Add the image PPA where some beelding edge stuff resides.  We need this
-    # to get the latest snap-confine before the version is out in the regular
-    # archive.
-    add-apt-repository ppa:snappy-dev/image
-    apt-get update
-
     apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
     apt-get update
     # utilities
