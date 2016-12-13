@@ -22,10 +22,11 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"github.com/snapcore/snapd/interfaces"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
 )
 
 var iioConnectedPlugAppArmor = []byte(`
@@ -47,7 +48,7 @@ func (iface *IioInterface) String() string {
 	return iface.Name()
 }
 
-// Pattern to match allowed iio device nodes. It is gonna be used to check the
+// Pattern to match allowed iio device nodes. It is going to be used to check the
 // validity of the path attributes in case the udev is not used for
 // identification
 var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
@@ -60,7 +61,7 @@ func (iface *IioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Creation of the slot of this type
-	// is allowed only by a gadget snap
+	// is allowed only by a gadget or os snap
 	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
 		return fmt.Errorf("%s slots only allowed on gadget or core snaps", iface.Name())
 	}
@@ -117,7 +118,7 @@ func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"
-		const udevRule string = `KERNEL=="%s", TAG+="%s"`
+		const udevRule = `KERNEL=="%s", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
