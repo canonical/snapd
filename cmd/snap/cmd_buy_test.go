@@ -26,7 +26,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -257,18 +256,7 @@ const loginJson = `
 }
 `
 
-func archWithBrokenDevPtmx() error {
-	if ubuArch := arch.UbuntuArchitecture(); ubuArch == "ppc64el" || ubuArch == "powerpc" {
-		return fmt.Errorf("/dev/ptmx ioctl not working on %s", ubuArch)
-	}
-	return nil
-}
-
 func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
-	if err := archWithBrokenDevPtmx(); err != nil {
-		c.Skip(err.Error())
-	}
-
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -304,7 +292,7 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Confirm the purchase.
-	fmt.Fprint(s.term, "the password\n")
+	s.password = "the password"
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.IsNil)
@@ -330,10 +318,6 @@ const buySnapPaymentDeclinedJson = `
 `
 
 func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
-	if err := archWithBrokenDevPtmx(); err != nil {
-		c.Skip(err.Error())
-	}
-
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -369,7 +353,7 @@ func (s *BuySnapSuite) TestBuySnapPaymentDeclined(c *check.C) {
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Confirm the purchase.
-	fmt.Fprint(s.term, "the password\n")
+	s.password = "the password"
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
