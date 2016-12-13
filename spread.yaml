@@ -38,7 +38,12 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
     qemu:
+        environment:
+            APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-16.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -135,6 +140,8 @@ prepare: |
             classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
+        # stop and disable autorefresh
+        systemctl disable --now snapd.refresh.timer
         exit 0
     fi
 
@@ -142,7 +149,7 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get purge -y snapd || true
+    apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
     apt-get update
     # utilities
     apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
@@ -187,6 +194,12 @@ prepare: |
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
 
+restore: |
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # start and enable autorefresh
+        systemctl enable --now snapd.refresh.timer
+    fi
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
@@ -201,7 +214,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -210,6 +223,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
         restore-each: |
             $TESTSLIB/reset.sh

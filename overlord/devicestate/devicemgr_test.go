@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
@@ -102,7 +103,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -116,6 +117,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 
 func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
+}
+
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
 }
 
 func (s *deviceMgrSuite) SetUpTest(c *C) {
@@ -733,6 +738,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(1024)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",

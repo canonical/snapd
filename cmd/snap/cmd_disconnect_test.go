@@ -125,7 +125,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
+func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnapPlugOrSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/interfaces":
@@ -141,7 +141,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 				"slots": []interface{}{
 					map[string]interface{}{
 						"snap": "consumer",
-						"slot": "",
+						"slot": "plug-or-slot",
 					},
 				},
 			})
@@ -153,9 +153,20 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:plug-or-slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("expected nothing to reach the server")
+	})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
+	c.Assert(err, ErrorMatches, `please provide the plug or slot name to disconnect from snap "consumer"`)
+	c.Assert(rest, DeepEquals, []string{"consumer"})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

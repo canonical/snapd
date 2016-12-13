@@ -196,6 +196,16 @@ slots:
 	c.Assert(err, IsNil)
 	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
 	c.Assert(string(content), Equals, expected)
+
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+/snap/producer/5/export/** mrkix,
+`
+	c.Assert(string(content), Equals, expected)
 }
 
 // Check that sharing of writable data is possible
@@ -220,6 +230,18 @@ slots:
 	c.Assert(err, IsNil)
 	expected := "/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0\n"
 	c.Assert(string(content), Equals, expected)
+
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/producer/5/export/** mrwklix,
+`
+	c.Assert(string(content), Equals, expected)
 }
 
 // Check that sharing of writable common data is possible
@@ -243,5 +265,17 @@ slots:
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 	expected := "/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0\n"
+	c.Assert(string(content), Equals, expected)
+
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/producer/common/export/** mrwklix,
+`
 	c.Assert(string(content), Equals, expected)
 }
