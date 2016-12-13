@@ -383,6 +383,7 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	}
 
 	// ensure that we only connect to slot with matching attributes
+	// TODO: use interface/policy Checkers when they are available
 	if bus != busPlug || name != namePlug {
 		return nil, nil
 	}
