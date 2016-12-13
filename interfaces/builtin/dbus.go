@@ -159,7 +159,7 @@ dbus (receive, send)
 # '-[0-9]+', so this is ok.
 dbus (receive, send)
     bus=###DBUS_BUS###
-    peer=(name=###DBUS_NAME###-[1-9]{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}, label=###SLOT_SECURITY_TAGS###),
+    peer=(name="###DBUS_NAME###-[1-9]{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}{,[0-9]}", label=###SLOT_SECURITY_TAGS###),
 
 # allow connected snaps to all paths via ###DBUS_INTERFACE### to allow full
 # integration with connected snaps.
