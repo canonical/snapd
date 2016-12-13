@@ -42,7 +42,11 @@ update_core_snap_with_snap_exec_snapctl() {
 prepare_classic() {
     apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
     if snap --version |MATCH unknown; then
-        echo "Package build incorrect, no snap --version set"
+        echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+        exit 1
+    fi
+    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
+        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
         exit 1
     fi
 

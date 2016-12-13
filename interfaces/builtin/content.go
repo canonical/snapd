@@ -135,15 +135,45 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-	}
-
 	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+
+		writePaths := iface.path(slot, "write")
+		if len(writePaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+`)
+			for _, w := range writePaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+					resolveSpecialVariable(w, slot.Snap))
+			}
+		}
+
+		readPaths := iface.path(slot, "read")
+		if len(readPaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+`)
+			for _, r := range readPaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+					resolveSpecialVariable(r, slot.Snap))
+			}
+		}
+
+		return contentSnippet.Bytes(), nil
 	case interfaces.SecurityMount:
+		for _, r := range iface.path(slot, "read") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
+		}
+		for _, w := range iface.path(slot, "write") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
+		}
 		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
