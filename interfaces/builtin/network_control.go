@@ -29,7 +29,6 @@ const networkControlConnectedPlugAppArmor = `
 # gives wide, privileged access to networking and should only be used with
 # trusted apps.
 
-
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -155,12 +154,11 @@ umount /sys/,
 /{,usr/}{,s}bin/nsenter ixr,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-control
 const networkControlConnectedPlugSecComp = `
-# Description: Can configure networking. This is restricted because it gives
-# wide, privileged access to networking and should only be used with trusted
-# apps.
-# Usage: reserved
+# Description: Can configure networking and network namespaces via the standard
+# 'ip netns' command (man ip-netns(8)). This interface is restricted because it
+# gives wide, privileged access to networking and should only be used with
+# trusted apps.
 
 # for ping and ping6
 capset
