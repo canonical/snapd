@@ -69,6 +69,8 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewNetworkInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkObserveInterface())
 	c.Check(all, DeepContains, builtin.NewOpenglInterface())
+	c.Check(all, DeepContains, builtin.NewOpenvSwitchInterface())
+	c.Check(all, DeepContains, builtin.NewOpenvSwitchSupportInterface())
 	c.Check(all, DeepContains, builtin.NewOpticalDriveInterface())
 	c.Check(all, DeepContains, builtin.NewProcessControlInterface())
 	c.Check(all, DeepContains, builtin.NewRawUsbInterface())
