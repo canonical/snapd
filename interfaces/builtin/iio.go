@@ -33,7 +33,8 @@ var iioConnectedPlugAppArmor = []byte(`
 # Description: Give access to a specific IIO device on the system.
 
 ###IIO_DEVICE_PATH### rw,
-/sys/bus/iio/devices/###IIO_DEVICE_NAME###/{,**} rw,
+/sys/bus/iio/devices/###IIO_DEVICE_NAME###/ r,
+/sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
 `)
 
 // The type for iio interface
