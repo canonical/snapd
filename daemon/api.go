@@ -218,7 +218,7 @@ var (
 
 	aliasesCmd = &Command{
 		Path: "/v2/aliases",
-		//GET:    getInterfaces,
+		// TODO: GET:    getAliases,
 		POST: changeAliases,
 	}
 )
