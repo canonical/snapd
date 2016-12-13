@@ -256,7 +256,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
+		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
 	}
 	return res[0], nil
 }
@@ -302,18 +302,21 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// (having this wart here avoids yet-another-patch)
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
-	// FIXME: port to native tasks and rename
-	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
-
-	// TODO: refresh-all needs logic at this level, to properly
-	// handle the logic for that mode (e.g. skip snaps installed
-	// with --devmode, set jailmode from snapstate).
-
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+
+	// alias related
+	runner.AddHandler("alias", m.doAlias, m.undoAlias)
+	//TODO: unalias
+	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+
+	// control serialisation
+	runner.SetBlocked(m.blockedTask)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -324,6 +327,23 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	return m, nil
+}
+
+func diskAliasTask(t *state.Task) bool {
+	kind := t.Kind()
+	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
+}
+
+func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// aliases are global, serialize tasks operating on them
+	if diskAliasTask(cand) {
+		for _, t := range running {
+			if diskAliasTask(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type cachedStoreKey struct{}
@@ -395,7 +415,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	snapsup, err := TaskSnapSetup(t)
@@ -416,17 +436,18 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	targetFn := snapsup.MountFile()
 	if snapsup.DownloadInfo == nil {
+		var storeInfo *snap.Info
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
 		if err != nil {
 			return err
 		}
-		err = theStore.Download(snapsup.Name(), targetFn, &storeInfo.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.Name(), targetFn, &storeInfo.DownloadInfo, meter, user)
 		snapsup.SideInfo = &storeInfo.SideInfo
 	} else {
-		err = theStore.Download(snapsup.Name(), targetFn, snapsup.DownloadInfo, meter, user)
+		err = theStore.Download(tomb.Context(nil), snapsup.Name(), targetFn, snapsup.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
@@ -825,6 +846,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.DevMode = snapsup.DevMode
 	oldJailMode := snapst.JailMode
 	snapst.JailMode = snapsup.JailMode
+	oldClassic := snapst.Classic
+	snapst.Classic = snapsup.Classic
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
@@ -855,6 +878,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
 	t.Set("old-jailmode", oldJailMode)
+	t.Set("old-classic", oldClassic)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -912,6 +936,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldClassic bool
+	err = t.Get("old-classic", &oldClassic)
+	if err != nil {
+		return err
+	}
 	var oldCurrent snap.Revision
 	err = t.Get("old-current", &oldCurrent)
 	if err != nil {
@@ -943,6 +972,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
+	snapst.Classic = oldClassic
 
 	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {

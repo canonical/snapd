@@ -119,7 +119,7 @@ func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot
 		serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
 		snippet := &systemd.Snippet{
 			Services: map[string]systemd.Service{
-				serviceName: systemd.Service{
+				serviceName: {
 					Type:            "oneshot",
 					RemainAfterExit: true,
 					ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),

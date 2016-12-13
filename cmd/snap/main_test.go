@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 
@@ -93,6 +94,12 @@ func (s *BaseSnapSuite) Stdout() string {
 
 func (s *BaseSnapSuite) Stderr() string {
 	return s.stderr.String()
+}
+
+func (s *BaseSnapSuite) ResetStdStreams() {
+	s.stdin.Reset()
+	s.stdout.Reset()
+	s.stderr.Reset()
 }
 
 func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
@@ -217,4 +224,43 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see "snap --help"`)
+}
+
+func (s *SnapSuite) TestResolveApp(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, IsNil)
+
+	// "wrapper" symlinks
+	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	c.Assert(err, IsNil)
+
+	// alias symlinks
+	err = os.Symlink("foo", filepath.Join(dirs.SnapBinariesDir, "foo_"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("foo.bar", filepath.Join(dirs.SnapBinariesDir, "foo_bar-1"))
+	c.Assert(err, IsNil)
+
+	snapApp, err := snap.ResolveApp("foo")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo")
+
+	snapApp, err = snap.ResolveApp("foo.bar")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo.bar")
+
+	snapApp, err = snap.ResolveApp("foo_")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo")
+
+	snapApp, err = snap.ResolveApp("foo_bar-1")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo.bar")
+
+	_, err = snap.ResolveApp("baz")
+	c.Check(err, NotNil)
 }

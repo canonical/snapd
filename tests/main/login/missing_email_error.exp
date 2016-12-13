@@ -1,7 +1,7 @@
 spawn snap login
 
 expect {
-    "required argument `<email>` was not provided" {
+    "Email address:" {
         exit 0
     } default {
         exit 1

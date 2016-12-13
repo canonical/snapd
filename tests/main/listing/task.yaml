@@ -19,3 +19,19 @@ execute: |
     echo "List prints installed snap version"
     expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +x[0-9]+ +-"
     snap list | grep -Pq "$expected"
+
+    echo "Install test-snapd-tools again"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+    echo "And run snap list --all"
+    output=$(snap list --all |grep test-snapd-tools)
+    if [ $(printf "$output" | grep test-snapd-tools | wc -l) != "2" ]; then
+        echo "Expected two test-snapd-tools in the output, got:"
+        echo $output
+        exit 1
+    fi
+    if [ $(printf "$output" | grep disabled | wc -l) != "1" ]; then
+        echo "Expected one disabled line in in the output, got:"
+        echo $output
+        exit 1
+    fi
