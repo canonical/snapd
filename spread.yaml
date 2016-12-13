@@ -97,9 +97,15 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --rotate
-    sleep .1
-    journalctl --vacuum-time=1ms
+    # systemd on 14.04 does not know about --rotate
+    # or --vacuum-time.
+    # TODO: Find a way to clean out systemd logs on
+    # systemd 204.
+    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    fi
     dmesg -c > /dev/null
 
 debug-each: |
