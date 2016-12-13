@@ -278,23 +278,30 @@ apps:
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
-func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
+func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	langs := []struct {
 		in  string
-		out string
+		out bool
 	}{
 		// langCodes
-		{"[lang_COUNTRY@MODIFIER]=foo", "=foo"},
-		{"[lang_COUNTRY]=bar", "=bar"},
-		{"[lang_COUNTRY]=baz", "=baz"},
-		{"[lang]=foobar", "=foobar"},
-		// non-langCodes, should be ignored
-		{"", ""},
-		{"Name=foobar", "Name=foobar"},
-		// corner case
-		{"[foo=bar", "[foo=bar"},
+		{"Name[lang]=lang-alone", true},
+		{"Name[_COUNTRY]=country-alone", false},
+		{"Name[.ENC-0DING]=encoding-alone", false},
+		{"Name[@modifier]=modifier-alone", false},
+		{"Name[lang_COUNTRY]=lang+country", true},
+		{"Name[lang.ENC-0DING]=lang+encoding", true},
+		{"Name[lang@modifier]=lang+modifier", true},
+		// could also test all bad combos of 2, and all combos of 3...
+		{"Name[lang_COUNTRY.ENC-0DING@modifier]=all", true},
+		// other localised entries
+		{"GenericName[xx]=a", true},
+		{"Comment[xx]=b", true},
+		{"Keywords[xx]=b", true},
+		// bad ones
+		{"Name[foo=bar", false},
+		{"Icon[xx]=bar", false},
 	}
 	for _, t := range langs {
-		c.Assert(wrappers.TrimLang(t.in), Equals, t.out)
+		c.Assert(wrappers.IsValidDesktopFileLine(t.in), Equals, t.out)
 	}
 }
