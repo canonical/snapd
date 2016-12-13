@@ -49,6 +49,7 @@ var allInterfaces = []interfaces.Interface{
 	&PulseAudioInterface{},
 	&SerialPortInterface{},
 	&UDisks2Interface{},
+	&UpowerObserveInterface{},
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
@@ -86,7 +87,6 @@ var allInterfaces = []interfaces.Interface{
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewTpmInterface(),
-	NewUPowerObserveInterface(),
 	NewUnity7Interface(),
 	NewX11Interface(),
 }
