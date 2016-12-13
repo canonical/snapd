@@ -9,7 +9,7 @@ restore: |
     apt-get autoremove -y gccgo-6
 execute: |
     echo Ensure we really build with gccgo
-    go version|grep gccgo
+    go version|MATCH gccgo
     echo Build the deb with gccgo and run the tests as part of the build
     su - -c "cd $GOPATH/src/github.com/snapcore/snapd && dpkg-buildpackage -tc -Zgzip" test
 

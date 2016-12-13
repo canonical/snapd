@@ -1,5 +1,6 @@
 summary: Ensure that the fuse-support interface works.
 
+# no support for fuse on 14.04
 systems: [-ubuntu-14.04-64]
 
 details: |

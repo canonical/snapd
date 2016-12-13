@@ -132,8 +132,8 @@ Then setup the environment via:
 
     $ mkdir -p .spread/qemu
     $ cd .spread/qemu
-    # For xenial
-    $ adt-buildvm-ubuntu-cloud
+    # For xenial (same works for yakkety/zesty)
+    $ adt-buildvm-ubuntu-cloud -r xenial
     $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
     # For trusty
     $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
