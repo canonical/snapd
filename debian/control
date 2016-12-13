@@ -54,7 +54,6 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
-         cgroup-lite,
          gnupg1 | gnupg,
          snap-confine (= ${binary:Version}),
          squashfs-tools,
