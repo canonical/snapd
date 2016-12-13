@@ -477,6 +477,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8-communication-history:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:

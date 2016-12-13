@@ -50,6 +50,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.PulseAudioInterface{})
 	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
+	c.Check(all, Contains, &builtin.Unity8CommunicationHistoryInterface{})
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
