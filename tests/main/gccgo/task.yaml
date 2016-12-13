@@ -1,5 +1,5 @@
 summary: Check that snapd builds with gccgo
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-14.04-64]
 prepare: |
     echo Installing gccgo-6 and pretending it is the default go
     apt install -y gccgo-6
@@ -9,7 +9,7 @@ restore: |
     apt-get autoremove -y gccgo-6
 execute: |
     echo Ensure we really build with gccgo
-    go version|grep gccgo
+    go version|MATCH gccgo
     echo Build the deb with gccgo and run the tests as part of the build
     su - -c "cd $GOPATH/src/github.com/snapcore/snapd && dpkg-buildpackage -tc -Zgzip" test
 

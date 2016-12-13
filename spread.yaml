@@ -4,7 +4,9 @@ environment:
     GOPATH: /home/gopath
     REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
-    PATH: $GOPATH/bin:/snap/bin:$PATH
+    # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
+    # a different go in gccgo tests)
+    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
@@ -97,9 +99,15 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --rotate
-    sleep .1
-    journalctl --vacuum-time=1ms
+    # systemd on 14.04 does not know about --rotate
+    # or --vacuum-time.
+    # TODO: Find a way to clean out systemd logs on
+    # systemd 204.
+    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    fi
     dmesg -c > /dev/null
 
 debug-each: |
