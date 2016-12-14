@@ -184,7 +184,6 @@ dbus (send)
 # Allow writing to app download directories
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/    rw,
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
-
 `)
 
 var downloadConnectedPlugSecComp = []byte(`
