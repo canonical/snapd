@@ -508,7 +508,7 @@ func checkAliasConflict(st *state.State, snapName, alias string) error {
 
 	// check against aliases
 	return checkAgainstEnabledAliases(st, func(otherAlias, otherSnap string) error {
-		if otherAlias == alias {
+		if otherAlias == alias && otherSnap != snapName {
 			return &aliasConflictError{
 				Alias:  alias,
 				Snap:   snapName,
@@ -517,4 +517,117 @@ func checkAliasConflict(st *state.State, snapName, alias string) error {
 		}
 		return nil
 	})
+}
+
+// AutoAliases allows to hook support for retrieving auto-aliases of a snap.
+var AutoAliases func(st *state.State, info *snap.Info) ([]string, error)
+
+// AutoAliasesDelta compares the alias statuses with the current snap
+// declaration for the installed snaps with the given names (or all if
+// names is empty) and returns new and retired auto-aliases by snap
+// name. It accounts for already set enabled/disabled statuses but
+// does not check for conflicts.
+func AutoAliasesDelta(st *state.State, names []string) (new map[string][]string, retired map[string][]string, err error) {
+	var snapStates map[string]*SnapState
+	if len(names) == 0 {
+		var err error
+		snapStates, err = All(st)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		snapStates = make(map[string]*SnapState, len(names))
+		for _, name := range names {
+			var snapst SnapState
+			err := Get(st, name, &snapst)
+			if err != nil {
+				return nil, nil, err
+			}
+			snapStates[name] = &snapst
+		}
+	}
+	var firstErr error
+	new = make(map[string][]string)
+	retired = make(map[string][]string)
+	for snapName, snapst := range snapStates {
+		aliasStatuses, err := getAliases(st, snapName)
+		if err != nil && err != state.ErrNoState {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		autoAliases, err := AutoAliases(st, info)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		autoSet := make(map[string]bool, len(autoAliases))
+		for _, alias := range autoAliases {
+			autoSet[alias] = true
+			if aliasStatuses[alias] == "" { // not auto, or disabled, or enabled
+				new[snapName] = append(new[snapName], alias)
+			}
+		}
+		for alias, curStatus := range aliasStatuses {
+			if curStatus == "auto" && !autoSet[alias] {
+				retired[snapName] = append(retired[snapName], alias)
+			}
+		}
+	}
+	return new, retired, firstErr
+}
+
+func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	aliasStatuses, err := getAliases(st, snapName)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	t.Set("old-aliases", aliasStatuses)
+	if aliasStatuses == nil {
+		aliasStatuses = make(map[string]string)
+	}
+	allNew, allRetired, err := AutoAliasesDelta(st, []string{snapName})
+	if err != nil {
+		return err
+	}
+	for _, alias := range allRetired[snapName] {
+		delete(aliasStatuses, alias)
+	}
+
+	for _, alias := range allNew[snapName] {
+		aliasApp := curInfo.Aliases[alias]
+		if aliasApp == nil {
+			// not a known alias anymore or yet, skip
+			continue
+		}
+		err := checkAliasConflict(st, snapName, alias)
+		if err != nil {
+			return err
+		}
+		aliasStatuses[alias] = "auto"
+	}
+	setAliases(st, snapName, aliasStatuses)
+	return nil
 }
