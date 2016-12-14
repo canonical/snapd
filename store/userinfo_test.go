@@ -60,7 +60,9 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+	  case 0,1:
+			w.WriteHeader(http.StatusInternalServerError) // force retry of the request
+		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
 			fmt.Fprintln(w, mockServerJSON)
@@ -73,8 +75,23 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 
 	info, err := store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
 	c.Check(info.OpenIDIdentifier, check.Equals, "xDPXBdB")
 	c.Check(info.SSHKeys, check.DeepEquals, []string{"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAqwsTkky+laeukWyGFmtiAQUFgjD+wKYuRtOj11gjTe3qUNDgMR54W8IUELZ6NwNWs2wium+jQZLY4vlsDq4PkYK8J2qgjRZURCKp4JbjbVNSg2WO7vDtl+0FIC1GaCdglRVWffrwKN1RLlwqBCVXi01nnTk3+hEpWddjqoTXMwM= egon@top",
 		"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKBFmfD1KNULZv35907+ArIfxdGGzF1XCQj287AgK7k5GWcEdnUQfkSUHRZ4cNOqshY6W3CyDzVAmaDmeB9A7qpmsVlQp2D8y253+F2NMm1bcDdT3weG5vxkdF5qdx99gRMwDYJ4WZgIryrCAOqDLKmoSEuyuh1Zil9pDGPh/grf+EgXzDFnntgE8XJVKIldsbUplCmycSNtk47PtJATJ8q5v2dIazlxwmxKfarXS7x805u4ElrZ2h3JMCOOfL1k3sJbYc4JbZ6zB8DAhSsZ79KrStn3DE+gULmPJjM0HEbtouegZpE5wcHldoo4Oi78uNrwtv1lWp4AnK/Xwm3bl/ egon@bod\r\n"})
 }
+
+func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
+	n := 0
+	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
+	})
+
+	_, err := store.UserInfo("popper@lse.ac.uk")
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
+	c.Assert(n, check.Equals, 6)
+}
+
