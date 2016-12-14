@@ -195,8 +195,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		if err = dec.Decode(&responseData); err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
-			}
-			return "", fmt.Errorf(errorPrefix+"%v", err)
+			} // else we will error-out and break the retry loop below
 		}
 
 		break
@@ -277,8 +276,7 @@ func requestStoreDeviceNonce() (string, error) {
 		if err = dec.Decode(&responseData); err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
-			}
-			return "", fmt.Errorf(errorPrefix+"%v", err)
+			} // else we will error-out and break the retry loop below
 		}
 
 		break
@@ -349,8 +347,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		if err = dec.Decode(&responseData); err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
-			}
-			return "", fmt.Errorf(errorPrefix+"%v", err)
+			} // else we will error-out and break the retry loop below
 		}
 		break
 	}
