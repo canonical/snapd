@@ -32,7 +32,7 @@ type cmdUnalias struct {
 	} `positional-args:"true"`
 }
 
-var shortUnaliasHelp = i18n.G("Enables the given aliases")
+var shortUnaliasHelp = i18n.G("Disables the given aliases")
 var longUnaliasHelp = i18n.G(`
 The unalias command disables explicitly the given application aliases defined by the snap.
 `)
@@ -41,7 +41,7 @@ func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
 		return &cmdUnalias{}
 	}, nil, []argDesc{
-		{name: i18n.G("<snap>")},
+		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
 	})
 }
