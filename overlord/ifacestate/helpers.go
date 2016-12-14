@@ -297,18 +297,19 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	// XXX: AddImplicitSlots is really a brittle interface
 	snap.AddImplicitSlots(snapInfo)
 
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, so skip interface checks
+		return nil
+	}
+
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	var snapDecl *asserts.SnapDeclaration
-	if snapInfo.SnapID != "" {
-		var err error
-		snapDecl, err = assertstate.SnapDeclaration(st, snapInfo.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
-		}
+	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
+	if err != nil {
+		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
 	}
 
 	ic := policy.InstallCandidate{

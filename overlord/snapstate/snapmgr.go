@@ -302,18 +302,21 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// (having this wart here avoids yet-another-patch)
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
-	// FIXME: port to native tasks and rename
-	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
-
-	// TODO: refresh-all needs logic at this level, to properly
-	// handle the logic for that mode (e.g. skip snaps installed
-	// with --devmode, set jailmode from snapstate).
-
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+
+	// alias related
+	runner.AddHandler("alias", m.doAlias, m.undoAlias)
+	//TODO: unalias
+	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+
+	// control serialisation
+	runner.SetBlocked(m.blockedTask)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -324,6 +327,23 @@ func Manager(st *state.State) (*SnapManager, error) {
 	}, nil)
 
 	return m, nil
+}
+
+func diskAliasTask(t *state.Task) bool {
+	kind := t.Kind()
+	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
+}
+
+func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// aliases are global, serialize tasks operating on them
+	if diskAliasTask(cand) {
+		for _, t := range running {
+			if diskAliasTask(t) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type cachedStoreKey struct{}
