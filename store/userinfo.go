@@ -68,9 +68,7 @@ func UserInfo(email string) (userinfo *User, err error) {
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
-		case 200:
-			// good
-			break
+		case 200: // good
 		case 404:
 			return nil, fmt.Errorf("cannot find user %q", email)
 		default:
