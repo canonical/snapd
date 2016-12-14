@@ -27,6 +27,8 @@ const ioPortsControlConnectedPlugAppArmor = `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
 
+capability sys_rawio, # required by iopl
+
 /dev/ports rw,
 `
 
