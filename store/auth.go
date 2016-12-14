@@ -215,32 +215,55 @@ func refreshDischargeMacaroon(discharge string) (string, error) {
 func requestStoreDeviceNonce() (string, error) {
 	const errorPrefix = "cannot get nonce from store: "
 
-	req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	defer resp.Body.Close()
-
-	// check return code, error on anything !200
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
-	}
-
-	dec := json.NewDecoder(resp.Body)
 	var responseData struct {
 		Nonce string `json:"nonce"`
 	}
-	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
+
+	var err error
+
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		var resp *http.Response
+		req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
+		if err != nil {
+			return "", fmt.Errorf(errorPrefix+"%v", err)
+		}
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Accept", "application/json")
+
+		resp, err = httpClient.Do(req)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check return code, error on anything !200
+		if resp.StatusCode != 200 {
+			return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+		}
+
+		dec := json.NewDecoder(resp.Body)
+		if err = dec.Decode(&responseData); err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			return "", fmt.Errorf(errorPrefix+"%v", err)
+		}
+
+		break
 	}
 
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
 	if responseData.Nonce == "" {
 		return "", fmt.Errorf(errorPrefix + "empty nonce returned")
 	}
