@@ -24,7 +24,7 @@ package ifacestate
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -44,6 +44,7 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
 	}
@@ -65,7 +66,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
-	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
+	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
@@ -101,7 +102,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	confirmPlugHookSetup := &hookstate.HookSetup{
 		Snap:     plugSnap,
-		Hook:     "confirm-plug-" + plugName,
+		Hook:     "connect-plug-" + plugName,
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
@@ -109,7 +110,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 
 	confirmSlotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
-		Hook:     "confirm-slot-" + slotName,
+		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)

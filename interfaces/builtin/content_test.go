@@ -196,6 +196,16 @@ slots:
 	c.Assert(err, IsNil)
 	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
 	c.Assert(string(content), Equals, expected)
+
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+/snap/producer/5/export/** mrkix,
+`
+	c.Assert(string(content), Equals, expected)
 }
 
 // Check that sharing of writable data is possible
@@ -219,6 +229,18 @@ slots:
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 	expected := "/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0\n"
+	c.Assert(string(content), Equals, expected)
+
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/producer/5/export/** mrwklix,
+`
 	c.Assert(string(content), Equals, expected)
 }
 
@@ -244,40 +266,16 @@ slots:
 	c.Assert(err, IsNil)
 	expected := "/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0\n"
 	c.Assert(string(content), Equals, expected)
-}
 
-func (s *ContentSuite) TestLegacyAutoConnect(c *C) {
-	const plugSnapYaml = `name: content-slot-snap
-version: 1.0
-plugs:
- content-plug:
-  interface: content
-  content: cont1
+	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	expected = `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/producer/common/export/** mrwklix,
 `
-	info := snaptest.MockInfo(c, plugSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-
-	const slotSnapYaml = `name: content-slot-snap
-version: 1.0
-slots:
- content-slot:
-  interface: content
-  content: cont1
-`
-	info = snaptest.MockInfo(c, slotSnapYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-
-	c.Check(s.iface.AutoConnect(plug, slot), Equals, true)
-
-	const otherSnapYaml = `name: content-other-snap
-version: 1.0
-slots:
- content-slot:
-  interface: content
-  content: cont2
-`
-	info = snaptest.MockInfo(c, otherSnapYaml, nil)
-	otherslot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-
-	c.Check(s.iface.AutoConnect(plug, otherslot), Equals, false)
+	c.Assert(string(content), Equals, expected)
 }

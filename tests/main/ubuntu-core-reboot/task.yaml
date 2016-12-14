@@ -23,7 +23,7 @@ execute: |
             exit 1
         fi
         retries=$(( $retries - 1 ))
-        sleep 1
+        sleep 2
     done
 
     echo "Ensure apparmor profiles are (still) loaded."

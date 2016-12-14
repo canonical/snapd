@@ -138,7 +138,7 @@ var _ consistencyChecker = (*AccountKey)(nil)
 // Prerequisites returns references to this account-key's prerequisite assertions.
 func (ak *AccountKey) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: AccountType, PrimaryKey: []string{ak.AccountID()}},
+		{Type: AccountType, PrimaryKey: []string{ak.AccountID()}},
 	}
 }
 
@@ -245,7 +245,7 @@ var (
 // Prerequisites returns references to this account-key-request's prerequisite assertions.
 func (akr *AccountKeyRequest) Prerequisites() []*Ref {
 	return []*Ref{
-		&Ref{Type: AccountType, PrimaryKey: []string{akr.AccountID()}},
+		{Type: AccountType, PrimaryKey: []string{akr.AccountID()}},
 	}
 }
 

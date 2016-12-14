@@ -31,6 +31,8 @@ const pulseaudioConnectedPlugAppArmor = `
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -72,9 +74,12 @@ owner @{PROC}/@{pid}/exe r,
 # Audio related
 @{PROC}/asound/devices r,
 @{PROC}/asound/card** r,
+
+# Should use the alsa interface instead
 /dev/snd/pcm* rw,
 /dev/snd/control* rw,
 /dev/snd/timer r,
+
 /sys/**/sound/** r,
 
 # For udev
@@ -89,6 +94,12 @@ owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
 /{run,dev}/shm/pulse-shm-* rwk,
+
+/usr/share/applications/ r,
+
+owner /run/pulse/native/ rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioPermanentSlotSecComp = `
@@ -158,10 +169,6 @@ func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
 
 func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *PulseAudioInterface) LegacyAutoConnect() bool {
-	return true
 }
 
 func (iface *PulseAudioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
