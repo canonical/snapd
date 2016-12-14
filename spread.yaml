@@ -222,7 +222,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -231,6 +231,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
             $TESTSLIB/reset.sh

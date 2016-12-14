@@ -33,7 +33,6 @@
 #define SC_APPEND_RETURNS_NONNULL
 #endif
 
-
 /**
  * This module defines APIs for simple error management.
  *
@@ -63,7 +62,8 @@ struct sc_error;
  *
  * This function calls die() in case of memory allocation failure.
  **/
-__attribute__ ((warn_unused_result, format(printf, 3, 4) SC_APPEND_RETURNS_NONNULL))
+__attribute__ ((warn_unused_result,
+		format(printf, 3, 4) SC_APPEND_RETURNS_NONNULL))
 struct sc_error *sc_error_init(const char *domain, int code, const char *msgfmt,
 			       ...);
 
@@ -75,7 +75,8 @@ struct sc_error *sc_error_init(const char *domain, int code, const char *msgfmt,
  *
  * This function calls die() in case of memory allocation failure.
  **/
-__attribute__ ((warn_unused_result, format(printf, 2, 3) SC_APPEND_RETURNS_NONNULL))
+__attribute__ ((warn_unused_result,
+		format(printf, 2, 3) SC_APPEND_RETURNS_NONNULL))
 struct sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt,
 					  ...);
 
