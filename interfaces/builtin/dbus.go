@@ -49,6 +49,13 @@ dbus (send)
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+dbus (send)
+    bus=###DBUS_BUS###
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="GetConnectionCredentials"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
 # bind to a well-known DBus name: ###DBUS_NAME###
 dbus (bind)
     bus=###DBUS_BUS###
