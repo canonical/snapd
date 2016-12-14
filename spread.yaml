@@ -4,7 +4,9 @@ environment:
     GOPATH: /home/gopath
     REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
-    PATH: $GOPATH/bin:/snap/bin:$PATH
+    # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
+    # a different go in gccgo tests)
+    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
@@ -97,9 +99,15 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --rotate
-    sleep .1
-    journalctl --vacuum-time=1ms
+    # systemd on 14.04 does not know about --rotate
+    # or --vacuum-time.
+    # TODO: Find a way to clean out systemd logs on
+    # systemd 204.
+    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    fi
     dmesg -c > /dev/null
 
 debug-each: |
@@ -149,7 +157,7 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get purge -y snapd || true
+    apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
     apt-get update
     # utilities
     apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
@@ -214,7 +222,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -223,6 +231,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
         restore-each: |
             $TESTSLIB/reset.sh
