@@ -214,7 +214,7 @@ func checkChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		if (k == "link-snap" || k == "unlink-snap") && (chg == nil || !chg.Status().Ready()) {
+		if (k == "link-snap" || k == "unlink-snap" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -774,13 +774,20 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
 
+		clearAliases := st.NewTask("clear-aliases", fmt.Sprintf(i18n.G("Clear alias state for snap %q"), name))
+		clearAliases.Set("snap-setup", &SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
+		discardConns.WaitFor(clearAliases)
 		discardConns.Set("snap-setup", &SnapSetup{
 			SideInfo: &snap.SideInfo{
 				RealName: name,
 			},
 		})
-		addNext(state.NewTaskSet(discardConns))
+		addNext(state.NewTaskSet(clearAliases, discardConns))
 
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
