@@ -233,6 +233,32 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
+type cachedStoreKey struct{}
+
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache(cachedStoreKey{}, store)
+}
+
+func cachedStore(st *state.State) StoreService {
+	ubuntuStore := st.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
+}
+
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.Store)(nil)
+
+// Store returns the store service used by the snapstate package.
+func Store(st *state.State) StoreService {
+	if cachedStore := cachedStore(st); cachedStore != nil {
+		return cachedStore
+	}
+	panic("internal error: needing the store before managers have initialized it")
+}
+
 func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
@@ -369,32 +395,6 @@ func (m *SnapManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
 	m.runner.Stop()
-}
-
-type cachedStoreKey struct{}
-
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
-}
-
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
-		return nil
-	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
-	}
-	panic("internal error: needing the store before managers have initialized it")
 }
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
