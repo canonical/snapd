@@ -24,12 +24,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
+	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-type authTestSuite struct{}
+type authTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&authTestSuite{})
 
@@ -69,6 +75,15 @@ const mockStoreReturnNoMacaroon = `{}`
 const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
 
 const mockStoreReturnNoNonce = `{}`
+
+func (s *authTestSuite) SetUpTest(c *C) {
+	MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1.1,
+		},
+	)))
+}
 
 func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
