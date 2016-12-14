@@ -19,11 +19,26 @@
 
 package snap
 
+import "github.com/snapcore/snapd/release"
+
 var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
+	NewHookType = newHookType
 )
+
+func ImplicitSlotsForTests() []string {
+	result := implicitSlots
+	// fuse-support is disabled on trusty due to usage of fuse requiring access to mount.
+	// we do not want to widen the apparmor profile defined in fuse-support to support trusty
+	// right now.
+	if !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04") {
+		result = append(result, "fuse-support")
+	}
+	return result
+}
+
+func ImplicitClassicSlotsForTests() []string {
+	return implicitClassicSlots
+}
 
 func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
 	old := supportedHooks

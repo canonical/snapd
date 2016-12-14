@@ -66,10 +66,10 @@ func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {
 	for _, iface := range builtin.Interfaces() {
 		known[iface.Name()] = true
 	}
-	for _, ifaceName := range snap.ImplicitSlotsForTests {
+	for _, ifaceName := range snap.ImplicitSlotsForTests() {
 		c.Check(known[ifaceName], Equals, true)
 	}
-	for _, ifaceName := range snap.ImplicitClassicSlotsForTests {
+	for _, ifaceName := range snap.ImplicitClassicSlotsForTests() {
 		c.Check(known[ifaceName], Equals, true)
 	}
 }
