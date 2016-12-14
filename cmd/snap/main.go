@@ -36,14 +36,16 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/jessevdk/go-flags"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Standard streams, redirected for testing.
 var (
-	Stdin    io.Reader = os.Stdin
-	Stdout   io.Writer = os.Stdout
-	Stderr   io.Writer = os.Stderr
-	Terminal int       = 0
+	Stdin        io.Reader = os.Stdin
+	Stdout       io.Writer = os.Stdout
+	Stderr       io.Writer = os.Stderr
+	ReadPassword           = terminal.ReadPassword
 )
 
 type options struct {
@@ -215,19 +217,36 @@ func init() {
 	}
 }
 
+func resolveApp(snapApp string) (string, error) {
+	target, err := os.Readlink(filepath.Join(dirs.SnapBinariesDir, snapApp))
+	if err != nil {
+		return "", err
+	}
+	if filepath.Base(target) == target { // alias pointing to an app command in /snap/bin
+		return target, nil
+	}
+	return snapApp, nil
+}
+
 func main() {
 	cmd.ExecInCoreSnap()
 
 	// magic \o/
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
+		var err error
+		snapApp, err = resolveApp(snapApp)
+		if err != nil {
+			fmt.Fprintf(Stderr, i18n.G("cannot resolve snap app %q: %v"), snapApp, err)
+			os.Exit(46)
+		}
 		cmd := &cmdRun{}
 		args := []string{snapApp}
 		args = append(args, os.Args[1:]...)
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
-		err := cmd.Execute(args)
+		err = cmd.Execute(args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}

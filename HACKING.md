@@ -132,8 +132,13 @@ Then setup the environment via:
 
     $ mkdir -p .spread/qemu
     $ cd .spread/qemu
-    $ adt-buildvm-ubuntu-cloud
+    # For xenial (same works for yakkety/zesty)
+    $ adt-buildvm-ubuntu-cloud -r xenial
     $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
+    # For trusty
+    $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
+    $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+
 
 And you can run the tests via:
 
@@ -171,3 +176,26 @@ connect).
 
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
+
+# Quick intro to hacking on snap-confine
+
+Hey, welcome to the nice, low-level world of snap-confine
+
+## Building the code locally
+
+To get started from a pristine tree you want to do this:
+
+```
+./mkversion.sh
+cd cmd/
+autoreconf -i -f
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+```
+
+This will drop makefiles and let you build stuff. You may find the `make hack`
+target, available in `cmd/snap-confine` handy, it installs the locally built
+version on your system and reloads the apparmor profile.
+
+## Submitting patches
+
+Please run `make fmt` before sending your patches.
