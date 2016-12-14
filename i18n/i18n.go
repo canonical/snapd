@@ -50,17 +50,27 @@ func init() {
 }
 
 func langpackResolver(root string, locale string, domain string) string {
-	r := filepath.Join(locale, "LC_MESSAGES", fmt.Sprintf("%s.mo", domain))
 
-	// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
-	// implementation
-	langpack := filepath.Join(root, "..", "locale-langpack", r)
-	if osutil.FileExists(langpack) {
-		return langpack
+	// first check for the real locale (e.g. de_DE)
+	// then try to simplify the locale (e.g. de_DE -> de)
+	locales := []string{locale, strings.SplitN(locale, "_", 2)[0]}
+	for _, locale := range locales {
+		r := filepath.Join(locale, "LC_MESSAGES", fmt.Sprintf("%s.mo", domain))
+
+		// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
+		// implementation
+		langpack := filepath.Join(root, "..", "locale-langpack", r)
+		if osutil.FileExists(langpack) {
+			return langpack
+		}
+
+		regular := filepath.Join(root, r)
+		if osutil.FileExists(regular) {
+			return regular
+		}
 	}
 
-	// default
-	return filepath.Join(root, r)
+	return ""
 }
 
 func bindTextDomain(domain, dir string) {
