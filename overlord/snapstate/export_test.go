@@ -71,6 +71,11 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	}, nil)
 }
 
+// AddAdhocTaskHandlers registers handlers for ad hoc test handler
+func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
+	m.runner.AddHandler(adhoc, do, undo)
+}
+
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := readInfo
 	readInfo = mock
