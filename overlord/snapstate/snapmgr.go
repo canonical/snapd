@@ -309,6 +309,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
+	runner.AddHandler("alias", m.doAlias, m.undoAlias)
+	//TODO: unalias
+	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
 	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 
@@ -328,7 +331,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 
 func diskAliasTask(t *state.Task) bool {
 	kind := t.Kind()
-	return kind == "setup-aliases" || kind == "remove-aliases"
+	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
 }
 
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {

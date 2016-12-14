@@ -346,7 +346,15 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
+	content: commonPrefix + `
+profile "snap.samba.smbd" (attach_disconnected) {
+
+  # Read-only access to the core snap.
+  @{INSTALL_DIR}/core/** r,
+
+snippet
+}
+`,
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
