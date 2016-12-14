@@ -30,7 +30,6 @@ import (
    are deliberately left out of this profile due to their privileged nature. */
 var downloadConnectedPlugAppArmor = []byte(`
 # Description: Can access the download manager.
-# Usage: common
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -109,7 +108,6 @@ dbus (send)
 
 var downloadPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as a download manager.
-# Usage: common
 
 # DBus accesses
 #include <abstractions/dbus-strict>
