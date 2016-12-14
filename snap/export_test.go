@@ -19,8 +19,6 @@
 
 package snap
 
-import "github.com/snapcore/snapd/release"
-
 var (
 	ImplicitSlotsForTests        = implicitSlots
 	ImplicitClassicSlotsForTests = implicitClassicSlots
