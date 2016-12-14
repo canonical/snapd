@@ -22,6 +22,7 @@ package snapstate
 import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -58,12 +59,18 @@ type managerBackend interface {
 	// cleanup
 	ClearTrashedData(oldSnap *snap.Info)
 
-	// remove releated
+	// remove related
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
 	DiscardSnapNamespace(snapName string) error
+
+	// alias related
+	MatchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error)
+	MissingAliases(aliases []*backend.Alias) ([]*backend.Alias, error)
+	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error
+	RemoveSnapAliases(snapName string) error
 
 	// testing helpers
 	CurrentInfo(cur *snap.Info)
