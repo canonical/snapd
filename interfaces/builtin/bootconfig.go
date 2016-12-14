@@ -19,32 +19,21 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
-const libvirtConnectedPlugAppArmor = `
-/run/libvirt/libvirt-sock rw,
-/etc/libvirt/* r,
+const bootConfigConnectedPlugAppArmor = `
+# Description: Can access boot config files amd brick the system
+# Usage: reserved (very much so!)
+
+# Allow read/write access to the pi2 boot config.txt
+owner /boot/uboot/config.txt rwk,
 `
 
-const libvirtConnectedPlugSecComp = `
-connect
-getsockname
-recv
-recvmsg
-send
-sendto
-sendmsg
-socket
-socketpair
-listen
-accept
-`
-
-func NewLibvirtInterface() interfaces.Interface {
+func NewBootConfigInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "libvirt",
-		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
-		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
-		reservedForOS:         true,
+		name: "boot-config",
+		connectedPlugAppArmor: bootConfigConnectedPlugAppArmor,
 	}
 }
