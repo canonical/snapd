@@ -25,28 +25,28 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type collectAttrHandler struct{}
+type prepareHandler struct{}
 
-func (h *collectAttrHandler) Before() error {
+func (h *prepareHandler) Before() error {
 	return nil
 }
 
-func (h *collectAttrHandler) Done() error {
+func (h *prepareHandler) Done() error {
 	return nil
 }
 
-func (h *collectAttrHandler) Error(err error) error {
+func (h *prepareHandler) Error(err error) error {
 	return nil
 }
 
 // setupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
 	prepPlugGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{}
+		return &prepareHandler{}
 	}
 
 	prepSlotGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &collectAttrHandler{}
+		return &prepareHandler{}
 	}
 
 	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), prepPlugGenerator)
