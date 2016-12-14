@@ -49,7 +49,7 @@ func (client *Client) Alias(snapName string, aliases []string) (changeID string,
 	})
 }
 
-// Unalias disable explicitly the provided aliases for the snap with snapName.
+// Unalias disables explicitly the provided aliases for the snap with snapName.
 func (client *Client) Unalias(snapName string, aliases []string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action:  "unalias",
