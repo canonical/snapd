@@ -171,13 +171,13 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Check(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
-	c.Assert(hs.Hook, Equals, "connect-plug-plug")
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
-	c.Assert(hs.Hook, Equals, "connect-slot-slot")
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
