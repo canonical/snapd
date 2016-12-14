@@ -294,6 +294,14 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 apps:
   cmd1:
     aliases: [alias1, alias1.cmd1]
+  cmd2:
+    aliases: [alias2]
+  cmd3:
+    aliases: [alias3]
+  cmd4:
+    aliases: [alias4]
+  cmd5:
+    aliases: [alias5]
 `))
 		if err != nil {
 			panic(err)

@@ -938,3 +938,245 @@ func (s *snapmgrTestSuite) TestUnliasTotalUndoRunThroughAliasConflict(c *C) {
 	c.Check(last.Log()[0], Matches, `.* ERROR cannot enable alias "alias1" for "alias-snap", already enabled for "other-snap"`)
 
 }
+
+func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias2": "disabled",
+			"alias3": "auto",
+		},
+	})
+
+	new, retired, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
+	c.Assert(err, IsNil)
+
+	c.Check(new, DeepEquals, map[string][]string{
+		"alias-snap": {"alias4", "alias5"},
+	})
+
+	c.Check(retired, DeepEquals, map[string][]string{
+		"alias-snap": {"alias3"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
+	seen := make(map[string]bool)
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		seen[info.Name()] = true
+		if info.Name() == "alias-snap" {
+			return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+		}
+		return nil, nil
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(2)},
+		},
+		Current: snap.R(2),
+		Active:  true,
+	})
+
+	new, retired, err := snapstate.AutoAliasesDelta(s.state, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(new, DeepEquals, map[string][]string{
+		"alias-snap": {"alias1", "alias2", "alias4", "alias5"},
+	})
+
+	c.Check(retired, HasLen, 0)
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"alias-snap": true,
+		"other-snap": true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestDoSetAutoAliases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias2": "auto",
+			"alias3": "auto",
+			"alias5": "disabled",
+		},
+	})
+
+	t := s.state.NewTask("set-auto-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+
+	var allAliases map[string]map[string]string
+	err := s.state.Get("aliases", &allAliases)
+	c.Assert(err, IsNil)
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias2": "auto",
+			"alias4": "auto",
+			"alias5": "disabled",
+		},
+	})
+}
+
+func (s *snapmgrTestSuite) TestDoUndoSetAutoAliases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias2": "auto",
+			"alias3": "auto",
+			"alias5": "disabled",
+		},
+	})
+
+	t := s.state.NewTask("set-auto-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+
+	var allAliases map[string]map[string]string
+	err := s.state.Get("aliases", &allAliases)
+	c.Assert(err, IsNil)
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias2": "auto",
+			"alias3": "auto",
+			"alias5": "disabled",
+		},
+	})
+}
+
+func (s *snapmgrTestSuite) TestDoSetAutoAliasesConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias3": "auto",
+			"alias5": "disabled",
+		},
+		"other-snap": {
+			"alias4": "enabled",
+		},
+	})
+
+	t := s.state.NewTask("set-auto-aliases", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.ErrorStatus, Commentf("%v", chg.Err()))
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias4" for "alias-snap", already enabled for "other-snap".*`)
+}
