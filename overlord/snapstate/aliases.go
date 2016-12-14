@@ -187,11 +187,13 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		}
 		switch newStatus {
 		case "enabled":
-			err := checkAliasConflict(st, snapName, alias)
-			if err != nil {
-				return err
+			if aliasStatuses[alias] != "auto" {
+				err := checkAliasConflict(st, snapName, alias)
+				if err != nil {
+					return err
+				}
+				add = append(add, beAlias)
 			}
-			add = append(add, beAlias)
 		case "disabled":
 			if aliasStatuses[alias] != "" {
 				remove = append(remove, beAlias)
@@ -251,13 +253,16 @@ Next:
 		}
 		switch newStatus {
 		case "enabled":
-			remove = append(remove, beAlias)
+			if oldStatuses[alias] != "auto" {
+				remove = append(remove, beAlias)
+			}
 		case "disabled":
 			if oldStatuses[alias] != "" {
 				// can actually be reinstated only if it doesn't conflict
 				err := checkAliasConflict(st, snapName, alias)
 				if err != nil {
 					if _, ok := err.(*aliasConflictError); ok {
+						// TODO mark the conflict if it was auto?
 						delete(oldStatuses, alias)
 						t.Errorf("%v", err)
 						continue Next
@@ -333,11 +338,12 @@ func (m *SnapManager) undoClearAliases(t *state.Task, _ *tomb.Tomb) error {
 	snapName := snapsup.Name()
 
 	for alias, status := range oldStatuses {
-		if status == "enabled" {
+		if status == "enabled" || status == "auto" {
 			// can actually be reinstated only if it doesn't conflict
 			err := checkAliasConflict(st, snapName, alias)
 			if err != nil {
 				if _, ok := err.(*aliasConflictError); ok {
+					// TODO mark the conflict if it was auto?
 					delete(oldStatuses, alias)
 					t.Errorf("%v", err)
 					continue
@@ -369,7 +375,7 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	var aliases []*backend.Alias
 	for alias, aliasStatus := range aliasStatuses {
-		if aliasStatus == "enabled" {
+		if aliasStatus == "enabled" || aliasStatus == "auto" {
 			aliasApp := curInfo.Aliases[alias]
 			if aliasApp == nil {
 				// not a known alias anymore, skip
@@ -405,7 +411,7 @@ func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	var aliases []*backend.Alias
 	for alias, aliasStatus := range aliasStatuses {
-		if aliasStatus == "enabled" {
+		if aliasStatus == "enabled" || aliasStatus == "auto" {
 			aliasApp := curInfo.Aliases[alias]
 			if aliasApp == nil {
 				// not a known alias, skip
@@ -453,7 +459,7 @@ func checkAgainstEnabledAliases(st *state.State, checker func(alias, otherSnap s
 	}
 	for otherSnap, aliasStatuses := range allAliases {
 		for alias, aliasStatus := range aliasStatuses {
-			if aliasStatus == "enabled" {
+			if aliasStatus == "enabled" || aliasStatus == "auto" {
 				if err := checker(alias, otherSnap); err != nil {
 					return err
 				}
