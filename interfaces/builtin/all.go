@@ -49,6 +49,7 @@ var allInterfaces = []interfaces.Interface{
 	&PulseAudioInterface{},
 	&SerialPortInterface{},
 	&UDisks2Interface{},
+	&UpowerControlInterface{},
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
