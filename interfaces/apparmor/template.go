@@ -152,6 +152,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rev ixr,
   /{,usr/}bin/rm ixr,
   /{,usr/}bin/rmdir ixr,
+  /{,usr/}bin/run-parts ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
   /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
@@ -239,6 +240,7 @@ var defaultTemplate = []byte(`
   # match until AppArmor kernel var is available to solve this properly (see
   # LP: #1546825 for details)
   owner @{PROC}/@{pid}/cmdline r,
+  owner @{PROC}/@{pid}/comm r,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
