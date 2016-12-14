@@ -162,7 +162,7 @@ prepare: |
     apt-get update
     apt-get install -y software-properties-common
 
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
          echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
          apt-get update
 
