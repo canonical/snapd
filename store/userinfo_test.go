@@ -70,7 +70,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-	  case 0,1:
+		case 0, 1:
 			w.WriteHeader(http.StatusInternalServerError) // force retry of the request
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
@@ -104,4 +104,3 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)
 }
-
