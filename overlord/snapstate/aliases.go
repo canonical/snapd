@@ -137,6 +137,38 @@ func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet
 	return state.NewTaskSet(alias), nil
 }
 
+// ResetAlias resets the provided aliases for the snap with the given name to their default/automatic state, enabled for auto-aliases, disabled otherwise.
+func ResetAlias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", snapName)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !snapst.Active { // TODO: we might want to support this
+		return nil, fmt.Errorf("resetting aliases to their automatic state for disabled snap %q not supported", snapName)
+	}
+	if err := checkChangeConflict(st, snapName, nil); err != nil {
+		return nil, err
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapName},
+	}
+
+	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Reset aliases for snap %q"), snapsup.Name()))
+	alias.Set("snap-setup", &snapsup)
+	toReset := map[string]string{}
+	for _, alias := range aliases {
+		toReset[alias] = "auto"
+	}
+	alias.Set("aliases", toReset)
+
+	return state.NewTaskSet(alias), nil
+}
+
 func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -155,6 +187,15 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	autoAliases, err := AutoAliases(st, curInfo)
+	if err != nil {
+		return err
+	}
+	autoSet := make(map[string]bool, len(autoAliases))
+	for _, alias := range autoAliases {
+		autoSet[alias] = true
+	}
+
 	aliasStatuses, err := getAliases(st, snapName)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -166,8 +207,12 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	var add []*backend.Alias
 	var remove []*backend.Alias
 	for alias, newStatus := range changes {
+		if aliasStatuses[alias] == newStatus {
+			// nothing to do
+			continue
+		}
 		aliasApp := curInfo.Aliases[alias]
-		if aliasApp == nil {
+		if aliasApp == nil && newStatus != "auto" {
 			var action string
 			switch newStatus {
 			case "enabled":
@@ -177,29 +222,49 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 			}
 			return fmt.Errorf("cannot %s alias %q for %q, no such alias", action, alias, snapName)
 		}
-		if aliasStatuses[alias] == newStatus {
-			// nothing to do
-			continue
-		}
-		beAlias := &backend.Alias{
-			Name:   alias,
-			Target: filepath.Base(aliasApp.WrapperPath()),
-		}
+		op := "nop"
 		switch newStatus {
 		case "enabled":
 			if aliasStatuses[alias] != "auto" {
+				op = "add"
+			}
+		case "disabled":
+			if aliasStatuses[alias] != "" {
+				op = "rm"
+			}
+		case "auto":
+			if autoSet[alias] && aliasApp != nil {
+				if aliasStatuses[alias] != "enabled" {
+					op = "add"
+				}
+			} else {
+				if aliasStatuses[alias] == "enabled" {
+					op = "rm"
+				}
+				newStatus = ""
+			}
+		}
+		if newStatus != "" {
+			aliasStatuses[alias] = newStatus
+		} else {
+			delete(aliasStatuses, alias)
+		}
+		if aliasApp != nil && op != "nop" {
+			beAlias := &backend.Alias{
+				Name:   alias,
+				Target: filepath.Base(aliasApp.WrapperPath()),
+			}
+			switch op {
+			case "add":
 				err := checkAliasConflict(st, snapName, alias)
 				if err != nil {
 					return err
 				}
 				add = append(add, beAlias)
-			}
-		case "disabled":
-			if aliasStatuses[alias] != "" {
+			case "rm":
 				remove = append(remove, beAlias)
 			}
 		}
-		aliasStatuses[alias] = newStatus
 	}
 	st.Unlock()
 	err = m.backend.UpdateAliases(add, remove)
@@ -234,6 +299,10 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	aliasStatuses, err := getAliases(st, snapName)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
 	var add []*backend.Alias
 	var remove []*backend.Alias
 Next:
@@ -243,21 +312,38 @@ Next:
 			continue
 		}
 		aliasApp := curInfo.Aliases[alias]
-		if aliasApp == nil {
+		if aliasApp == nil && newStatus != "auto" {
 			// unexpected
 			return fmt.Errorf("internal error: cannot re-toggle alias %q for %q, no such alias", alias, snapName)
 		}
-		beAlias := &backend.Alias{
-			Name:   alias,
-			Target: filepath.Base(aliasApp.WrapperPath()),
-		}
+		op := "nop"
 		switch newStatus {
 		case "enabled":
 			if oldStatuses[alias] != "auto" {
-				remove = append(remove, beAlias)
+				op = "rm"
 			}
 		case "disabled":
 			if oldStatuses[alias] != "" {
+				op = "add"
+			}
+		case "auto":
+			if aliasStatuses[alias] == "auto" {
+				if oldStatuses[alias] != "enabled" {
+					op = "rm"
+				}
+			} else {
+				if oldStatuses[alias] == "enabled" {
+					op = "add"
+				}
+			}
+		}
+		if aliasApp != nil && op != "nop" {
+			beAlias := &backend.Alias{
+				Name:   alias,
+				Target: filepath.Base(aliasApp.WrapperPath()),
+			}
+			switch op {
+			case "add":
 				// can actually be reinstated only if it doesn't conflict
 				err := checkAliasConflict(st, snapName, alias)
 				if err != nil {
@@ -270,8 +356,12 @@ Next:
 					return err
 				}
 				add = append(add, beAlias)
+			case "rm":
+				remove = append(remove, beAlias)
 			}
+
 		}
+
 	}
 	st.Unlock()
 	remove, err = m.backend.MatchingAliases(remove)
