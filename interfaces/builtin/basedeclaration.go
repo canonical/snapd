@@ -178,6 +178,12 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
+  boot-config:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+    deny-connection: true
+    deny-auto-connection: true
   browser-support:
     allow-installation:
       slot-snap-type:
@@ -261,6 +267,12 @@ slots:
     deny-auto-connection:
       on-classic: false
   i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+  iio:
     allow-installation:
       slot-snap-type:
         - gadget
