@@ -20,6 +20,7 @@
 package strutil_test
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 
@@ -57,5 +58,46 @@ func (*strutilSuite) TestQuoted(c *check.C) {
 		{[]string{"one", `tw"`}, `"one", "tw\""`},
 	} {
 		c.Check(strutil.Quoted(t.in), check.Equals, t.out, check.Commentf("expected %#v -> %s", t.in, t.out))
+	}
+}
+
+func (ts *strutilSuite) TestSizeToStr(c *check.C) {
+	for _, t := range []struct {
+		size int64
+		str  string
+	}{
+		{0, "0B"},
+		{1, "1B"},
+		{400, "400B"},
+		{1000, "1kB"},
+		{1000 + 1, "1kB"},
+		{900 * 1000, "900kB"},
+		{1000 * 1000, "1MB"},
+		{20 * 1000 * 1000, "20MB"},
+		{1000 * 1000 * 1000, "1GB"},
+		{31 * 1000 * 1000 * 1000, "31GB"},
+		{math.MaxInt64, "9EB"},
+	} {
+		c.Check(strutil.SizeToStr(t.size), check.Equals, t.str)
+	}
+}
+
+func (ts *strutilSuite) TestWordWrap(c *check.C) {
+	for _, t := range []struct {
+		in  string
+		out []string
+		n   int
+	}{
+		// pathological
+		{"12345", []string{"12345"}, 3},
+		{"123 456789", []string{"123", "456789"}, 3},
+		// valid
+		{"abc def ghi", []string{"abc", "def", "ghi"}, 3},
+		{"a b c d e f", []string{"a b", "c d", "e f"}, 3},
+		{"ab cd ef", []string{"ab cd", "ef"}, 5},
+		// intentional (but slightly strange)
+		{"ab            cd", []string{"ab", "cd"}, 2},
+	} {
+		c.Check(strutil.WordWrap(t.in, t.n), check.DeepEquals, t.out)
 	}
 }

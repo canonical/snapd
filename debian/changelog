@@ -1,3 +1,67 @@
+snapd (2.19) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - cmd/snap-confine: disable support for XDG_RUNTIME_DIR
+    - cmd/snap-confine/tests: fix stale path after move to snapd
+    - cmd/snap-confine: don't use __attribute__((nonull))
+    - snap: add description to `snap info`
+    - snap: show last refresh time
+    - store: switch default delta format from xdelta to xdelta3
+    - interfaces: fix system-observe interface to work with ps_mem
+    - debian: add missing ca-certificates dependency
+    - cmd/snap-confine: add support for classic confinement
+    - snapstate/backend: add backend methods to manage aliases
+    - tests: re-enable snap-confine unit tests via spread
+    - many: merge snap-confine into snapd
+    - many: add support for classic confinement
+    - snap: abort install with ctrl+c
+    - cmd/snap: change terms accept URL following UX review
+    - interfaces/apparmor: use distinct apparmor template for classic
+    - snap: add snap size to `snap info`
+    - interfaces: add unconfined access to modem-manager
+    - snap: support for parsing and exposing on snap.Info aliases
+    - debian: disable autopkgtests on ppc64el
+    - snap: disable support for socket activation
+    - tests: fix incorrect restore of the current symlink
+    - asserts: introduce auto-aliases header in snap-declaration
+    - interfaces/seccomp: add support for classic confinement
+    - tests: do not use external snaps
+    - daemon: close the dup()ed file descriptor to not leak it
+    - overlord, daemon, progress: enable building snapd without CGO
+    - daemon, store: let snap info find things in any channel
+    - store: retry tweaks and logging
+    - snap: Improve `snap --help` output as designed by Mark
+    - interfaces/builtin: fix incorrect udev rule in i2c
+    - overlord: increase test timeout and improve failure message
+    - snap: remove unused experimental command
+    - debian: remove unneeded conflict against the "snappy" package
+    - daemon, strutil: move daemon.quotedNames to strutil.Quoted
+    - docs: document SNAP_DEBUG_HTTP in HACKING.md
+    - cmd/snap: have some completers
+    - snap: support "daemon: notify" in snap.yaml
+    - snap: fix try command when daemon linie is added
+    - interfaces: apparmor support for classic confinement
+    - debian/rules: build with -buildoptions=pie
+    - tests: include /boot in saved state (including bootenv and any
+      kernels)
+    - daemon: ensure `snap try` installs core if it's missing
+    - tests: save/restore /snap/core/current symlink
+    - tests: decrease the number of expected featured apps
+    - tests: add set -e to the prepare ssh script
+    - cmd/snap: add tests for section completion; fix bugs.
+    - cmd/snap: document 'snap list --all'
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 08 Dec 2016 16:16:04 +0100
+
+snapd (2.18.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - daemon: fix crash when `snap refresh` contains a single update
+    - fix unhandled error from io.Copy() in download()
+    - interfaces/builtin: fix incorrect udev rule in i2c
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 05 Dec 2016 15:04:13 +0100
+
 snapd (2.18) xenial; urgency=medium
 
   * New upstream release, LP: #1644625
