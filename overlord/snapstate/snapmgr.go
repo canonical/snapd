@@ -217,6 +217,15 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(cur.RealName, cur)
 }
 
+func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
+	for _, si := range snapst.Sequence {
+		if si.Revision == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil
@@ -346,6 +355,22 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+// Ensure implements StateManager.Ensure.
+func (m *SnapManager) Ensure() error {
+	m.runner.Ensure()
+	return nil
+}
+
+// Wait implements StateManager.Wait.
+func (m *SnapManager) Wait() {
+	m.runner.Wait()
+}
+
+// Stop implements StateManager.Stop.
+func (m *SnapManager) Stop() {
+	m.runner.Stop()
+}
+
 type cachedStoreKey struct{}
 
 // ReplaceStore replaces the store used by the manager.
@@ -372,13 +397,42 @@ func Store(st *state.State) StoreService {
 	panic("internal error: needing the store before managers have initialized it")
 }
 
-func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
-	for _, si := range snapst.Sequence {
-		if si.Revision == needle {
-			return true
-		}
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
+func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
+	var snapsup SnapSetup
+
+	err := t.Get("snap-setup", &snapsup)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
 	}
-	return false
+	if err == nil {
+		return &snapsup, nil
+	}
+
+	var id string
+	err = t.Get("snap-setup-task", &id)
+	if err != nil {
+		return nil, err
+	}
+
+	ts := t.State().Task(id)
+	if err := ts.Get("snap-setup", &snapsup); err != nil {
+		return nil, err
+	}
+	return &snapsup, nil
+}
+
+func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	var snapst SnapState
+	err = Get(t.State(), snapsup.Name(), &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -581,60 +635,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	st.Unlock()
 	return nil
-}
-
-// Ensure implements StateManager.Ensure.
-func (m *SnapManager) Ensure() error {
-	m.runner.Ensure()
-	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
-	m.runner.Stop()
-}
-
-// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
-func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
-	var snapsup SnapSetup
-
-	err := t.Get("snap-setup", &snapsup)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	if err == nil {
-		return &snapsup, nil
-	}
-
-	var id string
-	err = t.Get("snap-setup-task", &id)
-	if err != nil {
-		return nil, err
-	}
-
-	ts := t.State().Task(id)
-	if err := ts.Get("snap-setup", &snapsup); err != nil {
-		return nil, err
-	}
-	return &snapsup, nil
-}
-
-func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return nil, nil, err
-	}
-	var snapst SnapState
-	err = Get(t.State(), snapsup.Name(), &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, err
-	}
-	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
