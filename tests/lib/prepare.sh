@@ -139,6 +139,7 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+        dpkg-deb -x ${SPREAD_PATH}/../snap-confine_*.deb $UNPACKD
 
         # add gpio and iio slots
         cat >> $UNPACKD/meta/snap.yaml <<-EOF
