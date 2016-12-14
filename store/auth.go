@@ -86,6 +86,8 @@ func requestStoreMacaroon() (string, error) {
 	data := map[string]interface{}{
 		"permissions": []string{"package_access", "package_purchase"},
 	}
+
+	var err error
 	macaroonJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
@@ -104,8 +106,7 @@ func requestStoreMacaroon() (string, error) {
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Type", "application/json")
 
-		var resp *http.Response
-		resp, err = httpClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -262,9 +263,7 @@ func requestStoreDeviceNonce() (string, error) {
 	}
 
 	var err error
-
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		var resp *http.Response
 		req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
 		if err != nil {
 			return "", fmt.Errorf(errorPrefix+"%v", err)
@@ -272,7 +271,7 @@ func requestStoreDeviceNonce() (string, error) {
 		req.Header.Set("User-Agent", userAgent)
 		req.Header.Set("Accept", "application/json")
 
-		resp, err = httpClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -319,6 +318,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		"serial-assertion":       serialAssertion,
 		"device-session-request": sessionRequest,
 	}
+	var err error
 	deviceJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
@@ -341,8 +341,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 			req.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, previousSession))
 		}
 
-		var resp *http.Response
-		resp, err = httpClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
