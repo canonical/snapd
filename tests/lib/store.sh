@@ -42,7 +42,12 @@ setup_fake_store(){
 
     https_proxy=${https_proxy:-}
     http_proxy=${http_proxy:-}
-    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} -assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7"
+
+    if [ "$REMOTE_STORE" = staging ]; then
+        fakestore_mark="SNAPPY_USE_STAGING_STORE=1"
+    fi
+
+    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} -assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 $fakestore_mark"
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_CPI_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028"

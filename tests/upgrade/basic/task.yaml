@@ -11,6 +11,10 @@ execute: |
     prevsnapdver=$(snap --version|grep "snapd ")
 
     echo Install a snap with it
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
+    fi
     snap install test-snapd-tools
 
     echo Sanity check install
