@@ -93,6 +93,17 @@ backends:
                 username: test
                 password: ubuntu
 
+    nested:
+        type: linode
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        halt-timeout: 2h
+        kill-timeout: 2h
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+        systems:
+            - ubuntu-16.04-64:
+                kernel: GRUB 2
+
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
@@ -114,9 +125,16 @@ debug-each: |
     journalctl -u snapd
     dmesg | grep DENIED
 
+# on some systems the top-level prepare takes longer
+kill-timeout: 1h
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    if [ "$SPREAD_BACKEND" = nested ]; then
+        echo "do not prepare for nested backend"
+        exit 0
+    fi
 
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
@@ -211,6 +229,7 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        backends: [-nested]
         systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -229,8 +248,19 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
+        backends: [-nested]
         systems: [-ubuntu-core-16-64-fixme]
         restore:
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
             $TESTSLIB/reset.sh
+
+    tests/nested/:
+        summary: Tests for nested images
+        prepare: |
+            # apt update is hanging on security.ubuntu.com with IPv6.
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+            apt update && apt install -y snapd qemu genisoimage sshpass
+        restore: |
+            apt remove -y qemu genisoimage sshpass
