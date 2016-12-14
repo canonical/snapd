@@ -31,7 +31,6 @@ import (
 var downloadConnectedPlugAppArmor = []byte(`
 # Description: Can access the download manager.
 
-#include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 
 # allow communicating with download-manager service
@@ -110,7 +109,6 @@ var downloadPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as a download manager.
 
 # DBus accesses
-#include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 
 # https://specifications.freedesktop.org/download-spec/latest/
@@ -120,14 +118,14 @@ dbus (bind)
     name="com.canonical.applications.Downloader",
 
 dbus (send)
-    bus={system,session}
+    bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
-    bus={system,session}
+    bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="{RequestName,ReleaseName}"
