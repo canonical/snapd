@@ -9,7 +9,10 @@ execute: |
     snap install test-snapd-control-consumer
 
     echo "And snapd is purged"
-    sh -x ${SPREAD_PATH}/debian/snapd.prerm
+    # only available on trusty
+    if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
+        sh -x ${SPREAD_PATH}/debian/snapd.prerm
+    fi
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
 
     echo "Nothing is left"
