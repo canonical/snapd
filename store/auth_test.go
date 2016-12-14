@@ -95,14 +95,17 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
 	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: store server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
 }
 
@@ -219,14 +222,17 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(discharge, Equals, "")
 }
 
@@ -277,14 +283,17 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(nonce, Equals, "")
 }
 
@@ -335,14 +344,17 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error body"))
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
+	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
 }
