@@ -94,6 +94,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
 		"primary-key":  "0",
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
 
 	cfg := &asserts.DatabaseConfig{
 		Trusted: []asserts.Assertion{a},
@@ -559,12 +560,6 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
-	headers := map[string]interface{}{
-		"authority-id": "canonical",
-		"primary-key":  "a",
-		"format":       "77",
-		"payload":      "unsupported",
-	}
 	aUnsupp, err := asserts.Decode([]byte(unsupported))
 	c.Assert(err, IsNil)
 	c.Assert(aUnsupp.SupportedFormat(), Equals, false)
@@ -575,7 +570,7 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
 	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, false)
 
-	headers = map[string]interface{}{
+	headers := map[string]interface{}{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 		"format":       "1",

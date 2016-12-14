@@ -38,9 +38,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
-
-	// important so that the testkeys get imported
-	_ "github.com/snapcore/snapd/overlord/assertstate"
 )
 
 var (
@@ -255,7 +252,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	f := makeFetcher(sto, &DownloadOptions{}, db)
 
 	if err := f.Save(model); err != nil {
-		if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") == "" {
+		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
 			logger.Noticef("Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image: %v", err)
@@ -407,6 +404,7 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 	}
 
 	m := map[string]string{
+		"snap_mode":       "",
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
 	}

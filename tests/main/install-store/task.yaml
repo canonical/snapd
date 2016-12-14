@@ -4,7 +4,7 @@ systems: [+ubuntu-core-16-64]
 
 environment:
     SNAP_NAME: test-snapd-tools
-    DEVMODE_SNAP: devmode-world
+    DEVMODE_SNAP: test-snapd-devmode
 
 execute: |
     echo "Install from different channels"

@@ -200,6 +200,42 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	c.Check(id, check.Equals, "66b3")
 }
 
+func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Dangerous: true,
+	}
+
+	// InstallPath takes Dangerous
+	_, err = cs.cli.InstallPath(snap, &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\ntrue\r\n.*")
+
+	// Install does not (and gives us a clear error message)
+	_, err = cs.cli.Install("foo", &opts)
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
+
+	// nor does InstallMany (whether it fails because any option
+	// at all was provided, or because dangerous was provided, is
+	// unimportant)
+	_, err = cs.cli.InstallMany([]string{"foo"}, &opts)
+	c.Assert(err, check.NotNil)
+}
+
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
 	formData := map[string]string{}
 	for {
@@ -249,4 +285,11 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
 		c.Check(id, check.Equals, "66b3")
 	}
+}
+
+func (cs *clientSuite) TestClientOpTryModeDangerous(c *check.C) {
+	snapdir := filepath.Join(c.MkDir(), "/some/path")
+
+	_, err := cs.cli.Try(snapdir, &client.SnapOptions{Dangerous: true})
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 }

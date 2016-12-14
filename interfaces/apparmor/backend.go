@@ -65,7 +65,7 @@ func (b *Backend) Name() string {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
@@ -73,7 +73,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, devMode, snippets)
+	content, err := b.combineSnippets(snapInfo, opts, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -125,27 +125,32 @@ var (
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(appInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		addContent(appInfo.SecurityTag(), snapInfo, opts, snippets, content)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		addContent(hookInfo.SecurityTag(), snapInfo, opts, snippets, content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
-	policy := defaultTemplate
-	if devMode {
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+	var policy []byte
+	if opts.Classic && !opts.JailMode {
+		policy = classicTemplate
+	} else {
+		policy = defaultTemplate
+	}
+	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAll(policy, attachComplain)
 	}
 	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
@@ -155,7 +160,18 @@ func addContent(securityTag string, snapInfo *snap.Info, devMode bool, snippets 
 		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
 		case bytes.Equal(placeholder, placeholderSnippets):
-			return bytes.Join(snippets[securityTag], []byte("\n"))
+			var tagSnippets [][]byte
+
+			if opts.Classic && opts.JailMode {
+				// Add a special internal snippet for snaps using classic confinement
+				// and jailmode together. This snippet provides access to the core snap
+				// so that the dynamic linker and shared libraries can be used.
+				tagSnippets = append(tagSnippets, classicJailmodeSnippet)
+				tagSnippets = append(tagSnippets, snippets[securityTag]...)
+			} else {
+				tagSnippets = snippets[securityTag]
+			}
+			return bytes.Join(tagSnippets, []byte("\n"))
 		}
 		return nil
 	})

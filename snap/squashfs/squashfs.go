@@ -63,7 +63,7 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// snap when we "install" a squashfs snap in the tests.
 	// We can not mount it for real in the tests, so we just unpack
 	// it to the location which is good enough for the tests.
-	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
+	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
 		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
@@ -105,6 +105,16 @@ var runCommand = func(args ...string) error {
 
 func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
+}
+
+// Size returns the size of a squashfs snap.
+func (s *Snap) Size() (size int64, err error) {
+	st, err := os.Stat(s.path)
+	if err != nil {
+		return 0, err
+	}
+
+	return st.Size(), nil
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.

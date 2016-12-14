@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
@@ -102,7 +103,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -116,6 +117,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 
 func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
+}
+
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
 }
 
 func (s *deviceMgrSuite) SetUpTest(c *C) {
@@ -226,12 +231,12 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 	}))
 }
 
-func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
+func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string) {
 	sideInfoGadget := &snap.SideInfo{
 		RealName: "gadget",
 		Revision: snap.R(2),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -240,12 +245,12 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
 	})
 }
 
-func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string) {
+func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents string) {
 	sideInfoCore := &snap.SideInfo{
 		RealName: name,
 		Revision: snap.R(3),
 	}
-	snaptest.MockSnap(c, snapYaml, sideInfoCore)
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -277,7 +282,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -347,7 +352,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -412,7 +417,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -479,7 +484,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 name: gadget
 type: gadget
 version: gadget
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -570,7 +575,7 @@ type: gadget
 version: gadget
 hooks:
     prepare-device:
-`)
+`, "")
 
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -733,6 +738,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(1024)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",
@@ -857,7 +863,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
 name: ubuntu-core
 type: os
 version: ubuntu-core
-`)
+`, "")
 
 	// have a model assertion
 	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{

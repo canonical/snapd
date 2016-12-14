@@ -116,7 +116,7 @@ func (br memBSBranch) search(hint []string, found func(Assertion), maxFormat int
 func (leaf memBSLeaf) search(hint []string, found func(Assertion), maxFormat int) {
 	hint0 := hint[0]
 	if hint0 == "" {
-		for key, _ := range leaf {
+		for key := range leaf {
 			cand := leaf.cur(key, maxFormat)
 			if cand != nil {
 				found(cand)
