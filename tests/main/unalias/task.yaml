@@ -1,0 +1,21 @@
+summary: Check snap unalias
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local aliases
+
+execute: |
+    echo "Enable aliases"
+    snap alias aliases alias1 alias2
+
+    echo "Test the aliases"
+    alias1|MATCH "ok command 1"
+    alias2|MATCH "ok command 2"
+
+    echo "Disable an alias explicitly"
+    snap unalias alias2
+
+    echo "One still works, one is not there"
+    alias1|MATCH "ok command 1"
+    test ! -e /snap/bin/alias2
+    alias2 2>&1|MATCH "alias2: command not found"
