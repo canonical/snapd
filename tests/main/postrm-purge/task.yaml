@@ -9,6 +9,7 @@ execute: |
     snap install test-snapd-control-consumer
 
     echo "And snapd is purged"
+    sh -x ${SPREAD_PATH}/debian/snapd.prerm
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
 
     echo "Nothing is left"

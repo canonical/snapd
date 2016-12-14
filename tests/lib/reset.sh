@@ -16,6 +16,8 @@ reset_classic() {
         exit 1
     fi
 
+    systemctl start snap.mount.service
+
     rm -rf /root/.snap/gnupg
     rm -f /tmp/core* /tmp/ubuntu-core*
 
