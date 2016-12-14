@@ -91,33 +91,53 @@ func requestStoreMacaroon() (string, error) {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	defer resp.Body.Close()
-
-	// check return code, error on anything !200
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
-	}
-
-	dec := json.NewDecoder(resp.Body)
 	var responseData struct {
 		Macaroon string `json:"macaroon"`
 	}
-	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
+
+	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
+		if err != nil {
+			return "", fmt.Errorf(errorPrefix+"%v", err)
+		}
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Type", "application/json")
+
+		var resp *http.Response
+		resp, err = httpClient.Do(req)
+		if err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			}
+			break
+		}
+
+		if shouldRetryHttpResponse(attempt, resp) {
+			resp.Body.Close()
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		// check return code, error on anything !200
+		if resp.StatusCode != 200 {
+			return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+		}
+
+		dec := json.NewDecoder(resp.Body)
+		if err = dec.Decode(&responseData); err != nil {
+			if shouldRetryError(attempt, err) {
+				continue
+			} // else we will error-out and break the retry loop below
+		}
+
+		break
 	}
 
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
 	if responseData.Macaroon == "" {
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
