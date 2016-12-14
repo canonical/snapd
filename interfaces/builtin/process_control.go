@@ -29,6 +29,9 @@ const processControlConnectedPlugAppArmor = `
 # all processes under root or processes running under the same UID otherwise.
 # Usage: reserved
 
+/{,usr/}bin/nice ixr,
+
+capability sys_resource,
 capability sys_nice,
 
 signal,

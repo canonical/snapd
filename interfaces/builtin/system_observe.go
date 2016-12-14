@@ -51,11 +51,13 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
+@{PROC}/meminfo r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cmdline r,
+@{PROC}/*/{,task/*/}exe r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,

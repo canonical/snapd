@@ -163,17 +163,18 @@ type Info struct {
 	MustBuy bool
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*Ref
+	Channels    map[string]*ChannelSnapInfo
 }
 
-// Ref is the minimum information that can be used to clearly
+// ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
-type Ref struct {
+type ChannelSnapInfo struct {
 	Revision    Revision        `json:"revision"`
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
 	Epoch       string          `json:"epoch"`
+	Size        int64           `json:"size"`
 }
 
 // Name returns the blessed name for the snap.
@@ -255,9 +256,14 @@ func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 
-// NeedsDevMode retursn whether the snap needs devmode.
+// NeedsDevMode returns whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevModeConfinement
+}
+
+// NeedsClassic  returns whether the snap needs classic confinement consent.
+func (s *Info) NeedsClassic() bool {
+	return s.Confinement == ClassicConfinement
 }
 
 // DownloadInfo contains the information to download a snap.
