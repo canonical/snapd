@@ -32,6 +32,8 @@ type cmdAlias struct {
 	} `positional-args:"true"`
 }
 
+// TODO: implement a Completer for aliases
+
 var shortAliasHelp = i18n.G("Enables the given aliases")
 var longAliasHelp = i18n.G(`
 The alias command enables the given application aliases defined by the snap.
@@ -43,7 +45,7 @@ func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
 	}, nil, []argDesc{
-		{name: i18n.G("<snap>")},
+		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
 	})
 }
