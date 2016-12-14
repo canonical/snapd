@@ -645,22 +645,15 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap), nil
 }
 
-func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
-	snapsup := SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: revision,
-		},
+// canDisable verifies that a snap can be deactivated.
+func canDisable(st *snap.Info) bool {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+		if importantSnapType == st.Type {
+			return false
+		}
 	}
 
-	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
-	clearData.Set("snap-setup", snapsup)
-
-	discardSnap := st.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
-	discardSnap.WaitFor(clearData)
-	discardSnap.Set("snap-setup-task", clearData.ID())
-
-	return state.NewTaskSet(clearData, discardSnap)
+	return true
 }
 
 // canRemove verifies that a snap can be removed.
@@ -681,17 +674,6 @@ func canRemove(si *snap.Info, active bool) bool {
 	// never remove anything that is used for booting
 	if boot.InUse(si.Name(), si.Revision) {
 		return false
-	}
-
-	return true
-}
-
-// canDisable verifies that a snap can be deactivated.
-func canDisable(st *snap.Info) bool {
-	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == st.Type {
-			return false
-		}
 	}
 
 	return true
@@ -815,6 +797,24 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	return full, nil
+}
+
+func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+	snapsup := SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: name,
+			Revision: revision,
+		},
+	}
+
+	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
+	clearData.Set("snap-setup", snapsup)
+
+	discardSnap := st.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
+	discardSnap.WaitFor(clearData)
+	discardSnap.Set("snap-setup-task", clearData.ID())
+
+	return state.NewTaskSet(clearData, discardSnap)
 }
 
 // RemoveMany removes everything from the given list of names.
