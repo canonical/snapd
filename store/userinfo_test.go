@@ -17,17 +17,18 @@
  *
  */
 
-package store_test
+package store
 
 import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"time"
 
 	"gopkg.in/check.v1"
+	"gopkg.in/retry.v1"
 
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,6 +49,15 @@ var mockServerJSON = `{
     ],
     "openid_identifier": "xDPXBdB"
 }`
+
+func (t *userInfoSuite) SetUpTest(c *check.C) {
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1.1,
+		},
+	)))
+}
 
 func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
@@ -73,7 +83,7 @@ func (s *userInfoSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	info, err := store.UserInfo("popper@lse.ac.uk")
+	info, err := UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, 3) // number of requests after retries
 	c.Check(info.Username, check.Equals, "mvo")
@@ -89,7 +99,7 @@ func (s *userInfoSuite) TestCreateUser500RetriesExhausted(c *check.C) {
 		n++
 	})
 
-	_, err := store.UserInfo("popper@lse.ac.uk")
+	_, err := UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot look up user.*?got unexpected HTTP status code 500.*`)
 	c.Assert(n, check.Equals, 6)
