@@ -35,6 +35,7 @@ type SnapOptions struct {
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
 	JailMode         bool   `json:"jailmode,omitempty"`
+	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 }
@@ -93,7 +94,12 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("revert", name, options)
 }
 
+var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
+
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
+	if options != nil && options.Dangerous {
+		return "", ErrDangerousNotApplicable
+	}
 	action := actionData{
 		Action:      actionName,
 		SnapOptions: options,
@@ -161,6 +167,9 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	if options == nil {
 		options = &SnapOptions{}
 	}
+	if options.Dangerous {
+		return "", ErrDangerousNotApplicable
+	}
 
 	buf := bytes.NewBuffer(nil)
 	mw := multipart.NewWriter(buf)
@@ -190,6 +199,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
 		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("classic", strconv.FormatBool(action.Classic)),
 		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {

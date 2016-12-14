@@ -34,6 +34,7 @@ var (
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook
 	Wait               = wait
+	ResolveApp         = resolveApp
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
