@@ -31,6 +31,7 @@
 #include <linux/can.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sched.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -277,6 +278,14 @@ static void sc_map_init()
 	sc_map_add(PRIO_PROCESS);
 	sc_map_add(PRIO_PGRP);
 	sc_map_add(PRIO_USER);
+
+	// man 2 setns
+	sc_map_add(CLONE_NEWIPC);
+	sc_map_add(CLONE_NEWNET);
+	sc_map_add(CLONE_NEWNS);
+	sc_map_add(CLONE_NEWPID);
+	sc_map_add(CLONE_NEWUSER);
+	sc_map_add(CLONE_NEWUTS);
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
