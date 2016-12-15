@@ -2215,6 +2215,9 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "unalias":
 		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
 		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
+	case "reset":
+		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
