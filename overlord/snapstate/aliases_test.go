@@ -333,7 +333,7 @@ func (s *snapmgrTestSuite) TestUpdateUnaliasChangeConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestUpdateResetAliasChangeConflict(c *C) {
+func (s *snapmgrTestSuite) TestUpdateResetAliasesChangeConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -349,7 +349,7 @@ func (s *snapmgrTestSuite) TestUpdateResetAliasChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
 
-	_, err = snapstate.ResetAlias(s.state, "some-snap", []string{"alias1"})
+	_, err = snapstate.ResetAliases(s.state, "some-snap", []string{"alias1"})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -737,7 +737,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		case "unalias":
 			ts, err = snapstate.Unalias(s.state, "alias-snap", targets)
 		case "reset":
-			ts, err = snapstate.ResetAlias(s.state, "alias-snap", targets)
+			ts, err = snapstate.ResetAliases(s.state, "alias-snap", targets)
 		}
 		c.Assert(err, IsNil)
 
@@ -835,7 +835,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 		case "unalias":
 			ts, err = snapstate.Unalias(s.state, "alias-snap", targets)
 		case "reset":
-			ts, err = snapstate.ResetAlias(s.state, "alias-snap", targets)
+			ts, err = snapstate.ResetAliases(s.state, "alias-snap", targets)
 		}
 		c.Assert(err, IsNil)
 

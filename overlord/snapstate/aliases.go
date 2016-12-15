@@ -137,8 +137,8 @@ func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet
 	return state.NewTaskSet(alias), nil
 }
 
-// ResetAlias resets the provided aliases for the snap with the given name to their default/automatic state, enabled for auto-aliases, disabled otherwise.
-func ResetAlias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
+// ResetAliases resets the provided aliases for the snap with the given name to their default/automatic state, enabled for auto-aliases, disabled otherwise.
+func ResetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err == state.ErrNoState {
