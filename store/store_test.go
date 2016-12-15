@@ -315,7 +315,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	c.Assert(string(content), Equals, partialContentStr+"was downloaded")
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnShaError(c *C) {
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
@@ -324,7 +324,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnShaError(c *C) {
 		if n == 1 {
 			// force sha3 error on first download
 			c.Check(resume, Equals, int64(len(partialContentStr)))
-			return ShaError{"foo", "1234", "5678"}
+			return HashError{"foo", "1234", "5678"}
 		}
 		w.Write([]byte("file was downloaded from scratch"))
 		return nil
@@ -349,13 +349,13 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnShaError(c *C) {
 	c.Assert(string(content), Equals, "file was downloaded from scratch")
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnShaError(c *C) {
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		n++
-		return ShaError{"foo", "1234", "5678"}
+		return HashError{"foo", "1234", "5678"}
 	}
 
 	snap := &snap.Info{}
