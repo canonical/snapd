@@ -47,7 +47,7 @@ func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
 	}, map[string]string{
-		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, implicitly disabled otherwise"),
+		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, disabled otherwise"),
 	}, []argDesc{
 		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
