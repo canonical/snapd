@@ -181,6 +181,10 @@ prepare: |
          # 14.04 has its own packaging
          rm -rf debian
          mv debian-ubuntu-14.04 debian
+
+         # FIXME: why is this needed? the path is set in the environment
+         #        already and this works in qemu?
+         export PATH=$PATH:/usr/lib/go-1.6/bin
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
