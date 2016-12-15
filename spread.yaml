@@ -186,7 +186,7 @@ prepare: |
          add-apt-repository ppa:snappy-dev/image
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
-         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-litedp
+         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
