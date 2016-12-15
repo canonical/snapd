@@ -1285,13 +1285,13 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
-type ShaError struct {
+type HashError struct {
 	name           string
 	sha3_384       string
 	targetSha3_384 string
 }
 
-func (e ShaError) Error() string {
+func (e HashError) Error() string {
 	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
@@ -1341,9 +1341,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
 	if err != nil {
 		// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-		// Note that this we will retry this way only once.
-		if _, ok := err.(ShaError); ok && resume > 0 {
-			logger.Debugf("Sha3 checksum error after resuming the download: %s", err.Error())
+		// Note that we will retry this way only once.
+		if _, ok := err.(HashError); ok && resume > 0 {
+			logger.Debugf("Error on resumed download: %v", err.Error())
 			err = os.Truncate(partialFileName, 0)
 			if err == nil {
 				return s.Download(ctx, name, targetPath, downloadInfo, pbar, user)
@@ -1361,13 +1361,12 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
-	var err error
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
 	}
 
-	var resp *http.Response
+	var finalError error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
@@ -1396,16 +1395,17 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		var resp *http.Response
+		resp, finalError = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		if finalError != nil {
+			if shouldRetryError(attempt, finalError) {
 				continue
 			}
-			return err
+			return finalError
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1417,7 +1417,6 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
-			break
 		case http.StatusUnauthorized:
 			return fmt.Errorf("cannot download non-free snap without purchase")
 		default:
@@ -1429,10 +1428,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
-		_, err = io.Copy(mw, resp.Body)
+		_, finalError = io.Copy(mw, resp.Body)
 		pbar.Finished()
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		if finalError != nil {
+			if shouldRetryError(attempt, finalError) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1441,7 +1440,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 				}
 				// if seek failed, then don't retry end return the original error
 			}
-			return err
+			return finalError
 		}
 
 		if cancelled(ctx) {
@@ -1450,11 +1449,11 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
-			return ShaError{name, actualSha3, sha3_384}
+			return HashError{name, actualSha3, sha3_384}
 		}
 		return nil
 	}
-	return err
+	return finalError
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1512,7 +1511,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
-		return ShaError{name, sha3_384, targetSha3_384}
+		return HashError{name, sha3_384, targetSha3_384}
 	}
 
 	if err := os.Rename(partialTargetPath, targetPath); err != nil {
