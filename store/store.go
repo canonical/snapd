@@ -1345,12 +1345,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if _, ok := err.(HashError); ok && resume > 0 {
 			logger.Debugf("Error on resumed download: %v", err.Error())
 			err = w.Truncate(0)
-			if err == nil {
-				_, err = w.Seek(0, os.SEEK_SET)
-				if err == nil {
-					err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
-				}
+			if err != nil {
+				return err
 			}
+			_, err = w.Seek(0, os.SEEK_SET)
+			if err != nil {
+				return err
+			}
+			err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
 		}
 	}
 
@@ -1372,7 +1374,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
-	var fatalErr error
+	var finalErr error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
@@ -1401,13 +1403,13 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, fatalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if fatalErr != nil {
-			if shouldRetryError(attempt, fatalErr) {
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
 				continue
 			}
 			break
@@ -1433,10 +1435,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
-		_, fatalErr = io.Copy(mw, resp.Body)
+		_, finalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
-		if fatalErr != nil {
-			if shouldRetryError(attempt, fatalErr) {
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1454,11 +1456,11 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
-			fatalErr = HashError{name, actualSha3, sha3_384}
+			finalErr = HashError{name, actualSha3, sha3_384}
 		}
 		break
 	}
-	return fatalErr
+	return finalErr
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
