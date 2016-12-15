@@ -17,12 +17,21 @@
  *
  */
 
-package notifications
+package builtin
 
-// A Notification is an event a subscriber is interested in knowing about.
-type Notification struct {
-	Timestamp int64                  `json:"timestamp"`
-	Type      string                 `json:"type"`
-	Resource  string                 `json:"resource"`
-	Metadata  map[string]interface{} `json:"metadata"`
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
+
+const openvswitchSupportConnectedPlugKmod = `
+openvswitch
+`
+
+// NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
+func NewOpenvSwitchSupportInterface() interfaces.Interface {
+	return &commonInterface{
+		name:              "openvswitch-support",
+		connectedPlugKMod: openvswitchSupportConnectedPlugKmod,
+		reservedForOS:     true,
+	}
 }

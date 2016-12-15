@@ -4,7 +4,9 @@ environment:
     GOPATH: /home/gopath
     REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
     PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
-    PATH: $GOPATH/bin:/snap/bin:$PATH
+    # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
+    # a different go in gccgo tests)
+    PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
@@ -41,6 +43,9 @@ backends:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-14.04-64:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-32:
                 username: ubuntu
                 password: ubuntu
@@ -52,6 +57,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-16.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
     autopkgtest:
@@ -97,9 +105,15 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --rotate
-    sleep .1
-    journalctl --vacuum-time=1ms
+    # systemd on 14.04 does not know about --rotate
+    # or --vacuum-time.
+    # TODO: Find a way to clean out systemd logs on
+    # systemd 204.
+    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    fi
     dmesg -c > /dev/null
 
 debug-each: |
@@ -109,7 +123,6 @@ debug-each: |
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
@@ -149,10 +162,23 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+    apt-get update
+    apt-get install -y software-properties-common
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+         echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+         apt-get update
+
+         add-apt-repository ppa:snappy-dev/image
+         apt-get update
+         apt-get install -y --install-recommends linux-generic-lts-xenial
+         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd
+    fi
+
+    apt-get purge -y snapd snap-confine ubuntu-core-launcher
     apt-get update
     # utilities
-    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
+    apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
 
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
@@ -214,7 +240,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -223,6 +249,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
             $TESTSLIB/reset.sh

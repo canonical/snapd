@@ -16,6 +16,10 @@ reset_classic() {
         exit 1
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then 
+        systemctl start snap.mount.service
+    fi
+
     rm -rf /root/.snap/gnupg
     rm -f /tmp/core* /tmp/ubuntu-core*
 

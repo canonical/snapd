@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -114,7 +113,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			logger.Noticef("%s", err)
+			task.Logf("%s", err)
 		} else {
 			return err
 		}
@@ -334,9 +333,14 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		BaseDeclaration:     baseDecl,
 	}
 
-	err = ic.Check()
-	if err != nil {
-		return err
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		err = ic.Check()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = m.repo.Connect(connRef)
