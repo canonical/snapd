@@ -107,7 +107,10 @@
     # NOTE: this doesn't capture the MERGED_USR configuration option so that
     # when a distro with merged /usr and / that uses apparmor shows up it
     # should be handled here.
+    /{,run/}media/ w,
     mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
+    /run/netns/ w,
+    mount options=(rw rbind) /run/netns/ -> /tmp/snap.rootfs_*/run/netns/,
     # unidirectional mounts (only for classic system)
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/dev/,

@@ -266,6 +266,12 @@ slots:
         - gadget
         - core
     deny-auto-connection: true
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
@@ -376,6 +382,16 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  openvswitch:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   optical-drive:
     allow-installation:
       slot-snap-type:

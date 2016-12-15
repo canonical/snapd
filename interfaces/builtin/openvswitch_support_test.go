@@ -25,69 +25,62 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type NetworkControlInterfaceSuite struct {
+type OpenvSwitchSupportInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkControlInterfaceSuite{
-	iface: builtin.NewNetworkControlInterface(),
+var _ = Suite(&OpenvSwitchSupportInterfaceSuite{
+	iface: builtin.NewOpenvSwitchSupportInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-control",
-			Interface: "network-control",
+			Name:      "openvswitch-support",
+			Interface: "openvswitch-support",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-control",
-			Interface: "network-control",
+			Name:      "openvswitch-support",
+			Interface: "openvswitch-support",
 		},
 	},
 })
 
-func (s *NetworkControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-control")
+func (s *OpenvSwitchSupportInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "openvswitch-support")
 }
 
-func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-control",
-		Interface: "network-control",
+		Name:      "openvswitch-support",
+		Interface: "openvswitch-support",
 	}})
-	c.Assert(err, ErrorMatches, "network-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "openvswitch-support slots are reserved for the operating system snap")
 }
 
-func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *NetworkControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network-control"`)
+		PanicMatches, `slot is not of interface "openvswitch-support"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network-control"`)
+		PanicMatches, `plug is not of interface "openvswitch-support"`)
 }
 
-func (s *NetworkControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	// connected plugs have a non-nil security snippet for kmod
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "/run/netns/* rw,\n")
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "setns - CLONE_NEWNET\n")
 }
