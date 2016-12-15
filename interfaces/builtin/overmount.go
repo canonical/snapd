@@ -22,11 +22,12 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// OvermountInterface allows sharing overmount between snaps
+// OvermountInterface allows customizing the userspace exposed to the snap
 type OvermountInterface struct{}
 
 func (iface *OvermountInterface) Name() string {
@@ -38,23 +39,6 @@ func (iface *OvermountInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	// check that we have either a read or write path
-	rpath := iface.path(slot, "read")
-	wpath := iface.path(slot, "write")
-	epath := iface.path(slot, "execute")
-	if len(rpath) == 0 && len(wpath) == 0 && len(epath) == 0 {
-		return fmt.Errorf("read, write or execute path must be set")
-	}
-
-	// go over both paths
-	paths := rpath
-	paths = append(paths, wpath...)
-	for _, p := range paths {
-		if !cleanSubPath(p) {
-			return fmt.Errorf("overmount interface path is not clean: %q", p)
-		}
-	}
-
 	return nil
 }
 
@@ -62,12 +46,14 @@ func (iface *OvermountInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
-	target, ok := plug.Attrs["target"].(string)
-	if !ok || len(target) == 0 {
-		return fmt.Errorf("overmount plug must contain target path")
+
+	// check that we both a source and a destination
+	source, destination, err := iface.getAttribs(plug.Attrs)
+	if err != nil {
+		return err
 	}
-	if !cleanSubPath(target) {
-		return fmt.Errorf("overmount interface target path is not clean: %q", target)
+	if len(source) == 0 || len(destination) == 0 {
+		return fmt.Errorf("source and destination must be set")
 	}
 
 	return nil
@@ -81,68 +67,62 @@ func (iface *OvermountInterface) PermanentSlotSnippet(slot *interfaces.Slot, sec
 	return nil, nil
 }
 
-// path is an internal helper that extract the "read" and "write" attribute
-// of the slot
-func (iface *OvermountInterface) path(slot *interfaces.Slot, name string) []string {
-	if name != "read" && name != "write" && name != "execute" {
-		panic("internal error, path can only be used with read/write/execute")
-	}
-
-	paths, ok := slot.Attrs[name].([]interface{})
-	if !ok {
-		return nil
-	}
-
-	out := make([]string, len(paths))
-	for i, p := range paths {
-		out[i], ok = p.(string)
-		if !ok {
-			return nil
-		}
-	}
-	return out
-}
-
-func (iface *OvermountInterface) overmountMountSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
+func (iface *OvermountInterface) overmountMountSnippet(plug *interfaces.Plug, src, dst string) ([]byte, error) {
 	snippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(snippet, mountEntry(plug, slot, r, ",ro"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(snippet, mountEntry(plug, slot, w, ""))
-	}
-	for _, e := range iface.path(slot, "execute") {
-		fmt.Fprintln(snippet, mountEntry(plug, slot, e, ",exec"))
-	}
+	fmt.Fprintln(snippet, overmountEntry(plug, src, dst, ",ro,exec"))
 	return snippet.Bytes(), nil
 }
 
-func appArmorEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc, mntOpts, permissions string) string {
-	/* dst */ _ = resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	/* src */ _ = resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("mount options=(ro bind %s) %s/*/** -> %s/** %s,", "/snap", "exec", "/usr/bin", permissions)
+// Obtain yaml-specified source and destination to mount
+func (iface *OvermountInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
+	// source: path within the snap
+	source, ok := attribs["source"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("cannot find attribute 'source'")
+	}
+
+	// destination: absolute path to mount the source
+	destination, ok := attribs["destination"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("cannot find attribute 'destination'")
+	}
+
+	return source, destination, nil
 }
 
-func (iface *OvermountInterface) overmountAppArmorSnippet(plug *interfaces.Plug, slot *interfaces.Slot) ([]byte, error) {
+func appArmorEntry(plug *interfaces.Plug, src, dst, mntOpts, permissions string) string {
+	return fmt.Sprintf("mount options=(ro bind %s) %s/** -> %s/**,\n%s/** %s,", mntOpts, src, dst, dst, permissions)
+}
+
+func overmountEntry(plug *interfaces.Plug, src, dst string, mntOpts string) string {
+	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+}
+
+func (iface *OvermountInterface) overmountAppArmorSnippet(plug *interfaces.Plug, src, dst string) ([]byte, error) {
 	snippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(snippet, appArmorEntry(plug, slot, r, "read", "r"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(snippet, appArmorEntry(plug, slot, w, "write", "w"))
-	}
-	for _, e := range iface.path(slot, "execute") {
-		fmt.Fprintln(snippet, appArmorEntry(plug, slot, e, "exec", "ixr"))
-	}
+	fmt.Fprintln(snippet, appArmorEntry(plug, src, dst, "exec", "mrkix"))
 	return snippet.Bytes(), nil
 }
 
 func (iface *OvermountInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	source, destination, err := iface.getAttribs(plug.Attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	src := resolveSpecialVariable(source, plug.Snap)
+	if !strings.HasPrefix(destination, "/") {
+		return nil, fmt.Errorf("destination must be an absolute path: %q", destination)
+	}
+	if strings.HasPrefix(destination, "/snap/") || strings.HasPrefix(destination, "/var/snap/") {
+		return nil, fmt.Errorf("destination must not be any snap-internal path: %q", destination)
+	}
+
 	switch securitySystem {
 	case interfaces.SecurityMount:
-		return iface.overmountMountSnippet(plug, slot)
+		return iface.overmountMountSnippet(plug, src, destination)
 	case interfaces.SecurityAppArmor:
-		return iface.overmountAppArmorSnippet(plug, slot)
+		return iface.overmountAppArmorSnippet(plug, src, destination)
 	}
 	return nil, nil
 }
@@ -152,5 +132,5 @@ func (iface *OvermountInterface) PermanentPlugSnippet(plug *interfaces.Plug, sec
 }
 
 func (iface *OvermountInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	return plug.Attrs["overmount"] == slot.Attrs["overmount"]
+	return true
 }
