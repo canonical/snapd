@@ -259,48 +259,60 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
-type: base-declaration
-authority-id: canonical
-series: 16
-slots:
-  test:
-    allow-connection:
-      plug-publisher-id:
-        - $SLOT_PUBLISHER_ID
-`))
-	defer restore()
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockSnapDecl(c, "consumer", "consumer-publisher", nil)
-	s.mockSnap(c, consumerYaml)
-	s.mockSnapDecl(c, "producer", "producer-publisher", nil)
-	s.mockSnap(c, producerYaml)
+	s.testConnectTaskCheck(c, func() {
+		s.mockSnapDecl(c, "consumer", "consumer-publisher", nil)
+		s.mockSnap(c, consumerYaml)
+		s.mockSnapDecl(c, "producer", "producer-publisher", nil)
+		s.mockSnap(c, producerYaml)
+	}, func(change *state.Change) {
+		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by slot rule of interface "test".*`)
+		c.Check(change.Status(), Equals, state.ErrorStatus)
 
-	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
+		repo := s.manager(c).Repository()
+		plug := repo.Plug("consumer", "plug")
+		slot := repo.Slot("producer", "slot")
+		c.Check(plug.Connections, HasLen, 0)
+		c.Check(slot.Connections, HasLen, 0)
 	})
+}
 
-	change.AddAll(ts)
-	s.state.Unlock()
+func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
+	s.testConnectTaskCheck(c, func() {
+		s.mockSnap(c, consumerYaml)
+		s.mockSnap(c, producerYaml)
+	}, func(change *state.Change) {
+		c.Check(change.Err(), IsNil)
+		c.Check(change.Status(), Equals, state.DoneStatus)
 
-	mgr := s.manager(c)
-	mgr.Ensure()
-	mgr.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by slot rule of interface "test".*`)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
+		repo := s.manager(c).Repository()
+		plug := repo.Plug("consumer", "plug")
+		slot := repo.Slot("producer", "slot")
+		c.Assert(plug.Connections, HasLen, 1)
+		c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+		c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
+	s.testConnectTaskCheck(c, func() {
+		s.mockSnapDecl(c, "consumer", "one-publisher", nil)
+		s.mockSnap(c, consumerYaml)
+		s.mockSnapDecl(c, "producer", "one-publisher", nil)
+		s.mockSnap(c, producerYaml)
+	}, func(change *state.Change) {
+		c.Assert(change.Err(), IsNil)
+		c.Check(change.Status(), Equals, state.DoneStatus)
+
+		repo := s.manager(c).Repository()
+		plug := repo.Plug("consumer", "plug")
+		slot := repo.Slot("producer", "slot")
+		c.Assert(plug.Connections, HasLen, 1)
+		c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+		c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	})
+}
+
+func (s *interfaceManagerSuite) testConnectTaskCheck(c *C, setup func(), check func(*state.Change)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -313,10 +325,8 @@ slots:
 `))
 	defer restore()
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockSnapDecl(c, "consumer", "one-publisher", nil)
-	s.mockSnap(c, consumerYaml)
-	s.mockSnapDecl(c, "producer", "one-publisher", nil)
-	s.mockSnap(c, producerYaml)
+
+	setup()
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -338,15 +348,7 @@ slots:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(change.Err(), IsNil)
-	c.Check(change.Status(), Equals, state.DoneStatus)
-
-	repo := mgr.Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 1)
-	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	check(change)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
@@ -706,6 +708,26 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnects(c *C) {
 
 // The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, plug *interfaces.Plug) {
+		// Ensure that "test" plug is now saved in the state as auto-connected.
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
+		})
+		// Ensure that "test" is really connected.
+		c.Check(plug.Connections, HasLen, 1)
+	})
+}
+
+// The setup-profiles task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhenMissingDecl(c *C) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, plug *interfaces.Plug) {
+		// Ensure nothing is connected.
+		c.Check(conns, HasLen, 0)
+		c.Check(plug.Connections, HasLen, 0)
+	})
+}
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, *interfaces.Plug)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -726,7 +748,9 @@ slots:
 	mgr := s.manager(c)
 
 	// Add a sample snap with a plug with the "test" interface which should be auto-connected.
-	s.mockSnapDecl(c, "consumer", "one-publisher", nil)
+	if withDecl {
+		s.mockSnapDecl(c, "consumer", "one-publisher", nil)
+	}
 	snapInfo := s.mockSnap(c, consumerYaml)
 
 	// Run the setup-snap-security task and let it finish.
@@ -747,19 +771,15 @@ slots:
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// Ensure that "test" plug is now saved in the state as auto-connected.
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
-	})
 
-	// Ensure that "test" is really connected.
 	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "plug")
 	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Connections, HasLen, 1)
+
+	check(conns, plug)
 }
 
 // The setup-profiles task will only touch connection state for the task it
@@ -1401,11 +1421,32 @@ slots:
 	defer restore()
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 
+	s.mockSnapDecl(c, "producer", "producer-publisher", nil)
 	snapInfo := s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), ErrorMatches, "installation denied.*")
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedIfNoDecl(c *C) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-installation: true
+`))
+	defer restore()
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+
+	// crucially, this test is missing this: s.mockSnapDecl(c, "producer", "producer-publisher", nil)
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {

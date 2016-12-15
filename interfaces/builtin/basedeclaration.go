@@ -203,6 +203,14 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
   dcdbas-control:
     allow-installation:
       slot-snap-type:
@@ -261,6 +269,12 @@ slots:
     deny-auto-connection:
       on-classic: false
   i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+  iio:
     allow-installation:
       slot-snap-type:
         - gadget
@@ -376,6 +390,16 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  openvswitch:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   optical-drive:
     allow-installation:
       slot-snap-type:

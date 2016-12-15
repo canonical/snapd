@@ -36,14 +36,16 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/jessevdk/go-flags"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Standard streams, redirected for testing.
 var (
-	Stdin    io.Reader = os.Stdin
-	Stdout   io.Writer = os.Stdout
-	Stderr   io.Writer = os.Stderr
-	Terminal int       = 0
+	Stdin        io.Reader = os.Stdin
+	Stdout       io.Writer = os.Stdout
+	Stderr       io.Writer = os.Stderr
+	ReadPassword           = terminal.ReadPassword
 )
 
 type options struct {
