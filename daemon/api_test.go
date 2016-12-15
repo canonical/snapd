@@ -4605,6 +4605,12 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 
 	s.mockSnap(c, aliasYaml)
 
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4684,6 +4690,12 @@ func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
 
 	s.mockSnap(c, aliasYaml)
 
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -4725,4 +4737,66 @@ func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
 		"alias-snap": {"alias1": "disabled"},
 	})
 
+}
+
+func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "disabled",
+		},
+	})
+
+	action := &aliasAction{
+		Action:  "reset",
+		Snap:    "alias-snap",
+		Aliases: []string{"alias1"},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	st.Unlock()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	st.Lock()
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	chg := st.Change(id)
+	c.Assert(chg, check.NotNil)
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
+	var allAliases map[string]map[string]string
+	err = st.Get("aliases", &allAliases)
+	c.Assert(err, check.IsNil)
+	c.Check(allAliases, check.HasLen, 0)
 }
