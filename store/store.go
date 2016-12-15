@@ -1343,7 +1343,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
 		// Note that this we will retry this way only once.
 		if _, ok := err.(HashError); ok && resume > 0 {
-			logger.Debugf("Sha3 checksum error after resuming the download: %s", err.Error())
+			logger.Debugf("Error on resumed download: %v", err.Error())
 			err = os.Truncate(partialFileName, 0)
 			if err == nil {
 				return s.Download(ctx, name, targetPath, downloadInfo, pbar, user)
