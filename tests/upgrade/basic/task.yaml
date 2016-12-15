@@ -23,8 +23,7 @@ execute: |
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         # apt_install_local uses dpkg directly which happily downgrades
-        apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher*.deb
-        apt_install_local ${SPREAD_PATH}/../snapd*.deb
+        apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher*.deb ${SPREAD_PATH}/../snapd*.deb
     else
         # not using apt_install_local here as this will not have
         # --allow-downgrades

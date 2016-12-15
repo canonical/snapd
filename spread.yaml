@@ -19,12 +19,16 @@ environment:
     TRUST_TEST_KEYS: "true"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
+    # slight abuse
+    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         halt-timeout: 2h
         systems:
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -166,13 +170,23 @@ prepare: |
     apt-get install -y software-properties-common
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+         if [ ! -d debian-ubuntu-14.04 ]; then
+             echo "no debian-ubuntu-14.04/ directory "
+             echo "broken test setup"
+             exit 1
+         fi
+
+         # 14.04 has its own packaging
+         rm -rf debian
+         mv debian-ubuntu-14.04 debian
+
          echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
          apt-get update
 
          add-apt-repository ppa:snappy-dev/image
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
-         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd
+         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
