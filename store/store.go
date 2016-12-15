@@ -1385,8 +1385,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 				"Range": fmt.Sprintf("bytes=%d-", resume),
 			}
 			// seed the sha3 with the already local file
-			seekStart := 0
-			if _, err := w.Seek(0, seekStart); err != nil {
+			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
 				return err
 			}
 			n, err := io.Copy(h, w)
