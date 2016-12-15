@@ -1,4 +1,4 @@
-summary: Check snap alias
+summary: Check snap alias and snap unalias
 
 prepare: |
     . $TESTSLIB/snaps.sh
@@ -16,6 +16,19 @@ execute: |
     test -h /snap/bin/alias1
     test -h /snap/bin/alias2
     alias1|MATCH "ok command 1"
+    alias2|MATCH "ok command 2"
+
+    echo "Disable an alias explicitly"
+    snap unalias aliases alias2
+
+    echo "One still works, one is not there"
+    alias1|MATCH "ok command 1"
+    test ! -e /snap/bin/alias2
+    alias2 2>&1|MATCH "alias2: command not found"
+
+    echo "Re-enabling it works"
+    snap alias aliases alias2
+    test -h /snap/bin/alias2
     alias2|MATCH "ok command 2"
 
     echo "Removing the snap should remove the aliases"
