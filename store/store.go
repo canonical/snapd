@@ -1315,8 +1315,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
-	partialFileName := targetPath + ".partial"
-	w, err := os.OpenFile(partialFileName, os.O_RDWR|os.O_CREATE, 0644)
+	partialPath := targetPath + ".partial"
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -1344,7 +1344,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		// Note that we will retry this way only once.
 		if _, ok := err.(HashError); ok && resume > 0 {
 			logger.Debugf("Error on resumed download: %v", err.Error())
-			err = os.Truncate(partialFileName, 0)
+			err = os.Truncate(partialPath, 0)
 			if err == nil {
 				return s.Download(ctx, name, targetPath, downloadInfo, pbar, user)
 			}
