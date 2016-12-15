@@ -1366,7 +1366,6 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
-	var finalError error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
@@ -1396,16 +1395,16 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalError = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if finalError != nil {
-			if shouldRetryError(attempt, finalError) {
+		if err != nil {
+			if shouldRetryError(attempt, err) {
 				continue
 			}
-			return finalError
+			return err
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1428,10 +1427,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
-		_, finalError = io.Copy(mw, resp.Body)
+		_, err = io.Copy(mw, resp.Body)
 		pbar.Finished()
-		if finalError != nil {
-			if shouldRetryError(attempt, finalError) {
+		if err != nil {
+			if shouldRetryError(attempt, err) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1440,7 +1439,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 				}
 				// if seek failed, then don't retry end return the original error
 			}
-			return finalError
+			return err
 		}
 
 		if cancelled(ctx) {
@@ -1453,7 +1452,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		return nil
 	}
-	return finalError
+	return nil
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
