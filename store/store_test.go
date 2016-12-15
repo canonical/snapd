@@ -322,6 +322,65 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	c.Assert(string(content), Equals, partialContentStr+"was downloaded")
 }
 
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
+	partialContentStr := "partial content "
+
+	n := 0
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		n++
+		if n == 1 {
+			// force sha3 error on first download
+			c.Check(resume, Equals, int64(len(partialContentStr)))
+			return HashError{"foo", "1234", "5678"}
+		}
+		w.Write([]byte("file was downloaded from scratch"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = ""
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "file was downloaded from scratch")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
+	partialContentStr := "partial content "
+
+	n := 0
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		n++
+		return HashError{"foo", "1234", "5678"}
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = ""
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `sha3-384 mismatch after patching "foo": got 1234 but expected 5678`)
+	c.Assert(n, Equals, 2)
+}
+
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check user is pass and auth url is used
@@ -524,6 +583,29 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, 5)
+}
+
+func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			io.WriteString(w, "response-data")
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 2)
 }
 
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
