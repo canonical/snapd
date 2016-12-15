@@ -1366,6 +1366,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
+	var fatalErr error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
@@ -1395,16 +1396,16 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		resp, fatalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		if fatalErr != nil {
+			if shouldRetryError(attempt, fatalErr) {
 				continue
 			}
-			return err
+			break
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1427,10 +1428,10 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		pbar.Start(name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, h, pbar)
-		_, err = io.Copy(mw, resp.Body)
+		_, fatalErr = io.Copy(mw, resp.Body)
 		pbar.Finished()
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		if fatalErr != nil {
+			if shouldRetryError(attempt, fatalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1439,7 +1440,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 				}
 				// if seek failed, then don't retry end return the original error
 			}
-			return err
+			break
 		}
 
 		if cancelled(ctx) {
@@ -1448,11 +1449,11 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
-			return HashError{name, actualSha3, sha3_384}
+			fatalErr = HashError{name, actualSha3, sha3_384}
 		}
-		return nil
+		break
 	}
-	return nil
+	return fatalErr
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
