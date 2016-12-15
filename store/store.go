@@ -779,6 +779,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
+	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {
