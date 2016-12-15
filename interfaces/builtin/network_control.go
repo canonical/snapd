@@ -23,12 +23,11 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-control
 const networkControlConnectedPlugAppArmor = `
-# Description: Can configure networking. This is restricted because it gives
-# wide, privileged access to networking and should only be used with trusted
-# apps.
-# Usage: reserved
+# Description: Can configure networking and network namespaces via the standard
+# 'ip netns' command (man ip-netns(8)). This interface is restricted because it
+# gives wide, privileged access to networking and should only be used with
+# trusted apps.
 
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
@@ -117,17 +116,72 @@ capability setuid,
 
 # TUN/TAP
 /dev/net/tun rw,
+
+# Network namespaces via 'ip netns'. In order to create network namespaces
+# that persist outside of the process and be entered (eg, via
+# 'ip netns exec ...') the ip command uses mount namespaces such that
+# applications can open the /run/netns/NAME object and use it with setns(2).
+# For 'ip netns exec' it will also create a mount namespace and bind mount
+# network configuration files into /etc in that namespace. See man ip-netns(8)
+# for details.
+
+capability sys_admin, # for setns()
+network netlink raw,
+
+/ r,
+/run/netns/ r,     # only 'r' since snap-confine will create this for us
+/run/netns/* rw,
+mount options=(rw, rshared) -> /run/netns/,
+mount options=(rw, bind) /run/netns/ -> /run/netns/,
+mount options=(rw, bind) / -> /run/netns/*,
+umount /,
+
+# 'ip netns identify <pid>' and 'ip netns pids foo'
+capability sys_ptrace,
+# FIXME: ptrace can be used to break out of the seccomp sandbox unless the
+# kernel has 93e35efb8de45393cf61ed07f7b407629bf698ea (in 4.8+). Until this is
+# the default in snappy kernels, deny but audit as a reminder to get the
+# kernels patched.
+audit deny ptrace (trace) peer=snap.@{SNAP_NAME}.*, # eventually by default
+audit deny ptrace (trace), # for all other peers (process-control or other)
+
+# 'ip netns exec foo /bin/sh'
+mount options=(rw, rslave) /,
+mount options=(rw, rslave), # LP: #1648245
+umount /sys/,
+
+# Eg, nsenter --net=/run/netns/... <command>
+/{,usr/}{,s}bin/nsenter ixr,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-control
 const networkControlConnectedPlugSecComp = `
-# Description: Can configure networking. This is restricted because it gives
-# wide, privileged access to networking and should only be used with trusted
-# apps.
-# Usage: reserved
+# Description: Can configure networking and network namespaces via the standard
+# 'ip netns' command (man ip-netns(8)). This interface is restricted because it
+# gives wide, privileged access to networking and should only be used with
+# trusted apps.
 
 # for ping and ping6
 capset
+
+# Network namespaces via 'ip netns'. In order to create network namespaces
+# that persist outside of the process and be entered (eg, via
+# 'ip netns exec ...') the ip command uses mount namespaces such that
+# applications can open the /run/netns/NAME object and use it with setns(2).
+# For 'ip netns exec' it will also create a mount namespace and bind mount
+# network configuration files into /etc in that namespace. See man ip-netns(8)
+# for details.
+bind
+sendmsg
+sendto
+recvfrom
+recvmsg
+
+mount
+umount
+umount2
+
+unshare
+setns - CLONE_NEWNET
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.
