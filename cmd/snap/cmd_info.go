@@ -169,13 +169,6 @@ func maybePrintCommands(w io.Writer, allApps []client.AppInfo, n int) {
 		return
 	}
 
-	// try short line
-	line := fmt.Sprintf("commands:\t[%s]\n", strutil.Quoted(commands))
-	if len(line) < n {
-		fmt.Fprintf(w, line)
-		return
-	}
-	// too many apps, long line
 	fmt.Fprintf(w, "commands:\n")
 	for _, cmd := range commands {
 		fmt.Fprintf(w, "  - %s\n", cmd)
