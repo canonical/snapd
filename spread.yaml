@@ -19,6 +19,9 @@ environment:
     TRUST_TEST_KEYS: "true"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
+    # slight abuse
+    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    GENERATE_16_04: "$(HOST: ./generate-packaging-dir ubuntu 16.04)"
 
 backends:
     linode:
@@ -179,6 +182,23 @@ prepare: |
     apt-get update
     # utilities
     apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
+
+
+    # apply the right packaging delta, only 14.04 is special for now
+    . /etc/os-release
+    if [ "$ID" = "ubuntu" ]; then
+        case "$VERSION_ID" in
+        14.04)
+            mv debian-$ID-$VERSION_ID debian
+            ;;
+        *)
+            mv debian-ubuntu-16.04 debian
+            ;;
+        esac
+    else
+        echo "unknown distro ID $ID, please update the spread tests"
+        exit 1
+    fi
 
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
