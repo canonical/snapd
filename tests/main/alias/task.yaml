@@ -32,14 +32,11 @@ execute: |
     alias2|MATCH "ok command 2"
 
     echo "Reset the aliases to their automatic states (disabled)"
-    snap alias aliases --reset alias1
-    snap unalias aliases --reset alias2
+    snap alias --reset aliases alias1
 
-    echo "Aliases are gone"
+    echo "Alias is gone"
     test ! -e /snap/bin/alias1
-    test ! -e /snap/bin/alias2
     alias1 2>&1|MATCH "alias1: command not found"
-    alias2 2>&1|MATCH "alias2: command not found"
 
     echo "Re-enabling them works"
     snap alias aliases alias1 alias2
