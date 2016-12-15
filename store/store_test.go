@@ -235,6 +235,13 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	}
 	t.device = createTestDevice()
 	t.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
+
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
@@ -1375,7 +1382,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	_, err = repo.Snap("hello-world", "edge", true, snap.R(0), nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 500 via GET to "http://.*?/details/hello-world\?channel=edge"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
@@ -2048,7 +2055,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 
 	_, err = repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
@@ -2315,12 +2322,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
-	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 10 * time.Millisecond,
-			Factor:  1.67,
-		},
-	)))
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -2864,7 +2865,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
@@ -3577,7 +3578,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
-		NumOfCalls: 6,
+		NumOfCalls: 5,
 	},
 }
 
