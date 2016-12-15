@@ -578,6 +578,29 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Check(n, Equals, 5)
 }
 
+func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			io.WriteString(w, "response-data")
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 2)
+}
+
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
 // (bytes does not implement an ReadWriteSeeker)
 type SillyBuffer struct {
