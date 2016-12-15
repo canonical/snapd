@@ -1288,6 +1288,8 @@ const mockSingleOrderJSON = `{
 }`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
@@ -1304,8 +1306,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
 
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
@@ -1496,6 +1498,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "foo")
@@ -1506,6 +1511,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
+		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
 
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, MockDetailsJSON)
