@@ -948,13 +948,10 @@ func (s *assertMgrSuite) TestAutoAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// have a declaration in the system db
+	// prereqs for developer assertions in the system db
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
 	c.Assert(err, IsNil)
 
 	// not from the store
@@ -972,6 +969,10 @@ func (s *assertMgrSuite) TestAutoAliases(c *C) {
 	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
 
 	// empty list
+	// have a declaration in the system db
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
 	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
