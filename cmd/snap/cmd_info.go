@@ -146,7 +146,7 @@ func formatDescr(descr string, max int) string {
 	return strings.TrimSuffix(out.String(), "\n")
 }
 
-func maybePrintCommands(w io.Writer, allApps []client.AppInfo, n int) {
+func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
 	if len(allApps) == 0 {
 		return
 	}
@@ -157,12 +157,16 @@ func maybePrintCommands(w io.Writer, allApps []client.AppInfo, n int) {
 			continue
 		}
 
-		var cmdStr string
-		if len(app.Aliases) == 0 {
-			cmdStr = app.Name
-		} else {
-			cmdStr = fmt.Sprintf("%s (%s)", app.Name, strings.Join(app.Aliases, ","))
+		// TODO: helper for this?
+		cmdStr := app.Name
+		if cmdStr != snapName {
+			cmdStr = fmt.Sprintf("%s.%s", snapName, cmdStr)
 		}
+
+		if len(app.Aliases) != 0 {
+			cmdStr = fmt.Sprintf("%s (%s)", cmdStr, strings.Join(app.Aliases, ","))
+		}
+
 		commands = append(commands, cmdStr)
 	}
 	if len(commands) == 0 {
@@ -211,7 +215,7 @@ func (x *infoCmd) Execute([]string) error {
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
-		maybePrintCommands(w, both.Apps, termWidth)
+		maybePrintCommands(w, snapName, both.Apps, termWidth)
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
