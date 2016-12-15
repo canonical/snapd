@@ -349,6 +349,7 @@ var (
 		"bool-file":        {"core", "gadget"},
 		"browser-support":  {"core"},
 		"content":          {"app", "gadget"},
+		"dbus":             {"app"},
 		"docker-support":   {"core"},
 		"fwupd":            {"app"},
 		"gpio":             {"core", "gadget"},
