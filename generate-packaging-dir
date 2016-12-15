@@ -9,6 +9,9 @@ DST="debian-$ID-$VERSION_ID"
 rm -rf $DST
 mkdir -p "$DST"
 
+git remote add upstream https://github.com/snapcore/snapd
+git fetch upstream
+
 git ls-tree "$ID"/"$VERSION_ID" debian/ | while read line ; do
     file=$(basename $(echo $line | cut -d " " -f4))
     hash=$(echo $line | cut -d " " -f3)
