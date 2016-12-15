@@ -96,10 +96,15 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 	s.state.Unlock()
+
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
+	snapstate.AutoAliases = nil
 	s.reset()
 }
 
@@ -149,6 +154,7 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
 	)
@@ -215,6 +221,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook",
@@ -427,6 +434,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook",
@@ -908,7 +916,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-4]
+	linkTask := ta[len(ta)-5]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
 	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
