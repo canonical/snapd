@@ -26,10 +26,8 @@ import (
 const unity8CalendarPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. Reserved because this
 #  gives privileged access to the system.
-# Usage: reserved
 
 # DBus accesses
-#include <abstractions/dbus-session-strict>
 dbus (bind)
 	bus=session
 	name="org.gnome.evolution.dataserver.Calendar7",
@@ -104,10 +102,7 @@ dbus (receive, send)
 `
 
 const unity8CalendarConnectedPlugAppArmor = `
-# Description: Can access the calendar. This policy group is reserved for
-#  vetted applications only in this version of the policy. Once LP: #1227824
-#  is fixed, this can be moved out of reserved status.
-# Usage: reserved
+# Allow connected clients to communicate with calendar service via DBus
 
 ########################
 # Calendar
@@ -143,14 +138,6 @@ dbus (receive, send)
 	peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const unity8CalendarPermanentSlotDBus = `
-	<allow own="org.gnome.evolution.dataserver.Calendar7"/>
-	<allow send_destination="org.gnome.evolution.dataserver.Calendar7"/>
-	<allow send_interface="org.gnome.evolution.dataserver.Calendar"/>
-	<allow send_interface="org.gnome.evolution.dataserver.CalendarView"/>
-	<allow send_interface="org.gnome.evolution.dataserver.CalendarFactory"/>
-`
-
 // NewUnity8CalendarInterface returns a new "untiy8-calendar" interface.
 func NewUnity8CalendarInterface() interfaces.Interface {
 	return &unity8PimCommonInterface{
@@ -158,6 +145,5 @@ func NewUnity8CalendarInterface() interfaces.Interface {
 		permanentSlotAppArmor: unity8CalendarPermanentSlotAppArmor,
 		connectedSlotAppArmor: unity8CalendarConnectedSlotAppArmor,
 		connectedPlugAppArmor: unity8CalendarConnectedPlugAppArmor,
-		permanentSlotDBus:     unity8CalendarPermanentSlotDBus,
 	}
 }

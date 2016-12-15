@@ -30,7 +30,6 @@ import (
 var unity8PimCommonPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the EDS service. Reserved because this
 #  gives privileged access to the system.
-# Usage: reserved
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -56,14 +55,10 @@ dbus (receive, send)
 dbus (bind)
 	bus=session
 	name="org.gnome.evolution.dataserver.Sources5",
-
 `)
 
 var unity8PimCommonConnectedSlotAppArmor = []byte(`
 # Allow service to interact with connected clients
-# DBus accesses
-#include <abstractions/dbus-session-strict>
-
 
 ########################
 # SourceManager
@@ -77,11 +72,6 @@ dbus (receive, send)
 var unity8PimCommonConnectedPlugAppArmor = []byte(`
 # DBus accesses
 #include <abstractions/dbus-session-strict>
-
-# Allow all access to eds service
-dbus (receive, send)
-	bus=session
-	peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
 	bus=session
@@ -109,14 +99,10 @@ var unity8PimCommonPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the EDS service. Reserved because this
 # gives
 #  privileged access to the system.
-# Usage: reserved
 accept
 accept4
 bind
-connect
-getpeername
 getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -126,43 +112,20 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-socketpair
-socket
 `)
 
 var unity8PimCommonConnectedPlugSecComp = []byte(`
 # Description: Allow using EDS service. Reserved because this gives
 #  privileged access to the eds service.
-# Usage: reserved
 
 # Can communicate with DBus system service
-connect
 getsockname
 recv
 recvmsg
 send
 sendto
 sendmsg
-socket
-`)
-
-var unity8PimCommonPermanentSlotDBus = []byte(`
-<policy user="root">
-	<allow own="org.gnome.evolution.dataserver.Sources5"/>
-	<allow send_destination="org.gnome.evolution.dataserver.Sources5"/>
-	<allow send_interface="org.gnome.evolution.dataserver.SourceManager"/>
-	<allow send_interface="org.gnome.evolution.dataserver.Source"/>
-	<allow send_interface="org.gnome.evolution.dataserver.Source.Writable"/>
-	<allow send_interface="org.gnome.evolution.dataserver.Source.Removable"/>
-
-	<allow send_interface="org.freedesktop.DBus.Properties"/>
-	<allow send_interface="org.freedesktop.DBus.ObjectManager"/>
-	<allow send_interface="org.freedesktop.DBus.Introspectable"/>
-
-	###SLOT_DBUS_SERVICE_TAGS###
-</policy>
 `)
 
 type unity8PimCommonInterface struct {
@@ -170,7 +133,6 @@ type unity8PimCommonInterface struct {
 	permanentSlotAppArmor string
 	connectedSlotAppArmor string
 	connectedPlugAppArmor string
-	permanentSlotDBus     string
 }
 
 func (iface *unity8PimCommonInterface) Name() string {
@@ -214,11 +176,8 @@ func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slo
 	case interfaces.SecuritySecComp:
 		return unity8PimCommonPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
-		old := []byte("###SLOT_DBUS_SERVICE_TAGS###")
-		new := []byte(iface.permanentSlotDBus)
-		snippet := []byte(unity8PimCommonPermanentSlotDBus)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
+		//FIXME: Implement support after uses session be available.
+		return nil, nil
 	default:
 		return nil, nil
 	}
