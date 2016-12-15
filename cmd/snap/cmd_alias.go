@@ -26,7 +26,7 @@ import (
 )
 
 type cmdAlias struct {
-	Auto bool `long:"auto"`
+	Reset bool `long:"reset"`
 
 	Positionals struct {
 		Snap    installedSnapName `required:"yes"`
@@ -47,7 +47,7 @@ func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
 	}, map[string]string{
-		"auto": i18n.G("Reset the aliases to their automatic state, enabled for automatic aliases, implicitly disabled otherwise"),
+		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, implicitly disabled otherwise"),
 	}, []argDesc{
 		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
@@ -64,7 +64,7 @@ func (x *cmdAlias) Execute(args []string) error {
 
 	cli := Client()
 	op := cli.Alias
-	if x.Auto {
+	if x.Reset {
 		op = cli.ResetAliases
 	}
 	id, err := op(snapName, aliases)

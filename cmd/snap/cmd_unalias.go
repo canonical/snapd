@@ -26,8 +26,6 @@ import (
 )
 
 type cmdUnalias struct {
-	Auto bool `long:"auto"`
-
 	Positionals struct {
 		Snap    installedSnapName `required:"yes"`
 		Aliases []string          `required:"yes"`
@@ -42,9 +40,7 @@ The unalias command disables explicitly the given application aliases defined by
 func init() {
 	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
 		return &cmdUnalias{}
-	}, map[string]string{
-		"auto": i18n.G("Reset the aliases to their automatic state, enabled for automatic aliases, implicitly disabled otherwise"),
-	}, []argDesc{
+	}, nil, []argDesc{
 		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
 	})
@@ -59,11 +55,7 @@ func (x *cmdUnalias) Execute(args []string) error {
 	aliases := x.Positionals.Aliases
 
 	cli := Client()
-	op := cli.Unalias
-	if x.Auto {
-		op = cli.ResetAliases
-	}
-	id, err := op(snapName, aliases)
+	id, err := cli.Unalias(snapName, aliases)
 	if err != nil {
 		return err
 	}

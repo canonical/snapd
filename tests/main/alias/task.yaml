@@ -32,8 +32,8 @@ execute: |
     alias2|MATCH "ok command 2"
 
     echo "Reset the aliases to their automatic states (disabled)"
-    snap alias aliases --auto alias1
-    snap unalias aliases --auto alias2
+    snap alias aliases --reset alias1
+    snap unalias aliases --reset alias2
 
     echo "Aliases are gone"
     test ! -e /snap/bin/alias1

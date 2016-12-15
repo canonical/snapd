@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestUnaliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] unalias [unalias-OPTIONS] [<snap>] [<alias>...]
+  snap.test [OPTIONS] unalias [<snap>] [<alias>...]
 
 The unalias command disables explicitly the given application aliases defined
 by the snap.
@@ -40,10 +40,6 @@ Application Options:
 
 Help Options:
   -h, --help         Show this help message
-
-[unalias command options]
-          --auto     Reset the aliases to their automatic state, enabled for
-                     automatic aliases, implicitly disabled otherwise
 `
 	rest, err := Parser().ParseArgs([]string{"unalias", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -69,29 +65,6 @@ func (s *SnapSuite) TestUnalias(c *C) {
 		}
 	})
 	rest, err := Parser().ParseArgs([]string{"unalias", "alias-snap", "alias1", "alias2"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestUnaliasAuto(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/aliases":
-			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action":  "reset",
-				"snap":    "alias-snap",
-				"aliases": []interface{}{"alias1", "alias2"},
-			})
-			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
-		case "/v2/changes/zzz":
-			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	})
-	rest, err := Parser().ParseArgs([]string{"unalias", "--auto", "alias-snap", "alias1", "alias2"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
