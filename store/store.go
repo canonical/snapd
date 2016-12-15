@@ -1339,21 +1339,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	if err != nil {
-		// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-		// Note that we will retry this way only once.
-		if _, ok := err.(HashError); ok && resume > 0 {
-			logger.Debugf("Error on resumed download: %v", err.Error())
-			err = w.Truncate(0)
-			if err != nil {
-				return err
-			}
-			_, err = w.Seek(0, os.SEEK_SET)
-			if err != nil {
-				return err
-			}
-			err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
+	// Note that we will retry this way only once.
+	if _, ok := err.(HashError); ok && resume > 0 {
+		logger.Debugf("Error on resumed download: %v", err.Error())
+		err = w.Truncate(0)
+		if err != nil {
+			return err
 		}
+		_, err = w.Seek(0, os.SEEK_SET)
+		if err != nil {
+			return err
+		}
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
 	}
 
 	if err != nil {
