@@ -518,16 +518,26 @@ static uint32_t uts_machine_to_seccomp_arch(const char *uts_machine)
 		return SCMP_ARCH_X86_64;
 	else if (strncmp(uts_machine, "armv7", 5) == 0)
 		return SCMP_ARCH_ARM;
+#if defined (SCMP_ARCH_AARCH64)
 	else if (strncmp(uts_machine, "aarch64", 7) == 0)
 		return SCMP_ARCH_AARCH64;
+#endif
+#if defined (SCMP_ARCH_PPC64LE)
 	else if (strncmp(uts_machine, "ppc64le", 7) == 0)
 		return SCMP_ARCH_PPC64LE;
+#endif
+#if defined (SCMP_ARCH_PPC64)
 	else if (strncmp(uts_machine, "ppc64", 5) == 0)
 		return SCMP_ARCH_PPC64;
+#endif
+#if defined (SCMP_ARCH_PPC)
 	else if (strncmp(uts_machine, "ppc", 3) == 0)
 		return SCMP_ARCH_PPC;
+#endif
+#if defined (SCMP_ARCH_S390X)
 	else if (strncmp(uts_machine, "s390x", 5) == 0)
 		return SCMP_ARCH_S390X;
+#endif
 	return 0;
 }
 
@@ -559,15 +569,21 @@ static void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 	// 32bit userspace).
 	if (host_arch == native_arch) {
 		switch (host_arch) {
+#if defined (SCMP_ARCH_X86_64)
 		case SCMP_ARCH_X86_64:
 			compat_arch = SCMP_ARCH_X86;
 			break;
+#endif
+#if defined(SCMP_ARCH_AARCH64)
 		case SCMP_ARCH_AARCH64:
 			compat_arch = SCMP_ARCH_ARM;
 			break;
+#endif
+#if defined (SCMP_ARCH_PPC64)
 		case SCMP_ARCH_PPC64:
 			compat_arch = SCMP_ARCH_PPC;
 			break;
+#endif
 		default:
 			break;
 		}

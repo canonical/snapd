@@ -206,6 +206,10 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
+  # but on 14.04 it is an actual file so it doens't fall under other rules.
+  /etc/os-release r,
+
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
