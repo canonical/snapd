@@ -1344,11 +1344,17 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		// Note that we will retry this way only once.
 		if _, ok := err.(HashError); ok && resume > 0 {
 			logger.Debugf("Error on resumed download: %v", err.Error())
-			err = os.Truncate(partialPath, 0)
+			err = w.Truncate(0)
 			if err == nil {
-				return s.Download(ctx, name, targetPath, downloadInfo, pbar, user)
+				_, err = w.Seek(0, os.SEEK_SET)
+				if err == nil {
+					err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+				}
 			}
 		}
+	}
+
+	if err != nil {
 		return err
 	}
 
