@@ -25,32 +25,28 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdAlias struct {
+type cmdUnalias struct {
 	Positionals struct {
 		Snap    installedSnapName `required:"yes"`
 		Aliases []string          `required:"yes"`
 	} `positional-args:"true"`
 }
 
-// TODO: implement a Completer for aliases
-
-var shortAliasHelp = i18n.G("Enables the given aliases")
-var longAliasHelp = i18n.G(`
-The alias command enables the given application aliases defined by the snap.
-
-Once enabled the respective application commands can be invoked just using the aliases.
+var shortUnaliasHelp = i18n.G("Disables the given aliases")
+var longUnaliasHelp = i18n.G(`
+The unalias command disables explicitly the given application aliases defined by the snap.
 `)
 
 func init() {
-	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
-		return &cmdAlias{}
+	addCommand("unalias", shortUnaliasHelp, longUnaliasHelp, func() flags.Commander {
+		return &cmdUnalias{}
 	}, nil, []argDesc{
 		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
 	})
 }
 
-func (x *cmdAlias) Execute(args []string) error {
+func (x *cmdUnalias) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
@@ -59,7 +55,7 @@ func (x *cmdAlias) Execute(args []string) error {
 	aliases := x.Positionals.Aliases
 
 	cli := Client()
-	id, err := cli.Alias(snapName, aliases)
+	id, err := cli.Unalias(snapName, aliases)
 	if err != nil {
 		return err
 	}
