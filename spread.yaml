@@ -186,11 +186,7 @@ prepare: |
          add-apt-repository ppa:snappy-dev/image
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
-         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite
-
-         # FIXME: why is this needed? the path is set in the environment
-         #        already and this works in qemu?
-         export PATH=$PATH:/usr/lib/go-1.6/bin
+         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-litedp
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
