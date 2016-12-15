@@ -234,7 +234,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 
 		if newStatus == "auto" {
 			if !autoSet[alias] {
-				newStatus = "-" // default disabled status
+				newStatus = "-" // default disabled status, not stored!
 			}
 		}
 		switch newStatus {
