@@ -101,7 +101,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.*"),`)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the ofono slot
+// The label uses alternation when some, but not all, apps is bound to the calendar slot
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
@@ -123,7 +123,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
 }
 
-// The label uses short form when exactly one app is bound to the ofono slot
+// The label uses short form when exactly one app is bound to the calendar slot
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
