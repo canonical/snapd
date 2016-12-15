@@ -1285,13 +1285,13 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
-type ShaError struct {
+type HashError struct {
 	name           string
 	sha3_384       string
 	targetSha3_384 string
 }
 
-func (e ShaError) Error() string {
+func (e HashError) Error() string {
 	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
@@ -1342,7 +1342,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if err != nil {
 		// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
 		// Note that this we will retry this way only once.
-		if _, ok := err.(ShaError); ok && resume > 0 {
+		if _, ok := err.(HashError); ok && resume > 0 {
 			logger.Debugf("Sha3 checksum error after resuming the download: %s", err.Error())
 			err = os.Truncate(partialFileName, 0)
 			if err == nil {
@@ -1442,7 +1442,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return ShaError{name, actualSha3, sha3_384}
+		return HashError{name, actualSha3, sha3_384}
 	}
 
 	return nil
@@ -1503,7 +1503,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
-		return ShaError{name, sha3_384, targetSha3_384}
+		return HashError{name, sha3_384, targetSha3_384}
 	}
 
 	if err := os.Rename(partialTargetPath, targetPath); err != nil {
