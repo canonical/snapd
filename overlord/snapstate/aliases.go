@@ -622,6 +622,7 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 			// not a known alias anymore or yet, skip
 			continue
 		}
+		// TODO: only mark/log conflict if this is an update instead of an install?
 		err := checkAliasConflict(st, snapName, alias)
 		if err != nil {
 			return err
