@@ -212,7 +212,12 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 		aliasApp := curInfo.Aliases[alias]
-		if aliasApp == nil && newStatus != "auto" {
+		if aliasApp == nil {
+			if newStatus == "auto" {
+				// reset to default disabled status
+				delete(aliasStatuses, alias)
+				continue
+			}
 			var action string
 			switch newStatus {
 			case "enabled":
@@ -233,7 +238,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 				op = "rm"
 			}
 		case "auto":
-			if autoSet[alias] && aliasApp != nil {
+			if autoSet[alias] {
 				if aliasStatuses[alias] != "enabled" {
 					op = "add"
 				}
@@ -249,7 +254,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		} else {
 			delete(aliasStatuses, alias)
 		}
-		if aliasApp != nil && op != "nop" {
+		if op != "nop" {
 			beAlias := &backend.Alias{
 				Name:   alias,
 				Target: filepath.Base(aliasApp.WrapperPath()),
@@ -312,7 +317,11 @@ Next:
 			continue
 		}
 		aliasApp := curInfo.Aliases[alias]
-		if aliasApp == nil && newStatus != "auto" {
+		if aliasApp == nil {
+			if newStatus == "auto" {
+				// nothing to undo
+				continue
+			}
 			// unexpected
 			return fmt.Errorf("internal error: cannot re-toggle alias %q for %q, no such alias", alias, snapName)
 		}
@@ -337,7 +346,7 @@ Next:
 				}
 			}
 		}
-		if aliasApp != nil && op != "nop" {
+		if op != "nop" {
 			beAlias := &backend.Alias{
 				Name:   alias,
 				Target: filepath.Base(aliasApp.WrapperPath()),
