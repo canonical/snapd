@@ -137,9 +137,6 @@ override_dh_install:
 	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
 	mkdir -p debian/snapd/etc
 	cp -R etc/X11 debian/snapd/etc
-	# make sure that scripts handling cgroup (u)mounting are available
-	install --mode=755 debian/snap-mount-cgroups debian/snapd/usr/lib/snapd
-	install --mode=755 debian/snap-umount-cgroups debian/snapd/usr/lib/snapd
 	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
@@ -147,7 +144,6 @@ override_dh_install:
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snap.cgroup.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	dh_install
