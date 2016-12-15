@@ -44,7 +44,7 @@ Help Options:
   -h, --help         Show this help message
 
 [alias command options]
-          --auto     Reset the aliases to their automatic state, enabled for
+          --reset    Reset the aliases to their default state, enabled for
                      automatic aliases, implicitly disabled otherwise
 `
 	rest, err := Parser().ParseArgs([]string{"alias", "--help"})
@@ -75,7 +75,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestAliasAuto(c *C) {
+func (s *SnapSuite) TestAliasReset(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/aliases":
@@ -93,7 +93,7 @@ func (s *SnapSuite) TestAliasAuto(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"alias", "--auto", "alias-snap", "alias1", "alias2"})
+	rest, err := Parser().ParseArgs([]string{"alias", "--reset", "alias-snap", "alias1", "alias2"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }

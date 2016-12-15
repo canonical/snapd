@@ -137,7 +137,7 @@ func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet
 	return state.NewTaskSet(alias), nil
 }
 
-// ResetAliases resets the provided aliases for the snap with the given name to their default/automatic state, enabled for auto-aliases, disabled otherwise.
+// ResetAliases resets the provided aliases for the snap with the given name to their default state, enabled for auto-aliases, disabled otherwise.
 func ResetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
@@ -148,7 +148,7 @@ func ResetAliases(st *state.State, snapName string, aliases []string) (*state.Ta
 		return nil, err
 	}
 	if !snapst.Active { // TODO: we might want to support this
-		return nil, fmt.Errorf("resetting aliases to their automatic state for disabled snap %q not supported", snapName)
+		return nil, fmt.Errorf("resetting aliases to their default state for disabled snap %q not supported", snapName)
 	}
 	if err := checkChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
