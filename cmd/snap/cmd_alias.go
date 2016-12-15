@@ -26,6 +26,8 @@ import (
 )
 
 type cmdAlias struct {
+	Reset bool `long:"reset"`
+
 	Positionals struct {
 		Snap    installedSnapName `required:"yes"`
 		Aliases []string          `required:"yes"`
@@ -44,7 +46,9 @@ Once enabled the respective application commands can be invoked just using the a
 func init() {
 	addCommand("alias", shortAliasHelp, longAliasHelp, func() flags.Commander {
 		return &cmdAlias{}
-	}, nil, []argDesc{
+	}, map[string]string{
+		"reset": i18n.G("Reset the aliases to their default state, enabled for automatic aliases, disabled otherwise"),
+	}, []argDesc{
 		{name: "<snap>"},
 		{name: i18n.G("<alias>")},
 	})
@@ -59,7 +63,11 @@ func (x *cmdAlias) Execute(args []string) error {
 	aliases := x.Positionals.Aliases
 
 	cli := Client()
-	id, err := cli.Alias(snapName, aliases)
+	op := cli.Alias
+	if x.Reset {
+		op = cli.ResetAliases
+	}
+	id, err := op(snapName, aliases)
 	if err != nil {
 		return err
 	}
