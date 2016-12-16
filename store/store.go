@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -51,6 +50,8 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 	"gopkg.in/retry.v1"
 )
 
@@ -194,10 +195,10 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(10*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
-		Initial: 10 * time.Millisecond,
-		Factor:  1.67,
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
 	},
 ))
 
@@ -353,11 +354,11 @@ type sectionResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The fields we are interested in for snap.Refs
-var refFields = getStructFields(snap.Ref{})
+// The fields we are interested in for snap.ChannelSnapInfos
+var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
 
 // The default delta format if not configured.
-var defaultSupportedDeltaFormat = "xdelta"
+var defaultSupportedDeltaFormat = "xdelta3"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -600,10 +601,43 @@ type requestOptions struct {
 	Data         []byte
 }
 
-// retryRequest uses defaultRetryStrategy to call doRequest with retry
-func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (resp *http.Response, err error) {
-	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err = s.doRequest(client, reqOptions, user)
+func cancelled(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return s.retryRequest(ctx, client, reqOptions, user, func(ok bool, resp *http.Response) error {
+		result := success
+		if !ok {
+			result = failure
+		}
+		if result != nil {
+			return json.NewDecoder(resp.Body).Decode(result)
+		}
+		return nil
+	})
+}
+
+// retryRequest calls doRequest and decodes the response in a retry loop.
+func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
+	var attempt *retry.Attempt
+	startTime := time.Now()
+	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		if attempt.Count() > 1 {
+			delta := time.Since(startTime) / time.Millisecond
+			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+		}
+		if cancelled(ctx) {
+			return nil, ctx.Err()
+		}
+
+		resp, err = s.doRequest(ctx, client, reqOptions, user)
 		if err != nil {
 			if shouldRetryError(attempt, err) {
 				continue
@@ -614,22 +648,54 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		if shouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
+		} else {
+			ok := (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated)
+			// always decode on success; decode failures only if body is not empty
+			if !ok && resp.ContentLength == 0 {
+				resp.Body.Close()
+				break
+			}
+			err = decode(ok, resp)
+			resp.Body.Close()
+			if err != nil {
+				if shouldRetryError(attempt, err) {
+					continue
+				} else {
+					return nil, err
+				}
+			}
 		}
-
+		// break out from retry loop
 		break
+	}
+
+	if attempt.Count() > 1 {
+		var status string
+		delta := time.Since(startTime) / time.Millisecond
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
 	}
 
 	return resp, err
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.Do(req)
+	var resp *http.Response
+	if ctx != nil {
+		resp, err = ctxhttp.Do(ctx, client, req)
+	} else {
+		resp, err = client.Do(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +731,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 			// close previous response and retry
 			// TODO: make this non-recursive or add a recursion limit
 			resp.Body.Close()
-			return s.doRequest(client, reqOptions, user)
+			return s.doRequest(ctx, client, reqOptions, user)
 		}
 	}
 
@@ -713,6 +779,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
+	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {
@@ -799,24 +866,17 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	var result ordersResult
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &result, nil)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
-	var result ordersResult
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&result); err != nil {
-			return fmt.Errorf("cannot decode known orders from store: %v", err)
-		}
-	case http.StatusUnauthorized:
+	if resp.StatusCode == http.StatusUnauthorized {
 		// TODO handle token expiry and refresh
 		return ErrInvalidCredentials
-	default:
+	}
+	if resp.StatusCode != http.StatusOK {
 		return respToError(resp, "obtain known orders from store")
 	}
 
@@ -847,7 +907,7 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 // the details endpoint provides the real thing for us. The main
 // difference between this pseudo one and the real thing is that a
 // channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.Ref, error) {
+func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
 	snaps := make([]currentSnapJson, 4)
 	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
 		snaps[i] = currentSnapJson{
@@ -858,7 +918,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  snaps,
-		Fields: refFields,
+		Fields: channelSnapInfoFields,
 	})
 	if err != nil {
 		return nil, err
@@ -872,34 +932,34 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 		Data:        jsonData,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	var results struct {
+		Payload struct {
+			SnapDetails []*snapDetails `json:"clickindex:package"`
+		} `json:"_embedded"`
+	}
+
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for channel information")
 	}
 
-	var results struct {
-		Payload struct {
-			Refs []*snap.Ref `json:"clickindex:package"`
-		} `json:"_embedded"`
+	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
+	for _, item := range results.Payload.SnapDetails {
+		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
+			Revision:    snap.R(item.Revision),
+			Confinement: snap.ConfinementType(item.Confinement),
+			Version:     item.Version,
+			Channel:     item.Channel,
+			Epoch:       item.Epoch,
+			Size:        item.DownloadSize,
+		}
 	}
 
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&results); err != nil {
-		return nil, err
-	}
-
-	channels := make(map[string]*snap.Ref, 4)
-	for _, item := range results.Payload.Refs {
-		channels[item.Channel] = item
-	}
-
-	return channels, nil
+	return channelInfos, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -911,11 +971,10 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	query := u.Query()
 
+	query.Set("channel", channel)
 	if !revision.Unset() {
 		query.Set("revision", revision.String())
-		query.Set("channel", "") // sidestep the channel map
-	} else if channel != "" {
-		query.Set("channel", channel)
+		query.Set("channel", "")
 	}
 
 	// if devmode then don't restrict by confinement as either is fine
@@ -934,11 +993,11 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	var remote snapDetails
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	// check statusCode
 	switch resp.StatusCode {
@@ -949,13 +1008,6 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	default:
 		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
 		return nil, respToError(resp, msg)
-	}
-
-	// and decode json
-	var remote snapDetails
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&remote); err != nil {
-		return nil, err
 	}
 
 	info := infoFromRemote(remote)
@@ -1039,12 +1091,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+
+	var searchData searchResults
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "search")
@@ -1052,13 +1104,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
-	}
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
@@ -1090,11 +1135,11 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Accept: halJsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	var sectionData sectionResults
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return nil, respToError(resp, "sections")
@@ -1104,12 +1149,6 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to retrieve the sections via %q", ct, resp.Request.URL)
 	}
 
-	var sectionData sectionResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&sectionData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to get sections via %q", err, resp.Request.URL)
-	}
 	var sectionNames []string
 	for _, s := range sectionData.Payload.Sections {
 		sectionNames = append(sectionNames, s.Name)
@@ -1205,21 +1244,15 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	var updateData searchResults
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &updateData, nil)
+
 	if err != nil {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, respToError(resp, "query the store for updates")
-	}
-
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
@@ -1253,11 +1286,21 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
+type HashError struct {
+	name           string
+	sha3_384       string
+	targetSha3_384 string
+}
+
+func (e HashError) Error() string {
+	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -1272,7 +1315,9 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		// We revert to normal downloads if there is any error.
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
-	w, err := os.OpenFile(targetPath+".partial", os.O_RDWR|os.O_CREATE, 0644)
+
+	partialPath := targetPath + ".partial"
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -1294,7 +1339,22 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 		url = downloadInfo.DownloadURL
 	}
 
-	err = download(name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
+	// Note that we will retry this way only once.
+	if _, ok := err.(HashError); ok && resume > 0 {
+		logger.Debugf("Error on resumed download: %v", err.Error())
+		err = w.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = w.Seek(0, os.SEEK_SET)
+		if err != nil {
+			return err
+		}
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1307,44 +1367,51 @@ func (s *Store) Download(name string, targetPath string, downloadInfo *snap.Down
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
 	}
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    storeURL,
-	}
-	h := crypto.SHA3_384.New()
-
-	if resume > 0 {
-		reqOptions.ExtraHeaders = map[string]string{
-			"Range": fmt.Sprintf("bytes=%d-", resume),
-		}
-		// seed the sha3 with the already local file
-		seekStart := 0
-		if _, err := w.Seek(0, seekStart); err != nil {
-			return err
-		}
-		n, err := io.Copy(h, w)
-		if err != nil {
-			return err
-		}
-		if n != resume {
-			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
-		}
-	}
-
-	var resp *http.Response
+	var finalErr error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		resp, err = s.doRequest(newHTTPClient(nil), reqOptions, user)
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    storeURL,
+		}
+		h := crypto.SHA3_384.New()
+
+		if resume > 0 {
+			reqOptions.ExtraHeaders = map[string]string{
+				"Range": fmt.Sprintf("bytes=%d-", resume),
+			}
+			// seed the sha3 with the already local file
+			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+				return err
+			}
+			n, err := io.Copy(h, w)
+			if err != nil {
+				return err
+			}
+			if n != resume {
+				return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
+			}
+		}
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+		var resp *http.Response
+		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
 				continue
 			}
-			return err
+			break
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1352,32 +1419,47 @@ var download = func(name, sha3_384, downloadURL string, user *auth.UserState, s 
 			continue
 		}
 
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusPartialContent:
+		case http.StatusUnauthorized:
+			return fmt.Errorf("cannot download non-free snap without purchase")
+		default:
+			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+		}
+
+		if pbar == nil {
+			pbar = &progress.NullProgress{}
+		}
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, h, pbar)
+		_, finalErr = io.Copy(mw, resp.Body)
+		pbar.Finished()
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
+				// error while downloading should resume
+				var seekerr error
+				resume, seekerr = w.Seek(0, os.SEEK_END)
+				if seekerr == nil {
+					continue
+				}
+				// if seek failed, then don't retry end return the original error
+			}
+			break
+		}
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if sha3_384 != "" && sha3_384 != actualSha3 {
+			finalErr = HashError{name, actualSha3, sha3_384}
+		}
 		break
 	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusPartialContent:
-		break
-	case http.StatusUnauthorized:
-		return fmt.Errorf(i18n.G("cannot download non-free snap without purchase"))
-	default:
-		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
-	}
-
-	if pbar == nil {
-		pbar = &progress.NullProgress{}
-	}
-	pbar.Start(name, float64(resp.ContentLength))
-	mw := io.MultiWriter(w, h, pbar)
-	_, err = io.Copy(mw, resp.Body)
-	pbar.Finished()
-
-	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
-	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
-	}
-	return err
+	return finalErr
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1390,7 +1472,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return fmt.Errorf("store returned unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
+		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
 	url := deltaInfo.AnonDownloadURL
@@ -1398,7 +1480,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1410,14 +1492,14 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
-	if deltaInfo.Format != "xdelta" {
-		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta currently)", deltaInfo.Format)
+	if deltaInfo.Format != "xdelta3" {
+		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
 	partialTargetPath := targetPath + ".partial"
 
-	xdeltaArgs := []string{"patch", deltaPath, snapPath, partialTargetPath}
-	cmd := exec.Command("xdelta", xdeltaArgs...)
+	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
+	cmd := exec.Command("xdelta3", xdelta3Args...)
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {
@@ -1435,7 +1517,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
-		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
+		return HashError{name, sha3_384, targetSha3_384}
 	}
 
 	if err := os.Rename(partialTargetPath, targetPath); err != nil {
@@ -1499,32 +1581,40 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+
+	var asrt asserts.Assertion
+	resp, err := s.retryRequest(context.TODO(), s.client, reqOptions, user, func(ok bool, resp *http.Response) error {
+		var e error
+		if ok {
+			// decode assertion
+			dec := asserts.NewDecoder(resp.Body)
+			asrt, e = dec.Decode()
+		} else {
+			contentType := resp.Header.Get("Content-Type")
+			if contentType == jsonContentType || contentType == "application/problem+json" {
+				var svcErr assertionSvcError
+				dec := json.NewDecoder(resp.Body)
+				if e = dec.Decode(&svcErr); e != nil {
+					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
+				}
+				if svcErr.Status == 404 {
+					return &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+				}
+				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+			}
+		}
+		return e
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != 200 {
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == jsonContentType || contentType == "application/problem+json" {
-			var svcErr assertionSvcError
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&svcErr); err != nil {
-				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
-			}
-			if svcErr.Status == 404 {
-				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
-			}
-			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
-		}
 		return nil, respToError(resp, "fetch assertion")
 	}
 
-	// and decode assertion
-	dec := asserts.NewDecoder(resp.Body)
-	return dec.Decode()
+	return asrt, err
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
@@ -1621,22 +1711,17 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+
+	var orderDetails order
+	var errorInfo storeErrors
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &orderDetails, &errorInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 		// user already ordered or order successful
-		var orderDetails order
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&orderDetails); err != nil {
-			return nil, err
-		}
-
 		if orderDetails.State == "Cancelled" {
 			return buyOptionError("payment cancelled")
 		}
@@ -1646,11 +1731,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return buyOptionError(fmt.Sprintf("bad request: %v", errorInfo.Error()))
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
@@ -1662,11 +1742,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
 		return nil, respToError(resp, fmt.Sprintf("buy snap: %v", errorInfo))
 	}
 }
@@ -1690,20 +1765,15 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		Accept: jsonContentType,
 	}
 
-	resp, err := s.retryRequest(s.client, reqOptions, user)
+	var customer storeCustomer
+	var errors storeErrors
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &customer, &errors)
 	if err != nil {
 		return err
 	}
 
-	defer resp.Body.Close()
-
 	switch resp.StatusCode {
 	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
-		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods
 		}
@@ -1717,11 +1787,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	case http.StatusUnauthorized:
 		return ErrInvalidCredentials
 	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
-		}
 		if len(errors.Errors) == 0 {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}

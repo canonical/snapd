@@ -152,6 +152,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rev ixr,
   /{,usr/}bin/rm ixr,
   /{,usr/}bin/rmdir ixr,
+  /{,usr/}bin/run-parts ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
   /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
@@ -205,6 +206,10 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
+  # but on 14.04 it is an actual file so it doens't fall under other rules.
+  /etc/os-release r,
+
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
@@ -235,6 +240,7 @@ var defaultTemplate = []byte(`
   # match until AppArmor kernel var is available to solve this properly (see
   # LP: #1546825 for details)
   owner @{PROC}/@{pid}/cmdline r,
+  owner @{PROC}/@{pid}/comm r,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
@@ -253,6 +259,7 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
   @{PROC}/@{pid}/task/ r,
+  @{PROC}/@{pid}/task/[0-9]*/smaps r,
   @{PROC}/@{pid}/task/[0-9]*/stat r,
   @{PROC}/@{pid}/task/[0-9]*/statm r,
   @{PROC}/@{pid}/task/[0-9]*/status r,
@@ -361,4 +368,50 @@ var defaultTemplate = []byte(`
 
 ###SNIPPETS###
 }
+`)
+
+// classicTemplate contains apparmor template used for snaps with classic
+// confinement. This template was Designed by jdstrand:
+// https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
+//
+// The classic template intentionally provides no confinement and is used
+// simply to ensure that processes have the proper command-specific security
+// label instead of 'unconfined'.
+//
+// It can be overridden for testing using MockClassicTemplate().
+var classicTemplate = []byte(`
+#include <tunables/global>
+
+###VAR###
+
+###PROFILEATTACH### (attach_disconnected) {
+  # set file rules so that exec() inherits our profile unless there is
+  # already a profile for it (eg, snap-confine)
+  / rwkl,
+  /** rwlkm,
+  /** pix,
+
+  capability,
+  change_profile,
+  dbus,
+  network,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  ptrace,
+  signal,
+  unix,
+
+###SNIPPETS###
+}
+`)
+
+// classicJailmodeSnippet contains extra rules that allow snaps using classic
+// confinement, that were put in to jailmode, to execute by at least having
+// access to the core snap (e.g. for the dynamic linker and libc).
+
+var classicJailmodeSnippet = []byte(`
+  # Read-only access to the core snap.
+  @{INSTALL_DIR}/core/** r,
 `)

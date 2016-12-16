@@ -500,3 +500,21 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }
+
+// AutoAliases returns the auto-aliases list for the given installed snap.
+func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
+	if info.SnapID == "" {
+		// without declaration
+		return nil, nil
+	}
+	decl, err := SnapDeclaration(s, info.SnapID)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+	}
+	return decl.AutoAliases(), nil
+}
+
+func init() {
+	// hook retrieving auto-aliases into snapstate logic
+	snapstate.AutoAliases = AutoAliases
+}

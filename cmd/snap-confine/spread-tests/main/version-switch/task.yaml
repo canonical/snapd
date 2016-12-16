@@ -1,0 +1,3 @@
+summary: snap-confine supports the --version switch
+prepare: |
+    [ "$(ubuntu-core-launcher --version)" = "snap-confine $(cat $SPREAD_PATH/VERSION)" ]

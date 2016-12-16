@@ -24,9 +24,12 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -43,6 +46,9 @@ type fakeOp struct {
 	cand  store.RefreshCandidate
 
 	old string
+
+	aliases   []*backend.Alias
+	rmAliases []*backend.Alias
 }
 
 type fakeOps []fakeOp
@@ -199,7 +205,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
+func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) error {
 	f.pokeStateLock()
 
 	var macaroon string
@@ -281,6 +287,26 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	}
 	if name == "core" {
 		info.Type = snap.TypeOS
+	}
+	if name == "alias-snap" {
+		var err error
+		info, err = snap.InfoFromSnapYaml([]byte(`name: alias-snap
+apps:
+  cmd1:
+    aliases: [alias1, alias1.cmd1]
+  cmd2:
+    aliases: [alias2]
+  cmd3:
+    aliases: [alias3]
+  cmd4:
+    aliases: [alias4]
+  cmd5:
+    aliases: [alias5]
+`))
+		if err != nil {
+			panic(err)
+		}
+		info.SideInfo = *si
 	}
 	return info, nil
 }
@@ -450,4 +476,37 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 		name:  snapsup.Name(),
 		revno: snapsup.Revision(),
 	})
+}
+
+func (f *fakeSnappyBackend) MatchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
+	f.ops = append(f.ops, fakeOp{
+		op:      "matching-aliases",
+		aliases: aliases,
+	})
+	return aliases, nil
+}
+
+func (f *fakeSnappyBackend) MissingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
+	f.ops = append(f.ops, fakeOp{
+		op:      "missing-aliases",
+		aliases: aliases,
+	})
+	return aliases, nil
+}
+
+func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "update-aliases",
+		aliases:   add,
+		rmAliases: remove,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-aliases",
+		name: snapName,
+	})
+	return nil
 }
