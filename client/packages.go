@@ -59,7 +59,9 @@ type Snap struct {
 }
 
 type AppInfo struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases"`
 }
 
 type Screenshot struct {

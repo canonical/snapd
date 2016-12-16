@@ -45,7 +45,7 @@ Help Options:
 
 [alias command options]
           --reset    Reset the aliases to their default state, enabled for
-                     automatic aliases, implicitly disabled otherwise
+                     automatic aliases, disabled otherwise
 `
 	rest, err := Parser().ParseArgs([]string{"alias", "--help"})
 	c.Assert(err.Error(), Equals, msg)
