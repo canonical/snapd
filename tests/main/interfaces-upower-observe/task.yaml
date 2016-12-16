@@ -52,4 +52,6 @@ execute: |
 
     echo "Then the snap is able to dump info about the upower devices"
     expected="(?s)Device: +/org/freedesktop/UPower/devices/DisplayDevice.*Daemon:.*"
+    # debug
+    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test || true
     su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | grep -Pqz "$expected"
