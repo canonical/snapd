@@ -20,19 +20,22 @@
 package builtin
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const ioPortsControlConnectedPlugAppArmor = `
+var ioPortsControlConnectedPlugAppArmor = []byte(`
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
 
 capability sys_rawio, # required by iopl
 
 /dev/ports rw,
-`
+`)
 
-const ioPortsControlConnectedPlugSecComp = `
+var ioPortsControlConnectedPlugSecComp = []byte(`
 # Description: Allow changes to the I/O port permissions and
 # privilege level of the calling process.  In addition to granting
 # unrestricted I/O port access, running at a higher I/O privilege
@@ -40,14 +43,82 @@ const ioPortsControlConnectedPlugSecComp = `
 # probably crash the system, and is not recommended.
 ioperm
 iopl
-`
+`)
 
-// NewIoPortsControlInterface returns a new "io-ports-control" interface.
-func NewIoPortsControlInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "io-ports-control",
-		connectedPlugAppArmor: ioPortsControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  ioPortsControlConnectedPlugSecComp,
-		reservedForOS:         true,
+// The type for io-ports-control interface
+type IioPortsControlInterface struct{}
+
+// Getter for the name of the io-ports-control interface
+func (iface *IioPortsControlInterface) Name() string {
+	return "io-ports-control"
+}
+
+func (iface *IioPortsControlInterface) String() string {
+	return iface.Name()
+}
+
+// Check validity of the defined slot
+func (iface *IioPortsControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	// Does it have right type?
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+
+	// Creation of the slot of this type
+	// is allowed only by a gadget or os snap
+	if !(slot.Snap.Type == "os") {
+		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
+	}
+	return nil
+}
+
+// Checks and possibly modifies a plug
+func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	// Currently nothing is checked on the plug side
+	return nil
+}
+
+// Returns snippet granted on install
+func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// Getter for the security snippet specific to the plug
+func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		return ioPortsControlConnectedPlugAppArmor, nil
+
+	case interfaces.SecuritySecComp:
+		return ioPortsControlConnectedPlugSecComp, nil
+
+	case interfaces.SecurityUDev:
+		var tagSnippet bytes.Buffer
+		const udevRule = `KERNEL=="/dev/ports", TAG+="%s"`
+		for appName := range plug.Apps {
+			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
+			tagSnippet.WriteString("\n")
+		}
+		return tagSnippet.Bytes(), nil
+	}
+	return nil, nil
+}
+
+// No extra permissions granted on connection
+func (iface *IioPortsControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// No permissions granted to plug permanently
+func (iface *IioPortsControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// Allow what is allowed in the declarations
+	return true
 }
