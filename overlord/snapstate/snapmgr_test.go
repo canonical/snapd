@@ -3566,7 +3566,7 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false}, true), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
 	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, true)
 }
 
