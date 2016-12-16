@@ -1,0 +1,13 @@
+summary: Ensure that classic mode works
+
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    snapbuild "$TESTSLIB/snaps/classic/" .
+    snap install --dangerous --classic classic_1.0_all.snap
+
+execute: |
+    echo "Check that the classic snap works (it skips the entire sandbox)"
+    touch /tmp/lala
+    classic | MATCH lala
