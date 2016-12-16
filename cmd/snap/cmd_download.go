@@ -41,7 +41,7 @@ type cmdDownload struct {
 	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string
+		Snap remoteSnapName
 	} `positional-args:"true" required:"true"`
 }
 
@@ -107,7 +107,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		}
 	}
 
-	snapName := x.Positional.Snap
+	snapName := string(x.Positional.Snap)
 
 	// FIXME: set auth context
 	var authContext auth.AuthContext

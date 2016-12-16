@@ -39,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
 	"gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
@@ -104,7 +105,7 @@ func (s *apiBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (s *apiBaseSuite) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("Download not expected to be called")
 }
 
@@ -305,6 +306,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":    "/v2/snaps/foo",
 			"private":     false,
 			"devmode":     false,
+			"jailmode":    false,
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
@@ -314,19 +316,6 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	}
 
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
-}
-
-func (s *apiSuite) TestQuotedNames(c *check.C) {
-	for _, t := range []struct {
-		in  []string
-		out string
-	}{
-		{[]string{}, ""},
-		{[]string{"snap1"}, `"snap1"`},
-		{[]string{"snap1", "snap2"}, `"snap1", "snap2"`},
-	} {
-		c.Check(quotedNames(t.in), check.Equals, t.out)
-	}
 }
 
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
@@ -411,8 +400,9 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"errNothingToInstall",
 		"defaultCoreSnapName",
 		"oldDefaultSnapCoreName",
-		"errModeConflict",
+		"errDevJailModeConflict",
 		"errNoJailMode",
+		"errClassicDevmodeConflict",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
@@ -1180,7 +1170,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			RealName:  "store",
 			Developer: "foo",
 		},
-		Channels: map[string]*snap.Ref{
+		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
 				Revision: snap.R(42),
 			},
@@ -2471,22 +2461,33 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		refreshSnapDecls = true
 		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
-
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-		c.Check(names, check.HasLen, 0)
-		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
-	}
-
 	d := s.daemon(c)
-	inst := &snapInstruction{Action: "refresh"}
-	st := d.overlord.State()
-	st.Lock()
-	summary, _, _, err := snapUpdateMany(inst, st)
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh snaps "fake1", "fake2"`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+
+	for _, tst := range []struct {
+		snaps []string
+		msg   string
+	}{
+		{nil, "Refresh all snaps: no updates"},
+		{[]string{"fake"}, `Refresh snap "fake"`},
+		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
+	} {
+		refreshSnapDecls = false
+
+		snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+			c.Check(names, check.HasLen, 0)
+			t := s.NewTask("fake-refresh-all", "Refreshing everything")
+			return tst.snaps, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		}
+
+		inst := &snapInstruction{Action: "refresh"}
+		st := d.overlord.State()
+		st.Lock()
+		summary, _, _, err := snapUpdateMany(inst, st)
+		st.Unlock()
+		c.Assert(err, check.IsNil)
+		c.Check(summary, check.Equals, tst.msg)
+		c.Check(refreshSnapDecls, check.Equals, true)
+	}
 }
 
 func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
@@ -3574,31 +3575,6 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }
 
-func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := s.daemon(c)
-	eventsCmd.d = d
-	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
-
-	ts := httptest.NewServer(http.HandlerFunc(eventsCmd.GET(eventsCmd, nil, nil).ServeHTTP))
-
-	req, err := http.NewRequest("GET", ts.URL, nil)
-	c.Assert(err, check.IsNil)
-	req.Header.Add("Upgrade", "websocket")
-	req.Header.Add("Connection", "Upgrade")
-	req.Header.Add("Sec-WebSocket-Key", "xxx")
-	req.Header.Add("Sec-WebSocket-Version", "13")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	c.Assert(err, check.IsNil)
-	// upgrades request
-	c.Assert(resp.Header["Upgrade"], check.DeepEquals, []string{"websocket"})
-	// adds subscriber - this happens at the end of the response so close the
-	// server first to prevent problems with sequence ordering
-	ts.Close()
-	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
-}
-
 func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	chg1.Set("snap-names", []string{"funky-snap-name"})
@@ -4618,4 +4594,209 @@ func (s *postCreateUserSuite) TestSysinfoIsManaged(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
+}
+
+// aliases
+
+func (s *apiSuite) TestAliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &aliasAction{
+		Action:  "alias",
+		Snap:    "alias-snap",
+		Aliases: []string{"alias1"},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// sanity check
+	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, true)
+}
+
+func (s *apiSuite) TestAliasErrors(c *check.C) {
+	s.daemon(c)
+
+	errScenarios := []struct {
+		mangle func(*aliasAction)
+		err    string
+	}{
+		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
+		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
+		{func(a *aliasAction) { a.Aliases = nil }, `at least one alias name is required`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+	}
+
+	for _, scen := range errScenarios {
+		action := &aliasAction{
+			Action:  "alias",
+			Snap:    "alias-snap",
+			Aliases: []string{"alias1"},
+		}
+		scen.mangle(action)
+
+		text, err := json.Marshal(action)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(text)
+		req, err := http.NewRequest("POST", "/v2/aliases", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := changeAliases(aliasesCmd, req, nil).(*resp)
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
+	}
+}
+
+func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &aliasAction{
+		Action:  "unalias",
+		Snap:    "alias-snap",
+		Aliases: []string{"alias1"},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	defer st.Unlock()
+	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
+	var allAliases map[string]map[string]string
+	err = st.Get("aliases", &allAliases)
+	c.Assert(err, check.IsNil)
+	c.Check(allAliases, check.DeepEquals, map[string]map[string]string{
+		"alias-snap": {"alias1": "disabled"},
+	})
+
+}
+
+func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "disabled",
+		},
+	})
+
+	action := &aliasAction{
+		Action:  "reset",
+		Snap:    "alias-snap",
+		Aliases: []string{"alias1"},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	st.Unlock()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	st.Lock()
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	chg := st.Change(id)
+	c.Assert(chg, check.NotNil)
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
+	var allAliases map[string]map[string]string
+	err = st.Get("aliases", &allAliases)
+	c.Assert(err, check.IsNil)
+	c.Check(allAliases, check.HasLen, 0)
 }

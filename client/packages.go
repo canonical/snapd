@@ -47,6 +47,7 @@ type Snap struct {
 	Confinement   string        `json:"confinement"`
 	Private       bool          `json:"private"`
 	DevMode       bool          `json:"devmode"`
+	JailMode      bool          `json:"jailmode"`
 	TryMode       bool          `json:"trymode"`
 	Apps          []AppInfo     `json:"apps"`
 	Broken        string        `json:"broken"`
@@ -54,11 +55,13 @@ type Snap struct {
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
 
-	Channels map[string]*snap.Ref `json:"channels"`
+	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
 }
 
 type AppInfo struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases"`
 }
 
 type Screenshot struct {
@@ -81,6 +84,7 @@ const (
 
 	StrictConfinement  = "strict"
 	DevModeConfinement = "devmode"
+	ClassicConfinement = "classic"
 )
 
 type ResultInfo struct {

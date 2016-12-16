@@ -40,7 +40,16 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
+    apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
     apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+    if snap --version |MATCH unknown; then
+        echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+        exit 1
+    fi
+    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
+        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
+        exit 1
+    fi
 
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
@@ -85,7 +94,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
@@ -134,14 +143,18 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+        dpkg-deb -x ${SPREAD_PATH}/../snap-confine_*.deb $UNPACKD
 
-        # add a gpio slot
+        # add gpio and iio slots
         cat >> $UNPACKD/meta/snap.yaml <<-EOF
 slots:
     gpio-pin:
         interface: gpio
         number: 100
         direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
 EOF
 
         # build new core snap for the image
@@ -211,6 +224,7 @@ EOF
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
@@ -286,10 +300,23 @@ prepare_all_snap() {
     echo "Kernel has a store revision"
     snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
-    # Snapshot the fresh state
+    # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        # we need to ensure that we also restore the boot environment
+        # fully for tests that break it
+        BOOT=""
+        if ls /boot/uboot/*; then
+            BOOT=/boot/uboot/
+        elif ls /boot/grub/*; then
+            BOOT=/boot/grub/
+        else
+            echo "Cannot determine bootdir in /boot:"
+            ls /boot
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
 

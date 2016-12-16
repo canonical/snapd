@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"regexp"
 	"time"
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
@@ -39,6 +40,7 @@ type SnapDeclaration struct {
 	refreshControl []string
 	plugRules      map[string]*PlugRule
 	slotRules      map[string]*SlotRule
+	autoAliases    []string
 	timestamp      time.Time
 }
 
@@ -82,6 +84,11 @@ func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
 	return snapdcl.slotRules[interfaceName]
 }
 
+// AutoAliases returns the optional auto-aliases granted to this snap.
+func (snapdcl *SnapDeclaration) AutoAliases() []string {
+	return snapdcl.autoAliases
+}
+
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
@@ -109,6 +116,8 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 		{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
 	}
 }
+
+var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
@@ -165,11 +174,17 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
+	if err != nil {
+		return nil, err
+	}
+
 	return &SnapDeclaration{
 		assertionBase:  assert,
 		refreshControl: refControl,
 		plugRules:      plugRules,
 		slotRules:      slotRules,
+		autoAliases:    autoAliases,
 		timestamp:      timestamp,
 	}, nil
 }
