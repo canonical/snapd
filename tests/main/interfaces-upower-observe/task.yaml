@@ -29,13 +29,13 @@ execute: |
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-upower-observe-consumer:upower-observe"
 
     echo "Then it is connected by default"
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "==================================="
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to dump info about the upower devices"
     if su -l -c "test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error" test; then
@@ -48,8 +48,8 @@ execute: |
 
     echo "When the plug is connected"
     snap connect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to dump info about the upower devices"
     expected="(?s)Device: +/org/freedesktop/UPower/devices/DisplayDevice.*Daemon:.*"
-    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | MATCH "$expected"
+    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | grep -Pqz "$expected"
