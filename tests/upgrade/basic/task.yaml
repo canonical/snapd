@@ -1,8 +1,16 @@
 summary: Check that upgrade works
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 restore: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     rm -f /var/tmp/myevil.txt
 execute: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     . "$TESTSLIB/apt.sh"
 
     echo Install previous version...
@@ -12,10 +20,6 @@ execute: |
     prevsnapdver=$(snap --version|grep "snapd ")
 
     echo Install a snap with it
-    if [ "$REMOTE_STORE" = staging ]; then
-        . $TESTSLIB/store.sh
-        setup_staging_store
-    fi
     snap install test-snapd-tools
 
     echo Sanity check install
