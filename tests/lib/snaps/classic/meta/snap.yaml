@@ -1,0 +1,6 @@
+name: classic
+version: 1.0
+confinement: classic
+apps:
+    classic:
+        command: bin/classic
