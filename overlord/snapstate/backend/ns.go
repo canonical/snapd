@@ -34,7 +34,7 @@ func mountNsPath(snapName string) string {
 	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
 }
 
-func (b Backend) DiscardSnapNamespace(snapName string) error {
+func DiscardSnapNamespace(snapName string) error {
 	mntFile := mountNsPath(snapName)
 	// If there's a .mnt file that was created by snap-confine we should ask
 	// snap-confine to discard it appropriately.
@@ -47,4 +47,8 @@ func (b Backend) DiscardSnapNamespace(snapName string) error {
 		}
 	}
 	return nil
+}
+
+func (b Backend) DiscardSnapNamespace(snapName string) error {
+	return DiscardSnapNamespace(snapName)
 }

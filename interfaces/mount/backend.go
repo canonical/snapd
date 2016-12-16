@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 
 // Backend is responsible for maintaining mount files for snap-confine
@@ -66,9 +67,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
+	}
+	if len(changed) > 0 || len(removed) > 0 {
+		err = backend.DiscardSnapNamespace(snapName)
+		if err != nil {
+			return fmt.Errorf("cannot discard mount namespace for snap %q: %s", snapName, err)
+		}
 	}
 	return nil
 }
