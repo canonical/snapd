@@ -23,9 +23,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var unity8ContactsPermanentSlotAppArmor = `
+const unity8ContactsPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. Reserved because this
-#  gives privileged access to the system.
+# gives privileged access to the system.
 
 # Allow binding the service to the requested connection name
 dbus (bind)
@@ -51,20 +51,20 @@ dbus (bind)
 ########################
 # EDS - AddressBook
 ########################
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookFactory
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/AddressBookView/**
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
 	interface=org.gnome.evolution.dataserver.AddressBook
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/Backend/AddressBookView/**
 	peer=(label=unconfined),
@@ -72,15 +72,15 @@ dbus (receive, send)
 ##########################
 # Canonical - AddressBook
 ##########################
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/com/canonical/pim/AddressBook
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/com/canonical/pim/AddressBookView
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	peer=(label=unconfined),
 `
@@ -134,7 +134,7 @@ dbus (receive, send)
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
-var unity8ContactsConnectedPlugAppArmor = `
+const unity8ContactsConnectedPlugAppArmor = `
 # Allow connected clients to communicate with contacts service via DBus
 
 ########################
@@ -172,7 +172,6 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	peer=(label=###SLOT_SECURITY_TAGS###),
-
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
 # now for trusted apps until buteo is integrated with push
