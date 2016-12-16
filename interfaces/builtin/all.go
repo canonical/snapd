@@ -28,6 +28,7 @@ var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BrowserSupportInterface{},
 	&ContentInterface{},
+	&DbusInterface{},
 	&DockerInterface{},
 	&DockerSupportInterface{},
 	&FwupdInterface{},
