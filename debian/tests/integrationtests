@@ -2,14 +2,6 @@
 
 set -ex
 
-if [ "$(dpkg --print-architecture)" = "ppc64el" ]; then
-    echo "Tests on ppc64el disabled for now because autopkgtest thinks they "
-    echo "worked at some point but they did not and noone can override this "
-    echo "in the autopkgtest database apparently so autopkgtest keeps "
-    echo "blocking snapd because it assumes there is a regression."
-    exit 0
-fi
-
 # for these tests, run snap and snapd from outside of the core snap
 mkdir -p /etc/systemd/system/snapd.service.d/
 cat <<EOF | tee /etc/systemd/system/snapd.service.d/no-reexec.conf
