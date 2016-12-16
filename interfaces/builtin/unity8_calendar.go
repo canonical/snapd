@@ -25,7 +25,7 @@ import (
 
 const unity8CalendarPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. Reserved because this
-#  gives privileged access to the system.
+# gives privileged access to the system.
 
 # DBus accesses
 dbus (bind)
@@ -40,20 +40,20 @@ dbus (bind)
 
 # Allow traffic to/from our path and interface with any method for unconfined
 # clients to talk to our calendar services.
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/CalendarFactory
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/CalendarView/**
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/**
 	interface=org.gnome.evolution.dataserver.Calendar
 	peer=(label=unconfined),
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/org/gnome/evolution/dataserver/Subprocess/Backend/Calendar/**
 	peer=(label=unconfined),
@@ -61,7 +61,7 @@ dbus (receive, send)
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
 # now for trusted apps until sync-monitor is integrated with push
 # notifications.
-dbus (receive, send)
+dbus (receive)
 	bus=session
 	path=/com/canonical/SyncMonitor
 	peer=(label=unconfined),

@@ -27,9 +27,9 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var unity8PimCommonPermanentSlotAppArmor = []byte(`
+const unity8PimCommonPermanentSlotAppArmor = `
 # Description: Allow operating as the EDS service. Reserved because this
-#  gives privileged access to the system.
+# gives privileged access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -55,9 +55,9 @@ dbus (receive, send)
 dbus (bind)
 	bus=session
 	name="org.gnome.evolution.dataserver.Sources5",
-`)
+`
 
-var unity8PimCommonConnectedSlotAppArmor = []byte(`
+const unity8PimCommonConnectedSlotAppArmor = `
 # Allow service to interact with connected clients
 
 ########################
@@ -67,9 +67,9 @@ dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
 	peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var unity8PimCommonConnectedPlugAppArmor = []byte(`
+const unity8PimCommonConnectedPlugAppArmor = `
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
@@ -93,16 +93,14 @@ dbus (receive, send)
 	bus=session
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
 	peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var unity8PimCommonPermanentSlotSecComp = []byte(`
+const unity8PimCommonPermanentSlotSecComp = `
 # Description: Allow operating as the EDS service. Reserved because this
-# gives
-#  privileged access to the system.
+# gives privileged access to the system.
 accept
 accept4
 bind
-getsockname
 listen
 recv
 recvfrom
@@ -113,20 +111,19 @@ sendmmsg
 sendmsg
 sendto
 shutdown
-`)
+`
 
-var unity8PimCommonConnectedPlugSecComp = []byte(`
+const unity8PimCommonConnectedPlugSecComp = `
 # Description: Allow using EDS service. Reserved because this gives
-#  privileged access to the eds service.
+# privileged access to the eds service.
 
 # Can communicate with DBus system service
-getsockname
 recv
 recvmsg
 send
 sendto
 sendmsg
-`)
+`
 
 type unity8PimCommonInterface struct {
 	name                  string
@@ -161,7 +158,7 @@ func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return unity8PimCommonConnectedPlugSecComp, nil
+		return []byte(unity8PimCommonConnectedPlugSecComp), nil
 	default:
 		return nil, nil
 	}
@@ -174,7 +171,7 @@ func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		snippet = append(snippet, iface.permanentSlotAppArmor...)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return unity8PimCommonPermanentSlotSecComp, nil
+		return []byte(unity8PimCommonPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
 		//FIXME: Implement support after uses session be available.
 		return nil, nil
