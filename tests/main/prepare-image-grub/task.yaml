@@ -23,8 +23,12 @@ execute: |
     # have snap use the fakestore for assertions
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
+    if [ "$REMOTE_STORE" = staging ]; then
+        prepare_env="SNAPPY_USE_STAGING_STORE=1"
+    fi
+
     echo Running prepare-image
-    su -c "snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
+    su -c "$prepare_env snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE
