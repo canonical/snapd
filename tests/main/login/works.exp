@@ -1,9 +1,0 @@
-spawn echo "hello"
-
-expect {
-    "hello" {
-        exit 0
-    } default {
-        exit 1
-    }
-}
