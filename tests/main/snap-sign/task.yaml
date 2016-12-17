@@ -1,6 +1,6 @@
 summary: Run snap sign to sign a model assertion
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el]
 
 prepare: |
     . "$TESTSLIB/mkpinentry.sh"
