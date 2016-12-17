@@ -2,13 +2,6 @@ summary: Check different completions
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 prepare: |
-    # expect does not work on some hardware in autopkgtest like ppc64el
-    echo "Check if expect is working at all"
-    if ! expect -f works.exp; then
-        echo "SKIP: expect broken in this environment"
-        exit 0
-    fi
-
     mkdir -p testdir
     touch testdir/foo.snap
     touch bar.snap
@@ -22,13 +15,6 @@ restore: |
     rmdir testdir
 
 execute: |
-    # expect does not work on some hardware in autopkgtest like ppc64el
-    echo "Check if expect is working at all"
-    if ! expect -f works.exp; then
-        echo "SKIP: expect broken in this environment"
-        exit 0
-    fi
-
     for i in *.exp; do
         echo $i
         expect -d -f $i
