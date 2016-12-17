@@ -22,13 +22,6 @@ restore: |
           $SNAP_INSTALL_DIR /tmp/foo *stat.error
 
 execute: |
-    # expect does not work on some hardware in autopkgtest like ppc64el
-    echo "Check if expect is working at all"
-    if ! expect -f works.exp; then
-        echo "SKIP: expect broken in this environment"
-        exit 0
-    fi
-
     echo "When a temporary file is created by one snap"
     expect -d -f tmp-create.exp
 
