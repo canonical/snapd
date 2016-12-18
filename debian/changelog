@@ -1,3 +1,55 @@
+snapd (2.20) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - many: implement  "snap alias --reset" using snapstate.ResetAliases
+    - debian: use a packaging branch for 14.04
+    - store: retry downloads on io.Copy errors and sha3 checksum errors
+    - snap: show apps in `snap info`
+    - store: send an explicit X-Ubuntu-Classic header to the store
+    - overlord/snapstate: implement snapstate.ResetAliases
+    - interfaces/builtin: add dbus interface
+    - tests: fix tests on 17.04
+    - store: use mocked retry strategy to make store tests faster
+    - overlord: apply auto-aliases information from the snap-declaration
+      on install or refresh
+    - many: prepare landing on trusty
+    - many: implement snap unalias using snapstate.Unalias
+    - overlord/snapstate: fixing the placement/grouping of some
+      functions
+    - interfaces: support network namespaces via 'ip netns' in network-
+      control (LP: #1624675)
+    - interfaces/builtin: fix pulseaudio apparmor rules
+    - interfaces/builtin: add iio interface
+    - tests: update custom core snap with the freshly build snap-confine
+    - interfaces: use sysd.{Disable,Stop} instead of sysd.DisableNow()
+    - overlord,overlord/snapstate: implement snapstate.Unalias by
+      generalizing the "alias" task
+    - interfaces: misc openstack snap enablement
+    - cmd/snap: mock terminal.ReadPassword instead of using /dev/ptmx
+    - notifications, daemon: kill the unsupported events endpoint
+    - client: only allow Dangerous option in InstallPath
+    - overlord/ifacestate: no interface checks if no snap id
+    - many: implement alias command
+    - snap: tweak snap install output as designed by Mark
+    - debian: fix Pre-Depends on dpkg
+    - tests: check if snap-confine --version is unknown
+    - cmd/snap-confine: allow content interface mounts
+    - tests: remove ppa:snappy-dev/image again
+    - interfaces/apparmor: allow access to core snap
+    - tests: remove snap-confine/ubuntu-core-launcher after the tests
+    - overlord,overlord/snapstate: implement snapstate.Alias
+    - cmd/snap: reject "snap disconnect foo"
+    - debian: add split ubuntu-core-launcher and snap-confine packages
+    - cmd: fix mkversion.sh and add regression test
+    - overlord/snapstate: setup/remove aliases as we link/unlink snaps
+    - cmd/snap,tests: alias support in snap run
+    - snap/snapenv: don't obscure HOME if snap uses classic confinement
+    - store: decode response.Body json inside retry loops
+    - cmd/snap-confine: fix compilation on platforms with gcc < 4.9.0
+    - vendor: update tomb package fixing context support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Dec 2016 22:07:08 +0100
+
 snapd (2.19) xenial; urgency=medium
 
   * New upstream release, LP: #1648520
