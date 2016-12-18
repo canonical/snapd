@@ -113,6 +113,24 @@ func (client *Client) setAuthorization(req *http.Request) error {
 	return nil
 }
 
+type RequestError struct{ error }
+
+func (e RequestError) Error() string {
+	return fmt.Sprintf("cannot build request: %v", e.error)
+}
+
+type AuthorizationError struct{ error }
+
+func (e AuthorizationError) Error() string {
+	return fmt.Sprintf("cannot add authorization: %v", e.error)
+}
+
+type ConnectionError struct{ error }
+
+func (e ConnectionError) Error() string {
+	return fmt.Sprintf("cannot communicate with server: %v", e.error)
+}
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
@@ -123,7 +141,7 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
-		return nil, err
+		return nil, RequestError{err}
 	}
 
 	for key, value := range headers {
@@ -133,10 +151,15 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	// set Authorization header if there are user's credentials
 	err = client.setAuthorization(req)
 	if err != nil {
-		return nil, err
+		return nil, AuthorizationError{err}
 	}
 
-	return client.doer.Do(req)
+	rsp, err := client.doer.Do(req)
+	if err != nil {
+		return nil, ConnectionError{err}
+	}
+
+	return rsp, nil
 }
 
 var (
@@ -178,7 +201,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 		break
 	}
 	if err != nil {
-		return fmt.Errorf("cannot communicate with server: %s", err)
+		return err
 	}
 	defer rsp.Body.Close()
 
@@ -294,6 +317,13 @@ const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
 	ErrorKindLoginRequired     = "login-required"
+	ErrorKindTermsNotAccepted  = "terms-not-accepted"
+	ErrorKindNoPaymentMethods  = "no-payment-methods"
+	ErrorKindPaymentDeclined   = "payment-declined"
+
+	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
+	ErrorKindSnapNotInstalled     = "snap-not-installed"
+	ErrorKindNoUpdateAvailable    = "snap-no-update-available"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -319,6 +349,7 @@ type SysInfo struct {
 	Version   string    `json:"version,omitempty"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
+	Managed   bool      `json:"managed"`
 }
 
 func (rsp *response) err() error {
@@ -358,35 +389,107 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
 	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
-		return nil, fmt.Errorf("bad sysinfo result: %v", err)
+		return nil, fmt.Errorf("cannot obtain system details: %v", err)
 	}
 
 	return &sysInfo, nil
 }
 
-// CreateUserResult holds the result of a user creation
+// CreateUserResult holds the result of a user creation.
 type CreateUserResult struct {
-	Username    string `json:"username"`
-	SSHKeyCount int    `json:"ssh-key-count"`
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
 }
 
-// createUserRequest holds the user creation request
-type CreateUserRequest struct {
-	Email  string `json:"email"`
-	Sudoer bool   `json:"sudoer"`
+// CreateUserOptions holds options for creating a local system user.
+//
+// If Known is false, the provided email is used to query the store for
+// username and SSH key details.
+//
+// If Known is true, the user will be created by looking through existing
+// system-user assertions and looking for a matching email. If Email is
+// empty then all such assertions are considered and multiple users may
+// be created.
+type CreateUserOptions struct {
+	Email        string `json:"email,omitempty"`
+	Sudoer       bool   `json:"sudoer,omitempty"`
+	Known        bool   `json:"known,omitempty"`
+	ForceManaged bool   `json:"force-managed,omitempty"`
 }
 
-// CreateUser creates a user from the given mail address
-func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult, error) {
-	var createResult CreateUserResult
-	b, err := json.Marshal(request)
+// CreateUser creates a local system user. See CreateUserOptions for details.
+func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
+	if options.Email == "" {
+		return nil, fmt.Errorf("cannot create a user without providing an email")
+	}
+
+	var result CreateUserResult
+	data, err := json.Marshal(options)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(b), &createResult); err != nil {
-		return nil, fmt.Errorf("bad user result: %v", err)
+	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+		return nil, fmt.Errorf("while creating user: %v", err)
+	}
+	return &result, nil
+}
+
+// CreateUsers creates multiple local system users. See CreateUserOptions for details.
+//
+// Results may be provided even if there are errors.
+func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
+	for _, opts := range options {
+		if opts.Email == "" && !opts.Known {
+			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
+		}
 	}
 
-	return &createResult, nil
+	var results []*CreateUserResult
+	var errs []error
+
+	for _, opts := range options {
+		data, err := json.Marshal(opts)
+		if err != nil {
+			return nil, err
+		}
+
+		if opts.Email == "" {
+			var result []*CreateUserResult
+			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+				errs = append(errs, err)
+			} else {
+				results = append(results, result...)
+			}
+		} else {
+			var result *CreateUserResult
+			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+				errs = append(errs, err)
+			} else {
+				results = append(results, result)
+			}
+		}
+	}
+
+	if len(errs) == 1 {
+		return results, errs[0]
+	}
+	if len(errs) > 1 {
+		var buf bytes.Buffer
+		for _, err := range errs {
+			fmt.Fprintf(&buf, "\n- %s", err)
+		}
+		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
+	}
+	return results, nil
+}
+
+// Users returns the local users.
+func (client *Client) Users() ([]*User, error) {
+	var result []*User
+
+	if _, err := client.doSync("GET", "/v2/users", nil, nil, nil, &result); err != nil {
+		return nil, fmt.Errorf("while getting users: %v", err)
+	}
+	return result, nil
 }

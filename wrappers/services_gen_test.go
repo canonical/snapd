@@ -24,8 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -39,7 +37,9 @@ var _ = Suite(&servicesWrapperGenSuite{})
 const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application snap.app
-%s
+Requires=snap-snap-44.mount
+Wants=network-online.target
+After=snap-snap-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
@@ -49,22 +49,24 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
-%[2]s
+Type=%s
 
 [Install]
 WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture(), dirs.SnapMountDir)
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture(), dirs.SnapMountDir)
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "simple\n")
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "dbus\nBusName=foo.bar.baz")
 )
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
-%s
+Requires=snap-xkcd\x2dwebserver-44.mount
+Wants=network-online.target
+After=snap-xkcd\x2dwebserver-44.mount network-online.target
 X-Snappy=yes
 
 [Service]
@@ -74,13 +76,10 @@ WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
-%[2]s
-
-[Install]
-WantedBy=multi-user.target
+Type=%s
+%s
 `
-	expectedSocketUsingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket\nRequires=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket", "Type=simple\n", arch.UbuntuArchitecture(), dirs.SnapMountDir)
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=forking\n", arch.UbuntuArchitecture(), dirs.SnapMountDir)
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking\n", "\n[Install]\nWantedBy=multi-user.target")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -195,101 +194,4 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(wrapperText, Equals, expectedDbusService)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker.sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	content, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(content, Equals, `[Unit]
-# Auto-generated, DO NO EDIT
-Description=Socket for snap application xkcd-webserver.xkcd-webserver
-PartOf=snap.xkcd-webserver.xkcd-webserver.service
-X-Snappy=yes
-
-[Socket]
-ListenStream=/var/run/docker.sock
-SocketMode=0660
-
-[Install]
-WantedBy=sockets.target
-`)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:         "xkcd-webserver",
-		Command:      "bin/foo start",
-		Socket:       true,
-		ListenStream: "/var/run/docker!sock",
-		SocketMode:   "0660",
-		Daemon:       "simple",
-	}
-
-	_, err := wrappers.GenerateSnapSocketFile(service)
-	c.Assert(err, NotNil)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
-	service := &snap.AppInfo{
-		Snap: &snap.Info{
-			SideInfo: snap.SideInfo{
-				RealName: "xkcd-webserver",
-				Revision: snap.R(44),
-			},
-			Version: "0.3.4",
-		},
-		Name:            "xkcd-webserver",
-		Command:         "bin/foo start",
-		StopCommand:     "bin/foo stop",
-		PostStopCommand: "bin/foo post-stop",
-		StopTimeout:     timeout.DefaultTimeout,
-		Socket:          true,
-		Daemon:          "simple",
-	}
-
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
-}
-
-func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
-	srv := &snap.AppInfo{
-		Name: "foo",
-		Snap: &snap.Info{},
-	}
-
-	// no socket mode means 0660
-	content, err := wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
-
-	// SocketMode itself is honored
-	srv.SocketMode = "0600"
-	content, err = wrappers.GenerateSnapSocketFile(srv)
-	c.Assert(err, IsNil)
-	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
-
 }

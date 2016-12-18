@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -124,6 +125,9 @@ func NewBatch() *Batch {
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
+	if !a.SupportedFormat() {
+		return &asserts.UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+	}
 	if err := b.bs.Put(a.Type(), a); err != nil {
 		if revErr, ok := err.(*asserts.RevisionError); ok {
 			if revErr.Current >= a.Revision() {
@@ -167,7 +171,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
 func (b *Batch) Commit(st *state.State) error {
 	db := cachedDB(st)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		a, err := b.bs.Get(ref.Type, ref.PrimaryKey)
+		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if err == asserts.ErrNotFound {
 			// fallback to pre-existing assertions
 			a, err = ref.Resolve(db.Find)
@@ -239,12 +243,14 @@ func (f *fetcher) commit() error {
 	var errs []error
 	for _, a := range f.fetched {
 		err := f.db.Add(a)
-		if revErr, ok := err.(*asserts.RevisionError); ok {
-			if revErr.Current >= a.Revision() {
-				// be idempotent
-				// system db has already the same or newer
-				continue
+		if asserts.IsUnaccceptedUpdate(err) {
+			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
+				// we kept the old one, but log the issue
+				logger.Noticef("Cannot update assertion: %v", err)
 			}
+			// be idempotent
+			// system db has already the same or newer
+			continue
 		}
 		if err != nil {
 			errs = append(errs, err)
@@ -291,24 +297,24 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
-	ss, err := snapstate.TaskSnapSetup(t)
+	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
 		return nil
 	}
 
-	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(ss.SnapPath)
+	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(t.State(), ss.UserID, func(f asserts.Fetcher) error {
+	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
 		return snapasserts.FetchSnapAssertions(f, sha3_384)
 	})
 	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
 		if notFound.Ref.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
 		} else {
-			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)
 		}
 	}
 	if err != nil {
@@ -316,7 +322,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(t.State())
-	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
+	err = snapasserts.CrossCheck(snapsup.Name(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
@@ -335,8 +341,8 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapState := range snapStates {
-			info, err := snapState.CurrentInfo()
+		for _, snapst := range snapStates {
+			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return err
 			}
@@ -379,8 +385,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	if err != nil {
 		return nil, err
 	}
-	for snapName, snapState := range snapStates {
-		info, err := snapState.CurrentInfo()
+	for snapName, snapst := range snapStates {
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
@@ -469,4 +475,46 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 func init() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
+}
+
+// BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
+func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
+	// TODO: switch keeping this in the DB and have it revisioned/updated
+	// via the store
+	baseDecl := asserts.BuiltinBaseDeclaration()
+	if baseDecl == nil {
+		return nil, asserts.ErrNotFound
+	}
+	return baseDecl, nil
+}
+
+// SnapDeclaration returns the snap-declaration for the given snap-id if it is present in the system assertion database.
+func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": snapID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.SnapDeclaration), nil
+}
+
+// AutoAliases returns the auto-aliases list for the given installed snap.
+func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
+	if info.SnapID == "" {
+		// without declaration
+		return nil, nil
+	}
+	decl, err := SnapDeclaration(s, info.SnapID)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+	}
+	return decl.AutoAliases(), nil
+}
+
+func init() {
+	// hook retrieving auto-aliases into snapstate logic
+	snapstate.AutoAliases = AutoAliases
 }

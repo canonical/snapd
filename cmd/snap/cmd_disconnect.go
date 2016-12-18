@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -41,13 +43,10 @@ $ snap disconnect <snap>:<plug> <snap>:<slot>
 
 Disconnects the specific plug from the specific slot.
 
-$ snap disconnect <snap>:<slot>
+$ snap disconnect <snap>:<slot or plug>
 
-Disconnects any previously connected plugs from the provided slot.
-
-$ snap disconnect <snap>
-
-Disconnects all plugs from the provided snap.
+Disconnects everything from the provided plug or slot.
+The snap name may be omitted for the core snap.
 `)
 
 func init() {
@@ -69,6 +68,9 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
 		// Swap Offer and Use around
 		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
+	}
+	if x.Positionals.Use.Name == "" {
+		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", x.Positionals.Use.Snap)
 	}
 
 	cli := Client()

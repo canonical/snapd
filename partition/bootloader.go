@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -50,10 +49,10 @@ var (
 // bootloader
 type Bootloader interface {
 	// Return the value of the specified bootloader variable
-	GetBootVar(name string) (string, error)
+	GetBootVars(names ...string) (map[string]string, error)
 
 	// Set the value of the specified bootloader variable
-	SetBootVar(name, value string) error
+	SetBootVars(values map[string]string) error
 
 	// Dir returns the bootloader directory
 	Dir() string
@@ -113,48 +112,32 @@ func ForceBootloader(booloader Bootloader) {
 	forcedBootloader = booloader
 }
 
-// MarkBootSuccessful marks the current boot as sucessful. This means
+// MarkBootSuccessful marks the current boot as successful. This means
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
 func MarkBootSuccessful(bootloader Bootloader) error {
-	// check if we need to do anything
-	v, err := bootloader.GetBootVar("snap_mode")
+	m, err := bootloader.GetBootVars("snap_mode", "snap_try_core", "snap_try_kernel")
 	if err != nil {
 		return err
 	}
+
 	// snap_mode goes from "" -> "try" -> "trying" -> ""
-	if v != "trying" {
+	// so if we are not in "trying" mode, nothing to do here
+	if m["snap_mode"] != "trying" {
 		return nil
 	}
 
-	// FIXME: we should have something better here, i.e. one write
-	//        to the bootloader environment only (instead of three)
-	//        We need to figure out if that is possible with grub/uboot
-	// If we could also do atomic writes to the boot env, that would
-	// be even better. The complication here is that the grub
-	// environment is handled via grub-editenv and uboot is done
-	// via the special uboot.env file on a vfat partition.
-	for _, k := range []string{"snap_try_core", "snap_try_kernel"} {
-		value, err := bootloader.GetBootVar(k)
-		if err != nil {
-			return err
-		}
-		if value == "" {
-			continue
-		}
-		// FIXME: ugly string replace
-		newKey := strings.Replace(k, "_try_", "_", -1)
-		if err := bootloader.SetBootVar(newKey, value); err != nil {
-			return err
-		}
-		if err := bootloader.SetBootVar("snap_mode", modeSuccess); err != nil {
-			return err
-		}
-		// clear "snap_try_{core,kernel}"
-		if err := bootloader.SetBootVar(k, ""); err != nil {
-			return err
+	// update the boot vars
+	for _, k := range []string{"kernel", "core"} {
+		tryBootVar := fmt.Sprintf("snap_try_%s", k)
+		bootVar := fmt.Sprintf("snap_%s", k)
+		// update the boot vars
+		if m[tryBootVar] != "" {
+			m[bootVar] = m[tryBootVar]
+			m[tryBootVar] = ""
 		}
 	}
+	m["snap_mode"] = modeSuccess
 
-	return nil
+	return bootloader.SetBootVars(m)
 }

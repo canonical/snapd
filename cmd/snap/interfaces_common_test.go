@@ -93,7 +93,6 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	c.Check(sn.Name, Equals, "")
 	// Invalid
 	for _, input := range []string{
-		":name",          // Empty snap, makes no sense
 		"snap:",          // Empty name, should be spelled as "snap"
 		":",              // Both snap and name empty, makes no sense
 		"snap:name:more", // Name containing :, probably a typo

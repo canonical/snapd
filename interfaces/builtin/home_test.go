@@ -24,7 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -38,7 +37,7 @@ var _ = Suite(&HomeInterfaceSuite{
 	iface: builtin.NewHomeInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "home",
 			Interface: "home",
 		},
@@ -84,18 +83,4 @@ func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-	iface := builtin.NewHomeInterface()
-	c.Check(iface.AutoConnect(), Equals, true)
-}
-
-func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-	iface := builtin.NewHomeInterface()
-	c.Check(iface.AutoConnect(), Equals, false)
 }

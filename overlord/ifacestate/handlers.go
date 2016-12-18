@@ -21,15 +21,27 @@ package ifacestate
 
 import (
 	"fmt"
+	"sort"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
+func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
+	return interfaces.ConfinementOptions{
+		DevMode:  flags.DevMode,
+		JailMode: flags.JailMode,
+		Classic:  flags.Classic,
+	}
+}
 
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
 	st := task.State()
@@ -49,27 +61,34 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
-		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+		opts := confinementOptions(snapst.Flags)
+		if err := setupSnapSecurity(task, affectedSnapInfo, opts, m.repo); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
 	// Get snap.Info from bits handed by the snap manager.
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 
-	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
+
+	opts := confinementOptions(snapsup.Flags)
+	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+}
+
+func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
@@ -83,7 +102,6 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	blacklist := m.repo.AutoConnectBlacklist(snapName)
 	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
@@ -95,7 +113,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			logger.Noticef("%s", err)
+			task.Logf("%s", err)
 		} else {
 			return err
 		}
@@ -103,17 +121,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}
-	if err := m.autoConnect(task, snapName, blacklist); err != nil {
+	// FIXME: here we should not reconnect auto-connect plug/slot
+	// pairs that were explicitly disconnected by the user
+	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
 		return err
 	}
 
 	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
 }
 
-func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -125,6 +145,10 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 	snapName := snapSetup.Name()
 
+	return m.removeProfilesForSnap(task, tomb, snapName)
+}
+
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -152,6 +176,39 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+
+	// Get the name from SnapSetup and use it to find the current SideInfo
+	// about the snap, if there is one.
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	sideInfo := snapst.CurrentSideInfo()
+	if sideInfo == nil {
+		// The snap was not installed before so undo should remove security profiles.
+		return m.removeProfilesForSnap(task, tomb, snapName)
+	} else {
+		// The snap was installed before so undo should setup the old security profiles.
+		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
+		if err != nil {
+			return err
+		}
+		opts := confinementOptions(snapst.Flags)
+		return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
+	}
+}
+
 func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -164,13 +221,13 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 
 	snapName := snapSetup.Name()
 
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	if err == nil && len(snapState.Sequence) != 0 {
+	if err == nil && len(snapst.Sequence) != 0 {
 		return fmt.Errorf("cannot discard connections for snap %q while it is present", snapName)
 	}
 	conns, err := getConns(st)
@@ -232,33 +289,102 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	var plugDecl *asserts.SnapDeclaration
+	if plug.Snap.SnapID != "" {
+		var err error
+		plugDecl, err = assertstate.SnapDeclaration(st, plug.Snap.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
+		}
+	}
+
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+	var slotDecl *asserts.SnapDeclaration
+	if slot.Snap.SnapID != "" {
+		var err error
+		slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+		}
+	}
+
+	baseDecl, err := assertstate.BaseDeclaration(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	// check the connection against the declarations' rules
+	ic := policy.ConnectCandidate{
+		Plug:                plug.PlugInfo,
+		PlugSnapDeclaration: plugDecl,
+		Slot:                slot.SlotInfo,
+		SlotSnapDeclaration: slotDecl,
+		BaseDeclaration:     baseDecl,
+	}
+
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		err = ic.Check()
+		if err != nil {
+			return err
+		}
+	}
+
+	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
+	slotOpts := confinementOptions(slotSnapst.Flags)
+	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
+	plugOpts := confinementOptions(plugSnapst.Flags)
+	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
 		return err
 	}
 
-	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface}
 	setConns(st, conns)
 
 	return nil
+}
+
+func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+	m := make(map[string]bool)
+	for _, conn := range conns {
+		m[conn.PlugRef.Snap] = true
+		m[conn.SlotRef.Snap] = true
+	}
+	l := make([]string, 0, len(m))
+	for name := range m {
+		l = append(l, name)
+	}
+	sort.Strings(l)
+	return l
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
@@ -276,30 +402,48 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
+	var affectedConns []interfaces.ConnRef
+	if plugRef.Snap != "" && plugRef.Name != "" && slotRef.Snap != "" && slotRef.Name != "" {
+		if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+			return err
+		}
+		affectedConns = []interfaces.ConnRef{{plugRef, slotRef}}
+	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
+		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
+		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
+		if err != nil {
+			return err
+		}
+		m.repo.DisconnectAll(affectedConns)
+	} else if plugRef.Snap == "" && plugRef.Name == "" && slotRef.Name != "" {
+		// Symmetrically, slotRef.Snap can be either empty or not
+		affectedConns, err = m.repo.Connected(slotRef.Snap, slotRef.Name)
+		if err != nil {
+			return err
+		}
+		m.repo.DisconnectAll(affectedConns)
+	} else {
+		return fmt.Errorf("internal error, unhandled disconnect case plug: %q, slot: %q", plugRef, slotRef)
+	}
+	affectedSnaps := snapNamesFromConns(affectedConns)
+	for _, snapName := range affectedSnaps {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			return err
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		opts := confinementOptions(snapst.Flags)
+		if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
+			return &state.Retry{}
+		}
+	}
+	for _, conn := range affectedConns {
+		delete(conns, conn.ID())
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
-		return err
-	}
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
-		return err
-	}
-
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
-		return err
-	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
-		return err
-	}
-
-	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
 	return nil
 }

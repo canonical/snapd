@@ -22,9 +22,9 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -32,8 +32,8 @@ import (
 
 type cmdLogin struct {
 	Positional struct {
-		UserName string
-	} `positional-args:"yes" required:"yes"`
+		Email string
+	} `positional-args:"yes"`
 }
 
 var shortLoginHelp = i18n.G("Authenticates on snapd and the store")
@@ -61,7 +61,7 @@ func init() {
 		}})
 }
 
-func requestLoginWith2faRetry(username, password string) error {
+func requestLoginWith2faRetry(email, password string) error {
 	var otp []byte
 	var err error
 
@@ -76,7 +76,7 @@ func requestLoginWith2faRetry(username, password string) error {
 
 	for i := 0; ; i++ {
 		// first try is without otp
-		_, err = cli.Login(username, password, string(otp))
+		_, err = cli.Login(email, password, string(otp))
 		if i >= len(msgs) || !client.IsTwoFactorError(err) {
 			return err
 		}
@@ -91,20 +91,34 @@ func requestLoginWith2faRetry(username, password string) error {
 	}
 }
 
-func (x *cmdLogin) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	username := x.Positional.UserName
-	fmt.Fprint(Stdout, i18n.G("Password: "))
-	password, err := terminal.ReadPassword(0)
+func requestLogin(email string) error {
+	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
+	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err
 	}
 
-	err = requestLoginWith2faRetry(username, string(password))
+	// strings.TrimSpace needed because we get \r from the pty in the tests
+	return requestLoginWith2faRetry(email, strings.TrimSpace(string(password)))
+}
+
+func (x *cmdLogin) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	email := x.Positional.Email
+	if email == "" {
+		fmt.Fprint(Stdout, i18n.G("Email address: "))
+		in, _, err := bufio.NewReader(Stdin).ReadLine()
+		if err != nil {
+			return err
+		}
+		email = string(in)
+	}
+
+	err := requestLogin(email)
 	if err != nil {
 		return err
 	}

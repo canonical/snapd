@@ -41,6 +41,10 @@ type: gadget
 `
 
 var mockGadgetYaml = []byte(`
+defaults:
+  core:
+    something: true
+
 volumes:
   volumename:
     schema: mbr
@@ -65,6 +69,8 @@ volumes:
             unpack: false
 `)
 
+var mockGadgetSnapContents = "SNAP"
+
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
@@ -74,34 +80,37 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	_, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
-		Volumes: map[string]snap.Volume{
-			"volumename": snap.Volume{
+		Defaults: map[string]map[string]interface{}{
+			"core": {"something": true},
+		},
+		Volumes: map[string]snap.GadgetVolume{
+			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "id,guid",
-				Structure: []snap.Structure{
+				Structure: []snap.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
-						OffsetWrite: 777,
-						Size:        88888,
+						Offset:      "12345",
+						OffsetWrite: "777",
+						Size:        "88888",
 						Type:        "id,guid",
 						ID:          "id,guid",
 						Filesystem:  "vfat",
-						Content: []snap.Content{
+						Content: []snap.VolumeContent{
 							{
 								Source: "subdir/",
 								Target: "/",
@@ -109,9 +118,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 							},
 							{
 								Image:       "foo.img",
-								Offset:      4321,
-								OffsetWrite: 8888,
-								Size:        88888,
+								Offset:      "4321",
+								OffsetWrite: "8888",
+								Size:        "88888",
 								Unpack:      false,
 							},
 						},
@@ -123,7 +132,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -138,7 +147,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -153,7 +162,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)

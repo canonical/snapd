@@ -22,6 +22,8 @@ restore: |
     rm -f $SNAP_FILE
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     :$PLUG +$SNAP_NAME"
@@ -35,17 +37,17 @@ execute: |
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap connect $SNAP_NAME:$PLUG ${core_name}:$PLUG
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the plug can be disconnected again"
-    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap disconnect $SNAP_NAME:$PLUG ${core_name}:$PLUG
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "============================================"
 
     echo "When the plug is connected"
-    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap connect $SNAP_NAME:$PLUG ${core_name}:$PLUG
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access the system logs"
@@ -54,7 +56,7 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap disconnect $SNAP_NAME:$PLUG ${core_name}:$PLUG
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access the system logs"

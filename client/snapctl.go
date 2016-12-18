@@ -50,7 +50,7 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions) (stdout, stderr []byte
 	var output snapctlOutput
 	_, err = client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot run snapctl: %s", err)
+		return nil, nil, err
 	}
 
 	return []byte(output.Stdout), []byte(output.Stderr), nil

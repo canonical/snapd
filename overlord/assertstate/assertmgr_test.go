@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -94,7 +95,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -110,8 +111,8 @@ func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
 }
 
-func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
-	panic("fakeStore.PaymentMethods not expected")
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
 }
 
 func (s *assertMgrSuite) SetUpTest(c *C) {
@@ -270,6 +271,31 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
+func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
+	batch := assertstate.NewBatch()
+
+	var a asserts.Assertion
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		headers := map[string]interface{}{
+			"format":       "999",
+			"revision":     "1",
+			"series":       "16",
+			"snap-id":      "snap-id-1",
+			"snap-name":    "foo",
+			"publisher-id": s.dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+		}
+		var err error
+		a, err = s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+		c.Assert(err, IsNil)
+	})()
+
+	err := batch.Add(a)
+	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 1 is latest supported`)
+}
+
 func fakeSnap(rev int) []byte {
 	fake := fmt.Sprintf("hsqs________________%d", rev)
 	return []byte(fake)
@@ -389,7 +415,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -398,7 +424,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 			Revision: snap.R(10),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -427,7 +453,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -436,7 +462,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 			Revision: snap.R(33),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -460,7 +486,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 
 	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	ss := snapstate.SnapSetup{
+	snapsup := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
 		SideInfo: &snap.SideInfo{
@@ -469,7 +495,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 			Revision: snap.R(10),
 		},
 	}
-	t.Set("snap-setup", ss)
+	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -480,7 +506,61 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
 }
 
-func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *asserts.SnapDeclaration {
+func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
+	c.Skip("the assertion service will make this scenario not possible")
+
+	s.prereqSnapAssertions(c, 10)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	c.Assert(err, IsNil)
+
+	// update snap decl with one that is too new
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		headers := map[string]interface{}{
+			"format":       "999",
+			"revision":     "1",
+			"series":       "16",
+			"snap-id":      "snap-id-1",
+			"snap-name":    "foo",
+			"publisher-id": s.dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+		}
+		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+		c.Assert(err, IsNil)
+		err = s.storeSigning.Add(snapDecl)
+		c.Assert(err, IsNil)
+	})()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+	snapsup := snapstate.SnapSetup{
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(10),
+		},
+	}
+	t.Set("snap-setup", snapsup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.mgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
+}
+
+func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      name + "-id",
@@ -488,8 +568,8 @@ func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *ass
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	if len(control) != 0 {
-		headers["refresh-control"] = control
+	for h, v := range extraHeaders {
+		headers[h] = v
 	}
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -579,6 +659,40 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
+
+	// change snap decl to something that has a too new format
+
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+
+		headers := map[string]interface{}{
+			"format":       "999",
+			"series":       "16",
+			"snap-id":      "foo-id",
+			"snap-name":    "foo",
+			"publisher-id": s.dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+			"revision":     "2",
+		}
+
+		snapDeclFoo2, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+		c.Assert(err, IsNil)
+		err = s.storeSigning.Add(snapDeclFoo2)
+		c.Assert(err, IsNil)
+	})()
+
+	// no error, kept the old one
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
@@ -622,7 +736,9 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 
@@ -649,8 +765,12 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
-	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 	s.stateFromDecl(snapDeclBaz, snap.R(1))
@@ -713,8 +833,12 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
-	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 	s.stateFromDecl(snapDeclBaz, snap.R(1))
@@ -771,4 +895,106 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r1 := assertstest.MockBuiltinBaseDeclaration(nil)
+	defer r1()
+
+	baseDecl, err := assertstate.BaseDeclaration(s.state)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Check(baseDecl, IsNil)
+
+	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  iface: true
+`))
+	defer r2()
+
+	baseDecl, err = assertstate.BaseDeclaration(s.state)
+	c.Assert(err, IsNil)
+	c.Check(baseDecl, NotNil)
+	c.Check(baseDecl.PlugRule("iface"), NotNil)
+}
+
+func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.SnapName(), Equals, "foo")
+}
+
+func (s *assertMgrSuite) TestAutoAliases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// prereqs for developer assertions in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// not from the store
+	aliases, err := assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"})
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// missing
+	_, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "baz",
+			SnapID:   "baz-id",
+		},
+	})
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+
+	// empty list
+	// have a declaration in the system db
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// some aliases
+	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
+		"auto-aliases": []interface{}{"alias1", "alias2"},
+		"revision":     "1",
+	})
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(aliases, DeepEquals, []string{"alias1", "alias2"})
 }

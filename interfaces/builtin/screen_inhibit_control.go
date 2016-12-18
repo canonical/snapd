@@ -26,6 +26,7 @@ import (
 const screenInhibitControlConnectedPlugAppArmor = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
 #include <abstractions/dbus-session-strict>
+#include <abstractions/dbus-strict>
 
 # gnome-session
 dbus (send)
@@ -78,6 +79,5 @@ func NewScreenInhibitControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  screenInhibitControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
 	}
 }

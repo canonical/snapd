@@ -29,7 +29,8 @@ import (
 
 var shortHelpHelp = i18n.G("Help")
 var longHelpHelp = i18n.G(`
-How help for the snap command.`)
+The help command shows helpful information. Unlike this. ;-)
+`)
 
 type cmdHelp struct {
 	Manpage bool `long:"man"`

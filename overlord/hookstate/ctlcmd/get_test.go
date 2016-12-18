@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
+	"strings"
 )
 
 type getSuite struct {
@@ -57,43 +58,70 @@ func (s *getSuite) SetUpTest(c *C) {
 	transaction.Commit()
 }
 
-func (s *getSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "initial-key"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "\"initial-value\"")
-}
+var getTests = []struct {
+	args, stdout, error string
+}{{
+	args:  "get --foo",
+	error: ".*unknown flag.*foo.*",
+}, {
+	args:   "get test-key1",
+	stdout: "test-value1\n",
+}, {
+	args:   "get test-key2",
+	stdout: "2\n",
+}, {
+	args:   "get missing-key",
+	stdout: "\n",
+}, {
+	args:   "get -t test-key1",
+	stdout: "\"test-value1\"\n",
+}, {
+	args:   "get -t test-key2",
+	stdout: "2\n",
+}, {
+	args:   "get -t missing-key",
+	stdout: "null\n",
+}, {
+	args:   "get -d test-key1",
+	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
+}, {
+	args:   "get test-key1 test-key2",
+	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}}
 
-func (s *getSuite) TestCommandGetsSettedValues(c *C) {
-	// Set a value via the `snapctl set` command
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar"})
-	c.Check(err, IsNil)
+func (s *getSuite) TestGetTests(c *C) {
+	for _, test := range getTests {
+		c.Logf("Test: %s", test.args)
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "foo"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "\"bar\"")
-}
+		mockHandler := hooktest.NewMockHandler()
 
-func (s *getSuite) TestCommandMultipleKeys(c *C) {
-	// Set a value via the `snapctl set` command
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key=test-value"})
-	c.Check(err, IsNil)
+		state := state.New(nil)
+		state.Lock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "initial-key", "test-key"})
-	c.Check(err, IsNil)
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, `{
-	"initial-key": "initial-value",
-	"test-key": "test-value"
-}`)
-}
+		task := state.NewTask("test-task", "my test task")
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
-func (s *getSuite) TestCommandWithNoConfig(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "foo"})
-	c.Check(err, ErrorMatches, ".*snap.*has no.*configuration option.*")
-	c.Check(string(stderr), Equals, "")
-	c.Check(string(stdout), Equals, "")
+		var err error
+		mockContext, err := hookstate.NewContext(task, setup, mockHandler)
+		c.Check(err, IsNil)
+
+		// Initialize configuration
+		t := configstate.NewTransaction(state)
+		t.Set("test-snap", "test-key1", "test-value1")
+		t.Set("test-snap", "test-key2", 2)
+		t.Commit()
+
+		state.Unlock()
+
+		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args))
+		if test.error != "" {
+			c.Check(err, ErrorMatches, test.error)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(string(stderr), Equals, "")
+			c.Check(string(stdout), Equals, test.stdout)
+		}
+	}
 }
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {

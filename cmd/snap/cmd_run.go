@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -94,19 +96,16 @@ func (x *cmdRun) Execute(args []string) error {
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	if revision.Unset() {
-		// User didn't supply a revision, so we need to get it via the snapd API
-		// here because once we're inside the confinement it may be unavailable.
-		snaps, err := Client().List([]string{snapName})
+		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+		realFn, err := os.Readlink(curFn)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
 		}
-		if len(snaps) == 0 {
-			return nil, fmt.Errorf("cannot find snap %q", snapName)
+		rev := filepath.Base(realFn)
+		revision, err = snap.ParseRevision(rev)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
 		}
-		if len(snaps) > 1 {
-			return nil, fmt.Errorf(i18n.G("multiple snaps for %q: %d"), snapName, len(snaps))
-		}
-		revision = snaps[0].Revision
 	}
 
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
@@ -164,11 +163,8 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	}
 
 	hook := info.Hooks[hookName]
-
-	// Make sure this hook is valid for this snap. If not, don't run it. This
-	// isn't an error, e.g. it will happen if a snap doesn't ship a system hook.
 	if hook == nil {
-		return nil
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), hookName, snapName)
 	}
 
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
@@ -180,11 +176,13 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 
 	cmd := []string{
-		"/usr/bin/ubuntu-core-launcher",
-		securityTag,
-		securityTag,
-		"/usr/lib/snapd/snap-exec",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 	}
+	if info.NeedsClassic() {
+		cmd = append(cmd, "--classic")
+	}
+	cmd = append(cmd, securityTag)
+	cmd = append(cmd, filepath.Join(dirs.LibExecDir, "snap-exec"))
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)

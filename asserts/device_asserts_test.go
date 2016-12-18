@@ -43,17 +43,22 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 	mods.tsLine = "timestamp: " + mods.ts.Format(time.RFC3339) + "\n"
 }
 
-const reqSnaps = "required-snaps:\n  - foo\n  - bar\n"
+const (
+	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
+	sysUserAuths = "system-user-authority: *\n"
+)
 
 const modelExample = "type: model\n" +
 	"authority-id: brand-id1\n" +
 	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
+	"display-name: Baz 3000\n" +
 	"architecture: amd64\n" +
 	"gadget: brand-gadget\n" +
 	"kernel: baz-linux\n" +
 	"store: brand-store\n" +
+	sysUserAuths +
 	reqSnaps +
 	"TSLINE" +
 	"body-length: 0\n" +
@@ -72,11 +77,13 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Series(), Equals, "16")
 	c.Check(model.BrandID(), Equals, "brand-id1")
 	c.Check(model.Model(), Equals, "baz-3000")
+	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -94,6 +101,23 @@ func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	c.Check(model.Store(), Equals, "")
 }
 
+func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "display-name: Baz 3000\n", "display-name: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// optional but we fallback to Model
+	c.Check(model.DisplayName(), Equals, "baz-3000")
+
+	encoded = strings.Replace(withTimestamp, "display-name: Baz 3000\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// optional but we fallback to Model
+	c.Check(model.DisplayName(), Equals, "baz-3000")
+}
+
 func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, reqSnaps, "", 1)
@@ -101,6 +125,22 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
 	c.Check(model.RequiredSnaps(), HasLen, 0)
+}
+
+func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, sysUserAuths, "system-user-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"foo", "bar"})
 }
 
 const (
@@ -119,6 +159,9 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
+		// lift this restriction at a later point
+		{"model: baz-3000\n", "model: BAZ-3000\n", `"model" header cannot contain uppercase letters`},
+		{"display-name: Baz 3000\n", "display-name:\n  - xyz\n", `"display-name" header must be a string`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
@@ -131,6 +174,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{reqSnaps, "required-snaps: foo\n", `"required-snaps" header must be a list of strings`},
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
+		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 	}
 
 	for _, test := range invalidTests {
@@ -269,9 +314,8 @@ func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
 		map[string]interface{}{
-			"brand-id": "brand-id1",
-			"model":    "baz-3000",
-			// TODO add key hash header
+			"brand-id":   "brand-id1",
+			"model":      "baz-3000",
 			"device-key": ss.encodedDevKey,
 			"request-id": "REQID",
 		}, []byte("HW-DETAILS"), ss.deviceKey)
@@ -291,6 +335,30 @@ func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 	c.Check(sreq2.BrandID(), Equals, "brand-id1")
 	c.Check(sreq2.Model(), Equals, "baz-3000")
 	c.Check(sreq2.RequestID(), Equals, "REQID")
+
+	c.Check(sreq2.Serial(), Equals, "")
+}
+
+func (ss *serialSuite) TestSerialRequestHappyOptionalSerial(c *C) {
+	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
+		map[string]interface{}{
+			"brand-id":   "brand-id1",
+			"model":      "baz-3000",
+			"serial":     "pserial",
+			"device-key": ss.encodedDevKey,
+			"request-id": "REQID",
+		}, []byte("HW-DETAILS"), ss.deviceKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(sreq))
+	c.Assert(err, IsNil)
+
+	sreq2, ok := a.(*asserts.SerialRequest)
+	c.Assert(ok, Equals, true)
+
+	c.Check(sreq2.Model(), Equals, "baz-3000")
+	c.Check(sreq2.Serial(), Equals, "pserial")
 }
 
 func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
@@ -299,6 +367,7 @@ func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
 		"model: baz-3000\n" +
 		"device-key:\n    DEVICEKEY\n" +
 		"request-id: REQID\n" +
+		"serial: S\n" +
 		"body-length: 2\n" +
 		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
 		"HW" +
@@ -315,6 +384,7 @@ func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
+		{"serial: S\n", "serial:\n  - xyz\n", `"serial" header must be a string`},
 	}
 
 	for _, test := range invalidTests {
@@ -340,45 +410,6 @@ func (ss *serialSuite) TestSerialRequestDecodeKeyIDMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, "assertion serial-request: device key does not match included signing key id")
-}
-
-func (ss *serialSuite) TestSerialProofHappy(c *C) {
-	sproof, err := asserts.SignWithoutAuthority(asserts.SerialProofType,
-		map[string]interface{}{
-			"nonce": "NONCE",
-		}, nil, ss.deviceKey)
-	c.Assert(err, IsNil)
-
-	// roundtrip
-	a, err := asserts.Decode(asserts.Encode(sproof))
-	c.Assert(err, IsNil)
-
-	sproof2, ok := a.(*asserts.SerialProof)
-	c.Assert(ok, Equals, true)
-
-	// standalone signature check
-	err = asserts.SignatureCheck(sproof2, ss.deviceKey.PublicKey())
-	c.Check(err, IsNil)
-
-	c.Check(sproof2.Nonce(), Equals, "NONCE")
-}
-
-func (ss *serialSuite) TestSerialProofDecodeInvalid(c *C) {
-	encoded := "type: serial-proof\n" +
-		"nonce: NONCE\n" +
-		"body-length: 0\n" +
-		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
-		"AXNpZw=="
-
-	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"nonce: NONCE\n", "nonce: \n", `"nonce" header should not be empty`},
-	}
-
-	for _, test := range invalidTests {
-		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, serialProofErrPrefix+test.expectedErr)
-	}
 }
 
 func (ss *serialSuite) TestDeviceSessionRequest(c *C) {

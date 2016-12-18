@@ -20,6 +20,7 @@ restore: |
     rm -f mount-observe-consumer_1.0_all.snap
 
 execute: |
+    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN=":mount-observe +mount-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +mount-observe-consumer:mount-observe"
 
@@ -29,7 +30,7 @@ execute: |
     echo "========================================="
 
     echo "When the plug is connected"
-    snap connect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap connect mount-observe-consumer:mount-observe ${core_name}:mount-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the mount info is reachable"
@@ -39,7 +40,7 @@ execute: |
     echo "========================================="
 
     echo "When the plug is disconnected"
-    snap disconnect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap disconnect mount-observe-consumer:mount-observe ${core_name}:mount-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the mount info is not reachable"
@@ -51,11 +52,11 @@ execute: |
     echo "========================================="
 
     echo "When the plug is connected"
-    snap connect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap connect mount-observe-consumer:mount-observe ${core_name}:mount-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And a new mount is created"
-    . $TESTSLIB/snaps.sh
+    . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools
 
     echo "Then the new mount info is reachable"

@@ -21,6 +21,8 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -28,8 +30,9 @@ import (
 // about the properties of a device model.
 type Model struct {
 	assertionBase
-	requiredSnaps []string
-	timestamp     time.Time
+	requiredSnaps    []string
+	sysUserAuthority []string
+	timestamp        time.Time
 }
 
 // BrandID returns the brand identifier. Same as the authority id.
@@ -40,6 +43,16 @@ func (mod *Model) BrandID() string {
 // Model returns the model name identifier.
 func (mod *Model) Model() string {
 	return mod.HeaderString("model")
+}
+
+// DisplayName returns the human-friendly name of the model or
+// falls back to Model if this was not set.
+func (mod *Model) DisplayName() string {
+	display := mod.HeaderString("display-name")
+	if display == "" {
+		return mod.Model()
+	}
+	return display
 }
 
 // Series returns the series of the core software the model uses.
@@ -72,6 +85,11 @@ func (mod *Model) RequiredSnaps() []string {
 	return mod.requiredSnaps
 }
 
+// SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
+func (mod *Model) SystemUserAuthority() []string {
+	return mod.sysUserAuthority
+}
+
 // Timestamp returns the time when the model assertion was issued.
 func (mod *Model) Timestamp() time.Time {
 	return mod.timestamp
@@ -86,6 +104,21 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
+// limit model to only lowercase for now
+var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+func checkModel(headers map[string]interface{}) (string, error) {
+	s, err := checkStringMatches(headers, "model", validModel)
+	if err != nil {
+		return "", err
+	}
+	// TODO: support the concept of case insensitive/preserving string headers
+	if strings.ToLower(s) != s {
+		return "", fmt.Errorf(`"model" header cannot contain uppercase letters`)
+	}
+	return s, nil
+}
+
 func checkAuthorityMatchesBrand(a Assertion) error {
 	typeName := a.Type().Name
 	authorityID := a.AuthorityID()
@@ -96,10 +129,39 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
+var (
+	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$") // account ids look like snap-ids or are nice identifier
+)
+
+func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	const name = "system-user-authority"
+	v, ok := headers[name]
+	if !ok {
+		return []string{brandID}, nil
+	}
+	switch x := v.(type) {
+	case string:
+		if x == "*" {
+			return nil, nil
+		}
+	case []interface{}:
+		lst, err := checkStringListMatches(headers, name, validAccountID)
+		if err == nil {
+			return lst, nil
+		}
+	}
+	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
+}
+
 var modelMandatory = []string{"architecture", "gadget", "kernel"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +178,18 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	// display-name is optional but must be a string
+	_, err = checkOptionalString(assert.headers, "display-name")
+	if err != nil {
+		return nil, err
+	}
+
 	reqSnaps, err := checkStringList(assert.headers, "required-snaps")
+	if err != nil {
+		return nil, err
+	}
+
+	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))
 	if err != nil {
 		return nil, err
 	}
@@ -135,9 +208,10 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
-		assertionBase: assert,
-		requiredSnaps: reqSnaps,
-		timestamp:     timestamp,
+		assertionBase:    assert,
+		requiredSnaps:    reqSnaps,
+		sysUserAuthority: sysUserAuthority,
+		timestamp:        timestamp,
 	}, nil
 }
 
@@ -183,6 +257,11 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	_, err = checkModel(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
 	encodedKey, err := checkNotEmptyString(assert.headers, "device-key")
 	if err != nil {
 		return nil, err
@@ -212,27 +291,6 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// SerialProof is deprecated.
-type SerialProof struct {
-	assertionBase
-}
-
-// Nonce returns the nonce obtained from store and to be presented when requesting a device session.
-func (sproof *SerialProof) Nonce() string {
-	return sproof.HeaderString("nonce")
-}
-
-func assembleSerialProof(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "nonce")
-	if err != nil {
-		return nil, err
-	}
-
-	return &SerialProof{
-		assertionBase: assert,
-	}, nil
-}
-
 // SerialRequest holds a serial-request assertion, which is a self-signed request to obtain a full device identity bound to the device public key.
 type SerialRequest struct {
 	assertionBase
@@ -247,6 +305,11 @@ func (sreq *SerialRequest) BrandID() string {
 // Model returns the model name identifier of the device making the request.
 func (sreq *SerialRequest) Model() string {
 	return sreq.HeaderString("model")
+}
+
+// Serial returns the optional proposed serial identifier for the device, the service taking the request might use it or ignore it.
+func (sreq *SerialRequest) Serial() string {
+	return sreq.HeaderString("serial")
 }
 
 // RequestID returns the id for the request, obtained from and to be presented to the serial signing service.
@@ -265,12 +328,17 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "model")
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = checkNotEmptyString(assert.headers, "request-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkOptionalString(assert.headers, "serial")
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +397,12 @@ func (req *DeviceSessionRequest) Timestamp() time.Time {
 }
 
 func assembleDeviceSessionRequest(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "nonce")
+	_, err := checkModel(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "nonce")
 	if err != nil {
 		return nil, err
 	}

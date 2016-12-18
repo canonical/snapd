@@ -52,9 +52,9 @@ var (
 
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
+	SnapAssertsSpoolDir   string
 
-	SnapStateFile      string
-	SnapFirstBootStamp string
+	SnapStateFile string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -66,6 +66,8 @@ var (
 	ClassicDir string
 
 	LibExecDir string
+
+	XdgRuntimeDirGlob string
 )
 
 var (
@@ -121,15 +123,12 @@ func SetRootDir(rootdir string) {
 	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
+	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
-
-	// NOTE: if you change stampFile, update the condition in
-	// snapd.firstboot.service to match
-	SnapFirstBootStamp = filepath.Join(rootdir, snappyDir, "firstboot", "stamp")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
@@ -145,4 +144,6 @@ func SetRootDir(rootdir string) {
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
 	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+
+	XdgRuntimeDirGlob = filepath.Join(rootdir, "/run/user/*/")
 }

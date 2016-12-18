@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -e
+
+ID="$1"
+VERSION_ID="$2"
+
+DST="debian-$ID-$VERSION_ID"
+rm -rf $DST
+mkdir -p "$DST"
+
+if ! git remote | grep upstream; then
+    git remote add upstream https://github.com/snapcore/snapd
+fi
+git fetch upstream
+
+git ls-tree upstream/"$ID"/"$VERSION_ID" debian/ | while read line ; do
+    file=$(basename $(echo $line | cut -d " " -f4))
+    hash=$(echo $line | cut -d " " -f3)
+    type=$(echo $line | cut -d " " -f2)
+    # FIXME: deal with subdirs
+    if [ "$type" = "blob" ]; then
+        git cat-file -p $hash > "$DST/$file"
+    fi
+done

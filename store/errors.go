@@ -55,6 +55,9 @@ var (
 
 	// ErrNoPaymentMethods is returned when the user has no valid payment methods associated with their account.
 	ErrNoPaymentMethods = errors.New("no payment methods")
+
+	// ErrPaymentDeclined is returned when the user's payment method was declined by the upstream payment provider.
+	ErrPaymentDeclined = errors.New("payment declined")
 )
 
 // ErrDownload represents a download error

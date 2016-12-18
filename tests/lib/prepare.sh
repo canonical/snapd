@@ -10,9 +10,9 @@ update_core_snap_with_snap_exec_snapctl() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f /snap/ubuntu-core/current)"
+    core="$(readlink -f /snap/core/current || readlink -f /snap/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
-    umount "$core"
+    umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec and snapctl into it, and
     # repack it.
@@ -40,14 +40,24 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
+    apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
     apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+    if snap --version |MATCH unknown; then
+        echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+        exit 1
+    fi
+    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
+        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
+        exit 1
+    fi
 
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        # FIXME: go back to stable once we have a stable release with
-        #        the snap-exec fix
-        snap install --candidate ubuntu-core
+        # use parameterized core channel (defaults to edge) instead
+        # of a fixed one and close to stable in order to detect defects
+        # earlier
+        snap install --${CORE_CHANNEL} core
         snap list | grep core
 
         echo "Ensure that the grub-editenv list output is empty on classic"
@@ -80,9 +90,10 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+        apt-get clean
 
-        snap install --edge ubuntu-core
+        snap install --${CORE_CHANNEL} core
 
         # install ubuntu-image
         snap install --devmode --edge ubuntu-image
@@ -94,8 +105,8 @@ setup_reflash_magic() {
 
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
-        UNPACKD="/tmp/ubuntu-core-snap"
-        unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
+        UNPACKD="/tmp/core-snap"
+        unsquashfs -d $UNPACKD /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
@@ -105,6 +116,7 @@ setup_reflash_magic() {
         echo "$want_pw" > /tmp/new-shadow
         tail -n +2 /etc/shadow >> /tmp/new-shadow
         cp -v /tmp/new-shadow $UNPACKD/etc/shadow
+        cp -v /etc/passwd $UNPACKD/etc/passwd
 
         # ensure spread -reuse works in the core image as well
         if [ -e /.spread.yaml ]; then
@@ -112,8 +124,13 @@ setup_reflash_magic() {
         fi
 
         # we need the test user in the image
-        chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+        # see the comment in spread.yaml about 12345
+        sed -i "s/^test.*$//" $UNPACKD/etc/{shadow,passwd}
+        chroot $UNPACKD addgroup --quiet --gid 12345 test
+        chroot $UNPACKD adduser --quiet --no-create-home --uid 12345 --gid 12345 --disabled-password --gecos '' test
         echo 'test ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-test-user
+
+        echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-ubuntu-user
 
         # modify sshd so that we can connect as root
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
@@ -122,6 +139,19 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+        dpkg-deb -x ${SPREAD_PATH}/../snap-confine_*.deb $UNPACKD
+
+        # add gpio and iio slots
+        cat >> $UNPACKD/meta/snap.yaml <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
 
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
@@ -160,7 +190,7 @@ EOF
         # when the snap uses confinement.
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
-        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
@@ -171,13 +201,16 @@ EOF
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
-        chown 1000:1000 /mnt/user-data/test
+        # using symbolic names requires test:test have the same ids
+        # inside and outside which is a pain (see 12345 above), but
+        # using the ids directly is the wrong kind of fragile
+        chown --verbose test:test /mnt/user-data/test
 
         # we do what sync-dirs is normally doing on boot, but because
         # we have subdirs/files in /etc/systemd/system (created below)
         # the writeable-path sync-boot won't work
         mkdir -p /mnt/system-data/etc/systemd
-        (cd /tmp ; unsquashfs -v $IMAGE_HOME/ubuntu-core_*.snap etc/systemd/system)
+        (cd /tmp ; unsquashfs -v $IMAGE_HOME/core_*.snap etc/systemd/system)
         cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 
         # FIXUP silly systemd
@@ -187,6 +220,7 @@ EOF
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
@@ -241,10 +275,16 @@ prepare_all_snap() {
         fi
     fi
 
+    echo "Wait for firstboot change to be ready"
+    while ! snap changes | grep "Done"; do
+        snap changes || true
+        snap change 1 || true
+        sleep 1
+    done
+
     echo "Ensure fundamental snaps are still present"
-    . $TESTSLIB/gadget.sh
-    gadget_name=$(get_gadget_name)
-    for name in $gadget_name ${gadget_name}-kernel ubuntu-core; do
+    . $TESTSLIB/names.sh
+    for name in $gadget_name $kernel_name $core_name; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -254,12 +294,25 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
+    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
-    # Snapshot the fresh state
+    # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        # we need to ensure that we also restore the boot environment
+        # fully for tests that break it
+        BOOT=""
+        if ls /boot/uboot/*; then
+            BOOT=/boot/uboot/
+        elif ls /boot/grub/*; then
+            BOOT=/boot/grub/
+        else
+            echo "Cannot determine bootdir in /boot:"
+            ls /boot
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
 }

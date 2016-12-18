@@ -71,7 +71,7 @@ func plugAppLabelExpr(plug *interfaces.Plug) []byte {
 }
 
 // Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int, usbProduct int, key string, data string) []byte {
+func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) []byte {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
 	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
 	const udevSuffix string = `, %s+="%s"`
@@ -82,4 +82,13 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int, usbProduct int, key s
 	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
 	udevSnippet.WriteString("\n")
 	return udevSnippet.Bytes()
+}
+
+// Function to create an udev TAG, essentially the cgroup name for
+// the snap application.
+// @param snapName is the name of the snap
+// @param appName is the name of the application
+// @return string "snap_<snap name>_<app name>"
+func udevSnapSecurityName(snapName string, appName string) string {
+	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
 }

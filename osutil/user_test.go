@@ -21,8 +21,10 @@ package osutil_test
 
 import (
 	"io/ioutil"
+	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/check.v1"
 
@@ -33,9 +35,11 @@ import (
 type createUserSuite struct {
 	testutil.BaseTest
 
-	mockHome    string
-	restorer    func()
+	mockHome string
+	restorer func()
+
 	mockAddUser *testutil.MockCmd
+	mockUserMod *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
@@ -53,7 +57,8 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 			Uid:     current.Uid,
 		}, nil
 	})
-	s.mockAddUser = testutil.MockCommand(c, "adduser", "true")
+	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
+	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
 }
 
 func (s *createUserSuite) TearDownTest(c *check.C) {
@@ -128,4 +133,56 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 func (s *createUserSuite) TestAddUserInvalidUsername(c *check.C) {
 	err := osutil.AddUser("k!", nil)
 	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
+}
+
+func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
+	mockSudoers := c.MkDir()
+	restorer := osutil.MockSudoersDotD(mockSudoers)
+	defer restorer()
+
+	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
+		Gecos:    "my gecos",
+		Password: "$6$salt$hash",
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
+		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "karl.sagan"},
+	})
+	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
+		{"usermod", "--password", "$6$salt$hash", "karl.sagan"},
+	})
+
+}
+
+func (s *createUserSuite) TestRealUser(c *check.C) {
+	oldUser := os.Getenv("SUDO_USER")
+	defer func() { os.Setenv("SUDO_USER", oldUser) }()
+
+	for _, t := range []struct {
+		SudoUsername    string
+		CurrentUsername string
+		CurrentUid      int
+	}{
+		// simulate regular "root", no SUDO_USER set
+		{"", os.Getenv("USER"), 0},
+		// simulate a normal sudo invocation
+		{"guy", "guy", 0},
+		// simulate running "sudo -u some-user -i" as root
+		// (LP: #1638656)
+		{"root", os.Getenv("USER"), 1000},
+	} {
+		restore := osutil.MockUserCurrent(func() (*user.User, error) {
+			return &user.User{
+				Username: t.CurrentUsername,
+				Uid:      strconv.Itoa(t.CurrentUid),
+			}, nil
+		})
+		defer restore()
+
+		os.Setenv("SUDO_USER", t.SudoUsername)
+		cur, err := osutil.RealUser()
+		c.Assert(err, check.IsNil)
+		c.Check(cur.Username, check.Equals, t.CurrentUsername)
+	}
 }

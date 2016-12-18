@@ -8,6 +8,7 @@ _configure_store_backends(){
     mkdir -p $(dirname $STORE_CONFIG)
     cat > $STORE_CONFIG <<EOF
 [Service]
+Environment=SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7
 Environment=$*
 EOF
     systemctl daemon-reload
@@ -24,16 +25,18 @@ setup_fake_store(){
 
     https_proxy=${https_proxy:-}
     http_proxy=${http_proxy:-}
-    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} $@"
+    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} $@" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7"
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_CPI_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028"
 }
 
 setup_staging_store(){
-    echo "Given ubuntu-core snap is available before switching to staging"
-    if ! snap list | grep -q ubuntu-core; then
-        snap install ubuntu-core
+    . "$TESTSLIB/names.sh"
+    echo "Given the core snap is available before switching to staging"
+
+    if [ -z "${core_name}" ]; then
+        snap install core
     fi
 
     echo "And snapd is configured to use the staging store"

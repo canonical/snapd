@@ -21,6 +21,8 @@ restore: |
     rm -f process-control-consumer_1.0_all.snap process-kill.error process-nice.error
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     CONNECTED_PATTERN=":process-control +process-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +process-control-consumer:process-control"
 
@@ -30,7 +32,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect process-control-consumer:process-control ubuntu-core:process-control
+    snap connect process-control-consumer:process-control ${core_name}:process-control
 
     echo "Then the snap is able to kill an existing process"
     while :; do sleep 1; done &
@@ -42,7 +44,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect process-control-consumer:process-control ubuntu-core:process-control
+    snap disconnect process-control-consumer:process-control ${core_name}:process-control
 
     echo "Then the snap is not able to kill an existing process"
     while :; do sleep 1; done &

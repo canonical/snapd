@@ -82,7 +82,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snap/hello/14", "mount")
+	mup := systemd.MountUnitPath("/snap/hello/14")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/hello/14")

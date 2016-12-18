@@ -97,7 +97,7 @@ func (s *patch1Suite) SetUpTest(c *C) {
 }
 
 func (s *patch1Suite) TestPatch1(c *C) {
-	restore := patch.MockReadInfo(s.readInfo)
+	restore := patch.MockPatch1ReadType(s.readType)
 	defer restore()
 
 	r, err := os.Open(dirs.SnapStateFile)
@@ -142,18 +142,17 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	c.Assert(patchLevel, Equals, 1)
 }
 
-func (s *patch1Suite) readInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+func (s *patch1Suite) readType(name string, rev snap.Revision) (snap.Type, error) {
 	if name == "borken" {
-		return nil, errors.New(`cannot read info for "borken" snap`)
+		return snap.TypeApp, errors.New(`cannot read info for "borken" snap`)
 	}
 	// naive emulation for now, always works
-	info := &snap.Info{SuggestedName: name, SideInfo: *si}
-	info.Type = snap.TypeApp
 	if name == "gadget" {
-		info.Type = snap.TypeGadget
+		return snap.TypeGadget, nil
 	}
 	if name == "core" {
-		info.Type = snap.TypeOS
+		return snap.TypeOS, nil
 	}
-	return info, nil
+
+	return snap.TypeApp, nil
 }

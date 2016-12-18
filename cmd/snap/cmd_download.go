@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -39,13 +41,14 @@ type cmdDownload struct {
 	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string
+		Snap remoteSnapName
 	} `positional-args:"true" required:"true"`
 }
 
-var shortDownloadHelp = i18n.G("Download a given snap")
+var shortDownloadHelp = i18n.G("Downloads the given snap")
 var longDownloadHelp = i18n.G(`
-The download command will download the given snap and its supporting assertions to the current directory.
+The download command downloads the given snap and its supporting assertions
+to the current directory under .snap and .assert file extensions, respectively.
 `)
 
 func init() {
@@ -68,7 +71,8 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 		return err
 	}
 
-	w, err := os.Create(snapPath + ".assertions")
+	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
+	w, err := os.Create(assertPath)
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
@@ -103,7 +107,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		}
 	}
 
-	snapName := x.Positional.Snap
+	snapName := string(x.Positional.Snap)
 
 	// FIXME: set auth context
 	var authContext auth.AuthContext

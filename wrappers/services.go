@@ -58,20 +58,6 @@ func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
 	return genServiceFile(app), nil
 }
 
-func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
-	if err := snap.ValidateApp(app); err != nil {
-		return "", err
-	}
-
-	// lp: #1515709, systemd will default to 0666 if no socket mode
-	// is specified
-	if app.SocketMode == "" {
-		app.SocketMode = "0660"
-	}
-
-	return genSocketFile(app), nil
-}
-
 // StartSnapServices starts service units for the applications from the snap which are services.
 func StartSnapServices(s *snap.Info, inter interacter) error {
 	for _, app := range s.Apps {
@@ -91,18 +77,6 @@ func StartSnapServices(s *snap.Info, inter interacter) error {
 
 		if err := sysd.Start(serviceName); err != nil {
 			return err
-		}
-
-		if app.Socket {
-			socketName := filepath.Base(app.ServiceSocketFile())
-			// enable the socket
-			if err := sysd.Enable(socketName); err != nil {
-				return err
-			}
-
-			if err := sysd.Start(socketName); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -125,18 +99,6 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 		if err := osutil.AtomicWriteFile(svcFilePath, []byte(content), 0644, 0); err != nil {
 			return err
 		}
-		// Generate systemd socket file if needed
-		if app.Socket {
-			content, err := generateSnapSocketFile(app)
-			if err != nil {
-				return err
-			}
-			svcSocketFilePath := app.ServiceSocketFile()
-			os.MkdirAll(filepath.Dir(svcSocketFilePath), 0755)
-			if err := osutil.AtomicWriteFile(svcSocketFilePath, []byte(content), 0644, 0); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
@@ -146,14 +108,12 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 func StopSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
-	nservices := 0
-
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
+		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
+		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		nservices++
-
 		serviceName := filepath.Base(app.ServiceFile())
 		tout := serviceStopTimeout(app)
 		if err := sysd.Stop(serviceName, tout); err != nil {
@@ -166,7 +126,6 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 			time.Sleep(killWait)
 			sysd.Kill(serviceName, "KILL")
 		}
-
 	}
 
 	return nil
@@ -180,7 +139,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	nservices := 0
 
 	for _, app := range s.Apps {
-		if app.Daemon == "" {
+		if app.Daemon == "" || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		nservices++
@@ -213,8 +172,9 @@ func genServiceFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
-After=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
-Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
+Requires={{.MountUnit}}
+Wants={{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}
 X-Snappy=yes
 
 [Service]
@@ -228,10 +188,10 @@ Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
 
 [Install]
-WantedBy={{.ServiceTargetUnit}}
+WantedBy={{.ServicesTarget}}
 `
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
 
 	var restartCond string
 	if appInfo.RestartCond == systemd.RestartNever {
@@ -242,66 +202,29 @@ WantedBy={{.ServiceTargetUnit}}
 	if restartCond == "" {
 		restartCond = systemd.RestartOnFailure.String()
 	}
-	socketFileName := ""
-	if appInfo.Socket {
-		socketFileName = filepath.Base(appInfo.ServiceSocketFile())
-	}
 
 	wrapperData := struct {
 		App *snap.AppInfo
 
-		SocketFileName    string
-		Restart           string
-		StopTimeout       time.Duration
-		ServiceTargetUnit string
+		Restart            string
+		StopTimeout        time.Duration
+		ServicesTarget     string
+		PrerequisiteTarget string
+		MountUnit          string
 
 		Home    string
 		EnvVars string
 	}{
 		App: appInfo,
 
-		SocketFileName:    socketFileName,
-		Restart:           restartCond,
-		StopTimeout:       serviceStopTimeout(appInfo),
-		ServiceTargetUnit: systemd.ServicesTarget,
+		Restart:            restartCond,
+		StopTimeout:        serviceStopTimeout(appInfo),
+		ServicesTarget:     systemd.ServicesTarget,
+		PrerequisiteTarget: systemd.PrerequisiteTarget,
+		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
-	}
-
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
-
-	return templateOut.String()
-}
-
-func genSocketFile(appInfo *snap.AppInfo) string {
-	serviceTemplate := `[Unit]
-# Auto-generated, DO NO EDIT
-Description=Socket for snap application {{.App.Snap.Name}}.{{.App.Name}}
-PartOf={{.ServiceFileName}}
-X-Snappy=yes
-
-[Socket]
-ListenStream={{.App.ListenStream}}
-{{if .App.SocketMode}}SocketMode={{.App.SocketMode}}{{end}}
-
-[Install]
-WantedBy={{.SocketTargetUnit}}
-`
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-
-	wrapperData := struct {
-		App              *snap.AppInfo
-		ServiceFileName  string
-		SocketTargetUnit string
-	}{
-		App:              appInfo,
-		ServiceFileName:  filepath.Base(appInfo.ServiceFile()),
-		SocketTargetUnit: systemd.SocketsTarget,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

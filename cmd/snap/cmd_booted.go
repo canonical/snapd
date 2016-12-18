@@ -23,12 +23,6 @@ import (
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/boot"
-	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/release"
 )
 
 type cmdBooted struct{}
@@ -43,28 +37,14 @@ func init() {
 	cmd.hidden = true
 }
 
+// WARNING: do not remove this command, older systems may still have
+//          a systemd snapd.firstboot.service job in /etc/systemd/system
+//          that we did not cleanup. so we need this dummy command or
+//          those units will start failing.
 func (x *cmdBooted) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	if release.OnClassic {
-		fmt.Fprintf(Stdout, i18n.G("Ignoring 'booted' on classic"))
-		return nil
-	}
-
-	bootloader, err := partition.FindBootloader()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-	}
-
-	if err := partition.MarkBootSuccessful(bootloader); err != nil {
-		return err
-	}
-
-	ovld, err := overlord.New()
-	if err != nil {
-		return err
-	}
-	return boot.UpdateRevisions(ovld)
+	fmt.Fprintf(Stderr, "booted command is deprecated")
+	return nil
 }

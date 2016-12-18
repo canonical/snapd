@@ -82,7 +82,7 @@ type aboutSnap struct {
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
-func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
+func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -93,8 +93,23 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for _, snapState := range snapStates {
-		info, err := snapState.CurrentInfo()
+	for _, snapst := range snapStates {
+		var infos []*snap.Info
+		var info *snap.Info
+		var err error
+		if all {
+			for _, seq := range snapst.Sequence {
+				info, err = snap.ReadInfo(seq.RealName, seq)
+				if err != nil {
+					break
+				}
+				infos = append(infos, info)
+			}
+		} else {
+			info, err = snapst.CurrentInfo()
+			infos = append(infos, info)
+		}
+
 		if err != nil {
 			// XXX: aggregate instead?
 			if firstErr == nil {
@@ -102,7 +117,9 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 			}
 			continue
 		}
-		about = append(about, aboutSnap{info, snapState})
+		for _, info := range infos {
+			about = append(about, aboutSnap{info, snapst})
+		}
 	}
 
 	return about, firstErr
@@ -110,7 +127,9 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -129,7 +148,9 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 	apps := make([]appJSON, 0, len(localSnap.Apps))
 	for _, app := range localSnap.Apps {
 		apps = append(apps, appJSON{
-			Name: app.Name,
+			Name:    app.Name,
+			Daemon:  app.Daemon,
+			Aliases: app.Aliases,
 		})
 	}
 
@@ -148,8 +169,9 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"version":        localSnap.Version,
 		"channel":        localSnap.Channel,
 		"confinement":    localSnap.Confinement,
-		"devmode":        snapst.DevMode(),
-		"trymode":        snapst.TryMode(),
+		"devmode":        snapst.DevMode,
+		"trymode":        snapst.TryMode,
+		"jailmode":       snapst.JailMode,
 		"private":        localSnap.Private,
 		"apps":           apps,
 		"broken":         localSnap.Broken,
@@ -200,5 +222,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	if len(remoteSnap.Prices) > 0 {
 		result["prices"] = remoteSnap.Prices
 	}
+
+	if len(remoteSnap.Channels) > 0 {
+		result["channels"] = remoteSnap.Channels
+	}
+
 	return result
 }

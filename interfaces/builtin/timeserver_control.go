@@ -26,11 +26,58 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
+# Can enable system clock NTP synchronization via timedated D-Bus interface,
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/
 # Usage: reserved
+
+#include <abstractions/dbus-strict>
 
 # Won't work until LP: #1504657 is fixed. Requires reboot until timesyncd
 # notices the change or systemd restarts it.
 /etc/systemd/timesyncd.conf rw,
+
+# Introspection of org.freedesktop.timedate1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.timedate1
+    member="SetNTP"
+    peer=(label=unconfined),
+
+# Read all properties from timedate1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
+
+# Receive timedate1 property changed events
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+`
+const timeserverControlConnectedPlugSecComp = `
+# dbus
+connect
+getsockname
+recvmsg
+recvfrom
+send
+sendto
+sendmsg
+socket
 `
 
 // NewTimeserverControlInterface returns a new "timeserver-control" interface.
@@ -38,6 +85,7 @@ func NewTimeserverControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timeserver-control",
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

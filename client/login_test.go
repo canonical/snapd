@@ -41,20 +41,21 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
-	c.Assert(cs.cli.LoggedIn(), check.Equals, false)
+	c.Assert(cs.cli.LoggedInUser(), check.IsNil)
 
 	user, err := cs.cli.Login("username", "pass", "")
 	c.Check(err, check.IsNil)
 	c.Check(user, check.DeepEquals, &client.User{
+		Username:   "the-user-name",
 		Macaroon:   "the-root-macaroon",
 		Discharges: []string{"discharge-macaroon"}})
 
-	c.Assert(cs.cli.LoggedIn(), check.Equals, true)
+	c.Assert(cs.cli.LoggedInUser(), check.Not(check.IsNil))
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(string(content), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginError(c *check.C) {

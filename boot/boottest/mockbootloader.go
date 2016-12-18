@@ -27,6 +27,8 @@ import (
 // set/get calls.
 type MockBootloader struct {
 	BootVars map[string]string
+	SetErr   error
+	GetErr   error
 
 	name    string
 	bootdir string
@@ -41,13 +43,20 @@ func NewMockBootloader(name, bootdir string) *MockBootloader {
 	}
 }
 
-func (b *MockBootloader) SetBootVar(key, value string) error {
-	b.BootVars[key] = value
-	return nil
+func (b *MockBootloader) SetBootVars(values map[string]string) error {
+	for k, v := range values {
+		b.BootVars[k] = v
+	}
+	return b.SetErr
 }
 
-func (b *MockBootloader) GetBootVar(key string) (string, error) {
-	return b.BootVars[key], nil
+func (b *MockBootloader) GetBootVars(keys ...string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, k := range keys {
+		out[k] = b.BootVars[k]
+	}
+
+	return out, b.GetErr
 }
 
 func (b *MockBootloader) Dir() string {

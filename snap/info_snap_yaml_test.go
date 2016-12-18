@@ -162,6 +162,35 @@ plugs:
 	})
 }
 
+func (s *YamlSuite) TestUnmarshalStandalonePlugWithIntAndListAndMap(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    iface:
+        interface: complex
+        i: 3
+        l: [1,2,3]
+        m:
+          a: A
+          b: B
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Assert(info.Plugs["iface"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "iface",
+		Interface: "complex",
+		Attrs: map[string]interface{}{
+			"i": int64(3),
+			"l": []interface{}{int64(1), int64(2), int64(3)},
+			"m": map[string]interface{}{"a": "A", "b": "B"},
+		},
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalLastPlugDefinitionWins(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -182,7 +211,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Attrs:     map[string]interface{}{"attr": int64(2)},
 	})
 }
 
@@ -410,6 +439,32 @@ plugs:
 	c.Assert(err, ErrorMatches, `plug "serial" uses reserved attribute "\$baud-rate"`)
 }
 
+func (s *YamlSuite) TestUnmarshalInvalidPlugAttribute(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    serial:
+        interface: serial-port
+        foo: null
+`))
+	c.Assert(err, ErrorMatches, `attribute "foo" of plug \"serial\": invalid attribute scalar:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalInvalidAttributeMapKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    serial:
+        interface: serial-port
+        bar:
+          baz:
+          - 1: A
+`))
+	c.Assert(err, ErrorMatches, `attribute "bar" of plug \"serial\": non-string key in attribute map: 1`)
+}
+
 // Tests focusing on slots
 
 func (s *YamlSuite) TestUnmarshalStandaloneImplicitSlot(c *C) {
@@ -488,6 +543,34 @@ slots:
 	})
 }
 
+func (s *YamlSuite) TestUnmarshalStandaloneSlotWithIntAndListAndMap(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    iface:
+        interface: complex
+        i: 3
+        l: [1,2]
+        m:
+          a: "A"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Assert(info.Slots["iface"], DeepEquals, &snap.SlotInfo{
+		Snap:      info,
+		Name:      "iface",
+		Interface: "complex",
+		Attrs: map[string]interface{}{
+			"i": int64(3),
+			"l": []interface{}{int64(1), int64(2)},
+			"m": map[string]interface{}{"a": "A"},
+		},
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalLastSlotDefinitionWins(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -508,7 +591,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
-		Attrs:     map[string]interface{}{"attr": 2},
+		Attrs:     map[string]interface{}{"attr": int64(2)},
 	})
 }
 
@@ -696,6 +779,18 @@ slots:
         $baud-rate: [9600]
 `))
 	c.Assert(err, ErrorMatches, `slot "serial" uses reserved attribute "\$baud-rate"`)
+}
+
+func (s *YamlSuite) TestUnmarshalInvalidSlotAttribute(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    serial:
+        interface: serial-port
+        foo: null
+`))
+	c.Assert(err, ErrorMatches, `attribute "foo" of slot \"serial\": invalid attribute scalar:.*`)
 }
 
 func (s *YamlSuite) TestUnmarshalHook(c *C) {
@@ -993,7 +1088,7 @@ slots:
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Epoch, Equals, "1*")
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
@@ -1235,10 +1330,7 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
-   socket-mode: socket_mode
-   listen-stream: listen_stream
    bus-name: busName
-   socket: yes
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1252,9 +1344,6 @@ apps:
 			StopTimeout:     timeout.Timeout(25 * time.Second),
 			StopCommand:     "stop-cmd",
 			PostStopCommand: "post-stop-cmd",
-			Socket:          true,
-			SocketMode:      "socket_mode",
-			ListenStream:    "listen_stream",
 			BusName:         "busName",
 		},
 	})
@@ -1292,4 +1381,52 @@ apps:
 		"k1": "v1",
 		"k2": "v2",
 	})
+}
+
+// classic confinement
+func (s *YamlSuite) TestClassicConfinement(c *C) {
+	y := []byte(`
+name: foo
+confinement: classic
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Confinement, Equals, snap.ClassicConfinement)
+}
+
+func (s *YamlSuite) TestSnapYamlAliases(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [foo]
+  bar:
+    aliases: [bar, bar1]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].Aliases, DeepEquals, []string{"foo"})
+	c.Check(info.Apps["bar"].Aliases, DeepEquals, []string{"bar", "bar1"})
+
+	c.Check(info.Aliases, DeepEquals, map[string]*snap.AppInfo{
+		"foo":  info.Apps["foo"],
+		"bar":  info.Apps["bar"],
+		"bar1": info.Apps["bar"],
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlAliasesConflict(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    aliases: [bar]
+  bar:
+    aliases: [bar]
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }

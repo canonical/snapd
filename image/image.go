@@ -207,8 +207,26 @@ func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addi
 
 }
 
-// one and only core snap for now
-const defaultCore = "ubuntu-core"
+func installCloudConfig(gadgetDir string) error {
+	var err error
+
+	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud")
+	if err := os.MkdirAll(cloudDir, 0755); err != nil {
+		return err
+	}
+
+	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
+	if osutil.FileExists(cloudConfig) {
+		dst := filepath.Join(cloudDir, "cloud.cfg")
+		err = osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
+	} else {
+		dst := filepath.Join(cloudDir, "cloud-init.disabled")
+		err = osutil.AtomicWriteFile(dst, nil, 0644, 0)
+	}
+	return err
+}
+
+const defaultCore = "core"
 
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
@@ -234,7 +252,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	f := makeFetcher(sto, &DownloadOptions{}, db)
 
 	if err := f.Save(model); err != nil {
-		if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") == "" {
+		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
 			logger.Noticef("Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image: %v", err)
@@ -363,6 +381,11 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		return err
 	}
 
+	// and the cloud-init things
+	if err := installCloudConfig(opts.GadgetUnpackDir); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -378,6 +401,12 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 	snaps, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
 	if len(snaps) == 0 || err != nil {
 		return fmt.Errorf("internal error: cannot find core/kernel snap")
+	}
+
+	m := map[string]string{
+		"snap_mode":       "",
+		"snap_try_core":   "",
+		"snap_try_kernel": "",
 	}
 	for _, fn := range snaps {
 		bootvar := ""
@@ -395,10 +424,11 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 
 		if bootvar != "" {
 			name := filepath.Base(fn)
-			if err := bootloader.SetBootVar(bootvar, name); err != nil {
-				return err
-			}
+			m[bootvar] = name
 		}
+	}
+	if err := bootloader.SetBootVars(m); err != nil {
+		return err
 	}
 
 	return nil

@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"path/filepath"
 )
 
 const defaultBufsz = 16 * 1024
@@ -87,32 +86,4 @@ func streamsEqual(fa, fb io.Reader) bool {
 			return false
 		}
 	}
-}
-
-// DirUpdated compares two directories, and returns which files present in both
-// have been updated, with the given prefix prepended.
-//
-// Subdirectories are ignored.
-//
-// This function is to compare the policies and templates in a (framework) snap
-// to be installed, against the policies and templates of one already installed,
-// to then determine what changed. The prefix is because policies and templates
-// are specified with the framework name.
-func DirUpdated(dirA, dirB, pfx string) map[string]bool {
-	filesA, _ := filepath.Glob(filepath.Join(dirA, "*"))
-
-	updated := make(map[string]bool)
-	for _, fileA := range filesA {
-		if IsDirectory(fileA) {
-			continue
-		}
-
-		name := filepath.Base(fileA)
-		fileB := filepath.Join(dirB, name)
-		if FileExists(fileB) && !FilesAreEqual(fileA, fileB) {
-			updated[pfx+name] = true
-		}
-	}
-
-	return updated
 }

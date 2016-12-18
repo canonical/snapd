@@ -20,36 +20,49 @@
 package devicestate_test
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrSuite struct {
-	state *state.State
-	mgr   *devicestate.DeviceManager
-	db    *asserts.Database
+	state   *state.State
+	hookMgr *hookstate.HookManager
+	mgr     *devicestate.DeviceManager
+	db      *asserts.Database
 
 	storeSigning *assertstest.StoreStack
 }
@@ -90,7 +103,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 
@@ -106,8 +119,8 @@ func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
 }
 
-func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
-	panic("fakeStore.PaymentMethods not expected")
+func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	panic("fakeStore.Sections not expected")
 }
 
 func (s *deviceMgrSuite) SetUpTest(c *C) {
@@ -131,10 +144,13 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	mgr, err := devicestate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state)
+	c.Assert(err, IsNil)
+	mgr, err := devicestate.Manager(s.state, hookMgr)
 	c.Assert(err, IsNil)
 
 	s.db = db
+	s.hookMgr = hookMgr
 	s.mgr = mgr
 
 	s.state.Lock()
@@ -150,11 +166,14 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
 	dirs.SetRootDir("")
+	release.OnClassic = true
 }
 
 func (s *deviceMgrSuite) settle() {
 	for i := 0; i < 50; i++ {
+		s.hookMgr.Ensure()
 		s.mgr.Ensure()
+		s.hookMgr.Wait()
 		s.mgr.Wait()
 	}
 }
@@ -168,6 +187,9 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 			w.WriteHeader(http.StatusOK)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
 
+		case "/identity/api/v1/serial":
+			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
+			fallthrough
 		case "/identity/api/v1/devices":
 			mu.Lock()
 			serialNum := 9999 + count
@@ -188,20 +210,53 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 				w.WriteHeader(http.StatusAccepted)
 				return
 			}
+			serialStr := fmt.Sprintf("%d", serialNum)
+			if serialReq.Serial() != "" {
+				// use proposed serial
+				serialStr = serialReq.Serial()
+			}
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 				"brand-id":            "canonical",
 				"model":               "pc",
-				"serial":              fmt.Sprintf("%d", serialNum),
+				"serial":              serialStr,
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
-			}, nil, "")
+			}, serialReq.Body(), "")
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(http.StatusOK)
 			w.Write(asserts.Encode(serial))
 		}
 	}))
+}
+
+func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string) {
+	sideInfoGadget := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
+	}
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoGadget},
+		Current:  sideInfoGadget.Revision,
+	})
+}
+
+func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents string) {
+	sideInfoCore := &snap.SideInfo{
+		RealName: name,
+		Revision: snap.R(3),
+	}
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
+	snapstate.Set(s.state, name, &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoCore},
+		Current:  sideInfoCore.Revision,
+	})
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
@@ -219,19 +274,25 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
-	s.state.Lock()
 	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 
 	// runs the whole device registration process
+	s.state.Unlock()
 	s.settle()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	var becomeOperational *state.Change
 	for _, chg := range s.state.Changes() {
@@ -283,10 +344,16 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
 	defer restore()
 
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
@@ -342,10 +409,16 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	restore = devicestate.MockRepeatRequestSerial("after-got-serial")
 	defer restore()
 
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
@@ -403,19 +476,25 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	r4 := devicestate.MockRetryInterval(0)
 	defer r4()
 
-	s.state.Lock()
 	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 
 	// runs the whole device registration process with polling
+	s.state.Unlock()
 	s.settle()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	var becomeOperational *state.Change
 	for _, chg := range s.state.Changes() {
@@ -442,6 +521,105 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	})
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) {
+	r1 := devicestate.MockKeyLength(752)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1")
+	defer mockServer.Close()
+
+	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "prepare-device")
+
+		// snapctl set the registration params
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/identity/api/v1/")})
+		c.Assert(err, IsNil)
+
+		h, err := json.Marshal(map[string]string{
+			"x-extra-header": "extra",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
+		c.Assert(err, IsNil)
+
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
+		c.Assert(err, IsNil)
+
+		d, err := yaml.Marshal(map[string]string{
+			"mac": "00:00:00:00:ff:00",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)})
+		c.Assert(err, IsNil)
+
+		return nil, nil
+	})
+	defer r2()
+
+	// setup state as will be done by first-boot
+	// & have a gadget with a prepare-device hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+hooks:
+    prepare-device:
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "Y9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "Y9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	var details map[string]interface{}
+	err = yaml.Unmarshal(serial.Body(), &details)
+	c.Assert(err, IsNil)
+
+	c.Check(details, DeepEquals, map[string]interface{}{
+		"mac": "00:00:00:00:ff:00",
+	})
 
 	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
@@ -560,6 +738,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	s.state.Lock()
 	devKey, _ := assertstest.GenerateKey(1024)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 		"brand-id":            "canonical",
 		"model":               "pc",
@@ -594,4 +773,370 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	c.Check(sessReq.Model(), Equals, "pc")
 	c.Check(sessReq.Serial(), Equals, "8989")
 	c.Check(sessReq.Nonce(), Equals, "NONCE-1")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	called := false
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+	defer restore()
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	chg := s.state.NewChange("seed", "just for testing")
+	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
+	s.state.Unlock()
+
+	called := false
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+	defer restore()
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlSkippedOnClassic(c *C) {
+	release.OnClassic = true
+
+	called := false
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+	defer restore()
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
+	release.OnClassic = false
+
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+		return ts, nil
+	})
+	defer restore()
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
+	release.OnClassic = false
+
+	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
+		return nil, errors.New("should not be called")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupCore(c, "ubuntu-core", `
+name: ubuntu-core
+type: os
+version: ubuntu-core
+`, "")
+
+	// have a model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+
+	// have a serial assertion
+	devKey, _ := assertstest.GenerateKey(752)
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	keyID := devKey.PublicKey().ID()
+	c.Assert(err, IsNil)
+	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "8989",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": keyID,
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, serial)
+	c.Assert(err, IsNil)
+
+	// forgotten key id and serial
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	// put key on disk
+	err = s.mgr.KeypairManager().Put(devKey)
+	c.Assert(err, IsNil)
+	// extra unused stuff
+	junk1 := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "junkjunk1")
+	err = ioutil.WriteFile(junk1, nil, 0644)
+	c.Assert(err, IsNil)
+	junk2 := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "junkjunk2")
+	err = ioutil.WriteFile(junk2, nil, 0644)
+	c.Assert(err, IsNil)
+	// double check
+	pat := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "*")
+	onDisk, err := filepath.Glob(pat)
+	c.Assert(err, IsNil)
+	c.Check(onDisk, HasLen, 3)
+
+	s.state.Unlock()
+	err = s.mgr.EnsureSeedYaml()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	var seeded bool
+	err = s.state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		KeyID:  keyID,
+		Serial: "8989",
+	})
+	// key is still there
+	_, err = s.mgr.KeypairManager().Get(keyID)
+	c.Assert(err, IsNil)
+	onDisk, err = filepath.Glob(pat)
+	c.Assert(err, IsNil)
+	// junk was removed
+	c.Check(onDisk, HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+	release.OnClassic = true
+
+	err := s.mgr.EnsureBootOk()
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1},
+		Current:  siCore1.Revision,
+	})
+
+	s.state.Unlock()
+	err := s.mgr.EnsureBootOk()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	m, err := bootloader.GetBootVars("snap_mode")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{"snap_mode": ""})
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	// simulate that we have a new core_2, tried to boot it but that failed
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "",
+		"snap_try_core": "core_2.snap",
+		"snap_core":     "core_1.snap",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Current:  siCore2.Revision,
+	})
+
+	s.state.Unlock()
+	err := s.mgr.EnsureBootOk()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "update-revisions")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.SetBootVars(map[string]string{
+		"snap_mode":     "trying",
+		"snap_try_core": "core_1.snap",
+	})
+	bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	s.mgr.SetBootOkRan(true)
+
+	err := s.mgr.EnsureBootOk()
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	// seeded
+	s.state.Set("seeded", true)
+	// has serial
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.state.Unlock()
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.GetErr = fmt.Errorf("bootloader err")
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	s.mgr.SetBootOkRan(false)
+
+	err := s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
+}
+
+func (s *deviceMgrSuite) TestCheckGadget(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	gadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: gadget`, nil)
+
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
+
+	// install pc gadget
+	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
+name: pc`, nil)
+	err = devicestate.CheckGadgetOrKernel(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCheckKernel(c *C) {
+	release.OnClassic = false
+	s.state.Lock()
+	defer s.state.Unlock()
+	// nothing is setup
+	kernelInfo := snaptest.MockInfo(c, `type: kernel
+name: lnrk`, nil)
+
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel without model assertion`)
+
+	// setup model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, model)
+	c.Assert(err, IsNil)
+	err = auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
+
+	// install krnl kernel
+	krnlKernelInfo := snaptest.MockInfo(c, `type: kernel
+name: krnl`, nil)
+	err = devicestate.CheckGadgetOrKernel(s.state, krnlKernelInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
 }

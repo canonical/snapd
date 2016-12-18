@@ -20,8 +20,6 @@
 package main_test
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -44,6 +42,7 @@ apps:
 hooks:
  configure:
 `)
+var mockContents = "SNAP"
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
@@ -68,12 +67,11 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R(42),
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -91,28 +89,25 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		"snap.snapname.app",
-		"/usr/lib/snapd/snap-exec",
-		"snapname.app",
-		"--arg1", "arg2"})
-	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
-func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
+func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R(42),
+	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -127,16 +122,50 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	err := snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+}
+
+func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	err = snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		"/usr/lib/snapd/snap-exec",
-		"--command=my-command", "snapname.app",
-		"arg1", "arg2"})
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		"--command=my-command", "snapname.app", "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -162,12 +191,11 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -182,14 +210,13 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		"snap.snapname.hook.configure",
-		"/usr/lib/snapd/snap-exec",
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -199,12 +226,11 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
@@ -219,14 +245,13 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Specifically pass "unset" which would use the active version.
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		"snap.snapname.hook.configure",
-		"/usr/lib/snapd/snap-exec",
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -237,15 +262,12 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Create both revisions 41 and 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(41),
 	})
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
 
 	// redirect exec
 	execArg0 := ""
@@ -262,12 +284,11 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	// Run a hook on revision 41
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		"/usr/bin/ubuntu-core-launcher",
+		filepath.Join(dirs.LibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		"snap.snapname.hook.configure",
-		"/usr/lib/snapd/snap-exec",
+		filepath.Join(dirs.LibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
@@ -278,12 +299,11 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
@@ -292,7 +312,7 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Attempt to run a hook on revision 41, which doesn't exist
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
@@ -309,12 +329,11 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 
 	// Only create revision 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	called := false
@@ -324,25 +343,9 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	err := snaprun.SnapRunHook("snapname", "unset", "missing-hook")
-	c.Assert(err, check.IsNil)
+	err = snaprun.SnapRunHook("snapname", "unset", "missing-hook")
+	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
-}
-
-func (s *SnapSuite) mockServer(c *check.C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "snapname", "status": "active", "version": "1.0", "developer": "someone", "revision":42}]}`)
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
-		}
-
-		n++
-	})
 }
 
 func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
@@ -355,17 +358,21 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
+func (s *SnapSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "not-there"})
+	c.Assert(err, check.ErrorMatches, "cannot find current revision for snap not-there: readlink /snap/not-there/current: no such file or directory")
+}
+
 func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
-
-	// and mock the server
-	s.mockServer(c)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
 
 	// redirect exec
 	execEnv := []string{}
@@ -380,11 +387,11 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	os.Setenv("SNAP_ARCH", "PDP-7")
 	defer os.Unsetenv("SNAP_NAME")
 	defer os.Unsetenv("SNAP_ARCH")
-	// but unreleated stuff is ok
+	// but unrelated stuff is ok
 	os.Setenv("SNAP_THE_WORLD", "YES")
 	defer os.Unsetenv("SNAP_THE_WORLD")
 
-	// and ensure those SNAP_ vars get overriden
+	// and ensure those SNAP_ vars get overridden
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})

@@ -32,20 +32,24 @@ import (
 
 // User holds logged in user information.
 type User struct {
+	ID       int    `json:"id,omitempty"`
+	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
+
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
 
 type loginData struct {
-	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
 	Password string `json:"password,omitempty"`
 	Otp      string `json:"otp,omitempty"`
 }
 
 // Login logs user in.
-func (client *Client) Login(username, password, otp string) (*User, error) {
+func (client *Client) Login(email, password, otp string) (*User, error) {
 	postData := loginData{
-		Username: username,
+		Email:    email,
 		Password: password,
 		Otp:      otp,
 	}
@@ -74,9 +78,13 @@ func (client *Client) Logout() error {
 	return removeAuthData()
 }
 
-// LoggedIn returns whether the client has authentication data available.
-func (client *Client) LoggedIn() bool {
-	return osutil.FileExists(storeAuthDataFilename(""))
+// LoggedInUser returns the logged in User or nil
+func (client *Client) LoggedInUser() *User {
+	u, err := readAuthData()
+	if err != nil {
+		return nil
+	}
+	return u
 }
 
 const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"

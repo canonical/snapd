@@ -32,6 +32,11 @@ type Plug struct {
 	Connections []SlotRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a plug
+func (plug *Plug) Ref() PlugRef {
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -44,6 +49,11 @@ type Slot struct {
 	Connections []PlugRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a slot
+func (slot *Slot) Ref() SlotRef {
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+}
+
 // SlotRef is a reference to a slot.
 type SlotRef struct {
 	Snap string `json:"snap"`
@@ -54,6 +64,17 @@ type SlotRef struct {
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
+}
+
+// ConnRef holds information about plug and slot reference that form a particular connection.
+type ConnRef struct {
+	PlugRef PlugRef
+	SlotRef SlotRef
+}
+
+// ID returns a string identifying a given connection.
+func (conn *ConnRef) ID() string {
+	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -129,10 +150,11 @@ type Interface interface {
 	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// AutoConnect returns whether plugs and slots should be implicitly
-	// auto-connected when an unambiguous connection candidate is available in
-	// the OS snap.
-	AutoConnect() bool
+	// AutoConnect returns whether plug and slot should be
+	// implicitly auto-connected assuming they will be an
+	// unambiguous connection candidate and declaration-based checks
+	// allow.
+	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
 // SecuritySystem is a name of a security system.
@@ -151,6 +173,8 @@ const (
 	SecurityMount SecuritySystem = "mount"
 	// SecurityKMod identifies the kernel modules security system
 	SecurityKMod SecuritySystem = "kmod"
+	// SecuritySystemd identifies the systemd services security system
+	SecuritySystemd SecuritySystem = "systemd"
 )
 
 // Regular expression describing correct identifiers.
@@ -161,6 +185,22 @@ func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid interface name: %q", name)
+	}
+	return nil
+}
+
+// ValidateDBusBusName checks if a string conforms to
+// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+func ValidateDBusBusName(busName string) error {
+	if len(busName) == 0 {
+		return fmt.Errorf("DBus bus name must be set")
+	} else if len(busName) > 255 {
+		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
+	}
+
+	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
+	if !validBusName.MatchString(busName) {
+		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
 }

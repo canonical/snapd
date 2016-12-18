@@ -32,9 +32,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/notifications"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -49,7 +48,6 @@ type Daemon struct {
 	snapListener  net.Listener
 	tomb          tomb.Tomb
 	router        *mux.Router
-	hub           *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -216,7 +214,6 @@ func (d *Daemon) addRoutes() {
 
 	for _, c := range api {
 		c.d = d
-		logger.Debugf("adding %s", c.Path)
 		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 
@@ -292,7 +289,6 @@ func New() (*Daemon, error) {
 	}
 	return &Daemon{
 		overlord: ovld,
-		hub:      notifications.NewHub(),
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
 	}, nil

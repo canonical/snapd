@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/i18n"
@@ -29,7 +30,7 @@ import (
 
 type cmdAck struct {
 	AckOptions struct {
-		AssertionFile string
+		AssertionFile flags.Filename
 	} `positional-args:"true" required:"true"`
 }
 
@@ -54,17 +55,21 @@ func init() {
 	}})
 }
 
-func (x *cmdAck) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	assertFile := x.AckOptions.AssertionFile
-
+func ackFile(assertFile string) error {
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}
 
 	return Client().Ack(assertData)
+}
+
+func (x *cmdAck) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	if err := ackFile(string(x.AckOptions.AssertionFile)); err != nil {
+		return fmt.Errorf("cannot assert: %v", err)
+	}
+	return nil
 }

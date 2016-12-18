@@ -46,6 +46,8 @@ type AddUserOptions struct {
 	ExtraUsers bool
 	Gecos      string
 	SSHKeys    []string
+	// crypt(3) compatible password of the form $id$salt$hash
+	Password string
 }
 
 func AddUser(name string, opts *AddUserOptions) error {
@@ -85,6 +87,18 @@ func AddUser(name string, opts *AddUserOptions) error {
 		}
 	}
 
+	if opts.Password != "" {
+		cmdStr := []string{
+			"usermod",
+			"--password", opts.Password,
+			// no --extrauser required, see LP: #1562872
+			name,
+		}
+		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+			return fmt.Errorf("setting password failed: %s", OutputErr(output, err))
+		}
+	}
+
 	u, err := userLookup(name)
 	if err != nil {
 		return fmt.Errorf("cannot find user %q: %s", name, err)
@@ -112,11 +126,22 @@ func AddUser(name string, opts *AddUserOptions) error {
 	return nil
 }
 
-// RealUser finds the user behind a sudo invocation, if applicable and possible.
+var userCurrent = user.Current
+
+// RealUser finds the user behind a sudo invocation when root, if applicable
+// and possible.
+//
+// Don't check SUDO_USER when not root and simply return the current uid
+// to properly support sudo'ing from root to a non-root user
 func RealUser() (*user.User, error) {
-	cur, err := user.Current()
+	cur, err := userCurrent()
 	if err != nil {
 		return nil, err
+	}
+
+	// not root, so no sudo invocation we care about
+	if cur.Uid != "0" {
+		return cur, nil
 	}
 
 	realName := os.Getenv("SUDO_USER")

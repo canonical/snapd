@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // ContentInterface allows sharing content between snaps
@@ -108,24 +109,71 @@ func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string
 	return out
 }
 
+// resolveSpecialVariable resolves one of the three $SNAP* variables at the
+// beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
+// $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
+// (this is the behavior that was used before the variables were supporter).
+func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
+		return strings.Replace(path, "$SNAP", snapInfo.MountDir(), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
+		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_COMMON/") || path == "$SNAP_COMMON" {
+		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
+	}
+	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
+	return filepath.Join(snapInfo.MountDir(), path)
+}
+
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := plug.Attrs["target"].(string)
-	dst = filepath.Join(plug.Snap.MountDir(), dst)
-	src := filepath.Join(slot.Snap.MountDir(), relSrc)
+	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
+	src := resolveSpecialVariable(relSrc, slot.Snap)
 	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-	}
-
 	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+
+		writePaths := iface.path(slot, "write")
+		if len(writePaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+`)
+			for _, w := range writePaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+					resolveSpecialVariable(w, slot.Snap))
+			}
+		}
+
+		readPaths := iface.path(slot, "read")
+		if len(readPaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+`)
+			for _, r := range readPaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+					resolveSpecialVariable(r, slot.Snap))
+			}
+		}
+
+		return contentSnippet.Bytes(), nil
 	case interfaces.SecurityMount:
+		for _, r := range iface.path(slot, "read") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
+		}
+		for _, w := range iface.path(slot, "write") {
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
+		}
 		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
@@ -135,6 +183,6 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	return nil, nil
 }
 
-func (iface *ContentInterface) AutoConnect() bool {
-	return true
+func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+	return plug.Attrs["content"] == slot.Attrs["content"]
 }

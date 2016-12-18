@@ -36,13 +36,16 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/jessevdk/go-flags"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Standard streams, redirected for testing.
 var (
-	Stdin  io.Reader = os.Stdin
-	Stdout io.Writer = os.Stdout
-	Stderr io.Writer = os.Stderr
+	Stdin        io.Reader = os.Stdin
+	Stdout       io.Writer = os.Stdout
+	Stderr       io.Writer = os.Stderr
+	ReadPassword           = terminal.ReadPassword
 )
 
 type options struct {
@@ -133,32 +136,19 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 // from each other.
 func Parser() *flags.Parser {
 	optionsData.Version = func() {
-		sv, err := Client().ServerVersion()
-		if err != nil {
-			sv = &client.ServerVersion{
-				Version:     i18n.G("unavailable"),
-				Series:      "-",
-				OSID:        "-",
-				OSVersionID: "-",
-			}
-		}
-
-		w := tabWriter()
-
-		fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
-		fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
-		fmt.Fprintf(w, "series\t%s\n", sv.Series)
-		if sv.OnClassic {
-			fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
-		}
-		w.Flush()
-
+		printVersions()
 		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = i18n.G(`
-The snap tool interacts with the snapd daemon to control the snappy software platform.
+Install, configure, refresh and remove snap packages. Snaps are
+'universal' packages that work across many different Linux systems,
+enabling secure distribution of the latest apps and utilities for
+cloud, servers, desktops and the internet of things.
+
+This is the CLI for snapd, a background service that takes care of
+snaps on the system. Start with 'snap list' to see installed snaps.
 `)
 	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
 
@@ -171,7 +161,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 
 		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
-
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
@@ -210,20 +199,6 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			arg.Description = desc
 		}
 	}
-	// Add the experimental command
-	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
-	experimentalCommand.Hidden = true
-	if err != nil {
-		logger.Panicf("cannot add command %q: %v", "experimental", err)
-	}
-	// Add all the sub-commands of the experimental command
-	for _, c := range experimentalCommands {
-		cmd, err := experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
-		if err != nil {
-			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
-		}
-		cmd.Hidden = c.hidden
-	}
 	return parser
 }
 
@@ -242,19 +217,36 @@ func init() {
 	}
 }
 
+func resolveApp(snapApp string) (string, error) {
+	target, err := os.Readlink(filepath.Join(dirs.SnapBinariesDir, snapApp))
+	if err != nil {
+		return "", err
+	}
+	if filepath.Base(target) == target { // alias pointing to an app command in /snap/bin
+		return target, nil
+	}
+	return snapApp, nil
+}
+
 func main() {
 	cmd.ExecInCoreSnap()
 
 	// magic \o/
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
+		var err error
+		snapApp, err = resolveApp(snapApp)
+		if err != nil {
+			fmt.Fprintf(Stderr, i18n.G("cannot resolve snap app %q: %v"), snapApp, err)
+			os.Exit(46)
+		}
 		cmd := &cmdRun{}
 		args := []string{snapApp}
 		args = append(args, os.Args[1:]...)
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
-		err := cmd.Execute(args)
+		err = cmd.Execute(args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
@@ -287,13 +279,17 @@ func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
-				parser.Command.Active = nil
+		if e, ok := err.(*flags.Error); ok {
+			if e.Type == flags.ErrHelp {
+				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
+					parser.Command.Active = nil
+				}
+				parser.WriteHelp(Stdout)
+				return nil
 			}
-			parser.WriteHelp(Stdout)
-			return nil
-
+			if e.Type == flags.ErrUnknownCommand {
+				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
+			}
 		}
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
 			u, _ := user.Current()

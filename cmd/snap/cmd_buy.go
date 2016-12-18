@@ -20,12 +20,10 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"strconv"
 	"strings"
-	"text/tabwriter"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/store"
 
@@ -37,17 +35,11 @@ var longBuyHelp = i18n.G(`
 The buy command buys a snap from the store.
 `)
 
-var positiveResponse = map[string]bool{
-	"":            true,
-	i18n.G("y"):   true,
-	i18n.G("yes"): true,
-}
-
 type cmdBuy struct {
 	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string
+		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -67,135 +59,85 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(&store.BuyOptions{
-		SnapName: x.Positional.SnapName,
-		Currency: x.Currency,
-	})
+	return buySnap(string(x.Positional.SnapName), x.Currency)
 }
 
-func buySnap(opts *store.BuyOptions) error {
+func buySnap(snapName, currency string) error {
 	cli := Client()
 
-	if !cli.LoggedIn() {
+	user := cli.LoggedInUser()
+	if user == nil {
 		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
 	}
 
-	if strings.ContainsAny(opts.SnapName, ":*") {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
+	if strings.ContainsAny(snapName, ":*") {
+		return fmt.Errorf(i18n.G("cannot buy snap: invalid characters in name"))
 	}
 
-	snap, resultInfo, err := cli.FindOne(opts.SnapName)
+	snap, resultInfo, err := cli.FindOne(snapName)
 	if err != nil {
 		return err
 	}
 
-	opts.SnapID = snap.ID
+	opts := &store.BuyOptions{
+		SnapID:   snap.ID,
+		Currency: currency,
+	}
+
 	if opts.Currency == "" {
 		opts.Currency = resultInfo.SuggestedCurrency
 	}
 
 	opts.Price, opts.Currency, err = getPrice(snap.Prices, opts.Currency)
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: %v"), opts.SnapName, err)
+		return fmt.Errorf(i18n.G("cannot buy snap: %v"), err)
 	}
 
 	if snap.Status == "available" {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
+		return fmt.Errorf(i18n.G("cannot buy snap: it has already been bought"))
 	}
 
-	// TODO Change to use the new /buy/ready endpoint instead of checking payment methods
-	paymentInfo, err := cli.PaymentMethods()
+	err = cli.ReadyToBuy()
+	if err != nil {
+		if e, ok := err.(*client.Error); ok {
+			switch e.Kind {
+			case client.ErrorKindNoPaymentMethods:
+				return fmt.Errorf(i18n.G(`You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
+Once completed, return here and run 'snap buy %s' again.`), snap.Name)
+			case client.ErrorKindTermsNotAccepted:
+				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
+Once completed, return here and run 'snap buy %s' again.`), snap.Name)
+			}
+		}
+		return err
+	}
+
+	// TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q
+for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
+	fmt.Fprint(Stdout, "\n")
+
+	err = requestLogin(user.Email)
 	if err != nil {
 		return err
 	}
 
-	var methods []*store.PaymentMethod
-	for _, method := range paymentInfo.Methods {
-		if !method.RequiresInteraction {
-			methods = append(methods, method)
-		}
-	}
-
-	if len(methods) == 0 {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: no payment methods registered"), opts.SnapName)
-	}
-
-	reader := bufio.NewReader(nil)
-	reader.Reset(Stdin)
-
-	// Unless the user has enabled automatic payments, we must prompt for a payment method.
-	if !paymentInfo.AllowsAutomaticPayment {
-		w := tabwriter.NewWriter(Stdout, 0, 3, 2, ' ', 0)
-
-		index := -1
-
-		fmt.Fprintln(w, i18n.G("\tSelection\tDescription"))
-		for i, method := range methods {
-			preferred := ""
-			if method.Preferred {
-				preferred = "*"
-				index = i + 1
-			}
-			fmt.Fprintf(w, "%s\t%d\t%s\n", preferred, i+1, method.Description)
-		}
-		w.Flush()
-
-		if index > 0 {
-			// If the user has a preferred payment method
-			fmt.Fprintf(Stdout, i18n.G("Press <enter> to use your default[*], or type a number to select payment method: "))
-		} else {
-			fmt.Fprintf(Stdout, i18n.G("Type a number to select payment method: "))
-		}
-
-		response, _, err := reader.ReadLine()
-		if err != nil {
-			return err
-		}
-
-		stringResponse := string(response)
-
-		if !(stringResponse == "" && index > 0) {
-			// If the user answered and also has no preferred method, we need to parse the response.
-			index, err = strconv.Atoi(stringResponse)
-			if err != nil {
-				return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, stringResponse)
-			}
-
-			if index <= 0 || index > len(methods) {
-				return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
-			}
-		}
-
-		// Convert the payment selection to a zero-index
-		paymentMethod := methods[index-1]
-		opts.BackendID = paymentMethod.BackendID
-		opts.MethodID = paymentMethod.ID
-	}
-
-	fmt.Fprintf(Stdout, i18n.G("Do you want to buy %q from %q for %s? (Y/n): "), snap.Name,
-		snap.Developer, formatPrice(opts.Price, opts.Currency))
-
-	response, _, err := reader.ReadLine()
+	_, err = cli.Buy(opts)
 	if err != nil {
+		if e, ok := err.(*client.Error); ok {
+			switch e.Kind {
+			case client.ErrorKindPaymentDeclined:
+				return fmt.Errorf(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
+payment details at https://my.ubuntu.com/payment/edit and try again.`))
+			}
+		}
 		return err
 	}
 
-	if !positiveResponse[strings.ToLower(string(response))] {
-		return fmt.Errorf(i18n.G("aborting"))
-	}
-
-	result, err := cli.Buy(opts)
-	if err != nil {
-		return err
-	}
-
-	if result.State == "InProgress" {
-		// TODO Support interactive purchases on the CLI
-		return fmt.Errorf(i18n.G("cannot buy snap %q: the command line tools do not support interactive purchases"), snap.Name)
-	}
-
-	// TRANSLATORS: %s is a snap name
-	fmt.Fprintf(Stdout, i18n.G("%s bought\n"), opts.SnapName)
+	// TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices
+with 'snap install %s'.`), snapName, snapName)
+	fmt.Fprint(Stdout, "\n")
 
 	return nil
 }

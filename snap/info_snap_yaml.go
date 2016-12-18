@@ -49,21 +49,9 @@ type snapYaml struct {
 	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 }
 
-type plugYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
-}
-
-type slotYaml struct {
-	Interface string                 `yaml:"interface"`
-	Attrs     map[string]interface{} `yaml:"attrs,omitempty"`
-	Apps      []string               `yaml:"apps,omitempty"`
-	Label     string                 `yaml:"label"`
-}
-
 type appYaml struct {
+	Aliases []string `yaml:"aliases,omitempty"`
+
 	Command string `yaml:"command"`
 
 	Daemon string `yaml:"daemon"`
@@ -79,10 +67,6 @@ type appYaml struct {
 	BusName string `yaml:"bus-name,omitempty"`
 
 	Environment map[string]string `yaml:"environment,omitempty"`
-
-	Socket       bool   `yaml:"socket,omitempty"`
-	ListenStream string `yaml:"listen-stream,omitempty"`
-	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
 type hookYaml struct {
@@ -121,8 +105,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		globalSlotNames = append(globalSlotNames, slotName)
 	}
 
-	// Collect all apps and hooks
-	setAppsFromSnapYaml(y, snap)
+	// Collect all apps, their aliases and hooks
+	if err := setAppsFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
 	setHooksFromSnapYaml(y, snap)
 
 	// Bind unbound plugs to all apps and hooks
@@ -170,6 +156,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Epoch:               epoch,
 		Confinement:         confinement,
 		Apps:                make(map[string]*AppInfo),
+		Aliases:             make(map[string]*AppInfo),
 		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
@@ -232,21 +219,19 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
-func setAppsFromSnapYaml(y snapYaml, snap *Info) {
+func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
 			Snap:            snap,
 			Name:            appName,
+			Aliases:         yApp.Aliases,
 			Command:         yApp.Command,
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
-			Socket:          yApp.Socket,
-			SocketMode:      yApp.SocketMode,
-			ListenStream:    yApp.ListenStream,
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 		}
@@ -257,6 +242,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 			app.Slots = make(map[string]*SlotInfo)
 		}
 		snap.Apps[appName] = app
+		for _, alias := range app.Aliases {
+			if snap.Aliases[alias] != nil {
+				return fmt.Errorf("cannot set %q as alias for both %q and %q", alias, snap.Aliases[alias].Name, appName)
+			}
+			snap.Aliases[alias] = app
+		}
 		// Bind all plugs/slots listed in this app
 		for _, plugName := range yApp.PlugNames {
 			plug, ok := snap.Plugs[plugName]
@@ -288,12 +279,11 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 			slot.Apps[appName] = app
 		}
 	}
+	return nil
 }
 
 func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	for hookName, yHook := range y.Hooks {
-		// Verify that the requested hook name is actually supported. If not,
-		// ignore it.
 		if !IsHookSupported(hookName) {
 			continue
 		}
@@ -411,12 +401,56 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				attrs[key] = valueData
+				value, err := validateAttr(valueData)
+				if err != nil {
+					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
+				}
+				attrs[key] = value
 			}
 		}
 		return iface, label, attrs, nil
 	default:
 		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
 		return "", "", nil, err
+	}
+}
+
+// validateAttr validates an attribute value and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
+func validateAttr(v interface{}) (interface{}, error) {
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case bool:
+		return x, nil
+	case int:
+		return int64(x), nil
+	case int64:
+		return x, nil
+	case []interface{}:
+		l := make([]interface{}, len(x))
+		for i, el := range x {
+			el, err := validateAttr(el)
+			if err != nil {
+				return nil, err
+			}
+			l[i] = el
+		}
+		return l, nil
+	case map[interface{}]interface{}:
+		m := make(map[string]interface{}, len(x))
+		for k, item := range x {
+			kStr, ok := k.(string)
+			if !ok {
+				return nil, fmt.Errorf("non-string key in attribute map: %v", k)
+			}
+			item, err := validateAttr(item)
+			if err != nil {
+				return nil, err
+			}
+			m[kStr] = item
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("invalid attribute scalar: %v", v)
 	}
 }

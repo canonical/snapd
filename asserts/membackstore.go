@@ -29,16 +29,16 @@ type memoryBackstore struct {
 }
 
 type memBSNode interface {
-	put(key []string, assert Assertion) error
-	get(key []string) (Assertion, error)
-	search(hint []string, found func(Assertion))
+	put(assertType *AssertionType, key []string, assert Assertion) error
+	get(key []string, maxFormat int) (Assertion, error)
+	search(hint []string, found func(Assertion), maxFormat int)
 }
 
 type memBSBranch map[string]memBSNode
 
-type memBSLeaf map[string]Assertion
+type memBSLeaf map[string]map[int]Assertion
 
-func (br memBSBranch) put(key []string, assert Assertion) error {
+func (br memBSBranch) put(assertType *AssertionType, key []string, assert Assertion) error {
 	key0 := key[0]
 	down := br[key0]
 	if down == nil {
@@ -49,12 +49,23 @@ func (br memBSBranch) put(key []string, assert Assertion) error {
 		}
 		br[key0] = down
 	}
-	return down.put(key[1:], assert)
+	return down.put(assertType, key[1:], assert)
 }
 
-func (leaf memBSLeaf) put(key []string, assert Assertion) error {
+func (leaf memBSLeaf) cur(key0 string, maxFormat int) (a Assertion) {
+	for formatnum, a1 := range leaf[key0] {
+		if formatnum <= maxFormat {
+			if a == nil || a1.Revision() > a.Revision() {
+				a = a1
+			}
+		}
+	}
+	return a
+}
+
+func (leaf memBSLeaf) put(assertType *AssertionType, key []string, assert Assertion) error {
 	key0 := key[0]
-	cur := leaf[key0]
+	cur := leaf.cur(key0, assertType.MaxSupportedFormat())
 	if cur != nil {
 		rev := assert.Revision()
 		curRev := cur.Revision()
@@ -62,53 +73,59 @@ func (leaf memBSLeaf) put(key []string, assert Assertion) error {
 			return &RevisionError{Current: curRev, Used: rev}
 		}
 	}
-	leaf[key0] = assert
+	if _, ok := leaf[key0]; !ok {
+		leaf[key0] = make(map[int]Assertion)
+	}
+	leaf[key0][assert.Format()] = assert
 	return nil
 }
 
-func (br memBSBranch) get(key []string) (Assertion, error) {
+func (br memBSBranch) get(key []string, maxFormat int) (Assertion, error) {
 	key0 := key[0]
 	down := br[key0]
 	if down == nil {
 		return nil, ErrNotFound
 	}
-	return down.get(key[1:])
+	return down.get(key[1:], maxFormat)
 }
 
-func (leaf memBSLeaf) get(key []string) (Assertion, error) {
+func (leaf memBSLeaf) get(key []string, maxFormat int) (Assertion, error) {
 	key0 := key[0]
-	cur := leaf[key0]
+	cur := leaf.cur(key0, maxFormat)
 	if cur == nil {
 		return nil, ErrNotFound
 	}
 	return cur, nil
 }
 
-func (br memBSBranch) search(hint []string, found func(Assertion)) {
+func (br memBSBranch) search(hint []string, found func(Assertion), maxFormat int) {
 	hint0 := hint[0]
 	if hint0 == "" {
 		for _, down := range br {
-			down.search(hint[1:], found)
+			down.search(hint[1:], found, maxFormat)
 		}
 		return
 	}
 	down := br[hint0]
 	if down != nil {
-		down.search(hint[1:], found)
+		down.search(hint[1:], found, maxFormat)
 	}
 	return
 }
 
-func (leaf memBSLeaf) search(hint []string, found func(Assertion)) {
+func (leaf memBSLeaf) search(hint []string, found func(Assertion), maxFormat int) {
 	hint0 := hint[0]
 	if hint0 == "" {
-		for _, a := range leaf {
-			found(a)
+		for key := range leaf {
+			cand := leaf.cur(key, maxFormat)
+			if cand != nil {
+				found(cand)
+			}
 		}
 		return
 	}
 
-	cur := leaf[hint0]
+	cur := leaf.cur(hint0, maxFormat)
 	if cur != nil {
 		found(cur)
 	}
@@ -131,11 +148,11 @@ func (mbs *memoryBackstore) Put(assertType *AssertionType, assert Assertion) err
 		internalKey[1+i] = assert.HeaderString(name)
 	}
 
-	err := mbs.top.put(internalKey, assert)
+	err := mbs.top.put(assertType, internalKey, assert)
 	return err
 }
 
-func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string) (Assertion, error) {
+func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error) {
 	mbs.mu.RLock()
 	defer mbs.mu.RUnlock()
 
@@ -143,10 +160,10 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string) (Assert
 	internalKey[0] = assertType.Name
 	copy(internalKey[1:], key)
 
-	return mbs.top.get(internalKey)
+	return mbs.top.get(internalKey, maxFormat)
 }
 
-func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion)) error {
+func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error {
 	mbs.mu.RLock()
 	defer mbs.mu.RUnlock()
 
@@ -162,6 +179,6 @@ func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string
 		}
 	}
 
-	mbs.top.search(hint, candCb)
+	mbs.top.search(hint, candCb, maxFormat)
 	return nil
 }
