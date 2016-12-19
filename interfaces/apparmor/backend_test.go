@@ -338,10 +338,10 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	snippet: "snippet",
 	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
 }, {
-	// Classic confinement uses apparmor in complain mode by default.
+	// Classic confinement uses apparmor in complain mode by default and ignores all snippets.
 	opts:    interfaces.ConfinementOptions{Classic: true},
 	snippet: "snippet",
-	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\n\n}\n",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
