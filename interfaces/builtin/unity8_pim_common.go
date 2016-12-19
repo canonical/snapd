@@ -75,13 +75,6 @@ const unity8PimCommonConnectedPlugAppArmor = `
 
 dbus (send)
 	bus=session
-	path=/org/freedesktop/DBus
-	interface=org.freedesktop.DBus
-	member={Request,Release}Name
-	peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (send)
-	bus=session
 	path=/org/freedesktop/*
 	interface=org.freedesktop.DBus.Properties
 	peer=(label=###SLOT_SECURITY_TAGS###),
