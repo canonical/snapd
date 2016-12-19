@@ -133,7 +133,14 @@ func createUserDataDirs(info *snap.Info) error {
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
 		}
 	}
-	return nil
+
+	// 'current' symlink for user data (SNAP_USER_DATA)
+	currentActiveSymlink := filepath.Join(userData, "..", "current")
+	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
+	}
+
+	return os.Symlink(filepath.Base(userData), currentActiveSymlink)
 }
 
 func snapRunApp(snapApp, command string, args []string) error {
