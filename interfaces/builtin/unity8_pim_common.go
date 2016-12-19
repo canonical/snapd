@@ -73,12 +73,6 @@ const unity8PimCommonConnectedPlugAppArmor = `
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
-dbus (send)
-	bus=session
-	path=/org/freedesktop/*
-	interface=org.freedesktop.DBus.Properties
-	peer=(label=###SLOT_SECURITY_TAGS###),
-
 ########################
 # SourceManager
 ########################
