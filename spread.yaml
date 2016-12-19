@@ -20,7 +20,7 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
-    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
