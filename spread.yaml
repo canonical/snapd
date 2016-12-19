@@ -270,6 +270,24 @@ suites:
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
 
+    tests/regression/:
+        summary: Regression tests for snapd
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+        restore-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
     tests/upgrade/:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
