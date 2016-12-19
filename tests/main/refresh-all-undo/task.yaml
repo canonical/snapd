@@ -24,7 +24,8 @@ restore: |
 
 execute: |
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable $GOOD_SNAP,$BAD_SNAP -dir $BLOB_DIR
+    . $TESTSLIB/store.sh
+    init_fakestore $GOOD_SNAP,$BAD_SNAP $BLOB_DIR
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap
