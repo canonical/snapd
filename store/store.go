@@ -239,12 +239,12 @@ func useStaging() bool {
 }
 
 func cpiURL() string {
-	if useStaging() {
-		return "https://search.apps.staging.ubuntu.com/api/v1/"
-	}
 	// FIXME: this will become a store-url assertion
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -265,12 +265,11 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
