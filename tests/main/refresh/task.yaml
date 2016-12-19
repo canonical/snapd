@@ -28,7 +28,8 @@ prepare: |
         setup_fake_store $BLOB_DIR
 
         echo "And a new version of that snap put in the controlled store"
-        fakestore -dir $BLOB_DIR -make-refreshable test-snapd-tools
+        . $TESTSLIB/store.sh
+        init_fakestore test-snapd-tools $BLOB_DIR
     fi
 
 restore: |

@@ -242,6 +242,7 @@ prepare: |
     go get ./tests/lib/snapbuild
 
     # Build fakestore.
+    fakestore_tags=
     if [ "$REMOTE_STORE" = staging ]; then
         fakestore_tags="-tags withstagingkeys"
     fi
