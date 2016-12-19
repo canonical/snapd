@@ -137,7 +137,8 @@ func createUserDataDirs(info *snap.Info) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
+		// TRANSLATORS: %q is the file path, %v the error message
+		return fmt.Errorf(i18n.G("cannot remove %q: %v"), currentActiveSymlink, err)
 	}
 
 	return os.Symlink(filepath.Base(userData), currentActiveSymlink)
