@@ -338,7 +338,7 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	snippet: "snippet",
 	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
 }, {
-	// Classic confinement uses apparmor in complain mode by default and ignores all snippets.
+	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
 	opts:    interfaces.ConfinementOptions{Classic: true},
 	snippet: "snippet",
 	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\n\n}\n",
