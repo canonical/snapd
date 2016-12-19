@@ -478,6 +478,8 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":              true,
 		"mir":              true,
 		"udisks2":          true,
+		"unity8-calendar":  true,
+		"unity8-contacts":  true,
 	}
 
 	for _, iface := range all {
