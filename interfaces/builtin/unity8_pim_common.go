@@ -166,7 +166,7 @@ func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slo
 	case interfaces.SecuritySecComp:
 		return []byte(unity8PimCommonPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
-		//FIXME: Implement support after uses session be available.
+		//FIXME: Implement support after session services are available.
 		return nil, nil
 	default:
 		return nil, nil
@@ -199,10 +199,6 @@ func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error
 		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
-}
-
-func (iface *unity8PimCommonInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *unity8PimCommonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

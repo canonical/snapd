@@ -86,8 +86,7 @@ dbus (receive)
 `
 
 const unity8ContactsConnectedSlotAppArmor = `
-# Allow service to interact with connected clients
-# DBus accesses
+# Allow service to interact with connected clients DBus accesses
 
 ########################
 # EDS - AddressBook
@@ -120,9 +119,6 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBookView
-	peer=(label=###PLUG_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
 	peer=(label=###PLUG_SECURITY_TAGS###),
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
@@ -168,9 +164,6 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	path=/com/canonical/pim/AddressBookView
-	peer=(label=###SLOT_SECURITY_TAGS###),
-dbus (receive, send)
-	bus=session
 	peer=(label=###SLOT_SECURITY_TAGS###),
 
 # LP: #1319546. Apps shouldn't talk directly to sync-monitor, but allow it for
