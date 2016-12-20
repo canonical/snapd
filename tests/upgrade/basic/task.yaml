@@ -1,5 +1,4 @@
 summary: Check that upgrade works
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"

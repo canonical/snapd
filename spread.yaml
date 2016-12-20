@@ -295,8 +295,16 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme]
-        restore:
+        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        restore: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             $TESTSLIB/reset.sh
