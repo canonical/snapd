@@ -16,7 +16,7 @@ reset_classic() {
         exit 1
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
 
@@ -65,4 +65,9 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
+fi
+
+if [ "$REMOTE_STORE" = staging ]; then
+    . $TESTSLIB/store.sh
+    teardown_staging_store
 fi

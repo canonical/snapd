@@ -268,11 +268,6 @@ suites:
                 prepare_classic
             fi
         restore: |
-            if [ "$REMOTE_STORE" = staging ]; then
-                . $TESTSLIB/store.sh
-                teardown_staging_store
-            fi
-
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
