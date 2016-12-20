@@ -268,7 +268,7 @@ suites:
                 prepare_classic
             fi
         restore: |
-            $TESTSLIB/reset.sh
+            $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
