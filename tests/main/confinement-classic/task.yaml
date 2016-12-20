@@ -9,11 +9,11 @@ environment:
     INSTALL_FLAGS/classic: --classic
     INSTALL_FLAGS/classic_and_jailmode: --classic --jailmode
 prepare: |
-    make -C hello-classic clean
-    make -C hello-classic
-    snap install $INSTALL_FLAGS --dangerous ./hello-classic/hello-classic_0.1_*.snap
+    make -C test-snapd-hello-classic clean
+    make -C test-snapd-hello-classic
+    snap install $INSTALL_FLAGS --dangerous ./test-snapd-hello-classic/test-snapd-hello-classic_0.1_*.snap
 execute: |
-    /snap/bin/hello-classic | MATCH 'Hello Classic!'
+    /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 restore: |
-    make -C hello-classic clean
-    snap remove hello-classic
+    make -C test-snapd-hello-classic clean
+    snap remove test-snapd-hello-classic

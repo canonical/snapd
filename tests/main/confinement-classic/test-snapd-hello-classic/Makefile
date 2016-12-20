@@ -1,4 +1,4 @@
-SNAP_NAME = hello-classic
+SNAP_NAME = test-snapd-hello-classic
 SNAP_VERSION = 0.1
 
 # Ask gcc about the architecture name
@@ -36,7 +36,7 @@ summary: A hello-world with classic confinement
 architectures: [$(snap_arch)]
 apps:
     $(SNAP_NAME):
-        command: hello-classic.$(snap_arch).bin
+        command: test-snapd-hello-classic.$(snap_arch).bin
 confinement: classic
 endef
 
@@ -54,10 +54,10 @@ LDFLAGS += -Wl,-rpath,/snap/$(snap_core)/current/lib/$(arch):/snap/$(snap_core)/
 # Use the dynamic linker from the core snap
 LDFLAGS += -Wl,--dynamic-linker=/snap/$(snap_core)/current/lib/$(arch)/$(dynamic_linker)
 
-hello-classic.$(snap_arch).bin: hello-classic.c
+test-snapd-hello-classic.$(snap_arch).bin: test-snapd-hello-classic.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
-$(snap_file): hello-classic.$(snap_arch).bin meta/snap.yaml
+$(snap_file): test-snapd-hello-classic.$(snap_arch).bin meta/snap.yaml
 	mksquashfs . $@ -e $@ -noappend -no-xattrs -comp xz
 
 meta: Makefile
@@ -71,7 +71,7 @@ meta/snap.yaml: Makefile | meta
 
 .PHONY: clean
 clean:
-	rm -f hello-classic.*.bin
+	rm -f test-snapd-hello-classic.*.bin
 	rm -f meta/snap.yaml
 	rm -f *.snap
 	rm -f -d meta
