@@ -19,7 +19,8 @@ else ifeq ($(arch),arm-linux-gnueabihf)
 snap_arch = armhf
 dynamic_linker=ld-linux-armhf.so.3
 else ifeq ($(arch),powerpc64le-linux-gnu)
-snap_arch = ppc64le
+# NOTE: The architecture name is ppc64el (E-L) but GCC uses powerpc64le (L-E)
+snap_arch = ppc64el
 dynamic_linker=ld64.so.2
 else
 $(error cannot translate architecture $(arch) to snap equivalent)
