@@ -23,6 +23,7 @@ execute: |
     # have snap use the fakestore for assertions
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
+    prepare_env=
     if [ "$REMOTE_STORE" = staging ]; then
         prepare_env="SNAPPY_USE_STAGING_STORE=1"
     fi
