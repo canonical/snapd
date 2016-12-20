@@ -49,10 +49,17 @@ execute: |
 
     echo "Verify that we have valid looking seed.yaml"
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
+
     # snap-id of core
-    grep -q "snap-id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776" $IMAGE/var/lib/snapd/seed/seed.yaml
+    if [ "$REMOTE_STORE" = production ]; then
+        core_snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+    else
+        core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+    fi
+    grep -q "snap-id: ${core_snap_id}" $IMAGE/var/lib/snapd/seed/seed.yaml
+
     for snap in pc pc-kernel core; do
-      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+        grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
