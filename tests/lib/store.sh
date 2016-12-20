@@ -32,7 +32,7 @@ teardown_staging_store(){
     systemctl start snapd.socket
 }
 
-init_fakestore(){
+init_fake_refreshes(){
     local refreshable_snaps=$1
     local dir=$2
 

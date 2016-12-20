@@ -28,7 +28,7 @@ restore: |
 execute: |
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/store.sh
-    init_fakestore test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
+    init_fake_refreshes test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
 
     echo "And a refresh is performed"
     snap refresh
