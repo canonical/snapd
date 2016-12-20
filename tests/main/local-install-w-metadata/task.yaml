@@ -11,11 +11,20 @@ execute: |
     (snap install test-snapd-tools_*.snap 2>&1 || true) | grep -q 'cannot find signatures with metadata for snap "test-snapd-tools.*\.snap"'
 
     echo "Get its assertions"
+
+    if [ "$REMOTE_STORE" = staging ]; then
+        assertions_server=assertions.staging.ubuntu.com
+        snap_id=02AHdOomTzby7gTaiLX3M3SGMmXDfLJp
+    else
+        assertions_server=assertions.ubuntu.com
+        snap_id=eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw
+    fi
+
     # XXX snap download should do this as well
-    curl -H "Accept: application/x.ubuntu.assertion" -o snap-decl.assertion https://assertions.ubuntu.com/v1/assertions/snap-declaration/16/eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw
+    curl -H "Accept: application/x.ubuntu.assertion" -o snap-decl.assertion https://${assertions_server}/v1/assertions/snap-declaration/16/${snap_id}
     # XXX have a 'snap snap-digest' command?
     digest=$(go run digest.go test-snapd-tools_*.snap)
-    curl -H "Accept: application/x.ubuntu.assertion" -o snap-rev.assertion https://assertions.ubuntu.com/v1/assertions/snap-revision/${digest}
+    curl -H "Accept: application/x.ubuntu.assertion" -o snap-rev.assertion https://${assertions_server}/v1/assertions/snap-revision/${digest}
     # add them
     snap ack snap-decl.assertion
     snap ack snap-rev.assertion
