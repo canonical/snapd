@@ -25,7 +25,7 @@ restore: |
     fi
     shutdown -c
     . $TESTSLIB/boot.sh
-    bootenv_set snap_try_core
+    bootenv_unset snap_try_core
 
 execute: |
     . $TESTSLIB/names.sh
