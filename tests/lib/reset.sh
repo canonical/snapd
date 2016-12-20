@@ -67,7 +67,7 @@ else
     reset_classic "$@"
 fi
 
-if [ "$REMOTE_STORE" = staging ]; then
+if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
     . $TESTSLIB/store.sh
     teardown_staging_store
 fi
