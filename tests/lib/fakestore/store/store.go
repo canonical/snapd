@@ -341,7 +341,7 @@ type bulkReplyJSON struct {
 }
 
 var someSnapIDtoName = map[string]map[string]string{
-	"production": map[string]string{
+	"production": {
 		"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
 		"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
 		"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
@@ -350,7 +350,7 @@ var someSnapIDtoName = map[string]map[string]string{
 		"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
 		"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
 	},
-	"staging": map[string]string{
+	"staging": {
 		"xMNMpEm0COPZy7jq9YRwWVLCD9q5peow": "core",
 		"02AHdOomTzby7gTaiLX3M3SGMmXDfLJp": "test-snapd-tools",
 		"uHjTANBWSXSiYzNOUXZNDnOSH3POSqWS": "test-snapd-python-webserver",
@@ -374,7 +374,11 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[os.Getenv("REMOTE_STORE")])
+	remoteStore := os.Getenv("REMOTE_STORE")
+	if remoteStore == "" {
+		remoteStore = "production"
+	}
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
 		return
