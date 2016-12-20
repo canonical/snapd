@@ -29,12 +29,18 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
+
+func init() {
+	// XXX: use snap instead of snapd in this?
+	store.SetUserAgentFromVersion(cmd.Version)
+}
 
 type cmdDownload struct {
 	channelMixin

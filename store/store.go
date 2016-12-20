@@ -72,6 +72,14 @@ const (
 // xxx: this should actually be set per client request, and include the client user agent
 var userAgent = "unset"
 
+var isTesting bool
+
+func init() {
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		isTesting = true
+	}
+}
+
 func SetUserAgentFromVersion(version string) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
@@ -80,6 +88,9 @@ func SetUserAgentFromVersion(version string) {
 	}
 	if release.ReleaseInfo.ForceDevMode() {
 		extras = append(extras, "devmode")
+	}
+	if isTesting {
+		extras = append(extras, "testing")
 	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
