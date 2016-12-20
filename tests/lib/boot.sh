@@ -15,17 +15,10 @@ bootenv() {
     fi
 }
 
-bootenv_set() {
-    local name=$1
-    local value=$2
-
+bootenv_unset() {
     if command -v grub-editenv >/dev/null; then
-        if [ -z "$value" ]; then
-            grub-editenv unset "$name"
-        else
-            grub-editenv set "$name" "$value"
-        fi
+        grub-editenv /boot/grub/grubenv unset "$1"
     else
-        fw_setenv "$name" "$value"
+        fw_setenv "$1"
     fi
 }
