@@ -16,4 +16,3 @@ execute: |
     /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 restore: |
     make -C test-snapd-hello-classic clean
-    snap remove test-snapd-hello-classic
