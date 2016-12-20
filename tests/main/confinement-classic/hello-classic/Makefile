@@ -18,6 +18,9 @@ dynamic_linker=ld-linux-aarch64.so.1
 else ifeq ($(arch),arm-linux-gnueabihf)
 snap_arch = armhf
 dynamic_linker=ld-linux-armhf.so.3
+else ifeq ($(arch),powerpc64le-linux-gnu)
+snap_arch = ppc64le
+dynamic_linker=ld64.so.2
 else
 $(error cannot translate architecture $(arch) to snap equivalent)
 endif
