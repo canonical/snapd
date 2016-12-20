@@ -27,7 +27,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -37,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -374,8 +374,10 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	remoteStore := os.Getenv("REMOTE_STORE")
-	if remoteStore == "" {
+	var remoteStore string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		remoteStore = "staging"
+	} else {
 		remoteStore = "production"
 	}
 	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
