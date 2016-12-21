@@ -427,6 +427,10 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	return r.connected(snapName, plugOrSlotName)
+}
+
+func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
 		// Look up the core snap if no snap name was given
 		switch {
