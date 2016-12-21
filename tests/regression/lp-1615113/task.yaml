@@ -1,18 +1,13 @@
 summary: Check that entire snap can be shared with the content interface
-# This is blacklisted on debian because we first have to get the dpkg-vendor patches
-systems: [-debian-8]
 prepare: |
-    echo "Having installed the snapd-hacker-toolbelt snap"
-    snap install snapd-hacker-toolbelt
-    echo "We can change its mount profile externally to create a read-only bind-mount"
-    echo "/snap/snapd-hacker-toolbelt/current -> /snap/snapd-hacker-toolbelt/current/dst"
-    mkdir -p /var/lib/snapd/mount/
-    echo "/snap/snapd-hacker-toolbelt/current /snap/snapd-hacker-toolbelt/current/dst none bind,ro 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    echo "Having installed a pair of snaps that share content"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-content-slot
+    install_local test-snapd-content-plug
+    echo "We can connect them together"
+    snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
 execute: |
-    cd /
-    echo "We can now look at the /src directory file in the destination directory"
-    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox cat /snap/snapd-hacker-toolbelt/current/dst/src/.id)" = "source" ]
-restore: |
-    snap remove snapd-hacker-toolbelt
-    rm -rf /var/snap/snapd-hacker-toolbelt
-    rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    echo "We can now see that the content is shared"
+    test-snapd-content-plug.content-plug | grep "Some shared content"
+    echo "And fstab files are created"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
