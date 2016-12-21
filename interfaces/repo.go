@@ -334,6 +334,57 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	return ref, nil
 }
 
+// ResolveDisconnect resolves potentially missing plug or slot names and
+// returns a list of fully populated connection references that can be
+// disconnected.
+func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// There are two allowed forms with a small twist. The name of the snap can
+	// be omitted to imply we are talking about the core snap. Those are listed
+	// below.
+	switch {
+	// 1: <snap>:<plug> <snap>:<slot>
+	// Return exactly one plug/slot or an error if it doens't exist.
+	// The slot snap name can be omitted to imply that we refer to the core snap.
+	case plugSnapName != "" && plugName != "" /* && slotSnapName can be anything */ && slotName != "":
+		if slotSnapName == "" {
+			var err error
+			slotSnapName, err = r.guessCoreSnapName()
+			if err != nil {
+				return nil, err
+			}
+		}
+		// Ensure that such plug exists
+		plug := r.plugs[plugSnapName][plugName]
+		if plug == nil {
+			return nil, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
+		}
+		// Ensure that such slot exists
+		slot := r.slots[slotSnapName][slotName]
+		if slot == nil {
+			return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
+		}
+		// Ensure that slot and plug are connected
+		if !r.slotPlugs[slot][plug] {
+			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
+				plugSnapName, plugName, slotSnapName, slotName)
+		}
+		return []ConnRef{{PlugRef: plug.Ref(), SlotRef: slot.Ref()}}, nil
+	// 2: <snap>:<plug or slot> (through either pair)
+	// The slot snap name can be omitted to imply that we refer to the core snap.
+	// This logic is handled internally by the function connected()
+	// Return a list of connections involivng specified plug or slot.
+	case /* plugSnapName can be anything && */ plugName != "" && slotSnapName == "" && slotName == "":
+		return r.connected(plugSnapName, plugName)
+	case plugSnapName == "" && plugName == "" /* && slotSnapName an be anything */ && slotName != "":
+		return r.connected(slotSnapName, slotName)
+	default:
+		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
+	}
+}
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 func (r *Repository) Connect(ref ConnRef) error {
