@@ -10,4 +10,4 @@ prepare: |
     snap connect log-observe-consumer:log-observe :log-observe
 execute: |
     echo "We can now see a non-empty /var/log directory"
-    [ "$(/log-observe-conusmer.cmd ls /var/log | wc -l)" != 0 ]
+    [ "$(log-observe-consumer.cmd ls /var/log | wc -l)" != 0 ]

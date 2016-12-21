@@ -1,15 +1,12 @@
 summary: Check that /root is bind mounted to the real /root
-# This is blacklisted on debian because we first have to get the dpkg-vendor patches
-systems: [-debian-8]
 prepare: |
-    echo "Having installed the snapd-hacker-toolbelt snap in devmode"
-    snap install --devmode snapd-hacker-toolbelt
+    echo "Having installed a test snap in devmode"
+    . $TESTSLIB/snaps.sh
+    install_local_devmode test-snapd-tools
     echo "Having added a canary file in /root"
     echo "test" > /root/canary
 execute: |
-    cd /
     echo "We can see the canary file in /root"
-    [ "$(snapd-hacker-toolbelt.busybox cat /root/canary)" = "test" ]
+    [ "$(test-snapd-tools.cmd cat /root/canary)" = "test" ]
 restore: |
-    snap remove snapd-hacker-toolbelt
     rm -f /root/canary
