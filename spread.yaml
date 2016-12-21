@@ -22,6 +22,7 @@ environment:
     # slight abuse
     GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
+    SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
 
 backends:
     linode:
