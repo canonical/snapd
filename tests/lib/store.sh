@@ -36,12 +36,10 @@ init_fake_refreshes(){
     local refreshable_snaps=$1
     local dir=$2
 
-    fakestore_mark=
     if [ "$REMOTE_STORE" = staging ]; then
-        fakestore_mark=SNAPPY_USE_STAGING_STORE=1
+        export SNAPPY_USE_STAGING_STORE=1
     fi
-
-    eval "$fakestore_mark fakestore -make-refreshable $refreshable_snaps -dir $dir"
+    fakestore -make-refreshable "$refreshable_snaps" -dir "$dir"
 }
 
 setup_fake_store(){
