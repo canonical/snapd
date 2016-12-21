@@ -5,9 +5,6 @@ restore: |
     rm -f test-snapd-tools_*.{snap,assert}
 execute: |
     echo "Get the snap"
-    if [ "$REMOTE_STORE" = staging ]; then
-        export SNAPPY_USE_STAGING_STORE=1
-    fi
     snap download test-snapd-tools
 
     echo "Try to install the snap without assertions"
