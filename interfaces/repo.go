@@ -432,15 +432,10 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
-		// Look up the core snap if no snap name was given
-		switch {
-		case r.slots["core"] != nil:
-			snapName = "core"
-		case r.slots["ubuntu-core"] != nil:
-			snapName = "ubuntu-core"
-		default:
-			return nil, fmt.Errorf("snap name is empty")
-		}
+		snapName, _ = r.guessCoreSnapName()
+	}
+	if snapName == "" {
+		return nil, fmt.Errorf("snap name is empty")
 	}
 	var conns []ConnRef
 	if plugOrSlotName == "" {
@@ -464,6 +459,18 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 		}
 	}
 	return conns, nil
+}
+
+// coreSnapName returns the name of the core snap if one exists
+func (r *Repository) guessCoreSnapName() (string, error) {
+	switch {
+	case r.slots["core"] != nil:
+		return "core", nil
+	case r.slots["ubuntu-core"] != nil:
+		return "ubuntu-core", nil
+	default:
+		return "", fmt.Errorf("cannot guess the name of the core snap")
+	}
 }
 
 // DisconnectAll disconnects all provided connection references.
