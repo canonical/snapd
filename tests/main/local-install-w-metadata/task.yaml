@@ -5,15 +5,15 @@ restore: |
     rm -f test-snapd-tools_*.{snap,assert}
 execute: |
     echo "Get the snap"
+    if [ "$REMOTE_STORE" = staging ]; then
+        export SNAPPY_USE_STAGING_STORE=1
+    fi
     snap download test-snapd-tools
 
     echo "Try to install the snap without assertions"
     (snap install test-snapd-tools_*.snap 2>&1 || true) | grep -q 'cannot find signatures with metadata for snap "test-snapd-tools.*\.snap"'
 
     echo "Add its assertions"
-    if [ "$REMOTE_STORE" = staging ]; then
-        SNAPPY_USE_STAGING_STORE=1
-    fi
     snap ack test-snapd-tools_*.assert
 
     echo "Installing the snap file will use the metadata from assertions"
