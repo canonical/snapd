@@ -216,7 +216,10 @@ prepare: |
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
-    go get -u github.com/kardianos/govendor
+    if [ "$(which govendor)" = "" ]; then
+        rm -rf $GOPATH/src/github.com/kardianos/govendor
+        go get -u github.com/kardianos/govendor
+    fi
     govendor sync
 
     # increment version so upgrade can work
