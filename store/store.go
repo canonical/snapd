@@ -80,7 +80,7 @@ func init() {
 	}
 }
 
-func SetUserAgentFromVersion(version string) {
+func SetUserAgentFromVersion(version string, extraProds ...string) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
@@ -92,10 +92,14 @@ func SetUserAgentFromVersion(version string) {
 	if isTesting {
 		extras = append(extras, "testing")
 	}
+	extraProdStr := ""
+	if len(extraProds) != 0 {
+		extraProdStr = " " + strings.Join(extraProds, " ")
+	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s) %s/%s (%s)", version, strings.Join(extras, "; "), release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
 }
 
 func infoFromRemote(d snapDetails) *snap.Info {

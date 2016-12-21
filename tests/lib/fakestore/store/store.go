@@ -70,8 +70,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
-		// XXX pass the info as executable instead?
-		store.SetUserAgentFromVersion("fakestore")
+		store.SetUserAgentFromVersion("unknown", "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{

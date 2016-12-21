@@ -38,8 +38,7 @@ import (
 )
 
 func init() {
-	// XXX: use snap instead of snapd in this?
-	store.SetUserAgentFromVersion(cmd.Version)
+	store.SetUserAgentFromVersion(cmd.Version, "snap")
 }
 
 type cmdDownload struct {
