@@ -173,6 +173,13 @@ prepare: |
         exit 0
     fi
 
+    if [ "$SPREAD_BACKEND" = qemu ]; then
+        # treat APT_PROXY as a location of apt-cacher-ng to use
+        if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
+            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
+        fi
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
