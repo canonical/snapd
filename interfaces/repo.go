@@ -35,9 +35,11 @@ type Repository struct {
 	m      sync.Mutex
 	ifaces map[string]Interface
 	// Indexed by [snapName][plugName]
-	plugs     map[string]map[string]*Plug
-	slots     map[string]map[string]*Slot
+	plugs map[string]map[string]*Plug
+	slots map[string]map[string]*Slot
+	// given a slot and a plug, are they connected?
 	slotPlugs map[*Slot]map[*Plug]bool
+	// given a plug and a slot, are they connected?
 	plugSlots map[*Plug]map[*Slot]bool
 }
 
