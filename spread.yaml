@@ -88,10 +88,31 @@ backends:
             - ubuntu-16.04-ppc64el:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.04-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-17.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
