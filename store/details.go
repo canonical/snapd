@@ -49,12 +49,10 @@ type snapDetails struct {
 	Type             snap.Type          `json:"content,omitempty"`
 	Version          string             `json:"version"`
 
-	// FIXME: the store should return "developer" to us instead of
-	//        origin
-	// This will be retired/obsoleted soon
-	Developer string `json:"origin"`
-	// The developer id is the new relevant field that we track
+	// TODO: have the store return a 'developer_username' for this
+	Developer   string `json:"origin"`
 	DeveloperID string `json:"developer_id"`
+
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
 }

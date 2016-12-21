@@ -112,8 +112,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.DeveloperID = d.DeveloperID
-	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	info.PublisherID = d.DeveloperID
+	info.Publisher = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
