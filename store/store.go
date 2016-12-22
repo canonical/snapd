@@ -239,12 +239,12 @@ func useStaging() bool {
 }
 
 func cpiURL() string {
-	if useStaging() {
-		return "https://search.apps.staging.ubuntu.com/api/v1/"
-	}
 	// FIXME: this will become a store-url assertion
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -265,12 +265,11 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
@@ -779,6 +778,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
+	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {
@@ -1285,6 +1285,16 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
+type HashError struct {
+	name           string
+	sha3_384       string
+	targetSha3_384 string
+}
+
+func (e HashError) Error() string {
+	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
@@ -1304,7 +1314,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		// We revert to normal downloads if there is any error.
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
-	w, err := os.OpenFile(targetPath+".partial", os.O_RDWR|os.O_CREATE, 0644)
+
+	partialPath := targetPath + ".partial"
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -1327,6 +1339,21 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
+	// Note that we will retry this way only once.
+	if _, ok := err.(HashError); ok && resume > 0 {
+		logger.Debugf("Error on resumed download: %v", err.Error())
+		err = w.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = w.Seek(0, os.SEEK_SET)
+		if err != nil {
+			return err
+		}
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1345,45 +1372,45 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    storeURL,
-	}
-	h := crypto.SHA3_384.New()
-
-	if resume > 0 {
-		reqOptions.ExtraHeaders = map[string]string{
-			"Range": fmt.Sprintf("bytes=%d-", resume),
-		}
-		// seed the sha3 with the already local file
-		seekStart := 0
-		if _, err := w.Seek(0, seekStart); err != nil {
-			return err
-		}
-		n, err := io.Copy(h, w)
-		if err != nil {
-			return err
-		}
-		if n != resume {
-			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
-		}
-	}
-
-	var resp *http.Response
+	var finalErr error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if cancelled(ctx) {
-			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    storeURL,
 		}
-		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		h := crypto.SHA3_384.New()
+
+		if resume > 0 {
+			reqOptions.ExtraHeaders = map[string]string{
+				"Range": fmt.Sprintf("bytes=%d-", resume),
+			}
+			// seed the sha3 with the already local file
+			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+				return err
+			}
+			n, err := io.Copy(h, w)
+			if err != nil {
+				return err
+			}
+			if n != resume {
+				return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
+			}
+		}
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		var resp *http.Response
+		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
 				continue
 			}
-			return err
+			break
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1391,40 +1418,47 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			continue
 		}
 
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusPartialContent:
+		case http.StatusUnauthorized:
+			return fmt.Errorf("cannot download non-free snap without purchase")
+		default:
+			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+		}
+
+		if pbar == nil {
+			pbar = &progress.NullProgress{}
+		}
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, h, pbar)
+		_, finalErr = io.Copy(mw, resp.Body)
+		pbar.Finished()
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
+				// error while downloading should resume
+				var seekerr error
+				resume, seekerr = w.Seek(0, os.SEEK_END)
+				if seekerr == nil {
+					continue
+				}
+				// if seek failed, then don't retry end return the original error
+			}
+			break
+		}
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if sha3_384 != "" && sha3_384 != actualSha3 {
+			finalErr = HashError{name, actualSha3, sha3_384}
+		}
 		break
 	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusPartialContent:
-		break
-	case http.StatusUnauthorized:
-		return fmt.Errorf("cannot download non-free snap without purchase")
-	default:
-		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
-	}
-
-	if pbar == nil {
-		pbar = &progress.NullProgress{}
-	}
-	pbar.Start(name, float64(resp.ContentLength))
-	mw := io.MultiWriter(w, h, pbar)
-	_, err = io.Copy(mw, resp.Body)
-	pbar.Finished()
-	if err != nil {
-		return err
-	}
-
-	if cancelled(ctx) {
-		return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
-	}
-
-	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
-	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
-	}
-
-	return nil
+	return finalErr
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1482,7 +1516,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
-		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
+		return HashError{name, sha3_384, targetSha3_384}
 	}
 
 	if err := os.Rename(partialTargetPath, targetPath); err != nil {

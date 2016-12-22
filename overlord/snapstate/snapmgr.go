@@ -345,8 +345,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 
 	// alias related
 	runner.AddHandler("alias", m.doAlias, m.undoAlias)
-	//TODO: unalias
 	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
 	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 

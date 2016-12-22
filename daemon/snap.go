@@ -127,7 +127,9 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -146,7 +148,9 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 	apps := make([]appJSON, 0, len(localSnap.Apps))
 	for _, app := range localSnap.Apps {
 		apps = append(apps, appJSON{
-			Name: app.Name,
+			Name:    app.Name,
+			Daemon:  app.Daemon,
+			Aliases: app.Aliases,
 		})
 	}
 
