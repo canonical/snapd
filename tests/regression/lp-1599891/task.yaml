@@ -4,4 +4,4 @@ execute: |
     echo "Seeing that snap-confine is in $snap_confine"
 
     echo "I also see a corresponding apparmor profile"
-    grep -F -q "$snap_confine (enforce)" "/sys/kernel/security/apparmor/profiles"
+    cat "/sys/kernel/security/apparmor/profiles" | MATCH "$snap_confine \(enforce\)"
