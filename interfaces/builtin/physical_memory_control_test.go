@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type PhysicalMemoryControlInterfaceSuite struct {
@@ -35,22 +35,33 @@ type PhysicalMemoryControlInterfaceSuite struct {
 }
 
 var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
-	iface: builtin.NewPhysicalMemoryControlInterface(),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "physical-memory-control",
-			Interface: "physical-memory-control",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "physical-memory-control",
-			Interface: "physical-memory-control",
-		},
-	},
+	iface: &builtin.PhysicalMemoryControlInterface{},
 })
+
+func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
+	// Mock for OS Snap
+	osSnapInfo := snaptest.MockInfo(c, `
+name: ubuntu-core
+type: os
+slots:
+  test-physical-memory:
+    interface: physical-memory-control
+`, nil)
+	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-physical-memory"]}
+
+	// Snap Consumers
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+plugs:
+  plug-for-physical-memory:
+    interface: physical-memory-control
+apps:
+  app-accessing-physical-memory:
+    command: foo
+    plugs: [physical-memory-control]
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-physical-memory"]}
+}
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "physical-memory-control")
@@ -64,7 +75,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "physical-memory-control",
 		Interface: "physical-memory-control",
 	}})
-	c.Assert(err, ErrorMatches, "physical-memory-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "physical-memory-control slots only allowed on core snap")
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizePlug(c *C) {
@@ -80,9 +91,26 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeIncorrectInterface(c *
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	expectedSnippet1 := []byte(`
+# Description: With kernels with STRICT_DEVMEM=n, write access to all physical
+# memory.
+#
+# With STRICT_DEVMEM=y, allow writing to /dev/mem to access
+# architecture-specific subset of the physical address (eg, PCI space,
+# BIOS code and data regions on x86, etc) for all common uses of /dev/mem
+# (eg, X without KMS, dosemu, etc).
+capability sys_rawio,
+/dev/mem rw,
+`)
+	expectedSnippet2 := []byte(`KERNEL=="/dev/mem", TAG+="snap_client-snap_app-accessing-physical-memory"
+`)
+
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Assert(string(snippet), testutil.Contains, `/dev/mem rw,`)
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
