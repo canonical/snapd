@@ -126,6 +126,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	prev = linkSnap
 
 	// setup aliases
+	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
+	addTask(setAutoAliases)
+	prev = setAutoAliases
+
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
 	addTask(setupAliases)
 	prev = setupAliases

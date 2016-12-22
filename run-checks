@@ -142,6 +142,9 @@ if [ "$SPREAD" = 1 ]; then
     ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     spread -v linode:
+
+    # cleanup the debian-ubuntu-14.04
+    rm -rf debian-ubuntu-14.04
 fi
 
 if [ "$DEPRECATED" = 1 ]; then
