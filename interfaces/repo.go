@@ -378,7 +378,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 	// Return a list of connections involivng specified plug or slot.
 	case /* plugSnapName can be anything && */ plugName != "" && slotSnapName == "" && slotName == "":
 		return r.connected(plugSnapName, plugName)
-	case plugSnapName == "" && plugName == "" /* && slotSnapName an be anything */ && slotName != "":
+	case plugSnapName == "" && plugName == "" /* && slotSnapName can be anything */ && slotName != "":
 		return r.connected(slotSnapName, slotName)
 	default:
 		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
