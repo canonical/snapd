@@ -847,7 +847,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 }
 
 // All the was to resolve a 'snap disconnect' between two snaps.
-// The actual snaps as well as the core snaps are installed.
+// The actual snaps as well as the core snap are installed.
 // The snaps are not connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
@@ -925,7 +925,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
 }
 
 // All the was to resolve a 'snap disconnect' between two snaps.
-// The actual snaps as well as the core snaps are installed.
+// The actual snaps as well as the core snap are installed.
 // The snaps are connected.
 func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
