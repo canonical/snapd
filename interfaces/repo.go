@@ -510,9 +510,9 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
 		snapName, _ = r.guessCoreSnapName()
-	}
-	if snapName == "" {
-		return nil, fmt.Errorf("snap name is empty")
+		if snapName == "" {
+			return nil, fmt.Errorf("snap name is empty")
+		}
 	}
 	var conns []ConnRef
 	if plugOrSlotName == "" {
