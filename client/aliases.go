@@ -48,3 +48,22 @@ func (client *Client) Alias(snapName string, aliases []string) (changeID string,
 		Aliases: aliases,
 	})
 }
+
+// Unalias disables explicitly the provided aliases for the snap with snapName.
+func (client *Client) Unalias(snapName string, aliases []string) (changeID string, err error) {
+	return client.performAliasAction(&aliasAction{
+		Action:  "unalias",
+		Snap:    snapName,
+		Aliases: aliases,
+	})
+}
+
+// ResetAliases resets the provided aliases for the snap with snapName
+// to their default state, enabled for auto-aliases, disabled otherwise.
+func (client *Client) ResetAliases(snapName string, aliases []string) (changeID string, err error) {
+	return client.performAliasAction(&aliasAction{
+		Action:  "reset",
+		Snap:    snapName,
+		Aliases: aliases,
+	})
+}
