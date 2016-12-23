@@ -22,7 +22,6 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -46,8 +45,6 @@ func (iface *UhidInterface) String() string {
 	return iface.Name()
 }
 
-const uhidDeviceNode string = "/dev/uhid"
-
 // Check the validity of the slot
 func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// First check the type
@@ -58,17 +55,6 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Only os can create slot of this type
 	if slot.Snap.Type != "os" {
 		return fmt.Errorf("%s slots only allowed on core snaps", iface.Name())
-	}
-
-	// Validate the path
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
-		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
-	}
-
-	path = filepath.Clean(path)
-	if uhidDeviceNode != path {
-		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
 	}
 
 	return nil

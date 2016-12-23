@@ -24,21 +24,13 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type UhidInterfaceSuite struct {
 	iface interfaces.Interface
 
-	testSlot1 *interfaces.Slot
-
-	testUdevBadValue1     *interfaces.Slot
-	testUdevBadValue2     *interfaces.Slot
-	testUdevBadValue3     *interfaces.Slot
-	testUdevBadValue4     *interfaces.Slot
-	testUdevBadInterface1 *interfaces.Slot
-
+	slot *interfaces.Slot
 	plug *interfaces.Plug
 }
 
@@ -55,28 +47,8 @@ slots:
   test-slot-1:
     interface: uhid
     path: /dev/uhid
-  test-udev-bad-value-1:
-    interface: uhid
-    path: /dev/i2c-1
-  test-udev-bad-value-2:
-    interface: uhid
-    path: ""
-  test-udev-bad-value-3:
-    interface: uhid
-    path: /dev/uhid-1
-  test-udev-bad-value-4:
-    interface: uhid
-    path: /uhid
-  test-udev-bad-interface-1:
-    interface: other-interface
-    path: /dev/uhid
 `, nil)
-	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-slot-1"]}
-	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-udev-bad-value-1"]}
-	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-udev-bad-value-2"]}
-	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-udev-bad-value-3"]}
-	s.testUdevBadValue4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-udev-bad-value-4"]}
-	s.testUdevBadInterface1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-udev-bad-interface-1"]}
+	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-slot-1"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -97,24 +69,8 @@ func (s *UhidInterfaceSuite) TestName(c *C) {
 }
 
 func (s *UhidInterfaceSuite) TestSanitizeSlot(c *C) {
-	err := s.iface.SanitizeSlot(s.testSlot1)
+	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-}
-
-func (s *UhidInterfaceSuite) TestSanitizeBadOsSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
-	c.Assert(err, ErrorMatches, "uhid path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
-	c.Assert(err, ErrorMatches, "uhid slot must have a path attribute")
-
-	err = s.iface.SanitizeSlot(s.testUdevBadValue3)
-	c.Assert(err, ErrorMatches, "uhid path attribute must be a valid device node")
-
-	err = s.iface.SanitizeSlot(s.testUdevBadValue4)
-	c.Assert(err, ErrorMatches, "uhid path attribute must be a valid device node")
-
-	c.Assert(func() { s.iface.SanitizeSlot(s.testUdevBadInterface1) }, PanicMatches, `slot is not of interface "uhid"`)
 }
 
 func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
@@ -122,14 +78,9 @@ func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *UhidInterfaceSuite) TestSanitizeBadPlug(c *C) {
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "uhid"`)
-}
-
 func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.testSlot1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
@@ -139,7 +90,7 @@ func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := []byte(`KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"
 `)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.testSlot1, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
