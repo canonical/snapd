@@ -1,15 +1,13 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1597839
-# This is blacklisted on debian because debian doesn't use apparmor yet
-systems: [-debian-8]
+# This test only applies to classic systems
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 details: |
     The snappy execution environment should contain the /lib/modules directory
     from the host filesystem when running on a classic distribution
 prepare: |
-    echo "Having installed the snapd-hacker-toolbelt snap"
-    snap install snapd-hacker-toolbelt
+    echo "Having installed the test snap"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 execute: |
-    cd /
     echo "We can ensure that the /lib/modules/$(uname -r) directory exists"
-    /snap/bin/snapd-hacker-toolbelt.busybox test -d /lib/modules/$(uname -r)
-restore: |
-    snap remove snapd-hacker-toolbelt
+    test-snapd-tools.cmd test -d /lib/modules/$(uname -r)
