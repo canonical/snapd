@@ -15,10 +15,13 @@ bootenv() {
     fi
 }
 
+# unset the given var from boot configuration
 bootenv_unset() {
+    local var="$1"
+
     if command -v grub-editenv >/dev/null; then
-        grub-editenv /boot/grub/grubenv unset "$1"
+        grub-editenv /boot/grub/grubenv unset "$var"
     else
-        fw_setenv "$1"
+        fw_setenv "$var"
     fi
 }
