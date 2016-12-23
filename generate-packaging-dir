@@ -2,6 +2,11 @@
 
 set -e
 
+if [ ! -d .git ]; then
+    echo "not running in a git checkout, skipping"
+    exit 0
+fi
+
 ID="$1"
 VERSION_ID="$2"
 
