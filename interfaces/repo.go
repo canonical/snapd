@@ -337,29 +337,47 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 // ResolveDisconnect resolves potentially missing plug or slot names and
 // returns a list of fully populated connection references that can be
 // disconnected.
+//
+// It can be used in two different ways:
+// 1: snap disconnect <snap>:<plug> <snap>:<slot>
+// 2: snap disconnect <snap>:<plug or slot>
+//
+// In the first case the referenced plug and slot must be connected.  In the
+// second case any matching connection are returned but it is not an error if
+// there are no connections.
+//
+// In both cases the snap name can be omitted to implicitly refer to the core
+// snap. If there's no core snap it is simply assumed to be called "core" to
+// provide consistent error messages.
 func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// There are two allowed forms with a small twist. The name of the snap can
-	// be omitted to imply we are talking about the core snap. Those are listed
-	// below.
+	coreSnapName, _ := r.guessCoreSnapName()
+	if coreSnapName == "" {
+		// This is not strictly speaking true BUT when there's no core snap the
+		// produced error messages are consistent to when the is a core snap
+		// and it has the modern form.
+		coreSnapName = "core"
+	}
+
+	// There are two allowed forms (see snap disconnect --help)
 	switch {
 	// 1: <snap>:<plug> <snap>:<slot>
-	// Return exactly one plug/slot or an error if it doens't exist.
-	// The slot snap name can be omitted to imply that we refer to the core snap.
-	case plugSnapName != "" && plugName != "" /* && slotSnapName can be anything */ && slotName != "":
-		if slotSnapName == "" {
-			var err error
-			slotSnapName, err = r.guessCoreSnapName()
-			if err != nil {
-				return nil, err
-			}
+	// Return exactly one plug/slot or an error if it doesn't exist.
+	case plugName != "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
 		}
 		// Ensure that such plug exists
 		plug := r.plugs[plugSnapName][plugName]
 		if plug == nil {
 			return nil, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
+		}
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
 		}
 		// Ensure that such slot exists
 		slot := r.slots[slotSnapName][slotName]
@@ -372,13 +390,21 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
 		return []ConnRef{{PlugRef: plug.Ref(), SlotRef: slot.Ref()}}, nil
-	// 2: <snap>:<plug or slot> (through either pair)
-	// The slot snap name can be omitted to imply that we refer to the core snap.
-	// This logic is handled internally by the function connected()
-	// Return a list of connections involivng specified plug or slot.
-	case /* plugSnapName can be anything && */ plugName != "" && slotSnapName == "" && slotName == "":
+	// 2: <snap>:<plug or slot> (through 1st pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugName != "" && slotName == "" && slotSnapName == "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
+		}
 		return r.connected(plugSnapName, plugName)
-	case plugSnapName == "" && plugName == "" /* && slotSnapName can be anything */ && slotName != "":
+	// 2: <snap>:<plug or slot> (through 2nd pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugSnapName == "" && plugName == "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
+		}
 		return r.connected(slotSnapName, slotName)
 	default:
 		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
