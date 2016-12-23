@@ -154,7 +154,7 @@ prepare-each: |
 
 debug-each: |
     journalctl -u snapd
-    dmesg | grep DENIED
+    dmesg | grep DENIED || true
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
