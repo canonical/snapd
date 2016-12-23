@@ -26,16 +26,16 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var ioPortsControlConnectedPlugAppArmor = []byte(`
+const ioPortsControlConnectedPlugAppArmor = `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
 
 capability sys_rawio, # required by iopl
 
 /dev/ports rw,
-`)
+`
 
-var ioPortsControlConnectedPlugSecComp = []byte(`
+const ioPortsControlConnectedPlugSecComp = `
 # Description: Allow changes to the I/O port permissions and
 # privilege level of the calling process.  In addition to granting
 # unrestricted I/O port access, running at a higher I/O privilege
@@ -43,7 +43,7 @@ var ioPortsControlConnectedPlugSecComp = []byte(`
 # probably crash the system, and is not recommended.
 ioperm
 iopl
-`)
+`
 
 // The type for io-ports-control interface
 type IioPortsControlInterface struct{}
@@ -90,10 +90,10 @@ func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return ioPortsControlConnectedPlugAppArmor, nil
+		return []byte(ioPortsControlConnectedPlugAppArmor), nil
 
 	case interfaces.SecuritySecComp:
-		return ioPortsControlConnectedPlugSecComp, nil
+		return []byte(ioPortsControlConnectedPlugSecComp), nil
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
