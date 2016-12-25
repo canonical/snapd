@@ -83,7 +83,8 @@ Depends: adduser,
          ubuntu-core-launcher (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Conflicts: snap
+Breaks: snap (<< 2013-11-29-5~)
+Replaces: snap (<< 2013-11-29-5~)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.

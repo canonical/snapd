@@ -1,3 +1,11 @@
+snapd (2.20-2) UNRELEASED; urgency=medium
+
+  * Replace unversioned Conflicts on snap package with versioned
+    Breaks/Replaces, now that snap has dropped /usr/bin/snap.
+    Closes: #849162.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 25 Dec 2016 17:48:16 -0600
+
 snapd (2.20-1) unstable; urgency=medium
 
   * New upstream release.
