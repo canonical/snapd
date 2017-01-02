@@ -209,6 +209,11 @@ prepare: |
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     apt-get update
+
+    # XXX: This seems to be required. Otherwise package build
+    # fails with unmet dependency on "build-essential:native"
+    apt-get install -y build-essential
+
     apt-get install -y software-properties-common
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -230,9 +235,6 @@ prepare: |
          apt-get install -y --install-recommends linux-generic-lts-xenial
          apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 
-         # XXX: This seems to be required on 14.04. Otherwise package build
-         # fails with unmet dependency on "build-essential:native"
-         apt-get install -y build-essential
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
