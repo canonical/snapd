@@ -22,6 +22,7 @@ package state_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -670,7 +671,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Tasks() },
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
-		func() { st.Prune(time.Hour, time.Hour) },
+		func() { st.Prune(time.Hour, time.Hour, 100) },
 		func() { st.TaskCount() },
 	}
 
@@ -729,7 +730,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.Task(t5.ID()), IsNil)
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
 	c.Assert(st.Change(chg2.ID()), IsNil)
@@ -768,8 +769,71 @@ func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	chg := st.NewChange("abort", "...")
 	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 	c.Assert(st.Change(chg.ID()), IsNil)
+}
+
+func (ss *stateSuite) TestPruneMaxChangesHappy(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	// create 10 changes, chg0 is freshest, chg9 is oldest, but
+	// all changes are not old enough for pruneWait
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+		t.SetStatus(state.DoneStatus)
+
+		when := time.Duration(i) * time.Second
+		state.MockChangeTimes(chg, now.Add(-when), now.Add(-when))
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// ensure all changes are newer than pruneWait
+	maxChanges := 100
+	st.Prune(pruneWait, abortWait, maxChanges)
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// but with maxChanges we remove the ready ones
+	maxChanges = 5
+	st.Prune(pruneWait, abortWait, maxChanges)
+	c.Assert(st.Changes(), HasLen, 5)
+	remaining := map[string]bool{}
+	for _, chg := range st.Changes() {
+		remaining[chg.Kind()] = true
+	}
+	c.Check(remaining, DeepEquals, map[string]bool{
+		"chg0": true,
+		"chg1": true,
+		"chg2": true,
+		"chg3": true,
+		"chg4": true,
+	})
+}
+
+func (ss *stateSuite) TestPruneMaxChangesSomeNotReady(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	// 10 changes, none ready
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// nothing can be pruned
+	maxChanges := 5
+	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	c.Assert(st.Changes(), HasLen, 10)
 }
 
 func (ss *stateSuite) TestRequestRestart(c *C) {

@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -363,11 +364,16 @@ func (s *State) tasksIn(tids []string) []*Task {
 // Prune removes changes that became ready for more than pruneWait
 // and aborts tasks spawned for more than abortWait.
 // It also removes tasks unlinked to changes after pruneWait.
-func (s *State) Prune(pruneWait, abortWait time.Duration) {
+func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
-	for _, chg := range s.Changes() {
+
+	// go from oldest to newest
+	changes := s.Changes()
+	sort.Sort(byReadyTime(changes))
+
+	for _, chg := range changes {
 		spawnTime := chg.SpawnTime()
 		readyTime := chg.ReadyTime()
 		if readyTime.IsZero() {
@@ -379,7 +385,8 @@ func (s *State) Prune(pruneWait, abortWait time.Duration) {
 			}
 			continue
 		}
-		if readyTime.Before(pruneLimit) {
+		// change old or we have too many changes
+		if readyTime.Before(pruneLimit) || (chg.Status().Ready() && len(s.changes) > maxReadyChanges) {
 			s.writing()
 			for _, t := range chg.Tasks() {
 				delete(s.tasks, t.ID())
@@ -387,6 +394,7 @@ func (s *State) Prune(pruneWait, abortWait time.Duration) {
 			delete(s.changes, chg.ID())
 		}
 	}
+
 	for tid, t := range s.tasks {
 		// TODO: this could be done more aggressively
 		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
