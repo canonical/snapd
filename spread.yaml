@@ -145,7 +145,7 @@ prepare-each: |
     # or --vacuum-time.
     # TODO: Find a way to clean out systemd logs on
     # systemd 204.
-    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
