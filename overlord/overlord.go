@@ -61,7 +61,7 @@ type Overlord struct {
 	ensureLock  sync.Mutex
 	ensureTimer *time.Timer
 	ensureNext  time.Time
-	pruneTimer  *time.Timer
+	pruneTicker *time.Ticker
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
@@ -181,7 +181,7 @@ func (o *Overlord) ensureTimerSetup() {
 	defer o.ensureLock.Unlock()
 	o.ensureTimer = time.NewTimer(ensureInterval)
 	o.ensureNext = time.Now().Add(ensureInterval)
-	o.pruneTimer = time.NewTimer(pruneInterval)
+	o.pruneTicker = time.NewTicker(pruneInterval)
 }
 
 func (o *Overlord) ensureTimerReset() time.Time {
@@ -233,7 +233,7 @@ func (o *Overlord) Loop() {
 			case <-o.loopTomb.Dying():
 				return nil
 			case <-o.ensureTimer.C:
-			case <-o.pruneTimer.C:
+			case <-o.pruneTicker.C:
 				st := o.State()
 				st.Lock()
 				st.Prune(pruneWait, abortWait)
