@@ -34,6 +34,9 @@ restore: |
     dpkg --set-selections < pkg-list
     rm -f pkg-list
 debug: |
+    # Show the test suite failure log if there's one
+    cat $SPREAD_PATH/cmd/snap-confine/tests/test-suite.log || true
+    # Show any autogabare that may need cleaning
     cd $SPREAD_PATH/cmd/
     find . > after
     diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
