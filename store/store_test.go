@@ -235,6 +235,13 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	}
 	t.device = createTestDevice()
 	t.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
+
+	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
@@ -313,6 +320,65 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	content, err := ioutil.ReadFile(targetFn)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, partialContentStr+"was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
+	partialContentStr := "partial content "
+
+	n := 0
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		n++
+		if n == 1 {
+			// force sha3 error on first download
+			c.Check(resume, Equals, int64(len(partialContentStr)))
+			return HashError{"foo", "1234", "5678"}
+		}
+		w.Write([]byte("file was downloaded from scratch"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = ""
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "file was downloaded from scratch")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
+	partialContentStr := "partial content "
+
+	n := 0
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		n++
+		return HashError{"foo", "1234", "5678"}
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = ""
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `sha3-384 mismatch after patching "foo": got 1234 but expected 5678`)
+	c.Assert(n, Equals, 2)
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
@@ -517,6 +583,29 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, 5)
+}
+
+func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			io.WriteString(w, "response-data")
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 2)
 }
 
 // SillyBuffer is a ReadWriteSeeker buffer with a limited size for the tests
@@ -1281,6 +1370,8 @@ const mockSingleOrderJSON = `{
 }`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
@@ -1297,8 +1388,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
 
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
@@ -1375,7 +1466,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	_, err = repo.Snap("hello-world", "edge", true, snap.R(0), nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 500 via GET to "http://.*?/details/hello-world\?channel=edge"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
@@ -1489,6 +1580,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "foo")
@@ -1499,6 +1593,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
+		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
 
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, MockDetailsJSON)
@@ -1787,6 +1882,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		q := query.Get("q")
 		section := query.Get("section")
 
+		// write dummy json so that Find doesn't re-try due to json decoder EOF error
+		io.WriteString(w, "{}")
+
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, Equals, "/search")
@@ -2020,7 +2118,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
+	c.Check(err, ErrorMatches, `invalid character '<' looking for beginning of value`)
 	c.Check(snaps, HasLen, 0)
 }
 
@@ -2045,7 +2143,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 
 	_, err = repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 500 via GET to "http://\S+[?&]q=hello.*"`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
@@ -2312,12 +2410,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
-	MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 10 * time.Millisecond,
-			Factor:  1.67,
-		},
-	)))
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -2861,7 +2953,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
-	c.Assert(n, Equals, 6)
+	c.Assert(n, Equals, 5)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
@@ -3574,7 +3666,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
-		NumOfCalls: 6,
+		NumOfCalls: 5,
 	},
 }
 
