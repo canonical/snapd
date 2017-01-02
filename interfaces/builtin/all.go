@@ -63,6 +63,7 @@ var allInterfaces = []interfaces.Interface{
 	NewKernelModuleControlInterface(),
 	NewLibvirtInterface(),
 	NewLocaleControlInterface(),
+	NewLoginControlInterface(),
 	NewLogObserveInterface(),
 	NewMountObserveInterface(),
 	NewNetworkBindInterface(),
