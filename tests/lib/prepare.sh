@@ -46,6 +46,7 @@ prepare_classic() {
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
         apt-cache policy snapd
+        cat /tmp/mkversions.log
         exit 1
     fi
     if /usr/lib/snapd/snap-confine --version | MATCH unknown; then

@@ -4,12 +4,12 @@ set -e
 # debugging if anything fails is tricky as dh-golang eats up all output
 # uncomment the lines below to get a useful trace if you have to touch
 # this again (my advice is: DON'T)
-#set -x
-#logfile=/tmp/mkversions.log
-#exec >> $logfile 2>&1
-#echo "env: $(set)"
-#echo "mkversion.sh run from: $0"
-#echo "pwd: $(pwd)"
+set -x
+logfile=/tmp/mkversions.log
+exec >> $logfile 2>&1
+echo "env: $(set)"
+echo "mkversion.sh run from: $0"
+echo "pwd: $(pwd)"
 
 # we have two directories we need to care about:
 # - our toplevel pkg builddir which is where "mkversion.sh" is located
