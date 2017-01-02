@@ -202,9 +202,6 @@ prepare: |
         if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
             printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
         fi
-        # XXX: This seems to be required on 14.04. Otherwise package build
-        # fails with unmet dependency on "build-essential:native"
-        apt-get install -y build-essential
     fi
 
     # apt update is hanging on security.ubuntu.com with IPv6.
@@ -232,6 +229,10 @@ prepare: |
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
          apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+
+         # XXX: This seems to be required on 14.04. Otherwise package build
+         # fails with unmet dependency on "build-essential:native"
+         apt-get install -y build-essential
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
