@@ -47,6 +47,9 @@ backends:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-14.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-14.04-64:
                 username: ubuntu
                 password: ubuntu
