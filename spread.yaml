@@ -202,6 +202,9 @@ prepare: |
         if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
             printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
         fi
+        # XXX: This seems to be required on 14.04. Otherwise package build
+        # fails with unmet dependency on "build-essential:native"
+        apt-get install -y build-essential
     fi
 
     # apt update is hanging on security.ubuntu.com with IPv6.
