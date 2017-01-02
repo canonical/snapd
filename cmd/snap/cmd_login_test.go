@@ -49,15 +49,11 @@ func makeLoginTestServer(c *C, n *int) func(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *SnapSuite) TestLoginSimple(c *C) {
-	if err := archWithBrokenDevPtmx(); err != nil {
-		c.Skip(err.Error())
-	}
-
 	n := 0
 	s.RedirectClientToTestServer(makeLoginTestServer(c, &n))
 
 	// send the password
-	fmt.Fprint(s.term, "some-password\n")
+	s.password = "some-password\n"
 	rest, err := snap.Parser().ParseArgs([]string{"login", "foo@example.com"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
@@ -69,17 +65,13 @@ Login successful
 }
 
 func (s *SnapSuite) TestLoginAskEmail(c *C) {
-	if err := archWithBrokenDevPtmx(); err != nil {
-		c.Skip(err.Error())
-	}
-
 	n := 0
 	s.RedirectClientToTestServer(makeLoginTestServer(c, &n))
 
 	// send the email
 	fmt.Fprint(s.stdin, "foo@example.com\n")
 	// send the password
-	fmt.Fprint(s.term, "some-password\n")
+	s.password = "some-password"
 
 	rest, err := snap.Parser().ParseArgs([]string{"login"})
 	c.Assert(err, IsNil)

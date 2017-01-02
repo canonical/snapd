@@ -217,11 +217,46 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(cur.RealName, cur)
 }
 
+func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
+	for _, si := range snapst.Sequence {
+		if si.Revision == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil
 	}
 	return auth.User(st, userID)
+}
+
+type cachedStoreKey struct{}
+
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache(cachedStoreKey{}, store)
+}
+
+func cachedStore(st *state.State) StoreService {
+	ubuntuStore := st.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
+}
+
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.Store)(nil)
+
+// Store returns the store service used by the snapstate package.
+func Store(st *state.State) StoreService {
+	if cachedStore := cachedStore(st); cachedStore != nil {
+		return cachedStore
+	}
+	panic("internal error: needing the store before managers have initialized it")
 }
 
 func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
@@ -256,7 +291,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
+		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
 	}
 	return res[0], nil
 }
@@ -302,18 +337,21 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// (having this wart here avoids yet-another-patch)
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
-	// FIXME: port to native tasks and rename
-	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
-
-	// TODO: refresh-all needs logic at this level, to properly
-	// handle the logic for that mode (e.g. skip snaps installed
-	// with --devmode, set jailmode from snapstate).
-
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+
+	// alias related
+	runner.AddHandler("alias", m.doAlias, m.undoAlias)
+	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+
+	// control serialisation
+	runner.SetBlocked(m.blockedTask)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -326,39 +364,75 @@ func Manager(st *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-type cachedStoreKey struct{}
-
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
+func diskAliasTask(t *state.Task) bool {
+	kind := t.Kind()
+	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
 }
 
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
-		return nil
-	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
-	}
-	panic("internal error: needing the store before managers have initialized it")
-}
-
-func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
-	for _, si := range snapst.Sequence {
-		if si.Revision == needle {
-			return true
+func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+	// aliases are global, serialize tasks operating on them
+	if diskAliasTask(cand) {
+		for _, t := range running {
+			if diskAliasTask(t) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *SnapManager) Ensure() error {
+	m.runner.Ensure()
+	return nil
+}
+
+// Wait implements StateManager.Wait.
+func (m *SnapManager) Wait() {
+	m.runner.Wait()
+}
+
+// Stop implements StateManager.Stop.
+func (m *SnapManager) Stop() {
+	m.runner.Stop()
+}
+
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
+func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
+	var snapsup SnapSetup
+
+	err := t.Get("snap-setup", &snapsup)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if err == nil {
+		return &snapsup, nil
+	}
+
+	var id string
+	err = t.Get("snap-setup-task", &id)
+	if err != nil {
+		return nil, err
+	}
+
+	ts := t.State().Task(id)
+	if err := ts.Get("snap-setup", &snapsup); err != nil {
+		return nil, err
+	}
+	return &snapsup, nil
+}
+
+func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	var snapst SnapState
+	err = Get(t.State(), snapsup.Name(), &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -561,60 +635,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	st.Unlock()
 	return nil
-}
-
-// Ensure implements StateManager.Ensure.
-func (m *SnapManager) Ensure() error {
-	m.runner.Ensure()
-	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
-	m.runner.Stop()
-}
-
-// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
-func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
-	var snapsup SnapSetup
-
-	err := t.Get("snap-setup", &snapsup)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	if err == nil {
-		return &snapsup, nil
-	}
-
-	var id string
-	err = t.Get("snap-setup-task", &id)
-	if err != nil {
-		return nil, err
-	}
-
-	ts := t.State().Task(id)
-	if err := ts.Get("snap-setup", &snapsup); err != nil {
-		return nil, err
-	}
-	return &snapsup, nil
-}
-
-func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return nil, nil, err
-	}
-	var snapst SnapState
-	err = Get(t.State(), snapsup.Name(), &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, err
-	}
-	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
