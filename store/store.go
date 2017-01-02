@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -179,20 +178,6 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
-}
-
-func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
-}
-
-func shouldRetryError(attempt *retry.Attempt, err error) bool {
-	if !attempt.More() {
-		return false
-	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
-	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
 var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
