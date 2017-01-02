@@ -27,11 +27,7 @@ EXTRA_DIST = $(all_tests) common.sh
 
 if SECCOMP
 if CONFINEMENT_TESTS
-# XXX: This is disabled because those tests fail on 14.04
-# and this is more likely environment than actual failure
-# as regular spread tests work ok
-#
-# TESTS += $(all_tests)
+TESTS += $(all_tests)
 endif
 endif
 
