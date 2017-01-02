@@ -241,9 +241,13 @@ static void sc_setup_mount_profiles(const char *security_tag)
 	}
 }
 
+enum {
+	SC_MOUNT_BIDIRECTIONAL = 1,
+};
+
 struct sc_mount {
 	const char *path;
-	bool is_bidirectional;
+	unsigned sc_flags;
 };
 
 struct sc_mount_config {
@@ -356,8 +360,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// disabling the "is_bidirectional" flag as can be seen below.
 	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
 	     mnt++) {
-		if (mnt->is_bidirectional && mkdir(mnt->path, 0755) < 0 &&
-		    errno != EEXIST) {
+		if ((mnt->sc_flags & SC_MOUNT_BIDIRECTIONAL)
+		    && mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
 			die("cannot create %s", mnt->path);
 		}
 		must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, mnt->path);
@@ -367,7 +371,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot perform operation: mount --rbind %s %s",
 			    mnt->path, dst);
 		}
-		if (!mnt->is_bidirectional) {
+		if (!mnt->sc_flags & SC_MOUNT_BIDIRECTIONAL) {
 			// Mount events will only propagate inwards to the namespace. This
 			// way the running application cannot alter any global state apart
 			// from that of its own snap.
@@ -608,11 +612,11 @@ void sc_populate_mount_ns(const char *security_tag)
 			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			{"/run/media", true},	// access to the users removable devices
+			{"/run/media", SC_MOUNT_BIDIRECTIONAL},	// access to the users removable devices
 #else
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR
-			{"/run/netns", true},	// access to the 'ip netns' network namespaces
+			{"/run/netns", SC_MOUNT_BIDIRECTIONAL},	// access to the 'ip netns' network namespaces
 			{},
 		};
 		struct sc_mount_config classic_config = {
@@ -628,8 +632,8 @@ void sc_populate_mount_ns(const char *security_tag)
 		// bidirectional /media mount point so that snaps designed for mounting
 		// filesystems can use that space for whatever they need.
 		const struct sc_mount mounts[] = {
-			{"/media", true},
-			{"/run/netns", true},
+			{"/media", SC_MOUNT_BIDIRECTIONAL},
+			{"/run/netns", SC_MOUNT_BIDIRECTIONAL},
 			{},
 		};
 		struct sc_mount_config all_snap_config = {
