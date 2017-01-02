@@ -40,13 +40,12 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
-    apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
-    apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+    apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
+    apt_install_local ${GOPATH}/snapd_*.deb
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
         apt-cache policy snapd
-        cat /tmp/mkversions.log
         exit 1
     fi
     if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
@@ -95,7 +94,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+        apt_install_local ${GOPATH}/snapd_*.deb ${GOPATH}/snap-confine_*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
