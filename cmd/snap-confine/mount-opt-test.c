@@ -61,7 +61,70 @@ static void test_sc_mount_opt2str()
 			"ro,noexec,bind");
 }
 
+static void test_sc_mount_cmd()
+{
+	char *cmd;
+
+	// Typical mount 
+	cmd = sc_mount_cmd("/dev/sda3", "/mnt", "ext4", MS_RDONLY, NULL);
+	g_assert_cmpstr(cmd, ==, "mount -t ext4 -o ro /dev/sda3 /mnt");
+	free(cmd);
+
+	// Bind mount
+	cmd = sc_mount_cmd("/source", "/target", NULL, MS_BIND, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --bind /source /target");
+	free(cmd);
+
+	// + recursive
+
+	cmd = sc_mount_cmd("/source", "/target", NULL, MS_BIND | MS_REC, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --rbind /source /target");
+	free(cmd);
+
+	// Shared subtree mount
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_SHARED, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-shared /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_SLAVE, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-slave /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_PRIVATE, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-private /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_UNBINDABLE, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-unbindable /place");
+	free(cmd);
+
+	// + recursive
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_SHARED | MS_REC, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-rshared /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_SLAVE | MS_REC, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-rslave /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_PRIVATE | MS_REC, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-rprivate /place");
+	free(cmd);
+
+	cmd = sc_mount_cmd("/place", "none", NULL, MS_UNBINDABLE | MS_REC,
+			   NULL);
+	g_assert_cmpstr(cmd, ==, "mount --make-runbindable /place");
+	free(cmd);
+
+	// Move
+	cmd = sc_mount_cmd("/from", "/to", NULL, MS_MOVE, NULL);
+	g_assert_cmpstr(cmd, ==, "mount --move /from /to");
+	free(cmd);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
+	g_test_add_func("/mount/sc_mount_cmd", test_sc_mount_cmd);
 }

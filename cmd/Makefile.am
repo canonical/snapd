@@ -71,8 +71,14 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c \
+	snap-confine/cleanup-funcs.c \
+	snap-confine/cleanup-funcs.h \
 	snap-confine/mount-opt.c \
-	snap-confine/mount-opt.h
+	snap-confine/mount-opt.h \
+	snap-confine/utils.c \
+	snap-confine/utils.h
+decode_mount_opts_decode_mount_opts_CFLAGS = $(SECCOMP_CFLAGS)
+decode_mount_opts_decode_mount_opts_LDADD = $(SECCOMP_LIBS)
 
 ##
 ## snap-confine

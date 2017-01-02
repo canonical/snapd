@@ -34,6 +34,7 @@
 #include "classic.h"
 #include "cleanup-funcs.h"
 #include "mount-support-nvidia.h"
+#include "mount-opt.h"
 #include "quirks.h"
 #include "snap.h"
 #include "utils.h"
@@ -577,6 +578,19 @@ static bool __attribute__ ((used))
 	if (subdirlen == dirlen)
 		return true;
 	return false;
+}
+
+void sc_do_mount(const char *source, const char *target,
+		 const char *filesystemtype, unsigned long mountflags,
+		 const void *data)
+{
+	char *mount_cmd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	mount_cmd =
+	    sc_mount_cmd(source, target, filesystemtype, mountflags, data);
+	debug("performing operation: %s", mount_cmd);
+	if (mount(source, target, filesystemtype, mountflags, data) < 0) {
+		die("cannot perform operation: %s", mount_cmd);
+	}
 }
 
 void sc_populate_mount_ns(const char *security_tag)
