@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -181,20 +180,6 @@ type Store struct {
 	suggestedCurrency string
 }
 
-func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
-}
-
-func shouldRetryError(attempt *retry.Attempt, err error) bool {
-	if !attempt.More() {
-		return false
-	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
-	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
-}
-
 var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
 		Initial: 100 * time.Millisecond,
@@ -239,12 +224,12 @@ func useStaging() bool {
 }
 
 func cpiURL() string {
-	if useStaging() {
-		return "https://search.apps.staging.ubuntu.com/api/v1/"
-	}
 	// FIXME: this will become a store-url assertion
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -265,12 +250,11 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
 	return "https://assertions.ubuntu.com/v1/"

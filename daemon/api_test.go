@@ -4800,3 +4800,34 @@ func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(allAliases, check.HasLen, 0)
 }
+
+func (s *apiSuite) TestAliases(c *check.C) {
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "enabled",
+			"alias3": "disabled", // gone from the current revision of the snap
+		},
+	})
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/aliases", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getAliases(aliasesCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]aliasStatus{
+		"alias-snap": {
+			"alias1": {App: "alias-snap.app", Status: "enabled"},
+			"alias2": {App: "alias-snap.app2"},
+			"alias3": {Status: "disabled"},
+		},
+	})
+
+}
