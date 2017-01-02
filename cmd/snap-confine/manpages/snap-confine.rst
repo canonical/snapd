@@ -120,6 +120,13 @@ This is only applicable when testing the program itself.
     feature that will be merged into snapd's snap-run command. The set of directories
     that can be created is confined with apparmor.
 
+`SNAP_CONFINE_TESTING`:
+    Internal variable that should not be relied upon.
+
+    If defined and set to `bind-packaged-over-core` it will bind-mount certain
+    executables from the packaged version of snapd over the currently executing
+    core snap. This is meant to accelerate testing of snapd.
+
 FILES
 =====
 

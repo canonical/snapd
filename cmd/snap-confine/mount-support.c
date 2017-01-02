@@ -651,6 +651,37 @@ void sc_populate_mount_ns(const char *security_tag)
 	if (on_classic) {
 		sc_setup_quirks();
 	}
+
+	char *testing = getenv("SNAP_CONFINE_TESTING");
+	if (on_classic && testing != NULL &&
+	    strcmp(testing, "bind-packaged-over-core") == 0) {
+		const char *core = sc_get_inner_core_mount_point();
+		debug("bind-mounting snap-exec and snapctl from system packages"
+		      " over the core snap at %s", core);
+		// We are testing snap-confine and snapd and the test environment
+		// has requested that the packaged version of snap-exec and snapctl
+		// executables should take priority over whatever is available in
+		// the core snap.
+		const char *src;
+		char dst[PATH_MAX];
+		// Bind mount @LIBEXECDIR@/snap-exec
+		src = SC_HOSTFS_DIR "/usr/lib/snapd/snap-exec";	// TODO: use compile-time LIBEXECDIR here.
+		must_snprintf(dst, sizeof dst, "%susr/lib/snapd/snap-exec",
+			      core);
+		debug("performing operation: mount --bind %s %s", src, dst);
+		if (mount(src, dst, "none", MS_BIND, NULL) < 0) {
+			die("cannot perform operation: mount --bind %s %s", src,
+			    dst);
+		}
+		// Bind mount @BINDIR@/snapctl
+		src = SC_HOSTFS_DIR "/usr/bin/snapctl";	// TODO: use compile-time BINDIR here.
+		must_snprintf(dst, sizeof dst, "%susr/bin/snapctl", core);
+		debug("performing operation: mount --bind %s %s", src, dst);
+		if (mount(src, dst, "none", MS_BIND, NULL) < 0) {
+			die("cannot perform operation: mount --bind %s %s", src,
+			    dst);
+		}
+	}
 	// setup the security backend bind mounts
 	sc_setup_mount_profiles(security_tag);
 
