@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -381,10 +383,73 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+var refreshInterval = 6 * time.Hour
+
+// ensureRefreshes ensures that we refresh all installed snaps periodically
+func (m *SnapManager) ensureRefreshes() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var lastRefresh time.Time
+	err := m.state.Get("last-refresh-time", &lastRefresh)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	now := time.Now()
+	if lastRefresh.Add(refreshInterval).After(now) {
+		// not in refreshInterval
+		return nil
+	}
+
+	// check that there is no change in flight already
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == "refresh-all" && !chg.Status().Ready() {
+			// change already in motion
+			return nil
+		}
+	}
+
+	updated, tasksets, err := UpdateMany(m.state, nil, 0)
+	if err != nil {
+		return err
+	}
+
+	// FIXME: be more clever here, only write it after the refresh has
+	//        finished(?)
+	m.state.Set("last-refresh-time", now)
+
+	var msg string
+	switch len(updated) {
+	case 0:
+		return nil
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
+	default:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
+	}
+
+	chg := m.state.NewChange("refresh-all", msg)
+	for _, ts := range tasksets {
+		chg.AddAll(ts)
+	}
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	// this may generate changes so it needs to run before "Ensure"
+	// but we want to be sure that ensure runs
+	err := m.ensureRefreshes()
+
 	m.runner.Ensure()
-	return nil
+
+	return err
 }
 
 // Wait implements StateManager.Wait.
