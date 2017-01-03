@@ -147,7 +147,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 			// TRANSLATORS: %q is the file path, %v the error message
 			return fmt.Errorf(i18n.G("cannot remove %q: %v"), currentActiveSymlink, err)
 		}
-		err = os.Symlink(wantedSymlinkValue, currentActiveSymlink)
+		return os.Symlink(wantedSymlinkValue, currentActiveSymlink)
 	}
 	return nil
 }
