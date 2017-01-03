@@ -85,7 +85,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary := fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
-	preparePlug := hookstate.HookTask(s, summary, plugHookSetup, nil)
+	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, nil)
 
 	slotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
@@ -93,7 +93,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
-	prepareSlot := hookstate.HookTask(s, summary, slotHookSetup, nil)
+	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, nil)
 
 	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
@@ -116,12 +116,12 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
 	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, nil)
 
-	prepareSlot.WaitFor(preparePlug)
-	connectInterface.WaitFor(prepareSlot)
+	prepareSlotConnection.WaitFor(preparePlugConnection)
+	connectInterface.WaitFor(prepareSlotConnection)
 	confirmSlotConnection.WaitFor(connectInterface)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
-	return state.NewTaskSet(preparePlug, prepareSlot, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
+	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
