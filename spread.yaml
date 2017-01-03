@@ -47,6 +47,9 @@ backends:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-14.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-14.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -88,10 +91,31 @@ backends:
             - ubuntu-16.04-ppc64el:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.04-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-17.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -124,7 +148,7 @@ prepare-each: |
     # or --vacuum-time.
     # TODO: Find a way to clean out systemd logs on
     # systemd 204.
-    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
@@ -133,7 +157,7 @@ prepare-each: |
 
 debug-each: |
     journalctl -u snapd
-    dmesg | grep DENIED
+    dmesg | grep DENIED || true
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
@@ -173,11 +197,23 @@ prepare: |
         exit 0
     fi
 
+    if [ "$SPREAD_BACKEND" = qemu ]; then
+        # treat APT_PROXY as a location of apt-cacher-ng to use
+        if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
+            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
+        fi
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     apt-get update
+
+    # XXX: This seems to be required. Otherwise package build
+    # fails with unmet dependency on "build-essential:native"
+    apt-get install -y build-essential
+
     apt-get install -y software-properties-common
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -198,6 +234,7 @@ prepare: |
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
          apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
@@ -235,6 +272,8 @@ prepare: |
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    # put our debs to a safe place
+    cp ../*.deb $GOPATH
 
     # Build snapbuild.
     apt-get install -y git
