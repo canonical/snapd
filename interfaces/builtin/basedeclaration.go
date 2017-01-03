@@ -178,12 +178,6 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
-  boot-config:
-    allow-installation:
-      slot-snap-type:
-        - gadget
-    deny-connection: true
-    deny-auto-connection: true
   browser-support:
     allow-installation:
       slot-snap-type:
@@ -208,6 +202,14 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
     deny-auto-connection: true
   dcdbas-control:
     allow-installation:

@@ -126,6 +126,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	prev = linkSnap
 
 	// setup aliases
+	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
+	addTask(setAutoAliases)
+	prev = setAutoAliases
+
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
 	addTask(setupAliases)
 	prev = setupAliases
@@ -300,7 +304,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 	if snapst.HasCurrent() {
-		return nil, &snap.AlreadyInstalledError{name}
+		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
 	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
@@ -317,6 +321,27 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 
 	return doInstall(st, &snapst, snapsup)
+}
+
+// InstallMany installs everything from the given list of names.
+// Note that the state must be locked by the caller.
+func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	installed := make([]string, 0, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for _, name := range names {
+		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.AlreadyInstalledError); ok {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		installed = append(installed, name)
+		tasksets = append(tasksets, ts)
+	}
+
+	return installed, tasksets, nil
 }
 
 // contains determines whether the given string is contained in the
@@ -624,22 +649,15 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap), nil
 }
 
-func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
-	snapsup := SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: revision,
-		},
+// canDisable verifies that a snap can be deactivated.
+func canDisable(st *snap.Info) bool {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+		if importantSnapType == st.Type {
+			return false
+		}
 	}
 
-	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
-	clearData.Set("snap-setup", snapsup)
-
-	discardSnap := st.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
-	discardSnap.WaitFor(clearData)
-	discardSnap.Set("snap-setup-task", clearData.ID())
-
-	return state.NewTaskSet(clearData, discardSnap)
+	return true
 }
 
 // canRemove verifies that a snap can be removed.
@@ -665,17 +683,6 @@ func canRemove(si *snap.Info, active bool) bool {
 	return true
 }
 
-// canDisable verifies that a snap can be deactivated.
-func canDisable(st *snap.Info) bool {
-	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == st.Type {
-			return false
-		}
-	}
-
-	return true
-}
-
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSet, error) {
@@ -686,7 +693,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if !snapst.HasCurrent() {
-		return nil, &snap.NotInstalledError{name, snap.R(0)}
+		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
 	if err := checkChangeConflict(st, name, nil); err != nil {
@@ -713,7 +720,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, &snap.NotInstalledError{name, revision}
+			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 	}
 
@@ -796,6 +803,45 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	return full, nil
 }
 
+func removeInactiveRevision(st *state.State, name string, revision snap.Revision) *state.TaskSet {
+	snapsup := SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: name,
+			Revision: revision,
+		},
+	}
+
+	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
+	clearData.Set("snap-setup", snapsup)
+
+	discardSnap := st.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
+	discardSnap.WaitFor(clearData)
+	discardSnap.Set("snap-setup-task", clearData.ID())
+
+	return state.NewTaskSet(clearData, discardSnap)
+}
+
+// RemoveMany removes everything from the given list of names.
+// Note that the state must be locked by the caller.
+func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	removed := make([]string, 0, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for _, name := range names {
+		ts, err := Remove(st, name, snap.R(0))
+		// FIXME: is this expected behavior?
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		removed = append(removed, name)
+		tasksets = append(tasksets, ts)
+	}
+
+	return removed, tasksets, nil
+}
+
 // Revert returns a set of tasks for reverting to the previous version of the snap.
 // Note that the state must be locked by the caller.
 func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
@@ -838,6 +884,8 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 	return doInstall(st, &snapst, snapsup)
 }
+
+// State/info accessors
 
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
@@ -988,46 +1036,4 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
-}
-
-// InstallMany installs everything from the given list of names.
-// Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, 0, len(names))
-	tasksets := make([]*state.TaskSet, 0, len(names))
-	for _, name := range names {
-		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
-		// FIXME: is this expected behavior?
-		if _, ok := err.(*snap.AlreadyInstalledError); ok {
-			continue
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		installed = append(installed, name)
-		tasksets = append(tasksets, ts)
-	}
-
-	return installed, tasksets, nil
-}
-
-// RemoveMany removes everything from the given list of names.
-// Note that the state must be locked by the caller.
-func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
-	removed := make([]string, 0, len(names))
-	tasksets := make([]*state.TaskSet, 0, len(names))
-	for _, name := range names {
-		ts, err := Remove(st, name, snap.R(0))
-		// FIXME: is this expected behavior?
-		if _, ok := err.(*snap.NotInstalledError); ok {
-			continue
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		removed = append(removed, name)
-		tasksets = append(tasksets, ts)
-	}
-
-	return removed, tasksets, nil
 }

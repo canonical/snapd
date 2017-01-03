@@ -22,7 +22,7 @@ $GOPATH/bin/xgettext-go \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
     --keyword=i18n.G \
     --keyword-plural=i18n.DG \
-    $(find $HERE -name "*.go")
+    $(find $HERE -name "*.go" -type f)
 
 #xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
 #	--indent --add-comments=TRANSLATORS: --no-location --sort-output \
