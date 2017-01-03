@@ -272,6 +272,8 @@ prepare: |
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    # put our debs to a safe place
+    cp ../*.deb $GOPATH
 
     # Build snapbuild.
     apt-get install -y git
