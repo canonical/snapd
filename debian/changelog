@@ -1,3 +1,12 @@
+snapd (2.20.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - tests: enable the ppc64el tests again
+    - tests: add classic confinement test
+    - tests: run snap confine tests in debian/rules already
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Dec 2016 11:53:29 +0100
+
 snapd (2.20) xenial; urgency=medium
 
   * New upstream release, LP: #1648520
@@ -17,7 +26,7 @@ snapd (2.20) xenial; urgency=medium
     - overlord/snapstate: fixing the placement/grouping of some
       functions
     - interfaces: support network namespaces via 'ip netns' in network-
-      control (LP: #1624675)
+      control
     - interfaces/builtin: fix pulseaudio apparmor rules
     - interfaces/builtin: add iio interface
     - tests: update custom core snap with the freshly build snap-confine
@@ -175,26 +184,24 @@ snapd (2.18) xenial; urgency=medium
     - interfaces: allow sched_setaffinity in process-control
     - tests: parameterize core channel with env var
     - tests: ensure that the XDG_ env contains at least XDG_RUNTIME_DIR
-    - interfaces: fcitx also listens on the session bus for Qt apps (LP:
-      #1634089)
+    - interfaces: fcitx also listens on the session bus for Qt apps
     - store: retry ListRefresh
     - snap: use "Password of <email>:" in the `snap login`
     - many: reshuffle how we load/inject tests keys so image doesn't
       need assertstate anymore
     - store: use range requests if we have a local file already
     - dirs,interfaces,overlord,snap,snapenv,test: export per-snap
-      XDG_RUNTIME_DIR per user (LP: #1620442)
+      XDG_RUNTIME_DIR per user
     - osutil: make RealUser only look at SUDO_USER when uid==0
-      LP: #1638656
     - tests: do not use the ppa:snappy-dev/image in the tests
     - store: retry readyToBuy request
     - tests: increase `expect` timeouts
     - static tests: add spell check
     - tests: add debug to all flaky expect tests
     - systemd: correct the mount arguments when mounting with squashfuse
-    - interfaces: add avahi-observe (LP: #1639967)
+    - interfaces: add avahi-observe
     - store: bring delta downloads back
-    - interfaces: add alsa (LP: #1598309)
+    - interfaces: add alsa
     - interfaces/builtin: fix a broken test that snuck into master
     - osutil: add chattr funcs
     - image: init "snap_mode" on image creation time to avoid ugly
@@ -206,12 +213,10 @@ snapd (2.18) xenial; urgency=medium
     - tests: do not use hello-world in our tests
     - snap: add support for classic confinement
     - interfaces: remove LegacyAutoConnect() from the interfaces
-    - interfaces: miscellaneous policy updates (LP: #1639988, 1614269,
-      1639614, 1605216, 1629996, et al)
+    - interfaces: miscellaneous policy updates
     - tests: run autopkgtests in the autopkgtest.ubuntu.com
       infrastructure
-    - Implement lxd-client interface exposing the lxd snap (LP:
-      #1634880)
+    - Implement lxd-client interface exposing the lxd snap
     - asserts: validate optional account username
     - many: remove unnecessary snap name parameter from buying endpoint
     - tests: do not hardcode the size of /dev/ram0
