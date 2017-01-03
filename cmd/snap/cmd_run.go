@@ -121,7 +121,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	// create /home/snap/$SNAP_NAME/.lock file
 	lockFilePath := filepath.Join(info.HomeDirBase(usr.HomeDir), ".lock")
-	lockFd, err := syscall.Open(lockFilePath, syscall.O_CREAT, syscall.S_IWUSR)
+	lockFd, err := syscall.Open(lockFilePath, syscall.O_CREAT, syscall.S_IRUSR|syscall.S_IWUSR)
 	if err != nil {
 		// TRANSLATORS: %q is the file path, %v the error message
 		return fmt.Errorf(i18n.G("cannot create lock file %q: %v"), lockFilePath, err)
