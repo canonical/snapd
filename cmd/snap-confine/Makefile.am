@@ -1,9 +1,19 @@
 SUBDIRS = manpages tests
-libexec_PROGRAMS = snap-confine snap-discard-ns
+libexec_PROGRAMS = snap-confine snap-discard-ns system-shutdown
 noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine-unit-tests
+noinst_PROGRAMS += system-shutdown-unit-tests
 endif
+
+system-shutdown: \
+	mountinfo.c \
+	mountinfo.h \
+	system-shutdown-utils.c \
+	system-shutdown-utils.h \
+	system-shutdown.c
+system-shutdown: CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system-shutdown: LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 decode_mount_opts_SOURCES = \
 	decode-mount-opts.c \
@@ -114,6 +124,15 @@ snap_confine_unit_tests_SOURCES = \
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
+
+system_shutdown_unit_tests_SOURCES = \
+	unit-tests.c \
+	unit-tests-main.c \
+	mountinfo.c \
+	mountinfo.h \
+	system-shutdown-utils-test.c
+system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+system_shutdown_unit_tests_LDADD =  $(GLIB_LIBS)
 endif
 
 # Force particular coding style on all source and header files.
@@ -132,6 +151,7 @@ check-syntax:
 check-unit-tests: snap-confine-unit-tests
 if WITH_UNIT_TESTS
 	./snap-confine-unit-tests
+	./system-shutdown-unit-tests
 endif
 
 
