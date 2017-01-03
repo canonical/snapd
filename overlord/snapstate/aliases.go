@@ -708,3 +708,29 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 	setAliases(st, snapName, aliasStatuses)
 	return nil
 }
+
+// Aliases returns a map snap -> alias -> status covering all installed snaps.
+func Aliases(st *state.State) (map[string]map[string]string, error) {
+	var snapNames map[string]*json.RawMessage
+	err := st.Get("snaps", &snapNames)
+	if err == state.ErrNoState {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var res map[string]map[string]string
+	for snapName := range snapNames {
+		aliasStatuses, err := getAliases(st, snapName)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if len(aliasStatuses) != 0 {
+			if res == nil {
+				res = make(map[string]map[string]string)
+			}
+			res[snapName] = aliasStatuses
+		}
+	}
+	return res, nil
+}
