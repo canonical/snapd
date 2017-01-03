@@ -125,7 +125,8 @@ func findSnaps(opts *client.FindOptions) error {
 
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
-		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
+		fmt.Fprintf(Stderr, i18n.G("The search %q returned 0 snaps\n"), opts.Query)
+		return nil
 	}
 
 	w := tabWriter()
