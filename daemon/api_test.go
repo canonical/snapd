@@ -2979,27 +2979,18 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect consumer:plug ("test" interface) to producer:slot ("different" interface))`)
-
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot connect consumer:plug (\"test\" interface) to producer:slot (\"different\" interface)",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
@@ -3013,13 +3004,14 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "missingplug"}},
 		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
@@ -3029,26 +3021,19 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, 400)
+
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (snap "consumer" has no plug named "plug")`)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "snap \"consumer\" has no plug named \"missingplug\"",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -3060,6 +3045,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 	// there is no producer, no slot defined
 
 	d.overlord.Loop()
@@ -3068,7 +3054,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "missingslot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -3077,26 +3063,19 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, 400)
+
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (snap "producer" has no slot named "slot")`)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "snap \"producer\" has no slot named \"missingslot\"",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
