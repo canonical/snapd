@@ -304,7 +304,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 	if snapst.HasCurrent() {
-		return nil, &snap.AlreadyInstalledError{name}
+		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
 	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
@@ -693,7 +693,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	if !snapst.HasCurrent() {
-		return nil, &snap.NotInstalledError{name, snap.R(0)}
+		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
 	if err := checkChangeConflict(st, name, nil); err != nil {
@@ -720,7 +720,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, &snap.NotInstalledError{name, revision}
+			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 	}
 
