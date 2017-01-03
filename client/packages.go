@@ -59,7 +59,9 @@ type Snap struct {
 }
 
 type AppInfo struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases"`
 }
 
 type Screenshot struct {
@@ -74,6 +76,7 @@ const (
 	StatusInstalled = "installed"
 	StatusActive    = "active"
 	StatusRemoved   = "removed"
+	StatusPriced    = "priced"
 
 	TypeApp    = "app"
 	TypeKernel = "kernel"
