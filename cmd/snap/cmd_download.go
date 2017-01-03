@@ -29,17 +29,12 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
-
-func init() {
-	store.SetUserAgentFromVersion(cmd.Version, "snap")
-}
 
 type cmdDownload struct {
 	channelMixin
