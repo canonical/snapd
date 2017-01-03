@@ -396,6 +396,10 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
+	// FIXME2: add randomness to the refreshes!
+	// FIXME3: add check for network?
+	// FIXME4: add auto-reboot
+
 	now := time.Now()
 	if lastRefresh.Add(refreshInterval).After(now) {
 		// not in refreshInterval
