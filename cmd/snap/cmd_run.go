@@ -119,23 +119,26 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 }
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
-	userData := info.UserDataDir(usr.HomeDir)
-
+	// create /home/snap/$SNAP_NAME/.lock file
 	lockFilePath := filepath.Join(info.HomeDirBase(usr.HomeDir), ".lock")
 	lockFd, err := syscall.Open(lockFilePath, syscall.O_CREAT, syscall.S_IWUSR)
 	if err != nil {
+		// TRANSLATORS: %q is the file path, %v the error message
 		return fmt.Errorf(i18n.G("cannot create lock file %q: %v"), lockFilePath, err)
 	}
 	err = syscall.Flock(lockFd, syscall.LOCK_EX)
 	if err != nil {
+		// TRANSLATORS: %v the error message
 		return fmt.Errorf(i18n.G("cannot obtain lock: %v"), lockFilePath, err)
 	}
 	defer syscall.Flock(lockFd, syscall.LOCK_UN)
 
 	// 'current' symlink for user data (SNAP_USER_DATA)
+	userData := info.UserDataDir(usr.HomeDir)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 	currentSymlinkValue, err := os.Readlink(currentActiveSymlink)
 	if err != nil && !os.IsNotExist(err) {
+		// TRANSLATORS: %v the error message
 		return fmt.Errorf(i18n.G("Failed to read symlink: %v"), err)
 	}
 	wantedSymlinkValue := filepath.Base(userData)
