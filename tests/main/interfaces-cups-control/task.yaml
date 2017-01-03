@@ -23,14 +23,14 @@ prepare: |
     snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         apt-get install -y cups-pdf
     else
         apt-get install -y printer-driver-cups-pdf
     fi
 
 restore: |
-    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         apt-get remove -y cups-pdf
     else
         apt-get remove -y printer-driver-cups-pdf

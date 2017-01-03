@@ -8,6 +8,7 @@ environment:
     # a different go in gccgo tests)
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
+    SNAPPY_TESTING: 1
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
@@ -19,12 +20,16 @@ environment:
     TRUST_TEST_KEYS: "true"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
+    # slight abuse
+    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         halt-timeout: 2h
         systems:
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -43,6 +48,12 @@ backends:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-14.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-14.04-64:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-32:
                 username: ubuntu
                 password: ubuntu
@@ -54,6 +65,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-16.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-64:
                 username: ubuntu
                 password: ubuntu
     autopkgtest:
@@ -69,10 +83,42 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
-            - ubuntu-16.04-64:
+            - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
-
+            - ubuntu-16.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-armhf:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
@@ -103,7 +149,7 @@ prepare-each: |
     # or --vacuum-time.
     # TODO: Find a way to clean out systemd logs on
     # systemd 204.
-    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
@@ -112,12 +158,11 @@ prepare-each: |
 
 debug-each: |
     journalctl -u snapd
-    dmesg | grep DENIED
+    dmesg | grep DENIED || true
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
@@ -131,7 +176,7 @@ prepare: |
     [Unit]
     StartLimitInterval=0
     [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
     EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
@@ -153,20 +198,59 @@ prepare: |
         exit 0
     fi
 
+    if [ "$SPREAD_BACKEND" = qemu ]; then
+        # treat APT_PROXY as a location of apt-cacher-ng to use
+        if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
+            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
+        fi
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+    apt-get update
+
+    # XXX: This seems to be required. Otherwise package build
+    # fails with unmet dependency on "build-essential:native"
+    apt-get install -y build-essential
+
+    apt-get install -y software-properties-common
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+         if [ ! -d debian-ubuntu-14.04 ]; then
+             echo "no debian-ubuntu-14.04/ directory "
+             echo "broken test setup"
+             exit 1
+         fi
+
+         # 14.04 has its own packaging
+         rm -rf debian
+         mv debian-ubuntu-14.04 debian
+
+         echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+         apt-get update
+
+         add-apt-repository ppa:snappy-dev/image
+         apt-get update
+         apt-get install -y --install-recommends linux-generic-lts-xenial
+         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+
+    fi
+
+    apt-get purge -y snapd snap-confine ubuntu-core-launcher
     apt-get update
     # utilities
-    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
+    apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
 
     # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
-    go get -u github.com/kardianos/govendor
+    if [ "$(which govendor)" = "" ]; then
+        rm -rf $GOPATH/src/github.com/kardianos/govendor
+        go get -u github.com/kardianos/govendor
+    fi
     govendor sync
 
     # increment version so upgrade can work
@@ -192,6 +276,8 @@ prepare: |
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    # put our debs to a safe place
+    cp ../*.deb $GOPATH
 
     # Build snapbuild.
     apt-get install -y git
@@ -222,7 +308,25 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+        restore-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
+    tests/regression/:
+        summary: Regression tests for snapd
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -231,6 +335,6 @@ suites:
         summary: Tests for snapd upgrade
         systems: [-ubuntu-core-16-64-fixme]
         restore:
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher || true
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
             $TESTSLIB/reset.sh

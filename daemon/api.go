@@ -211,9 +211,10 @@ var (
 	}
 
 	aliasesCmd = &Command{
-		Path: "/v2/aliases",
-		// TODO: GET:    getAliases,
-		POST: changeAliases,
+		Path:   "/v2/aliases",
+		UserOK: true,
+		GET:    getAliases,
+		POST:   changeAliases,
 	}
 )
 
@@ -2217,6 +2218,12 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "alias":
 		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
 		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+	case "unalias":
+		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
+	case "reset":
+		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
@@ -2229,4 +2236,59 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+type aliasStatus struct {
+	App    string `json:"app,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// getAliases produces a response with a map snap -> alias -> aliasStatus
+func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	res := make(map[string]map[string]aliasStatus)
+
+	allStates, err := snapstate.All(state)
+	if err != nil {
+		return InternalError("cannot list local snaps: %v", err)
+	}
+
+	allAliases, err := snapstate.Aliases(state)
+	if err != nil {
+		return InternalError("cannot list aliases: %v", err)
+	}
+
+	for snapName, snapst := range allStates {
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
+		}
+		if len(info.Aliases) != 0 {
+			snapAliases := make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+			for alias, aliasApp := range info.Aliases {
+				snapAliases[alias] = aliasStatus{
+					App: filepath.Base(aliasApp.WrapperPath()),
+				}
+			}
+		}
+	}
+
+	for snapName, aliasStatuses := range allAliases {
+		snapAliases := res[snapName]
+		if snapAliases == nil {
+			snapAliases = make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+		}
+		for alias, status := range aliasStatuses {
+			entry := snapAliases[alias]
+			entry.Status = status
+			snapAliases[alias] = entry
+		}
+	}
+
+	return SyncResponse(res, nil)
 }

@@ -168,6 +168,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = append(tagSnippets, classicJailmodeSnippet)
 				tagSnippets = append(tagSnippets, snippets[securityTag]...)
+			} else if opts.Classic && !opts.JailMode {
+				// When classic confinement (without jailmode) is in effect we
+				// are ignoring all apparmor snippets as they may conflict with
+				// the super-broad template we are starting with.
 			} else {
 				tagSnippets = snippets[securityTag]
 			}
