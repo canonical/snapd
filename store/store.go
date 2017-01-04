@@ -961,6 +961,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	return channelInfos, nil
 }
 
+// A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
 	Name     string
 	Channel  string
@@ -968,7 +969,7 @@ type SnapSpec struct {
 	Devmode  bool
 }
 
-// Info returns the snap.Info for the store hosted snap with the given name or an error.
+// SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
