@@ -23,6 +23,7 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -383,25 +384,27 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-var refreshInterval = 6 * time.Hour
+var (
+	refreshInterval   = 6 * time.Hour
+	refreshRandomness = 3 * time.Hour
+)
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	var lastRefresh time.Time
-	err := m.state.Get("last-refresh-time", &lastRefresh)
+	var nextRefresh time.Time
+	err := m.state.Get("next-refresh-time", &nextRefresh)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	// FIXME2: add randomness to the refreshes!
-	// FIXME3: add check for network?
-	// FIXME4: add auto-reboot
+	// FIXME: add check for network?
+	// FIXME2: add auto-reboot
 
 	now := time.Now()
-	if lastRefresh.Add(refreshInterval).After(now) {
+	if nextRefresh.Before(now) {
 		// not in refreshInterval
 		return nil
 	}
@@ -421,7 +424,10 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// FIXME: be more clever here, only write it after the refresh has
 	//        finished(?)
-	m.state.Set("last-refresh-time", now)
+	actualRand := rand.Int63n(int64(refreshRandomness))
+	nextRefreshTime := now.Add(refreshInterval)
+	nextRefreshTime = nextRefreshTime.Add(time.Duration(actualRand))
+	m.state.Set("next-refresh-time", nextRefreshTime)
 
 	var msg string
 	switch len(updated) {
