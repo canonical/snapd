@@ -404,7 +404,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// time to refresh?
-	if nextRefresh.Before(time.Now()) {
+	if !nextRefresh.IsZero() && nextRefresh.Before(time.Now()) {
 		return nil
 	}
 
