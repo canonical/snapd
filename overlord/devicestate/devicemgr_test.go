@@ -91,7 +91,7 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
+func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("fakeStore.Snap not expected")
 }
 
