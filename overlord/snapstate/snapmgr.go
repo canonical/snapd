@@ -335,6 +335,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
+	runner.AddHandler("schedule-next-refresh", m.scheduleNextRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -395,23 +396,19 @@ func (m *SnapManager) ensureRefreshes() error {
 	defer m.state.Unlock()
 
 	var nextRefresh time.Time
-	err := m.state.Get("next-refresh-time", &nextRefresh)
+	err := m.state.Get("next-auto-refresh-time", &nextRefresh)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	// FIXME: add check for network?
-	// FIXME2: add auto-reboot
-
-	now := time.Now()
-	if nextRefresh.Before(now) {
-		// not in refreshInterval
+	// time to refresh?
+	if nextRefresh.Before(time.Now()) {
 		return nil
 	}
 
 	// check that there is no change in flight already
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "refresh-all" && !chg.Status().Ready() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
 			// change already in motion
 			return nil
 		}
@@ -421,13 +418,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	if err != nil {
 		return err
 	}
-
-	// FIXME: be more clever here, only write it after the refresh has
-	//        finished(?)
-	actualRand := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := now.Add(refreshInterval)
-	nextRefreshTime = nextRefreshTime.Add(time.Duration(actualRand))
-	m.state.Set("next-refresh-time", nextRefreshTime)
 
 	var msg string
 	switch len(updated) {
@@ -441,7 +431,14 @@ func (m *SnapManager) ensureRefreshes() error {
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
 
-	chg := m.state.NewChange("refresh-all", msg)
+	// add "schedule-next-refresh" after the others
+	nextRefreshTask := m.state.NewTask("schedule-next-refresh", i18n.G("Schedule next refresh"))
+	for _, ts := range tasksets {
+		nextRefreshTask.WaitAll(ts)
+	}
+	tasksets = append(tasksets, state.NewTaskSet(nextRefreshTask))
+
+	chg := m.state.NewChange("auto-refresh", msg)
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
@@ -1090,6 +1087,18 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.StartSnapServices(currentInfo, pb)
 	st.Lock()
 	return err
+}
+
+func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	actualRand := rand.Int63n(int64(refreshRandomness))
+	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(actualRand))
+	st.Set("next-auto-refresh-time", nextRefreshTime)
+
+	return nil
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
