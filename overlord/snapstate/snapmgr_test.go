@@ -3360,6 +3360,46 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	c.Check(chg.IsReady(), Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	terr := s.state.NewTask("error-trigger", "simulate an error")
+	tasks := chg.Tasks()
+	for _, t := range tasks[:len(tasks)-2] {
+		terr.WaitFor(t)
+	}
+	chg.AddTask(terr)
+
+	// run the changes
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	var nextRefresh time.Time
+	s.state.Get("next-auto-refresh-time", &nextRefresh)
+	c.Check(chg.Err(), ErrorMatches, "(?sm).*simulate an error.*")
+	// even with an error the next-refresh time is updated
+	c.Check(nextRefresh.IsZero(), Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

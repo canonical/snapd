@@ -44,6 +44,7 @@ import (
 var (
 	// minimum time between refreshes
 	refreshInterval = 4 * time.Hour
+
 	// random interval on top of the minmum time between refreshes
 	refreshRandomness = 4 * time.Hour
 )
@@ -342,7 +343,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("schedule-next-refresh", m.scheduleNextRefresh, nil)
+	// abuse cleanup so that the last step is schedule next refresh
+	// regardless of error
+	runner.AddHandler("schedule-next-refresh", m.nopHandler, nil)
+	runner.AddCleanup("schedule-next-refresh", m.scheduleNextRefresh)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -1089,6 +1093,10 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.StartSnapServices(currentInfo, pb)
 	st.Lock()
 	return err
+}
+
+func (m *SnapManager) nopHandler(t *state.Task, _ *tomb.Tomb) error {
+	return nil
 }
 
 func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
