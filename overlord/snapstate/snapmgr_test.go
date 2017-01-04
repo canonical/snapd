@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -3276,6 +3277,34 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
+	refreshInterval := 1 * time.Minute
+	refreshRandomness := 2 * time.Minute
+	restore := snapstate.MockRefreshInterval(refreshInterval, refreshRandomness)
+	defer restore()
+
+	for i := 0; i < 50; i++ {
+		now := time.Now()
+
+		s.state.Lock()
+		chg := s.state.NewChange("auto-refresh", "...")
+		chg.AddTask(s.state.NewTask("schedule-next-refresh", "..."))
+		s.state.Unlock()
+
+		s.settle()
+
+		var nextRefresh time.Time
+		s.state.Lock()
+		s.state.Get("next-auto-refresh-time", &nextRefresh)
+		s.state.Unlock()
+
+		// minimium time is the refreshInterval
+		c.Check(nextRefresh.After(now.Add(refreshInterval)), Equals, true)
+		// maximum time is refreshInterval+refreshRandomness
+		c.Check(nextRefresh.Before(now.Add(refreshInterval).Add(refreshRandomness)), Equals, true)
+	}
 }
 
 type snapmgrQuerySuite struct {

@@ -89,10 +89,15 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
-func MockRefreshInterval(newTime time.Duration) (restore func()) {
+func MockRefreshInterval(newRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
 	prevRefreshInterval := refreshInterval
-	refreshInterval = newTime
-	return func() { refreshInterval = prevRefreshInterval }
+	prevRefreshRandomness := refreshRandomness
+	refreshInterval = newRefreshInterval
+	refreshRandomness = newRefreshRandomness
+	return func() {
+		refreshInterval = prevRefreshInterval
+		refreshRandomness = prevRefreshRandomness
+	}
 }
 
 var (
