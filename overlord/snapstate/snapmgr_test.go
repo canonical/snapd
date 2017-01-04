@@ -3307,6 +3307,85 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// nothing needs to be done
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify we have an auto-refresh change scheduled now
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.IsReady(), Equals, false)
+	// nextRefresh still unset (change is not finished yet)
+	var nextRefresh time.Time
+	s.state.Get("next-auto-refresh-time", &nextRefresh)
+	c.Check(nextRefresh.IsZero(), Equals, true)
+
+	// run the changes
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	// after the changes are done the next refresh time is set
+	s.state.Get("next-auto-refresh-time", &nextRefresh)
+	c.Check(nextRefresh.IsZero(), Equals, false)
+	c.Check(chg.IsReady(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// simulate an in-flight change
+	chg := s.state.NewChange("auto-refresh", "...")
+	chg.SetStatus(state.DoStatus)
+	c.Check(s.state.Changes(), HasLen, 1)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify no additional change got generated
+	c.Check(s.state.Changes(), HasLen, 1)
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }
