@@ -41,6 +41,13 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var (
+	// minimum time between refreshes
+	refreshInterval = 4 * time.Hour
+	// random interval on top of the minmum time between refreshes
+	refreshRandomness = 4 * time.Hour
+)
+
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
@@ -384,11 +391,6 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	}
 	return false
 }
-
-var (
-	refreshInterval   = 6 * time.Hour
-	refreshRandomness = 3 * time.Hour
-)
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
@@ -1094,8 +1096,8 @@ func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	actualRand := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(actualRand))
+	randomness := rand.Int63n(int64(refreshRandomness))
+	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
 	st.Set("next-auto-refresh-time", nextRefreshTime)
 
 	return nil
