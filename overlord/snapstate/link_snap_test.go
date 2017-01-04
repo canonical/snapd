@@ -61,6 +61,9 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(s.stateBackend)
+	s.state.Lock()
+	s.state.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
+	s.state.Unlock()
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
