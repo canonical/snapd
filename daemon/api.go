@@ -562,7 +562,13 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  "",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
 		return InternalError("%v", err)
 	}

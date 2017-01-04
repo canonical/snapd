@@ -961,18 +961,25 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	return channelInfos, nil
 }
 
-// Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
-	u, err := s.detailsURI.Parse(name)
+type SnapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+	Devmode  bool
+}
+
+// Info returns the snap.Info for the store hosted snap with the given name or an error.
+func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	query := u.Query()
 
-	query.Set("channel", channel)
-	if !revision.Unset() {
-		query.Set("revision", revision.String())
+	query.Set("channel", snapSpec.Channel)
+	if !snapSpec.Revision.Unset() {
+		query.Set("revision", snapSpec.Revision.String())
 		query.Set("channel", "")
 	}
 
@@ -980,7 +987,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	// XXX: what we really want to do is have the store not specify
 	//      devmode, and have the business logic wrt what to do with
 	//      unwanted devmode further up
-	if !devmode {
+	if !snapSpec.Devmode {
 		query.Set("confinement", string(snap.StrictConfinement))
 	}
 
@@ -1005,14 +1012,14 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && channel == "" && revision.Unset() {
+	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)
@@ -1021,7 +1028,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		}
 	}
 
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
