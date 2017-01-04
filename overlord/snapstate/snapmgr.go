@@ -428,7 +428,8 @@ func (m *SnapManager) ensureRefreshes() error {
 	var msg string
 	switch len(updated) {
 	case 0:
-		return nil
+		// check in after some hours
+		return scheduleNextRefresh(m.state)
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
@@ -1099,16 +1100,20 @@ func (m *SnapManager) nopHandler(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
+func scheduleNextRefresh(st *state.State) error {
 	randomness := rand.Int63n(int64(refreshRandomness))
 	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
 	st.Set("next-auto-refresh-time", nextRefreshTime)
 
 	return nil
+}
+
+func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	return scheduleNextRefresh(st)
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
