@@ -1,4 +1,4 @@
-name: classic-confinement
+name: test-snapd-classic-confinement
 version: 1.0
 confinement: classic
 apps:
