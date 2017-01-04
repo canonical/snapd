@@ -24,6 +24,7 @@ package snapstate_test
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -62,6 +63,10 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.state = state.New(nil)
+	bs.state.Lock()
+	bs.state.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
+	bs.state.Unlock()
+
 	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
 	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)

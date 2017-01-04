@@ -96,6 +96,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
+	s.state.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
@@ -3310,6 +3311,7 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("next-auto-refresh-time", time.Now())
 
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
@@ -3323,6 +3325,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	now := time.Now()
+	s.state.Set("next-auto-refresh-time", now)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3347,7 +3351,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	// nextRefresh still unset (change is not finished yet)
 	var nextRefresh time.Time
 	s.state.Get("next-auto-refresh-time", &nextRefresh)
-	c.Check(nextRefresh.IsZero(), Equals, true)
+	c.Check(nextRefresh, Equals, now)
 
 	// run the changes
 	s.state.Unlock()
@@ -3363,6 +3367,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("next-auto-refresh-time", time.Now())
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3403,6 +3408,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("next-auto-refresh-time", time.Now())
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,

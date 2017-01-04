@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -41,6 +43,9 @@ var _ = Suite(&discardSnapSuite{})
 func (s *discardSnapSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
+	s.state.Lock()
+	s.state.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
+	s.state.Unlock()
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
