@@ -83,7 +83,7 @@ struct sc_map_list {
 	int count;
 };
 
-struct sc_map_list sc_map_entries;
+static struct sc_map_list sc_map_entries;
 
 /*
  * Setup an hsearch map to map strings in the policy (eg, AF_UNIX) to
