@@ -350,6 +350,8 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 
 	st := o.State()
 	st.Lock()
+	st.Set("next-auto-refresh-time", time.Now().Add(240*time.Hour))
+
 	t1 := st.NewTask("foo", "...")
 	chg1 := st.NewChange("abort", "...")
 	chg1.AddTask(t1)

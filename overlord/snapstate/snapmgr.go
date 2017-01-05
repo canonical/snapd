@@ -343,10 +343,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	// abuse cleanup so that the last step is schedule next refresh
-	// regardless of error
-	runner.AddHandler("schedule-next-refresh", m.nopHandler, nil)
-	runner.AddCleanup("schedule-next-refresh", m.scheduleNextRefresh)
+	runner.AddHandler("schedule-next-refresh", m.scheduleNextRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
