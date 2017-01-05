@@ -43,6 +43,15 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
+func stateNew(backend state.Backend) *state.State {
+	st := state.New(backend)
+	st.Lock()
+	// ensure auto-refresh does not interfere with the tests
+	st.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
+	st.Unlock()
+	return st
+}
+
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
@@ -69,7 +78,7 @@ var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
+	s.state = stateNew(nil)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -96,7 +105,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
-	s.state.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
