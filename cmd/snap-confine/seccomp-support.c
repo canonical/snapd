@@ -46,7 +46,7 @@
 #define SC_ARGS_MAXLENGTH	6
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
 
-char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
+static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
 struct hsearch_data sc_map_htab;
 
 enum parse_ret {
