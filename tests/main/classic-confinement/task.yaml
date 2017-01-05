@@ -19,6 +19,6 @@ execute: |
     test-snapd-classic-confinement | MATCH lala
     snap remove test-snapd-classic-confinement
 
-    echo "Check that we can install classic confinement snaps from the store
+    echo "Check that we can install classic confinement snaps from the store"
     snap install --classic test-snapd-classic-confinement
     test-snapd-classic-confinement | MATCH lala
