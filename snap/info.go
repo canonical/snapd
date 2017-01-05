@@ -174,7 +174,7 @@ type ChannelSnapInfo struct {
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
 	Epoch       string          `json:"epoch"`
-	Size        int64           `json:"size"`
+	Size        int64           `json:"binary_filesize"`
 }
 
 // Name returns the blessed name for the snap.
