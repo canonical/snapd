@@ -3309,7 +3309,7 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 		s.state.Get("next-auto-refresh-time", &nextRefresh)
 		s.state.Unlock()
 
-		// minimium time is the refreshInterval
+		// minimum time is the refreshInterval
 		c.Check(nextRefresh.After(now.Add(refreshInterval)), Equals, true)
 		// maximum time is refreshInterval+refreshRandomness
 		c.Check(nextRefresh.Before(now.Add(refreshInterval).Add(refreshRandomness)), Equals, true)
