@@ -426,6 +426,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	switch len(updated) {
 	case 0:
 		// check in after some hours
+		logger.Noticef("No snaps to auto-refresh found")
 		return scheduleNextRefresh(m.state)
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
