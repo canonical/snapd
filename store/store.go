@@ -393,9 +393,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	var sectionsURI *url.URL
 	if cfg.SectionsURI != nil {
-		uri := *cfg.SectionsURI
-		uri.RawQuery = rawQuery
-		sectionsURI = &uri
+		sectionsURI = cfg.SectionsURI
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -976,7 +974,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		return nil, err
 	}
 
-	query := u.Query()
+	query := s.detailsURI.Query()
 
 	query.Set("channel", snapSpec.Channel)
 	if !snapSpec.Revision.Unset() {
