@@ -23,6 +23,7 @@ execute: |
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     # Build and run unit tests
+    make -C snap-confine all
     make -C snap-confine check
 restore: |
     # Remove autogarbage leftover from testing
