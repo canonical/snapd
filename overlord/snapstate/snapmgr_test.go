@@ -47,7 +47,7 @@ func stateNew(backend state.Backend) *state.State {
 	st := state.New(backend)
 	st.Lock()
 	// ensure auto-refresh does not interfere with the tests
-	st.Set("next-auto-refresh-time", time.Now().Add(24*time.Hour))
+	st.Set("next-auto-refresh-time", time.Now().Add(240*time.Hour))
 	st.Unlock()
 	return st
 }
@@ -3326,8 +3326,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	// nothing needs to be done
+	// nothing needs to be done, but next-auto-refresh-time is updated
 	c.Check(s.state.Changes(), HasLen, 0)
+	var nextRefresh time.Time
+	s.state.Get("next-auto-refresh-time", &nextRefresh)
+	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
@@ -3368,7 +3371,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 
 	// after the changes are done the next refresh time is set
 	s.state.Get("next-auto-refresh-time", &nextRefresh)
-	c.Check(nextRefresh.IsZero(), Equals, false)
+	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
 	c.Check(chg.IsReady(), Equals, true)
 }
 
@@ -3410,7 +3413,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Get("next-auto-refresh-time", &nextRefresh)
 	c.Check(chg.Err(), ErrorMatches, "(?sm).*simulate an error.*")
 	// even with an error the next-refresh time is updated
-	c.Check(nextRefresh.IsZero(), Equals, false)
+	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
