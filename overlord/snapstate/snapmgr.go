@@ -1093,10 +1093,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) nopHandler(t *state.Task, _ *tomb.Tomb) error {
-	return nil
-}
-
 func scheduleNextRefresh(st *state.State) error {
 	randomness := rand.Int63n(int64(refreshRandomness))
 	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
