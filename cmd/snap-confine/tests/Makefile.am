@@ -35,4 +35,4 @@ check: ../snap-confine
 
 .PHONY: check-syntax
 check-syntax:
-	shellcheck --format=gcc $(wildcard test_*) common.sh
+	shellcheck --format=gcc $(wildcard $(srcdir)/test_*) common.sh
