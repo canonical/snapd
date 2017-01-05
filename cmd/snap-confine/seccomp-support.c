@@ -83,7 +83,7 @@ struct sc_map_list {
 	int count;
 };
 
-struct sc_map_list *sc_map_entries = NULL;
+struct sc_map_list sc_map_entries;
 
 /*
  * Setup an hsearch map to map strings in the policy (eg, AF_UNIX) to
@@ -144,26 +144,23 @@ static void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	node->ep = NULL;
 	node->next = NULL;
 
-	if (sc_map_entries->list == NULL) {
-		sc_map_entries->count = 1;
-		sc_map_entries->list = node;
+	if (sc_map_entries.list == NULL) {
+		sc_map_entries.count = 1;
+		sc_map_entries.list = node;
 	} else {
-		struct sc_map_entry *p = sc_map_entries->list;
+		struct sc_map_entry *p = sc_map_entries.list;
 		while (p->next != NULL)
 			p = p->next;
 		p->next = node;
-		sc_map_entries->count++;
+		sc_map_entries.count++;
 	}
 }
 
 static void sc_map_init()
 {
 	// initialize the map linked list
-	sc_map_entries = malloc(sizeof(*sc_map_entries));
-	if (sc_map_entries == NULL)
-		die("Out of memory creating sc_map_entries");
-	sc_map_entries->list = NULL;
-	sc_map_entries->count = 0;
+	sc_map_entries.list = NULL;
+	sc_map_entries.count = 0;
 
 	// build up the map linked list
 
@@ -289,11 +286,11 @@ static void sc_map_init()
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
-	if (hcreate_r(sc_map_entries->count, &sc_map_htab) == 0)
+	if (hcreate_r(sc_map_entries.count, &sc_map_htab) == 0)
 		die("could not create map");
 
 	// add elements from linked list to map
-	struct sc_map_entry *p = sc_map_entries->list;
+	struct sc_map_entry *p = sc_map_entries.list;
 	while (p != NULL) {
 		errno = 0;
 		if (hsearch_r(*p->e, ENTER, &p->ep, &sc_map_htab) == 0)
@@ -311,7 +308,7 @@ static void sc_map_destroy()
 	// this frees all of the nodes' ep so we don't have to below
 	hdestroy_r(&sc_map_htab);
 
-	struct sc_map_entry *next = sc_map_entries->list;
+	struct sc_map_entry *next = sc_map_entries.list;
 	struct sc_map_entry *p = NULL;
 	while (next != NULL) {
 		p = next;
@@ -321,7 +318,6 @@ static void sc_map_destroy()
 		free(p->e);
 		free(p);
 	}
-	free(sc_map_entries);
 }
 
 /* Caller must check if errno != 0 */
