@@ -1411,7 +1411,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
@@ -1463,7 +1469,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	_, err = repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	_, err = repo.SnapInfo(spec, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 500 via GET to "http://.*?/details/hello-world\?channel=edge"`)
 	c.Assert(n, Equals, 5)
@@ -1495,7 +1507,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Assert(n, Equals, 2)
@@ -1546,7 +1564,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "", false, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "",
+		Devmode:  false,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 	c.Check(result.Name(), Equals, "hello-world")
@@ -1613,7 +1637,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 }
@@ -1641,7 +1671,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 }
@@ -1681,7 +1717,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, snap.R(26), t.user)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  true,
+		Revision: snap.R(26),
+	}
+	result, err := repo.SnapInfo(spec, t.user)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Revision, DeepEquals, snap.R(27))
@@ -1719,10 +1761,18 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", false, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  false,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Check(err, Equals, ErrSnapNotFound)
 	c.Check(result, IsNil)
-	result, err = repo.Snap("hello-world", "edge", true, snap.R(0), nil)
+
+	spec.Devmode = true
+	result, err = repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Check(result, NotNil)
 
@@ -1752,7 +1802,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	_, err = repo.Snap("hello-world", "edge", false, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  false,
+		Revision: snap.R(0),
+	}
+	_, err = repo.SnapInfo(spec, nil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 5.. via GET to "http://\S+" \[OOPS-[[:xdigit:]]*\]`)
 }
 
@@ -1796,7 +1852,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("no-such-pkg", "edge", false, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "no-such-pkg",
+		Channel:  "edge",
+		Devmode:  false,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -2981,7 +3043,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	result, err := repo.Snap("hello-world", "edge", false, snap.R(0), nil)
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Devmode:  false,
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
@@ -2989,7 +3057,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = repo.Snap("hello-world", "edge", false, snap.R(0), nil)
+	result, err = repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
@@ -3480,7 +3548,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 		c.Assert(repo, NotNil)
 
 		// Find the snap first
-		snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
+		spec := SnapSpec{
+			Name:     "hello-world",
+			Channel:  "edge",
+			Devmode:  false,
+			Revision: snap.R(0),
+		}
+		snap, err := repo.SnapInfo(spec, t.user)
 		c.Assert(snap, NotNil)
 		c.Assert(err, IsNil)
 

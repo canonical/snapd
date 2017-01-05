@@ -591,7 +591,7 @@ type sneakyStore struct {
 	state *state.State
 }
 
-func (s sneakyStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
+func (s sneakyStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -600,7 +600,7 @@ func (s sneakyStore) Snap(name, channel string, devmode bool, revision snap.Revi
 		Current:  snap.R(1),
 	})
 	s.state.Unlock()
-	return s.fakeStore.Snap(name, channel, devmode, revision, user)
+	return s.fakeStore.SnapInfo(spec, user)
 }
 
 func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
