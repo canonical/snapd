@@ -2,6 +2,11 @@
 
 get_common_syscalls() {
     cat <<EOF
+# syscalls required by snap-confine to finish working
+setresuid
+setgid
+setuid
+
 # filter that works ok for true
 open
 close
