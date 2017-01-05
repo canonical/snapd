@@ -1385,6 +1385,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
+		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
@@ -1404,7 +1405,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := Config{
-		DetailsURI: detailsURI,
+		DetailsURI:   detailsURI,
+		DetailFields: []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&cfg, authContext)
@@ -1462,7 +1464,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := Config{
-		DetailsURI: detailsURI,
+		DetailsURI:   detailsURI,
+		DetailFields: []string{},
 	}
 	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&cfg, authContext)
@@ -1713,6 +1716,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	cfg := DefaultConfig()
 	cfg.DetailsURI = detailsURI
 	cfg.OrdersURI = ordersURI
+	cfg.DetailFields = []string{}
 	repo := New(cfg, nil)
 	c.Assert(repo, NotNil)
 
@@ -1944,27 +1948,26 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		q := query.Get("q")
 		section := query.Get("section")
 
+		c.Check(r.URL.Path, Equals, "/search")
+		c.Check(query.Get("fields"), Equals, "abc,def")
+
 		// write dummy json so that Find doesn't re-try due to json decoder EOF error
 		io.WriteString(w, "{}")
 
 		switch n {
 		case 0:
-			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
 			c.Check(section, Equals, "")
 		case 1:
-			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
 			c.Check(section, Equals, "")
 		case 2:
-			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "")
 			c.Check(section, Equals, "db")
 		case 3:
-			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
 			c.Check(section, Equals, "db")
@@ -1981,8 +1984,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	searchURI, _ := serverURL.Parse("/search")
 	detailsURI, _ := serverURL.Parse("/details/")
 	cfg := Config{
-		DetailsURI: detailsURI,
-		SearchURI:  searchURI,
+		DetailsURI:   detailsURI,
+		SearchURI:    searchURI,
+		DetailFields: []string{"abc", "def"},
 	}
 	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&cfg, authContext)
@@ -2916,6 +2920,18 @@ func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/metadata"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+}
+
+func (t *remoteRepoTestSuite) TestNew(c *C) {
+	aStore := New(nil, nil)
+	fields := strings.Join(detailFields, ",")
+	// check for fields
+	c.Check(aStore.detailFields, DeepEquals, detailFields)
+	c.Check(aStore.searchURI.Query().Get("fields"), Equals, fields)
+	c.Check(aStore.detailsURI.Query().Get("fields"), Equals, fields)
+	c.Check(aStore.bulkURI.Query(), DeepEquals, url.Values{})
+	c.Check(aStore.sectionsURI.Query(), DeepEquals, url.Values{})
+	c.Check(aStore.assertionsURI.Query(), DeepEquals, url.Values{})
 }
 
 var testAssertion = `type: snap-declaration
