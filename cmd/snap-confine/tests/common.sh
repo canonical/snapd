@@ -6,6 +6,7 @@ get_common_syscalls() {
 setresuid
 setgid
 setuid
+geteuid32
 
 # filter that works ok for true
 open
