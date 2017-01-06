@@ -782,7 +782,8 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// canAutoRefresh is a helper that
+// canAutoRefresh is a helper that checks if the device is able to
+// auto-refresh
 func canAutoRefresh(st *state.State) bool {
 	// no need to wait for seeding on classic
 	if release.OnClassic {
