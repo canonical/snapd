@@ -784,6 +784,12 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 
 // canAutoRefresh is a helper that
 func canAutoRefresh(st *state.State) bool {
+	// no need to wait for seeding on classic
+	if release.OnClassic {
+		return true
+	}
+
+	// on all-snap devices we need to be seeded first
 	var seeded bool
 	st.Get("seeded", &seeded)
 	return seeded
