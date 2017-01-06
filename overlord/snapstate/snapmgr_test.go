@@ -43,15 +43,6 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
-func stateNew(backend state.Backend) *state.State {
-	st := state.New(backend)
-	st.Lock()
-	// ensure auto-refresh does not interfere with the tests
-	st.Set("next-auto-refresh-time", time.Now().Add(240*time.Hour))
-	st.Unlock()
-	return st
-}
-
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
 type snapmgrTestSuite struct {
@@ -78,7 +69,7 @@ var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = stateNew(nil)
+	s.state = state.New(nil)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -3319,6 +3310,7 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
 
 	// Ensure() also runs ensureRefreshes()
@@ -3337,6 +3329,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	now := time.Now()
+	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", now)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -3359,10 +3352,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	chg := s.state.Changes()[0]
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
-	// nextRefresh still unset (change is not finished yet)
+	// nextRefresh updated
 	var nextRefresh time.Time
 	s.state.Get("next-auto-refresh-time", &nextRefresh)
-	c.Check(nextRefresh, Equals, now)
+	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
 
 	// run the changes
 	s.state.Unlock()
@@ -3370,14 +3363,17 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.state.Lock()
 
 	// after the changes are done the next refresh time is set
-	s.state.Get("next-auto-refresh-time", &nextRefresh)
-	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
+	var nextRefresh2 time.Time
+	s.state.Get("next-auto-refresh-time", &nextRefresh2)
+	c.Check(nextRefresh2.Before(time.Now().Add(24*time.Hour)), Equals, true)
 	c.Check(chg.IsReady(), Equals, true)
+	c.Check(nextRefresh2, Not(DeepEquals), nextRefresh)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -3419,6 +3415,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{

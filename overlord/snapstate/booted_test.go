@@ -61,7 +61,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	partition.ForceBootloader(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
-	bs.state = stateNew(nil)
+	bs.state = state.New(nil)
 
 	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
