@@ -782,6 +782,13 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// canAutoRefresh is a helper that
+func canAutoRefresh(st *state.State) bool {
+	var seeded bool
+	st.Get("seeded", &seeded)
+	return seeded
+}
+
 var repeatRequestSerial string
 
 // implementing auth.DeviceAssertions
@@ -937,4 +944,5 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 
 func init() {
 	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+	snapstate.CanAutoRefresh = canAutoRefresh
 }
