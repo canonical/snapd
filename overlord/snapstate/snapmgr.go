@@ -432,7 +432,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// For scheduleNextRefresh() we have two options here:
-	//  1. schedule the next refresh only if no error happend
+	//  1. schedule the next refresh only if no error happened
 	//     below in the "AutoRefresh()" call
 	//  2. always schedule the next refresh regardless of errors
 	//     in "AutoRefresh()"
