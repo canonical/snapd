@@ -423,6 +423,19 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
+	// For scheduleNextRefresh() we have two options here:
+	//  1. schedule the next refresh only if no error happend
+	//     below in the "UpdateMany()" call
+	//  2. always schedule the next refresh regardless of errors
+	//     in "UpdateMany()"
+	//
+	// This currently implements (2) because if there are e.g. store
+	// errors we don't want to put more burden on the store by having
+	// every client in the world retry every 10min.
+	//
+	// However (1) is better for e.g. network errors on the client
+	// side (not yet connected etc)
+	scheduleNextRefresh(m.state)
 	updated, tasksets, err := UpdateMany(m.state, nil, 0)
 	if err != nil {
 		return err
@@ -433,7 +446,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	case 0:
 		// check in after some hours
 		logger.Noticef("No snaps to auto-refresh found")
-		return scheduleNextRefresh(m.state)
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
@@ -442,7 +454,9 @@ func (m *SnapManager) ensureRefreshes() error {
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
 
-	// add "schedule-next-refresh" after the others
+	// Add "schedule-next-refresh" after a successful refresh. This ensures
+	// that if the refresh takes e.g. 7h we don't hit the store again 1h
+	// later. We could remove this to keep the behaviour simpler.
 	nextRefreshTask := m.state.NewTask("schedule-next-refresh", i18n.G("Schedule next refresh"))
 	for _, ts := range tasksets {
 		nextRefreshTask.WaitAll(ts)
