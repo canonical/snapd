@@ -212,7 +212,7 @@ func (x *infoCmd) Execute([]string) error {
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
 		if both.SupportURL != "" {
-			fmt.Fprintf(w, "support: %s\n", both.SupportURL)
+			fmt.Fprintf(w, "support:\t%s\n", both.SupportURL)
 		}
 		// FIXME: find out for real
 		termWidth := 77
