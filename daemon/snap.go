@@ -56,15 +56,15 @@ func snapDate(info *snap.Info) time.Time {
 }
 
 func publisherName(st *state.State, info *snap.Info) (string, error) {
-	publisher := ""
-	if info.SnapID != "" {
-		pubAcct, err := assertstate.Publisher(st, info.SnapID)
-		if err != nil {
-			return "", fmt.Errorf("cannot find publisher details: %v", err)
-		}
-		publisher = pubAcct.Username()
+	if info.SnapID == "" {
+		return "", nil
 	}
-	return publisher, nil
+
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	if err != nil {
+		return "", fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return pubAcct.Username(), nil
 }
 
 type aboutSnap struct {
