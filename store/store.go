@@ -131,6 +131,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		})
 	}
 	info.Screenshots = screenshots
+	info.SupportURL = d.SupportURL
 
 	return info
 }
