@@ -40,7 +40,7 @@ var _ = Suite(&discardSnapSuite{})
 
 func (s *discardSnapSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = stateNew(nil)
+	s.state = state.New(nil)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)

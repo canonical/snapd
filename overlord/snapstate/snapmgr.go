@@ -410,6 +410,14 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
+	// see if it even makes sense to try to refresh
+	var seeded bool
+	// LAYERING VIOLATION
+	m.state.Get("seeded", &seeded)
+	if !seeded {
+		return nil
+	}
+
 	// time to refresh?
 	if !nextRefresh.IsZero() && time.Now().Before(nextRefresh) {
 		return nil
@@ -446,6 +454,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	case 0:
 		// check in after some hours
 		logger.Noticef("No snaps to auto-refresh found")
+		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:

@@ -60,7 +60,7 @@ func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
 func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = stateNew(s.stateBackend)
+	s.state = state.New(s.stateBackend)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
