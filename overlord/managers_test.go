@@ -120,7 +120,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
-	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
+	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
 		"account-id": "devdevdev",
 	}, "")
 	err = ms.storeSigning.Add(ms.devAcct)
@@ -495,12 +495,15 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
-	c.Check(info.Developer, Equals, "bar")
 	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
+
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "devdevdev")
+	c.Check(pubAcct.Username(), Equals, "devdevdev")
 
 	snapRev42, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": digest,
@@ -542,7 +545,6 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(50))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
 
 	snapRev50, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
@@ -574,11 +576,9 @@ apps:
 	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
 
 	si := &snap.SideInfo{
-		RealName:    "foo",
-		SnapID:      fooSnapID,
-		Revision:    snap.R(55),
-		DeveloperID: "devdevdevID",
-		Developer:   "devdevdev",
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
 	}
 
 	st := ms.o.State()
@@ -609,8 +609,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(info.Revision, Equals, snap.R(55))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdevID")
-	c.Check(info.Developer, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.5")
 
 	// ensure that the binary wrapper file got generated with the right
@@ -648,11 +646,9 @@ slots:
 	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
 
 	si := &snap.SideInfo{
-		RealName:    "foo",
-		SnapID:      fooSnapID,
-		Revision:    snap.R(55),
-		DeveloperID: "devdevdevID",
-		Developer:   "devdevdev",
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
 	}
 
 	st := ms.o.State()
