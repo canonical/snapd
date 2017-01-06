@@ -358,7 +358,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	st.Unlock()
 
 	o.Loop()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	err = o.Stop()
 	c.Assert(err, IsNil)
 
