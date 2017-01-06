@@ -433,9 +433,9 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// For scheduleNextRefresh() we have two options here:
 	//  1. schedule the next refresh only if no error happend
-	//     below in the "UpdateMany()" call
+	//     below in the "AutoRefresh()" call
 	//  2. always schedule the next refresh regardless of errors
-	//     in "UpdateMany()"
+	//     in "AutoRefresh()"
 	//
 	// This currently implements (2) because if there are e.g. store
 	// errors we don't want to put more burden on the store by having
@@ -444,7 +444,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	// However (1) is better for e.g. network errors on the client
 	// side (not yet connected etc)
 	scheduleNextRefresh(m.state)
-	updated, tasksets, err := UpdateMany(m.state, nil, 0)
+	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
 	}
