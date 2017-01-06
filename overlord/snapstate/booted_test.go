@@ -62,7 +62,6 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.state = state.New(nil)
-
 	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
 	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
