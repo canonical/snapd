@@ -1,5 +1,8 @@
 summary: Check that auto-refresh works
 
+prepare: |
+    snap install --devmode jq
+
 execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
