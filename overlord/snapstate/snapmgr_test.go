@@ -106,6 +106,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
+	snapstate.CanAutoRefresh = nil
 	s.reset()
 }
 
@@ -3310,8 +3311,8 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
@@ -3329,8 +3330,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	now := time.Now()
-	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", now)
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3373,8 +3374,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3415,8 +3416,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("seeded", true)
 	s.state.Set("next-auto-refresh-time", time.Now())
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,

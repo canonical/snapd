@@ -399,6 +399,8 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+var CanAutoRefresh func(st *state.State) bool
+
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
@@ -411,10 +413,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// see if it even makes sense to try to refresh
-	var seeded bool
-	// LAYERING VIOLATION
-	m.state.Get("seeded", &seeded)
-	if !seeded {
+	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
 		return nil
 	}
 
