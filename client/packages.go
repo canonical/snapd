@@ -76,6 +76,7 @@ const (
 	StatusInstalled = "installed"
 	StatusActive    = "active"
 	StatusRemoved   = "removed"
+	StatusPriced    = "priced"
 
 	TypeApp    = "app"
 	TypeKernel = "kernel"

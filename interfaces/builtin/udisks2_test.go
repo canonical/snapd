@@ -63,54 +63,6 @@ func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *UDisks2InterfaceSuite) TestSanitizeSlotNotUdisks2FromCanonical(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notudisks2",
-			SideInfo:      snap.SideInfo{Developer: "canonical"},
-		},
-		Name:      "udisks2",
-		Interface: "udisks2",
-	}})
-	c.Assert(err, ErrorMatches, "udisks2 slot reserved \\(snap name 'notudisks2' != 'udisks2'\\)")
-}
-
-func (s *UDisks2InterfaceSuite) TestSanitizeSlotUdisks2NotFromCanonical(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "udisks2",
-			SideInfo:      snap.SideInfo{Developer: "foo"},
-		},
-		Name:      "udisks2",
-		Interface: "udisks2",
-	}})
-	c.Assert(err, ErrorMatches, "udisks2 slot is reserved for Canonical")
-}
-
-func (s *UDisks2InterfaceSuite) TestSanitizeSlotNotUdisks2NotFromCanonical(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "notudisks2",
-			SideInfo:      snap.SideInfo{Developer: "foo"},
-		},
-		Name:      "udisks2",
-		Interface: "udisks2",
-	}})
-	c.Assert(err, ErrorMatches, "udisks2 slot reserved \\(snap name 'notudisks2' != 'udisks2'\\)")
-}
-
-func (s *UDisks2InterfaceSuite) TestSanitizeSlotUdisks2Sideload(c *C) {
-	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "udisks2",
-			SideInfo:      snap.SideInfo{Developer: ""},
-		},
-		Name:      "udisks2",
-		Interface: "udisks2",
-	}})
-	c.Assert(err, ErrorMatches, "udisks2 slot is reserved for Canonical")
-}
-
 // The label glob when all apps are bound to the udisks2 slot
 func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
