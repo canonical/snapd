@@ -969,12 +969,12 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	// get the query before doing Parse, as that overwrites it
+	query := s.detailsURI.Query()
 	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
-
-	query := s.detailsURI.Query()
 
 	query.Set("channel", snapSpec.Channel)
 	if !snapSpec.Revision.Unset() {
