@@ -119,8 +119,6 @@ type SideInfo struct {
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	DeveloperID       string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
-	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -136,6 +134,8 @@ type Info struct {
 
 	OriginalSummary     string
 	OriginalDescription string
+
+	Contact string
 
 	Environment map[string]string
 
@@ -159,10 +159,11 @@ type Info struct {
 	DownloadInfo
 
 	IconURL string
-	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	Prices  map[string]float64
 	MustBuy bool
 
-	Contact string
+	PublisherID string
+	Publisher   string
 
 	Screenshots []ScreenshotInfo
 	Channels    map[string]*ChannelSnapInfo
