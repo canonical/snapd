@@ -124,7 +124,6 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
-	SupportURL        string   `yaml:"support-url,omitempty" json:"support-url,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -162,6 +161,8 @@ type Info struct {
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
+
+	Contact string
 
 	Screenshots []ScreenshotInfo
 	Channels    map[string]*ChannelSnapInfo

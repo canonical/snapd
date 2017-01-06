@@ -175,7 +175,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"private":        localSnap.Private,
 		"apps":           apps,
 		"broken":         localSnap.Broken,
-		"support-url":    localSnap.SupportURL,
+		"contact":        localSnap.Contact,
 	}
 }
 
@@ -214,7 +214,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"channel":       remoteSnap.Channel,
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
-		"support-url":   remoteSnap.SupportURL,
+		"contact":       remoteSnap.Contact,
 	}
 
 	if len(screenshots) > 0 {

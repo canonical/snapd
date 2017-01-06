@@ -131,7 +131,13 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		})
 	}
 	info.Screenshots = screenshots
-	info.SupportURL = d.SupportURL
+	// FIXME: once the store sends "contact" for everything, remove
+	//        the "SupportURL" part of the if
+	if info.Contact != "" {
+		info.Contact = d.Contact
+	} else {
+		info.Contact = d.SupportURL
+	}
 
 	return info
 }
