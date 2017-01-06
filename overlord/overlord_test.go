@@ -350,7 +350,6 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 
 	st := o.State()
 	st.Lock()
-
 	t1 := st.NewTask("foo", "...")
 	chg1 := st.NewChange("abort", "...")
 	chg1.AddTask(t1)
