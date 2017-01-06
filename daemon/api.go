@@ -414,7 +414,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
+	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find %q snap", name)
@@ -433,7 +433,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
-	result := webify(mapLocal(localSnap, active), url.String())
+	result := webify(mapLocal(about), url.String())
 
 	return SyncResponse(result, nil)
 }
@@ -686,7 +686,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
@@ -1386,7 +1386,7 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	info, _, err := localSnapInfo(st, name)
+	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find snap %q", name)
@@ -1394,7 +1394,7 @@ func iconGet(st *state.State, name string) Response {
 		return InternalError("%v", err)
 	}
 
-	path := filepath.Clean(snapIcon(info))
+	path := filepath.Clean(snapIcon(about.info))
 	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")

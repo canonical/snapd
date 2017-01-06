@@ -40,7 +40,7 @@ var _ = Suite(&UDisks2InterfaceSuite{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "udisks2",
-				SideInfo:      snap.SideInfo{Developer: "canonical"}},
+			},
 			Name:      "udisks2",
 			Interface: "udisks2",
 		},
