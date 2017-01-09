@@ -286,7 +286,7 @@ func run() error {
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
-			if e.Type == flags.ErrHelp {
+			if e.Type == flags.ErrHelp || e.Type == flags.ErrCommandRequired {
 				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
 					parser.Command.Active = nil
 				}
