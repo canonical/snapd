@@ -3,18 +3,21 @@ details: |
     The snap execution environment is expected to contain the /usr/src
     directory from the classic distribution. Certain snaps may use that to
     access kernel sources.
+# This test only applies to classic systems
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 prepare: |
+    echo "Having installed the test snap"
+    . $TESTSLIB/snaps.sh
     # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
-    snap install --devmode snapd-hacker-toolbelt
+    install_local_devmode test-snapd-tools
+    echo "Having prepared a canary file in /usr/src/.canary"
     mv /usr/src /usr/src.orig || true
     mkdir -p /usr/src
     echo canary > /usr/src/.canary
 execute: |
-    export PATH=/snap/bin:$PATH
     echo "The canary file in /usr/src can be read"
-    [ "$(snapd-hacker-toolbelt.busybox cat /usr/src/.canary)" = "canary" ]
+    [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]
 restore: |
-    snap remove snapd-hacker-toolbelt
     rm -f /usr/src/.canary
-    rmdir /usr/src
+    rm -f -d /usr/src
     mv /usr/src.orig /usr/src || true

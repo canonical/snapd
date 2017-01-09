@@ -291,7 +291,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
+		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
 	}
 	return res[0], nil
 }
@@ -303,7 +303,13 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  channel,
+		Devmode:  flags.DevModeAllowed(),
+		Revision: revision,
+	}
+	snap, err := theStore.SnapInfo(spec, user)
 	st.Lock()
 	return snap, err
 }
@@ -494,7 +500,13 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		spec := store.SnapSpec{
+			Name:     snapsup.Name(),
+			Channel:  snapsup.Channel,
+			Devmode:  snapsup.DevModeAllowed(),
+			Revision: snapsup.Revision(),
+		}
+		storeInfo, err = theStore.SnapInfo(spec, user)
 		if err != nil {
 			return err
 		}
