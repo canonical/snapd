@@ -112,8 +112,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.DeveloperID = d.DeveloperID
-	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	info.PublisherID = d.DeveloperID
+	info.Publisher = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -393,9 +393,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	var sectionsURI *url.URL
 	if cfg.SectionsURI != nil {
-		uri := *cfg.SectionsURI
-		uri.RawQuery = rawQuery
-		sectionsURI = &uri
+		sectionsURI = cfg.SectionsURI
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -971,12 +969,12 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	// get the query before doing Parse, as that overwrites it
+	query := s.detailsURI.Query()
 	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
-
-	query := u.Query()
 
 	query.Set("channel", snapSpec.Channel)
 	if !snapSpec.Revision.Unset() {
