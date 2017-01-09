@@ -238,27 +238,41 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		return err
 	}
 
-	// XXX: quick hack, auto-connect everything
+	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		if blacklist[plug.Name] {
 			continue
 		}
-		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
 		if len(candidates) != 1 {
 			continue
 		}
 		slot := candidates[0]
-		connRef := interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: plug.Name},
-			SlotRef: interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
-		}
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
 		if err := m.repo.Connect(connRef); err != nil {
-			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
-				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+			task.Logf("cannot auto connect %s:%s to %s:%s: %s (plug auto-connection)",
+				plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name, err)
 		}
-		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
-		conns[key] = connState{Interface: plug.Interface, Auto: true}
+		conns[connRef.ID()] = connState{Interface: plug.Interface, Auto: true}
 	}
+	// Auto-connect all the slots
+	for _, slot := range m.repo.Slots(snapName) {
+		if blacklist[slot.Name] {
+			continue
+		}
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) != 1 {
+			continue
+		}
+		plug := candidates[0]
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		if err := m.repo.Connect(connRef); err != nil {
+			task.Logf("cannot auto connect %s:%s to %s:%s: %s (slot auto-connection)",
+				plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name, err)
+		}
+		conns[connRef.ID()] = connState{Interface: plug.Interface, Auto: true}
+	}
+
 	task.State().Set("conns", conns)
 	return nil
 }
