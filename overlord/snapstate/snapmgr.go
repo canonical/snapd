@@ -401,25 +401,13 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) bool
 
-func timeForRefresh(nextRefresh time.Time) bool {
-	// no refresh yet
-	if nextRefresh.IsZero() {
-		return true
-	}
-
-	if time.Now().After(nextRefresh) {
-		return true
-	}
-
-	return false
-}
-
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	var nextRefresh time.Time
+	// init so that empty state gets refreshed right away
+	nextRefresh := time.Now()
 	err := m.state.Get("next-auto-refresh-time", &nextRefresh)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -430,7 +418,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	if !timeForRefresh(nextRefresh) {
+	if time.Now().Before(nextRefresh) {
 		return nil
 	}
 
