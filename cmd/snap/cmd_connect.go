@@ -27,8 +27,8 @@ import (
 
 type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `required:"yes"`
-		Use   SnapAndName
+		Use   SnapAndName `required:"yes"`
+		Offer SnapAndName
 	} `positional-args:"true"`
 }
 
@@ -68,14 +68,14 @@ func (x *cmdConnect) Execute(args []string) error {
 	}
 
 	// snap connect <plug> <snap>[:<slot>]
-	if x.Positionals.Offer.Snap != "" && x.Positionals.Offer.Name == "" {
+	if x.Positionals.Use.Snap != "" && x.Positionals.Use.Name == "" {
 		// Move the value of .Snap to .Name and keep .Snap empty
-		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
-		x.Positionals.Offer.Snap = ""
+		x.Positionals.Use.Name = x.Positionals.Use.Snap
+		x.Positionals.Use.Snap = ""
 	}
 
 	cli := Client()
-	id, err := cli.Connect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	id, err := cli.Connect(x.Positionals.Use.Snap, x.Positionals.Use.Name, x.Positionals.Offer.Snap, x.Positionals.Offer.Name)
 	if err != nil {
 		return err
 	}
