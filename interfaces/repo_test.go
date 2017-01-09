@@ -1376,7 +1376,7 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 }
 
 func contentPolicyCheck(plug *Plug, slot *Slot) bool {
-	return plug.Snap.Developer == slot.Snap.Developer
+	return plug.Snap.PublisherID == slot.Snap.PublisherID
 }
 
 func contentAutoConnect(plug *Plug, slot *Slot) bool {
@@ -1436,9 +1436,9 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C)
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *C) {
 	repo, plugSnap, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	// this comes via SideInfo
-	plugSnap.Developer = "foo"
-	slotSnap.Developer = "bar"
+	// real code will use the assertions, this is just for emulation
+	plugSnap.PublisherID = "fooid"
+	slotSnap.PublisherID = "barid"
 
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)

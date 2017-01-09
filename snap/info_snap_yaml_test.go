@@ -1095,7 +1095,8 @@ slots:
 	c.Check(info.Plugs, HasLen, 4)
 	c.Check(info.Slots, HasLen, 2)
 	// these don't come from snap.yaml
-	c.Check(info.Developer, Equals, "")
+	c.Check(info.Publisher, Equals, "")
+	c.Check(info.PublisherID, Equals, "")
 	c.Check(info.Channel, Equals, "")
 
 	app1 := info.Apps["daemon"]
