@@ -223,7 +223,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
@@ -318,10 +318,5 @@ prepare_all_snap() {
         systemctl stop snapd.service snapd.socket
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
-    fi
-
-    if [ "$REMOTE_STORE" = staging ]; then
-        . $TESTSLIB/store.sh
-        setup_staging_store
     fi
 }
