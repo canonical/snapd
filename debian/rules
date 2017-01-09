@@ -21,6 +21,8 @@ include /etc/os-release
 # /lib/systemd/system and instead consider only selected units from
 # /lib/systemd/upstart.
 SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
+# make sure that trusty's golang-1.6 is picked up correctly.
+export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
