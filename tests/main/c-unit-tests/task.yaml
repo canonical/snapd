@@ -8,7 +8,7 @@ prepare: |
     apt-get install --yes $EXTRA_PKGS
     # Remove any autogarbage from sent by developer
     rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
-    find $SPREAD_PATH/cmd/ -name Makefile.in -exec rm -f {} \;
+    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
     make -C $SPREAD_PATH/cmd distclean || true
 execute: |
     # Refresh autotools build system
@@ -26,7 +26,7 @@ execute: |
     make -C snap-confine check-unit-tests
 restore: |
     # Remove autogarbage leftover from testing
-    find $SPREAD_PATH/cmd/ -name Makefile.in -exec rm -f {} \;
+    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
     rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
     # Remove the build tree
     rm -rf $SPREAD_PATH/cmd/autogarbage/
