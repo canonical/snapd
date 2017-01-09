@@ -47,6 +47,7 @@ type HookManager struct {
 
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
+	snapContexts  *SnapContexts
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -76,15 +77,43 @@ type HookSetup struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:      s,
-		runner:     runner,
-		repository: newRepository(),
-		contexts:   make(map[string]*Context),
+		state:        s,
+		runner:       runner,
+		repository:   newRepository(),
+		contexts:     make(map[string]*Context),
+		snapContexts: newSnapContexts(s),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	runner.AddHandler("setup-snap-context", manager.doSetupSnapContext, manager.undoSetupSnapContext)
 
 	return manager, nil
+}
+
+func (m *HookManager) doSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	c, err := m.snapContexts.CreateSnapContext(snapsup.Name())
+	if err != nil {
+		return err
+	}
+	m.snapContexts.addContext(c)
+	return nil
+}
+
+func (m *HookManager) undoSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
+	//TODO
+	t.State().Lock()
+	_, err := snapstate.TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // HookTask returns a task that will run the specified hook. Note that the

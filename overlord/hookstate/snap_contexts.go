@@ -19,31 +19,38 @@
 
 package hookstate
 
-import "sync"
+import (
+	"sync"
 
-// Contexts maintains a map of contexts
-type Contexts struct {
+	"github.com/snapcore/snapd/overlord/state"
+)
+
+// SnapContexts maintains a map of snap contexts
+type SnapContexts struct {
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
 }
 
-// ContextsMap keeps tracks of hooks and snap contexts.
-type ContextsMap struct {
-	hookContexts Contexts
-	snapContexts Contexts
+func newSnapContexts(s *state.State) *SnapContexts {
+	// TODO: restore from state
+	return &SnapContexts{}
 }
 
-// AddContext adds a new context mapping.
-func (m *ContextMap) AddHookContext(c *Context) {
+func (m *SnapContexts) addContext(c *Context) {
 	contextID := c.ID()
-	m.hookContexts.contextsMutex.Lock()
-	m.hookContexts.contexts[contextID] = c
-	m.hookContexts.contextsMutex.Unlock()
+	m.contextsMutex.Lock()
+	m.contexts[contextID] = c
+	m.contextsMutex.Unlock()
 }
 
-// Delete removes a context mapping.
-func (m *ContextMap) DeleteHookContext(id string) {
-	m.hookContexts.contextsMutex.Lock()
-	delete(m.hookContexts.contexts, id)
-	m.hookContexts.contextsMutex.Unlock()
+// Delete removes context mapping for given snap.
+func (m *SnapContexts) DeleteHookContext(name string) {
+	m.contextsMutex.Lock()
+	delete(m.contexts, name)
+	m.contextsMutex.Unlock()
+}
+
+// CreateSnapContext creates a new context mapping for given snap name
+func (m *SnapContexts) CreateSnapContext(name string) (*Context, error) {
+	return nil, nil
 }
