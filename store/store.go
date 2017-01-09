@@ -71,7 +71,15 @@ const (
 // xxx: this should actually be set per client request, and include the client user agent
 var userAgent = "unset"
 
-func SetUserAgentFromVersion(version string) {
+var isTesting bool
+
+func init() {
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		isTesting = true
+	}
+}
+
+func SetUserAgentFromVersion(version string, extraProds ...string) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
@@ -80,10 +88,17 @@ func SetUserAgentFromVersion(version string) {
 	if release.ReleaseInfo.ForceDevMode() {
 		extras = append(extras, "devmode")
 	}
+	if isTesting {
+		extras = append(extras, "testing")
+	}
+	extraProdStr := ""
+	if len(extraProds) != 0 {
+		extraProdStr = " " + strings.Join(extraProds, " ")
+	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s) %s/%s (%s)", version, strings.Join(extras, "; "), release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
 }
 
 func infoFromRemote(d snapDetails) *snap.Info {
@@ -97,8 +112,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.DeveloperID = d.DeveloperID
-	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	info.PublisherID = d.DeveloperID
+	info.Publisher = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -378,9 +393,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	var sectionsURI *url.URL
 	if cfg.SectionsURI != nil {
-		uri := *cfg.SectionsURI
-		uri.RawQuery = rawQuery
-		sectionsURI = &uri
+		sectionsURI = cfg.SectionsURI
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -946,18 +959,26 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	return channelInfos, nil
 }
 
-// Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
-	u, err := s.detailsURI.Parse(name)
+// A SnapSpec describes a single snap wanted from SnapInfo
+type SnapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+	Devmode  bool
+}
+
+// SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
+func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	// get the query before doing Parse, as that overwrites it
+	query := s.detailsURI.Query()
+	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	query := u.Query()
-
-	query.Set("channel", channel)
-	if !revision.Unset() {
-		query.Set("revision", revision.String())
+	query.Set("channel", snapSpec.Channel)
+	if !snapSpec.Revision.Unset() {
+		query.Set("revision", snapSpec.Revision.String())
 		query.Set("channel", "")
 	}
 
@@ -965,7 +986,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	// XXX: what we really want to do is have the store not specify
 	//      devmode, and have the business logic wrt what to do with
 	//      unwanted devmode further up
-	if !devmode {
+	if !snapSpec.Devmode {
 		query.Set("confinement", string(snap.StrictConfinement))
 	}
 
@@ -990,14 +1011,14 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && channel == "" && revision.Unset() {
+	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)
@@ -1006,7 +1027,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		}
 	}
 
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
