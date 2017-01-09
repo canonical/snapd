@@ -145,8 +145,7 @@ slots:
 // InstallSnap "installs" a snap from YAML.
 func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
 	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
-		Revision:  snap.R(revision),
-		Developer: "acme",
+		Revision: snap.R(revision),
 	})
 	s.addPlugsSlots(c, snapInfo)
 	err := s.Backend.Setup(snapInfo, opts, s.Repo)
@@ -157,8 +156,7 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, sna
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
-		Revision:  snap.R(revision),
-		Developer: "acme",
+		Revision: snap.R(revision),
 	})
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)

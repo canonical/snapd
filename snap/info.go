@@ -119,8 +119,6 @@ type SideInfo struct {
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	DeveloperID       string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
-	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
@@ -159,8 +157,11 @@ type Info struct {
 	DownloadInfo
 
 	IconURL string
-	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	Prices  map[string]float64
 	MustBuy bool
+
+	PublisherID string
+	Publisher   string
 
 	Screenshots []ScreenshotInfo
 	Channels    map[string]*ChannelSnapInfo
@@ -174,7 +175,7 @@ type ChannelSnapInfo struct {
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
 	Epoch       string          `json:"epoch"`
-	Size        int64           `json:"size"`
+	Size        int64           `json:"binary_filesize"`
 }
 
 // Name returns the blessed name for the snap.
