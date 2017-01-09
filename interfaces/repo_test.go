@@ -1119,7 +1119,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	c.Check(snippets, IsNil)
 }
 
-func (s *RepositorySuite) TestAutoConnectCandidates(c *C) {
+func (s *RepositorySuite) TestAutoConnectCandidateSlots(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
 	err := repo.AddInterface(&TestInterface{InterfaceName: "auto"})
@@ -1150,7 +1150,7 @@ slots:
 	err = repo.AddSnap(consumer)
 	c.Assert(err, IsNil)
 
-	candidateSlots := repo.AutoConnectCandidates("consumer", "auto", policyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
@@ -1415,7 +1415,7 @@ slots:
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
 }
@@ -1424,13 +1424,13 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) 
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	slotSnap.Type = snap.TypeOS
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
@@ -1440,6 +1440,6 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	plugSnap.PublisherID = "fooid"
 	slotSnap.PublisherID = "barid"
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
