@@ -116,45 +116,45 @@ override_dh_systemd_enable:
 	# enable auto-import
 	dh_systemd_enable \
 		-psnapd \
-		snapd.autoimport.service
+		data/systemd/snapd.autoimport.service
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
-		snapd.refresh.timer
+		data/systemd/snapd.refresh.timer
 	# but the auto-update service disabled
 	dh_systemd_enable \
 		--no-enable \
 		-psnapd \
-		snapd.refresh.service
+		data/systemd/snapd.refresh.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
-		snapd.socket
+		data/systemd/snapd.socket
 	dh_systemd_enable \
 		-psnapd \
-		snapd.service
+		data/systemd/snapd.service
 
 override_dh_systemd_start:
 	# we want to start the auto-update timer
 	dh_systemd_start \
 		-psnapd \
-		snapd.refresh.timer
+		data/systemd/snapd.refresh.timer
 	# but not start the service
 	dh_systemd_start \
 		--no-start \
 		-psnapd \
-		snapd.refresh.service
+		data/systemd/snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
-		snapd.socket
+		data/systemd/snapd.socket
 	dh_systemd_start \
 		-psnapd \
-		snapd.service
+		data/systemd/snapd.service
 	# start autoimport
 	dh_systemd_start \
 		-psnapd \
-		snapd.autoimport.service
+		data/systemd/snapd.autoimport.service
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
@@ -187,11 +187,11 @@ override_dh_install:
 	cp -R etc/X11 debian/snapd/etc
 	# we conditionally install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.autoimport.service
