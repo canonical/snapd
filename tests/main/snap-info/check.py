@@ -31,7 +31,7 @@ def exists(name, d):
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
-    return re.compile(r"^\w\S*\s+\(\d+\)\s+\w+\s+" + s + "$")
+    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
 
 res = list(yaml.load_all(sys.stdin))
 
@@ -56,6 +56,7 @@ check("test-snapd-tools", res[2],
    ("publisher", equals, "canonical"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
+   ("commands", exists),
    ("tracking", equals, "stable"),
    ("installed", matches, verRevNotesRx("-")),
    ("refreshed", exists),

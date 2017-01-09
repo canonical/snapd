@@ -102,29 +102,29 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	if revision.Unset() {
-		revision = snap.R(11)
-		if channel == "channel-for-7" {
-			revision.N = 7
+	if spec.Revision.Unset() {
+		spec.Revision = snap.R(11)
+		if spec.Channel == "channel-for-7" {
+			spec.Revision.N = 7
 		}
 	}
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			RealName: strings.Split(name, ".")[0],
-			Channel:  channel,
+			RealName: strings.Split(spec.Name, ".")[0],
+			Channel:  spec.Channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision: revision,
+			Revision: spec.Revision,
 		},
-		Version: name,
+		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revision})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
 }
@@ -294,6 +294,14 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 apps:
   cmd1:
     aliases: [alias1, alias1.cmd1]
+  cmd2:
+    aliases: [alias2]
+  cmd3:
+    aliases: [alias3]
+  cmd4:
+    aliases: [alias4]
+  cmd5:
+    aliases: [alias5]
 `))
 		if err != nil {
 			panic(err)
