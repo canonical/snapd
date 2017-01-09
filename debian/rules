@@ -151,27 +151,14 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
-	# install dev package files
-	mkdir -p debian/golang-github-snapcore-snapd-dev/usr/share
-	rm -rf debian/tmp/usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-confine
-	cp -R debian/tmp/usr/share/gocode debian/golang-github-snapcore-snapd-dev/usr/share
-	# install udev stuff, must be installed before 80-udisks
-	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/66-snapd-autoimport.rules
-	# install bash completion files
-	install --mode=0644 data/completion/snap -D debian/snapd/usr/share/bash-completion/completions/snap
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
-	# etc/profile.d contains the PATH extension for snap packages
-	mkdir -p debian/snapd/etc
-	cp -R etc/profile.d debian/snapd/etc
-	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
-	mkdir -p debian/snapd/etc
-	cp -R etc/X11 debian/snapd/etc
-	# install snapd's systemd units, done in this slightly odd way because
-	# the ubuntu/14.04 release branch adds/changes bits here
+	# install snapd's systemd units, done here instead of
+	# debian/snapd.install because the ubuntu/14.04 release
+	# branch adds/changes bits here
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
