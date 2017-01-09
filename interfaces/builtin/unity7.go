@@ -67,6 +67,7 @@ const unity7ConnectedPlugAppArmor = `
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
 /usr/local/bin/xdg-open ixr,
+/usr/local/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
