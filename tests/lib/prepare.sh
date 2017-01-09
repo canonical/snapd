@@ -40,14 +40,18 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
-    apt_install_local ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
-    apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+    apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
+    apt_install_local ${GOPATH}/snapd_*.deb
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+        snap --version
+        apt-cache policy snapd
         exit 1
     fi
     if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
+        /usr/lib/snapd/snap-confine --version
+        apt-cache policy snap-confine
         exit 1
     fi
 
@@ -94,7 +98,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+        apt_install_local ${GOPATH}/snapd_*.deb ${GOPATH}/snap-confine_*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
@@ -223,7 +227,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
