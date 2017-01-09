@@ -37,8 +37,8 @@ execute: |
     # XXX: Those only work when installed from the store
 
     echo "The plug side auto-connects when content is installed"
-    snap install test-snapd-content-slot
-    snap install test-snapd-content-plug
+    snap install --edge test-snapd-content-slot
+    snap install --edge test-snapd-content-plug
     snap interfaces | grep -Pzq "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
 
     # Remove the content snaps so that we can reinstall them the other way around
@@ -46,6 +46,6 @@ execute: |
     snap remove test-snapd-content-slot
 
     echo "The slot side auto-connects when content snap is installed"
-    snap install test-snapd-content-plug
-    snap install test-snapd-content-slot
+    snap install --edge test-snapd-content-plug
+    snap install --edge test-snapd-content-slot
     snap interfaces | grep -Pzq "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
