@@ -41,3 +41,5 @@ debug: |
     cd $SPREAD_PATH/cmd/
     find . > after
     diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
+    # Show kernel log as it may contain useful stuff
+    tail /var/log/kern.log
