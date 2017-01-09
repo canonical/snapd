@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
+	"github.com/snapcore/snapd/overlord/hookstate"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -42,7 +43,12 @@ type InterfaceManager struct {
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
-func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+	// NOTE: hookManager is nil only when testing.
+	if hookManager != nil {
+		setupHooks(hookManager)
+	}
+
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
@@ -63,6 +69,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
+
 	return m, nil
 }
 
@@ -72,18 +79,35 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
-	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
+	plugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "prepare-plug-" + plugName,
+		Optional: true,
+	}
+	summary := fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
+	collectPlugAttr := hookstate.HookTask(s, summary, plugHookSetup, nil)
+
+	slotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "prepare-slot-" + slotName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
+	collectSlotAttr := hookstate.HookTask(s, summary, slotHookSetup, nil)
+
+	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := s.NewTask("connect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return state.NewTaskSet(task), nil
+	connectInterface := s.NewTask("connect", summary)
+	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	connectInterface.WaitFor(collectPlugAttr)
+	connectInterface.WaitFor(collectSlotAttr)
+
+	return state.NewTaskSet(collectPlugAttr, collectSlotAttr, connectInterface), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Remove the intent-to-connect from the state so that we no longer
-	// automatically try to reconnect on reboot.
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("disconnect", summary)

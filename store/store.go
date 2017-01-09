@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -72,7 +71,15 @@ const (
 // xxx: this should actually be set per client request, and include the client user agent
 var userAgent = "unset"
 
-func SetUserAgentFromVersion(version string) {
+var isTesting bool
+
+func init() {
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		isTesting = true
+	}
+}
+
+func SetUserAgentFromVersion(version string, extraProds ...string) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
@@ -81,10 +88,17 @@ func SetUserAgentFromVersion(version string) {
 	if release.ReleaseInfo.ForceDevMode() {
 		extras = append(extras, "devmode")
 	}
+	if isTesting {
+		extras = append(extras, "testing")
+	}
+	extraProdStr := ""
+	if len(extraProds) != 0 {
+		extraProdStr = " " + strings.Join(extraProds, " ")
+	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s) %s/%s (%s)", version, strings.Join(extras, "; "), release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
 }
 
 func infoFromRemote(d snapDetails) *snap.Info {
@@ -98,8 +112,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.DeveloperID = d.DeveloperID
-	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	info.PublisherID = d.DeveloperID
+	info.Publisher = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -181,20 +195,6 @@ type Store struct {
 	suggestedCurrency string
 }
 
-func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
-}
-
-func shouldRetryError(attempt *retry.Attempt, err error) bool {
-	if !attempt.More() {
-		return false
-	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
-	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
-}
-
 var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
 	retry.Exponential{
 		Initial: 100 * time.Millisecond,
@@ -239,12 +239,12 @@ func useStaging() bool {
 }
 
 func cpiURL() string {
-	if useStaging() {
-		return "https://search.apps.staging.ubuntu.com/api/v1/"
-	}
 	// FIXME: this will become a store-url assertion
 	if u := os.Getenv("SNAPPY_FORCE_CPI_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 
 	return "https://search.apps.ubuntu.com/api/v1/"
@@ -265,12 +265,11 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if useStaging() {
-		return "https://assertions.staging.ubuntu.com/v1/"
-	}
-
 	if u := os.Getenv("SNAPPY_FORCE_SAS_URL"); u != "" {
 		return u
+	}
+	if useStaging() {
+		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
@@ -394,9 +393,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	var sectionsURI *url.URL
 	if cfg.SectionsURI != nil {
-		uri := *cfg.SectionsURI
-		uri.RawQuery = rawQuery
-		sectionsURI = &uri
+		sectionsURI = cfg.SectionsURI
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -779,6 +776,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
+	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {
@@ -961,18 +959,26 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	return channelInfos, nil
 }
 
-// Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
-	u, err := s.detailsURI.Parse(name)
+// A SnapSpec describes a single snap wanted from SnapInfo
+type SnapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+	Devmode  bool
+}
+
+// SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
+func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	// get the query before doing Parse, as that overwrites it
+	query := s.detailsURI.Query()
+	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	query := u.Query()
-
-	query.Set("channel", channel)
-	if !revision.Unset() {
-		query.Set("revision", revision.String())
+	query.Set("channel", snapSpec.Channel)
+	if !snapSpec.Revision.Unset() {
+		query.Set("revision", snapSpec.Revision.String())
 		query.Set("channel", "")
 	}
 
@@ -980,7 +986,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	// XXX: what we really want to do is have the store not specify
 	//      devmode, and have the business logic wrt what to do with
 	//      unwanted devmode further up
-	if !devmode {
+	if !snapSpec.Devmode {
 		query.Set("confinement", string(snap.StrictConfinement))
 	}
 
@@ -1005,14 +1011,14 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && channel == "" && revision.Unset() {
+	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)
@@ -1021,7 +1027,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		}
 	}
 
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1285,6 +1291,16 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
+type HashError struct {
+	name           string
+	sha3_384       string
+	targetSha3_384 string
+}
+
+func (e HashError) Error() string {
+	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
@@ -1304,7 +1320,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		// We revert to normal downloads if there is any error.
 		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
-	w, err := os.OpenFile(targetPath+".partial", os.O_RDWR|os.O_CREATE, 0644)
+
+	partialPath := targetPath + ".partial"
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -1327,6 +1345,21 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
+	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
+	// Note that we will retry this way only once.
+	if _, ok := err.(HashError); ok && resume > 0 {
+		logger.Debugf("Error on resumed download: %v", err.Error())
+		err = w.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = w.Seek(0, os.SEEK_SET)
+		if err != nil {
+			return err
+		}
+		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, 0, pbar)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1345,45 +1378,45 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		return err
 	}
 
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    storeURL,
-	}
-	h := crypto.SHA3_384.New()
-
-	if resume > 0 {
-		reqOptions.ExtraHeaders = map[string]string{
-			"Range": fmt.Sprintf("bytes=%d-", resume),
-		}
-		// seed the sha3 with the already local file
-		seekStart := 0
-		if _, err := w.Seek(0, seekStart); err != nil {
-			return err
-		}
-		n, err := io.Copy(h, w)
-		if err != nil {
-			return err
-		}
-		if n != resume {
-			return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
-		}
-	}
-
-	var resp *http.Response
+	var finalErr error
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if cancelled(ctx) {
-			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		reqOptions := &requestOptions{
+			Method: "GET",
+			URL:    storeURL,
 		}
-		resp, err = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		h := crypto.SHA3_384.New()
+
+		if resume > 0 {
+			reqOptions.ExtraHeaders = map[string]string{
+				"Range": fmt.Sprintf("bytes=%d-", resume),
+			}
+			// seed the sha3 with the already local file
+			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+				return err
+			}
+			n, err := io.Copy(h, w)
+			if err != nil {
+				return err
+			}
+			if n != resume {
+				return fmt.Errorf("resume offset wrong: %d != %d", resume, n)
+			}
+		}
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
-		if err != nil {
-			if shouldRetryError(attempt, err) {
+		var resp *http.Response
+		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
 				continue
 			}
-			return err
+			break
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
@@ -1391,40 +1424,47 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			continue
 		}
 
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusPartialContent:
+		case http.StatusUnauthorized:
+			return fmt.Errorf("cannot download non-free snap without purchase")
+		default:
+			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
+		}
+
+		if pbar == nil {
+			pbar = &progress.NullProgress{}
+		}
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, h, pbar)
+		_, finalErr = io.Copy(mw, resp.Body)
+		pbar.Finished()
+		if finalErr != nil {
+			if shouldRetryError(attempt, finalErr) {
+				// error while downloading should resume
+				var seekerr error
+				resume, seekerr = w.Seek(0, os.SEEK_END)
+				if seekerr == nil {
+					continue
+				}
+				// if seek failed, then don't retry end return the original error
+			}
+			break
+		}
+
+		if cancelled(ctx) {
+			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		}
+
+		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+		if sha3_384 != "" && sha3_384 != actualSha3 {
+			finalErr = HashError{name, actualSha3, sha3_384}
+		}
 		break
 	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusPartialContent:
-		break
-	case http.StatusUnauthorized:
-		return fmt.Errorf("cannot download non-free snap without purchase")
-	default:
-		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
-	}
-
-	if pbar == nil {
-		pbar = &progress.NullProgress{}
-	}
-	pbar.Start(name, float64(resp.ContentLength))
-	mw := io.MultiWriter(w, h, pbar)
-	_, err = io.Copy(mw, resp.Body)
-	pbar.Finished()
-	if err != nil {
-		return err
-	}
-
-	if cancelled(ctx) {
-		return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
-	}
-
-	actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
-	if sha3_384 != "" && sha3_384 != actualSha3 {
-		return fmt.Errorf("sha3-384 mismatch downloading %s: got %s but expected %s", name, actualSha3, sha3_384)
-	}
-
-	return nil
+	return finalErr
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1482,7 +1522,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
 		}
-		return fmt.Errorf("sha3-384 mismatch after patching %q: got %s but expected %s", name, sha3_384, targetSha3_384)
+		return HashError{name, sha3_384, targetSha3_384}
 	}
 
 	if err := os.Rename(partialTargetPath, targetPath); err != nil {

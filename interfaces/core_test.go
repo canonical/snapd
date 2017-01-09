@@ -68,6 +68,59 @@ func (s *CoreSuite) TestValidateName(c *C) {
 	}
 }
 
+func (s *CoreSuite) TestValidateDBusBusName(c *C) {
+	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+	validNames := []string{
+		"a.b", "a.b.c", "a.b1", "a.b1.c2d",
+		"a_a.b", "a_a.b_b.c_c", "a_a.b_b1", "a_a.b_b1.c_c2d_d",
+		"a-a.b", "a-a.b-b.c-c", "a-a.b-b1", "a-a.b-b1.c-c2d-d",
+	}
+	for _, name := range validNames {
+		err := ValidateDBusBusName(name)
+		c.Assert(err, IsNil)
+	}
+
+	invalidNames := []string{
+		// must not start with ':'
+		":a.b",
+		// only from [A-Z][a-z][0-9]_-
+		"@.a",
+		// elements may not start with number
+		"0.a",
+		"a.0a",
+		// must have more than one element
+		"a",
+		"a_a",
+		"a-a",
+		// element must not begin with '.'
+		".a",
+		// each element must be at least 1 character
+		"a.",
+		"a..b",
+		".a.b",
+		"a.b.",
+	}
+	for _, name := range invalidNames {
+		err := ValidateDBusBusName(name)
+		c.Assert(err, ErrorMatches, `invalid DBus bus name: ".*"`)
+	}
+
+	// must not be empty
+	err := ValidateDBusBusName("")
+	c.Assert(err, ErrorMatches, `DBus bus name must be set`)
+
+	// must not exceed maximum length
+	longName := make([]byte, 256)
+	for i := range longName {
+		longName[i] = 'b'
+	}
+	// make it look otherwise valid (a.bbbb...)
+	longName[0] = 'a'
+	longName[1] = '.'
+	err = ValidateDBusBusName(string(longName))
+	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
+}
+
 // Plug.Ref works as expected
 func (s *CoreSuite) TestPlugRef(c *C) {
 	plug := &Plug{PlugInfo: &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}}
