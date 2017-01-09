@@ -927,6 +927,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 }
 
 // Tests for Repository.SecuritySnippetsForSnap()
+// and for RecordInterfacesAffectingSnap()
 
 const testSecurity SecuritySystem = "security"
 
@@ -955,6 +956,22 @@ var testInterface = &TestInterface{
 			return []byte(`connection-specific slot snippet`), nil
 		}
 		return nil, nil
+	},
+	RecordPermanentPlugCallback: func(rec interface{}, plug *Plug) error {
+		rec.(*DummyRecorder).Remember("static plug snippet")
+		return nil
+	},
+	RecordConnectedPlugCallback: func(rec interface{}, plug *Plug, slot *Slot) error {
+		rec.(*DummyRecorder).Remember("connection-specific plug snippet")
+		return nil
+	},
+	RecordPermanentSlotCallback: func(rec interface{}, slot *Slot) error {
+		rec.(*DummyRecorder).Remember("static slot snippet")
+		return nil
+	},
+	RecordConnectedSlotCallback: func(rec interface{}, plug *Plug, slot *Slot) error {
+		rec.(*DummyRecorder).Remember("connection-specific slot snippet")
+		return nil
 	},
 }
 
@@ -1007,6 +1024,54 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`connection-specific slot snippet`),
 		},
 	})
+}
+
+func (s *RepositorySuite) TestRecordInterfacesAffectingSnap(c *C) {
+	repo := s.emptyRepo
+	c.Assert(repo.AddInterface(testInterface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+
+	// Snaps should get static security now
+	rec := &DummyRecorder{}
+	err := repo.RecordInterfacesAffectingSnap(s.plug.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{"static plug snippet"})
+
+	rec = &DummyRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.slot.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{"static slot snippet"})
+
+	// Establish connection between plug and slot
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
+	err = repo.Connect(connRef)
+	c.Assert(err, IsNil)
+
+	// Snaps should get static and connection-specific security now
+	rec = &DummyRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.plug.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{
+		"static plug snippet",
+		"connection-specific plug snippet",
+	})
+
+	rec = &DummyRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.slot.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{
+		"static slot snippet",
+		"connection-specific slot snippet",
+	})
+}
+
+type DummyRecorder struct {
+	Snippets []string
+}
+
+func (rec *DummyRecorder) Remember(snippet string) {
+	rec.Snippets = append(rec.Snippets, snippet)
 }
 
 func (s *RepositorySuite) TestOrphanInterfaces(c *C) {

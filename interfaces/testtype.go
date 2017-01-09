@@ -42,6 +42,11 @@ type TestInterface struct {
 	PlugSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
 	PermanentPlugSnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+
+	RecordConnectedPlugCallback func(rec interface{}, plug *Plug, slot *Slot) error
+	RecordConnectedSlotCallback func(rec interface{}, plug *Plug, slot *Slot) error
+	RecordPermanentPlugCallback func(rec interface{}, plug *Plug) error
+	RecordPermanentSlotCallback func(rec interface{}, slot *Slot) error
 }
 
 // String() returns the same value as Name().
@@ -110,6 +115,40 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 		return t.PermanentSlotSnippetCallback(slot, securitySystem)
 	}
 	return nil, nil
+}
+
+// RecordPermanentSlot records changes desired whenever a given slot exists.
+func (iface *TestInterface) RecordPermanentSlot(rec interface{}, slot *Slot) error {
+	if iface.RecordPermanentSlotCallback != nil {
+		return iface.RecordPermanentSlotCallback(rec, slot)
+	}
+	return nil
+}
+
+// RecordPermanentPlug records changes desired whenever a given plug exists.
+func (iface *TestInterface) RecordPermanentPlug(rec interface{}, plug *Plug) error {
+	if iface.RecordPermanentPlugCallback != nil {
+		return iface.RecordPermanentPlugCallback(rec, plug)
+	}
+	return nil
+}
+
+// RecordConnectedPlug records changes desired when a given plug
+// and slot are connected.
+func (iface *TestInterface) RecordConnectedPlug(rec interface{}, plug *Plug, slot *Slot) error {
+	if iface.RecordConnectedPlugCallback != nil {
+		return iface.RecordConnectedPlugCallback(rec, plug, slot)
+	}
+	return nil
+}
+
+// RecordConnectedSlot records changes desired when a given plug
+// and slot are connected.
+func (iface *TestInterface) RecordConnectedSlot(rec interface{}, plug *Plug, slot *Slot) error {
+	if iface.RecordConnectedSlotCallback != nil {
+		return iface.RecordConnectedSlotCallback(rec, plug, slot)
+	}
+	return nil
 }
 
 // AutoConnect returns whether plug and slot should be implicitly

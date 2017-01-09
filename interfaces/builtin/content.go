@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -127,10 +128,14 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	src := resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions []string) mount.Entry {
+	options := []string{"bind"}
+	options = append(options, extraOptions...)
+	return mount.Entry{
+		FsName:  mount.MntFsName(resolveSpecialVariable(relSrc, slot.Snap)),
+		Dir:     mount.MntDir(resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)),
+		Options: options,
+	}
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -167,14 +172,6 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		}
 
 		return contentSnippet.Bytes(), nil
-	case interfaces.SecurityMount:
-		for _, r := range iface.path(slot, "read") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-		}
-		for _, w := range iface.path(slot, "write") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-		}
-		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
 }
@@ -185,4 +182,29 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return plug.Attrs["content"] == slot.Attrs["content"]
+}
+
+func (iface *ContentInterface) RecordConnectedPlug(rec interface{}, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	switch rec := rec.(type) {
+	case *mount.Recorder:
+		for _, r := range iface.path(slot, "read") {
+			rec.AddMountEntry(mountEntry(plug, slot, r, []string{"ro"}))
+		}
+		for _, w := range iface.path(slot, "write") {
+			rec.AddMountEntry(mountEntry(plug, slot, w, nil))
+		}
+	}
+	return nil
+}
+
+func (iface *ContentInterface) RecordConnectedSlot(rec interface{}, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *ContentInterface) RecordPermanentPlug(rec interface{}, plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *ContentInterface) RecordPermanentSlot(rec interface{}, slot *interfaces.Slot) error {
+	return nil
 }
