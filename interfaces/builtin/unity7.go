@@ -255,6 +255,14 @@ dbus (send)
     member=Changed
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+# Ubuntu menus
+dbus (send)
+    bus=session
+    path="/com/ubuntu/MenuRegistrar"
+    interface="com.ubuntu.MenuRegistrar"
+    member="{Register,Unregister}{App,Surface}Menu"
+    peer=(label=unconfined),
+
 # url helper
 dbus (send)
     bus=session
