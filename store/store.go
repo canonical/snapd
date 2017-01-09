@@ -354,7 +354,7 @@ type sectionResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
+var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
