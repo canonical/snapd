@@ -243,6 +243,10 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/@{pid}/comm r,
 
+  # Per man(5) proc, the kernel enforces that a thread may only modify its comm
+  # value or those in its thread group.
+  owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
   # Miscellaneous accesses
   /dev/{,u}random w,
   /etc/machine-id r,
