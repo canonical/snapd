@@ -127,6 +127,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/hostname ixr,
   /{,usr/}bin/id ixr,
   /{,usr/}bin/igawk ixr,
+  /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{,usr/}bin/less{,file,pipe} ixr,
