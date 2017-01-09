@@ -121,7 +121,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	confirmSlotConnection.WaitFor(connectInterface)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
-	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
+	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmSlotConnection, confirmPlugConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
