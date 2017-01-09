@@ -239,9 +239,7 @@ func (x *infoCmd) Execute([]string) error {
 				notes = NotesFromLocal(local)
 			}
 
-			if local.TrackingChannel != "" {
-				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			}
+			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
