@@ -377,8 +377,7 @@ slots:
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 
 	setup()
-
-	//mgr := s.manager(c)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
