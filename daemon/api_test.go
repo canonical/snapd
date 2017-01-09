@@ -487,13 +487,13 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rootCmd.Path, check.Equals, "/")
 
 	rootCmd.GET(rootCmd, nil, nil).ServeHTTP(rec, nil)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := []interface{}{"TBD"}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -514,7 +514,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
@@ -529,7 +529,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
@@ -589,11 +589,11 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
-	mockSSOServer := s.makeSSOServer(200, discharge)
+	mockSSOServer := s.makeSSOServer(http.StatusOK, discharge)
 	defer mockSSOServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -615,7 +615,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 		Discharges: user.Discharges,
 	}
 
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -641,11 +641,11 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
-	mockSSOServer := s.makeSSOServer(200, discharge)
+	mockSSOServer := s.makeSSOServer(http.StatusOK, discharge)
 	defer mockSSOServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
@@ -666,7 +666,7 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -698,11 +698,11 @@ func (s *apiSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
-	mockSSOServer := s.makeSSOServer(200, discharge)
+	mockSSOServer := s.makeSSOServer(http.StatusOK, discharge)
 	defer mockSSOServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
@@ -720,7 +720,7 @@ func (s *apiSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 		Macaroon:   localUser.Macaroon,
 		Discharges: localUser.Discharges,
 	}
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -751,11 +751,11 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
-	mockSSOServer := s.makeSSOServer(200, discharge)
+	mockSSOServer := s.makeSSOServer(http.StatusOK, discharge)
 	defer mockSSOServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
@@ -773,7 +773,7 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 		Macaroon:   localUser.Macaroon,
 		Discharges: localUser.Discharges,
 	}
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -803,7 +803,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	rsp := logoutUser(logoutCmd, req, user).(*resp)
-	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 
 	state.Lock()
@@ -825,7 +825,7 @@ func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 }
 
 func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
-	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, "{}")
 	defer mockMyAppsServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -844,7 +844,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
@@ -867,7 +867,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_FAILURE"}`
@@ -890,7 +890,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	mockMyAppsServer := s.makeMyAppsServer(http.StatusOK, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "INVALID_CREDENTIALS"}`
@@ -2158,7 +2158,8 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 
 	rec := httptest.NewRecorder()
 	snapConfCmd.PUT(snapConfCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -2202,7 +2203,7 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	appIconCmd.GET(appIconCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rec.Body.String(), check.Equals, "ick")
 }
 
@@ -2224,7 +2225,7 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	rec := httptest.NewRecorder()
 
 	appIconCmd.GET(appIconCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rec.Body.String(), check.Equals, "ick")
 }
 
@@ -2910,7 +2911,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.GET(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -2973,7 +2974,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -3156,7 +3158,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -3203,7 +3206,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -3251,7 +3255,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -3299,7 +3304,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -3764,7 +3770,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 	rsp.ServeHTTP(rec, req)
 
 	// Verify
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.NotNil)
@@ -3834,7 +3840,7 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	c.Check(soon, check.Equals, 1)
 
 	// Verify
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, http.StatusOK)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.NotNil)
@@ -4642,7 +4648,8 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -4727,7 +4734,8 @@ func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -4795,7 +4803,8 @@ func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
 	st.Unlock()
 	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
 	st.Lock()
-	c.Check(rec.Code, check.Equals, 202)
+	c.Check(rec.Code, check.Equals, http.StatusAccepted)
+	c.Check(rec.HeaderMap.Get("Location"), check.Matches, `/v2/changes/\d+`)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
