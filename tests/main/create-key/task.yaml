@@ -1,6 +1,6 @@
 summary: Checks for snap create-key
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
 
 prepare: |
     . "$TESTSLIB/mkpinentry.sh"
