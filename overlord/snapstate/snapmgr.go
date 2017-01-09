@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -43,7 +44,8 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	runner *state.TaskRunner
+	runner  *state.TaskRunner
+	hookMgr *hookstate.HookManager
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -309,13 +311,14 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 }
 
 // Manager returns a new snap manager.
-func Manager(st *state.State) (*SnapManager, error) {
+func Manager(st *state.State, hookMgr *hookstate.HookManager) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
+		hookMgr: hookMgr,
 	}
 
 	// this handler does nothing
@@ -807,6 +810,27 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := &TaskProgressAdapter{task: t}
 	return m.backend.CopySnapData(newInfo, oldInfo, pb)
+}
+
+func (m *SnapManager) doSetupContext(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	return hookmgr.createSnapContext(snapsup.Name())
+}
+
+func (m *SnapManager) undoSetupContext(t *state.Task, _ *tomb.Tomb) error {
+	//TODO
+	t.State().Lock()
+	_, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {

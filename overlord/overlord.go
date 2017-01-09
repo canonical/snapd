@@ -100,7 +100,7 @@ func New() (*Overlord, error) {
 	o.hookMgr = hookMgr
 	o.stateEng.AddManager(o.hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
+	snapMgr, err := snapstate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
 	}
