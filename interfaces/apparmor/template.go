@@ -327,7 +327,7 @@ var defaultTemplate = []byte(`
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
-  # Also allow app-specific access to sem_open()
+  # Also allow app-specific access for sem_open()
   /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
