@@ -401,6 +401,19 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) bool
 
+func timeForRefresh(nextRefresh time.Time) bool {
+	// no refresh yet
+	if nextRefresh.IsZero() {
+		return true
+	}
+
+	if time.Now().After(nextRefresh) {
+		return true
+	}
+
+	return false
+}
+
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
@@ -417,8 +430,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// time to refresh?
-	if !nextRefresh.IsZero() && time.Now().Before(nextRefresh) {
+	if !timeForRefresh(nextRefresh) {
 		return nil
 	}
 
@@ -442,7 +454,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	//
 	// However (1) is better for e.g. network errors on the client
 	// side (not yet connected etc)
-	scheduleNextRefresh(m.state)
+	nextRefresh = scheduleNextRefresh(m.state)
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
@@ -452,7 +464,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	switch len(updated) {
 	case 0:
 		// check in after some hours
-		logger.Noticef("No snaps to auto-refresh found")
+		logger.Noticef("No snaps to auto-refresh found, will check again at %v", nextRefresh)
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
@@ -1128,12 +1140,12 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func scheduleNextRefresh(st *state.State) error {
+func scheduleNextRefresh(st *state.State) time.Time {
 	randomness := rand.Int63n(int64(refreshRandomness))
 	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
 	st.Set("next-auto-refresh-time", nextRefreshTime)
 
-	return nil
+	return nextRefreshTime
 }
 
 func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
@@ -1141,7 +1153,8 @@ func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	return scheduleNextRefresh(st)
+	scheduleNextRefresh(st)
+	return nil
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
