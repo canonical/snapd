@@ -35,7 +35,7 @@ def verRevNotesRx(s):
 
 res = list(yaml.load_all(sys.stdin))
 
-equals("number of entries", len(res), 6)
+equals("number of entries", len(res), 7)
 
 check("basic", res[0],
    ("name", equals, "basic"),
@@ -108,4 +108,7 @@ check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
    ("publisher", equals, "canonical"),
    ("contact", equals, "mailto:snappy-canonical-storeaccount@canonical.com"),
+   ("summary", exists),
+   ("description", exists),
+   ("channels", exists),
 )
