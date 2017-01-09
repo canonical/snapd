@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -97,4 +98,70 @@ func (s keyName) Complete(match string) []flags.Completion {
 		return nil
 	})
 	return res
+}
+
+type connectPlugSpec struct {
+	SnapAndName
+}
+
+func (cps connectPlugSpec) Complete(match string) []flags.Completion {
+	match = strings.Trim(match, "\"'")
+
+	// Parse what the user typed so far, it can be either
+	// nothing (""), a "snap", a "snap:" or a "snap:name".
+	parts := strings.Split(match, ":")
+
+	// Ask snapd about available interfaces.
+	cli := Client()
+	ifaces, err := cli.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var ret []flags.Completion
+	switch len(parts) {
+	case 0:
+		// The user didn't input anything yet. Let's start by offering
+		// suggestion containing snap names that have at least one plug.
+		snaps := make(map[string]bool)
+		for _, plug := range ifaces.Plugs {
+			snaps[plug.Snap] = true
+		}
+		for snapName := range snaps {
+			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+		}
+		break
+	case 1:
+		// The user started typing a snap name but didn't reach the colon yet.
+		// Let's help by offering suggestions containing snap names that start
+		// with the given text and have at least one plug.
+		partialSnapName := parts[0]
+		snaps := make(map[string]bool)
+		for _, plug := range ifaces.Plugs {
+			if partialSnapName == "" || strings.HasPrefix(plug.Snap, partialSnapName) {
+				snaps[plug.Snap] = true
+			}
+		}
+		for snapName := range snaps {
+			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+		}
+		break
+	case 2:
+		// The user typed the snap name and the colon and is starting to narrow
+		// down the input to specify plug name. Let's help by offering full
+		// suggestions containing the suggestions of possible plug names that
+		// start with the given text (the plug part of if).
+		snapName := parts[0]
+		partialPlugName := parts[1]
+		plugs := make(map[string]bool)
+		for _, plug := range ifaces.Plugs {
+			if plug.Snap == snapName && (partialPlugName == "" || strings.HasPrefix(plug.Name, partialPlugName)) {
+				plugs[plug.Name] = true
+			}
+		}
+		for plugName := range plugs {
+			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", snapName, plugName)})
+		}
+		break
+	}
+	return ret
 }
