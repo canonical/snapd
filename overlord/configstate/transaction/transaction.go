@@ -17,7 +17,7 @@
  *
  */
 
-package configstate
+package transaction
 
 import (
 	"encoding/json"

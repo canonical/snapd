@@ -20,6 +20,8 @@
 package configstate_test
 
 import (
+	"testing"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -28,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+func TestConfigState(t *testing.T) { TestingT(t) }
 
 type configureHandlerSuite struct {
 	context *hookstate.Context
