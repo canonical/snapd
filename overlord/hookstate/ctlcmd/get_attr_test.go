@@ -66,6 +66,7 @@ func (s *getAttrSuite) TestCommand(c *C) {
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get-attr", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestUnknownKey(c *C) {
