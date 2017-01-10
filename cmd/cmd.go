@@ -91,6 +91,22 @@ func ExecInCoreSnap() {
 		}
 	}
 
+	// ensure we do not re-exec into an older version of snapd
+	currentSnapd, err := os.Stat(exe)
+	if err != nil {
+		logger.Noticef("cannot stat %q: %s", exe, err)
+		return
+	}
+	coreSnapSnapd, err := os.Stat(full)
+	if err != nil {
+		logger.Noticef("cannot stat %q: %s", full, err)
+		return
+	}
+	if currentSnapd.ModTime().After(coreSnapSnapd.ModTime()) {
+		logger.Noticef("not restarting into %q: older than %q", full, exe)
+		return
+	}
+
 	logger.Debugf("restarting into %q", full)
 
 	env := append(os.Environ(), key+"=0")
