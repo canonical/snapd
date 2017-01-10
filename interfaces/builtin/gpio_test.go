@@ -20,19 +20,18 @@
 package builtin_test
 
 import (
-	"encoding/json"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type GpioInterfaceSuite struct {
 	testutil.BaseTest
-	iface                   interfaces.Interface
+	iface                   interfaces.HybridInterface
 	gadgetGpioSlot          *interfaces.Slot
 	gadgetMissingNumberSlot *interfaces.Slot
 	gadgetBadNumberSlot     *interfaces.Slot
@@ -136,19 +135,15 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.gadgetPlug, s.gadgetGpioSlot, interfaces.SecuritySystemd)
+	rec := &systemd.Recorder{}
+	err := s.iface.RecordConnectedSlot(rec, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
-	var data interface{}
-	err = json.Unmarshal(snippet, &data)
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, map[string]interface{}{
-		"services": map[string]interface{}{
-			"snap.my-device.interface.gpio-100.service": map[string]interface{}{
-				"type":              "oneshot",
-				"remain-after-exit": true,
-				"exec-start":        `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
-				"exec-stop":         `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
-			},
+	c.Assert(rec.Services, DeepEquals, map[string]systemd.Service{
+		"snap.my-device.interface.gpio-100.service": {
+			Type:            "oneshot",
+			RemainAfterExit: true,
+			ExecStart:       `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
+			ExecStop:        `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
 		},
 	})
 }

@@ -213,8 +213,6 @@ const (
 	SecurityUDev SecuritySystem = "udev"
 	// SecurityKMod identifies the kernel modules security system
 	SecurityKMod SecuritySystem = "kmod"
-	// SecuritySystemd identifies the systemd services security system
-	SecuritySystemd SecuritySystem = "systemd"
 )
 
 // Regular expression describing correct identifiers.
