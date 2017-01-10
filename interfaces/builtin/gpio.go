@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -112,42 +111,23 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
-func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) (*systemd.Snippet, error) {
-	switch securitySystem {
-	case interfaces.SecuritySystemd:
-		gpioNum, ok := slot.Attrs["number"].(int64)
-		if !ok {
-			return nil, fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
-		}
-		serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
-		snippet := &systemd.Snippet{
-			Services: map[string]systemd.Service{
-				serviceName: {
-					Type:            "oneshot",
-					RemainAfterExit: true,
-					ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
-					ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/unexport'", gpioNum, gpioNum),
-				},
-			},
-		}
-		return snippet, nil
-	}
+func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	richSnippet, err := iface.ConnectedSlotRichSnippet(plug, slot, securitySystem)
-	if err != nil {
-		return nil, err
+func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	gpioNum, ok := slot.Attrs["number"].(int64)
+	if !ok {
+		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 	}
-	if richSnippet == nil {
-		return nil, nil
+	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
+	service := systemd.Service{
+		Type:            "oneshot",
+		RemainAfterExit: true,
+		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
+		ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/unexport'", gpioNum, gpioNum),
 	}
-	rawSnippet, err := json.Marshal(richSnippet)
-	if err != nil {
-		return nil, err
-	}
-	return rawSnippet, nil
+	return spec.AddService(serviceName, service)
 }
 
 func (iface *GpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
