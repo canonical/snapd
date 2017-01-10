@@ -229,7 +229,9 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SnapID, Equals, "snapidsnapid")
 	c.Assert(info.Revision, Equals, snap.R(128))
-	c.Assert(info.DeveloperID, Equals, "developerid")
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "developerid")
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
@@ -241,7 +243,6 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SnapID, Equals, "")
 	c.Assert(info.Revision, Equals, snap.R("x1"))
-	c.Assert(info.DeveloperID, Equals, "")
 
 	// and ensure state is now considered seeded
 	var seeded bool
@@ -385,16 +386,20 @@ snaps:
 	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Assert(info.SnapID, Equals, "foosnapidsnapid")
-	c.Assert(info.Revision, Equals, snap.R(128))
-	c.Assert(info.DeveloperID, Equals, "developerid")
+	c.Check(info.SnapID, Equals, "foosnapidsnapid")
+	c.Check(info.Revision, Equals, snap.R(128))
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "developerid")
 
 	// check bar
 	info, err = snapstate.CurrentInfo(state, "bar")
 	c.Assert(err, IsNil)
-	c.Assert(info.SnapID, Equals, "barsnapidsnapid")
-	c.Assert(info.Revision, Equals, snap.R(65))
-	c.Assert(info.DeveloperID, Equals, "developerid")
+	c.Check(info.SnapID, Equals, "barsnapidsnapid")
+	c.Check(info.Revision, Equals, snap.R(65))
+	pubAcct, err = assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "developerid")
 }
 
 func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {

@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -403,14 +402,6 @@ func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
 }
 
 func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
-	snapName := slot.Snap.Name()
-	devName := slot.Snap.Developer
-
-	if snapName != "udisks2" {
-		return fmt.Errorf("udisks2 slot reserved (snap name '%s' != 'udisks2')", snapName)
-	} else if devName != "canonical" {
-		return fmt.Errorf("udisks2 slot is reserved for Canonical")
-	}
 	return nil
 }
 
