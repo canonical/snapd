@@ -750,7 +750,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%#v: %v", scenario, chg.Err()))
 		var aliases []*backend.Alias
 		var rmAliases []*backend.Alias
-		beAlias := &backend.Alias{scenAlias, fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
+		beAlias := &backend.Alias{Name: scenAlias, Target: fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
 		switch scenario.mutation {
 		case "-":
 		case "add":
@@ -858,7 +858,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 		c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("%#v: %v", scenario, chg.Err()))
 		var aliases []*backend.Alias
 		var rmAliases []*backend.Alias
-		beAlias := &backend.Alias{scenAlias, fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
+		beAlias := &backend.Alias{Name: scenAlias, Target: fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
 		switch scenario.mutation {
 		case "-":
 		case "add":
