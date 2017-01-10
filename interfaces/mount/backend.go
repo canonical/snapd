@@ -91,6 +91,9 @@ func (b *Backend) Name() string {
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
+	// TODO: replace this with a pass over all the interfaces, each one that
+	// implements MountAware interface gets interrogated. The rest is similar
+	// with the exception that merging the collected data is easier.
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityMount)
 	if err != nil {
