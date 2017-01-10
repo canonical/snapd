@@ -1,5 +1,7 @@
 summary: Test that snapd rexecs itself into core
 
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+
 environment:
     SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
 
