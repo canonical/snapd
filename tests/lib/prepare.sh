@@ -24,7 +24,12 @@ update_core_snap_with_snap_exec_snapctl() {
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # trusty does not support  -Xcompression-level 1
+        mksquashfs squashfs-root "$snap" -comp gzip
+    else
+        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
+    fi
     rm -rf squashfs-root
 
     # Now mount the new core snap
