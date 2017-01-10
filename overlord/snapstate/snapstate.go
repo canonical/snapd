@@ -307,17 +307,21 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
-	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
+	info, err := snapInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !validInfoForFlags(info, &snapst, flags) {
+		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &snapInfo.DownloadInfo,
-		SideInfo:     &snapInfo.SideInfo,
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
 	}
 
 	return doInstall(st, &snapst, snapsup)
@@ -404,9 +408,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		// get confinement preference from the snapstate
 		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
-			Channel: snapst.Channel,
-			DevMode: snapst.DevModeAllowed(),
-
+			Channel:  snapst.Channel,
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
@@ -464,6 +466,11 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
+
+		if !validInfoForFlags(update, snapst, Flags{}) {
+			// XXX: log something
+			continue
+		}
 
 		snapsup := &SnapSetup{
 			Channel:      snapst.Channel,
@@ -529,12 +536,40 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	return doInstall(st, &snapst, snapsup)
 }
 
+func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
+	switch c := info.Confinement; c {
+	case snap.StrictConfinement, "":
+		// strict is always fine
+		return true
+	case snap.DevModeConfinement:
+		// --devmode needs to be specified every time (==> ignore snapst)
+		return flags.DevModeAllowed()
+	case snap.ClassicConfinement:
+		if flags.Classic {
+			return true
+		}
+
+		if snapst != nil && snapst.Flags.Classic {
+			return true
+		}
+
+		return false
+	default:
+		logger.Panicf("unknown confinement %q", c)
+	}
+
+	return false
+}
+
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, userID, flags)
+		info, err := updateInfo(st, snapst, channel, userID)
 		if err != nil {
 			return nil, err
+		}
+		if !validInfoForFlags(info, snapst, flags) {
+			return nil, snap.NoUpdateAvailableError{name}
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
@@ -553,7 +588,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return snapInfo(st, name, channel, revision, userID, flags)
+		return snapInfo(st, name, channel, revision, userID)
 	}
 
 	// refresh-to-local
