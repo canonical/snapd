@@ -29,9 +29,10 @@ var (
 	GenerateSnapServiceFile = generateSnapServiceFile
 
 	// desktop
-	SanitizeDesktopFile = sanitizeDesktopFile
-	RewriteExecLine     = rewriteExecLine
-	TrimLang            = trimLang
+	SanitizeDesktopFile      = sanitizeDesktopFile
+	RewriteExecLine          = rewriteExecLine
+	TrimLang                 = trimLang
+	IsValidDesktopFilePrefix = isValidDesktopFilePrefix
 )
 
 func MockKillWait(wait time.Duration) (restore func()) {

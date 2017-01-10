@@ -61,6 +61,8 @@ var validDesktopFilePrefixes = []string{
 	"Keywords=",
 	"StartupNotify=",
 	"StartupWMClass=",
+	// LP: #1648990
+	"DBusActivatable=",
 }
 
 // name desktop file keys are localized as key[LOCALE]=:
