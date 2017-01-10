@@ -1,0 +1,19 @@
+#!/bin/sh
+# Copyright 2011 Canonical, Inc
+# Author: Serge Hallyn <serge.hallyn@canonical.com>
+
+set -e
+
+# We don't care to move tasks around gratuitously - just umount
+# the cgroups
+
+# If /sys/fs/cgroup is not mounted, we don't bother
+mountpoint -q /sys/fs/cgroup || exit 0
+
+cd /sys/fs/cgroup
+for d in `sed -e '1d;s/\([^\t]\)\t.*$/\1/' /proc/cgroups`; do
+    mountpoint -q $d && umount $d
+    [ -d $d ] && rmdir $d || true
+done
+
+exit 0

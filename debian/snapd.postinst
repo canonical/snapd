@@ -11,4 +11,10 @@ case "$1" in
         if dpkg --compare-versions "$2" lt-nl "2.0.7"; then
             ldconfig
         fi
+        # start required services
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload
+            systemctl -f enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service snap.cgroup.service snap.mount.service
+            systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service snap.cgroup.service snap.mount.service
+        fi
 esac

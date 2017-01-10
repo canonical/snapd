@@ -139,7 +139,6 @@ Then setup the environment via:
     $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
     $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
 
-
 And you can run the tests via:
 
     $ spread -v qemu:
