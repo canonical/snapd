@@ -9,9 +9,9 @@ execute: |
         grep "type: snap-revision" "$fn"
     }
     echo "Snap download can download snaps"
-    snap download hello-world
-    ls hello-world_*.snap
-    verify_asserts hello-world_*.assert
+    snap download test-snapd-control-consumer
+    ls test-snapd-control-consumer_*.snap
+    verify_asserts test-snapd-control-consumer_*.assert
 
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools
@@ -24,6 +24,6 @@ execute: |
     verify_asserts classic_*.assert
 
     echo "Snap download can download snaps as user"
-    su -l -c "snap download hello-world" test
-    ls /home/test/hello-world_*.snap
-    verify_asserts /home/test/hello-world_*.assert
+    su -l -c "snap download test-snapd-tools" test
+    ls /home/test/test-snapd-tools_*.snap
+    verify_asserts /home/test/test-snapd-tools_*.assert

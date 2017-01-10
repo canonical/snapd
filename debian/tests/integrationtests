@@ -29,6 +29,7 @@ sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd
 systemctl reload sshd.service
 
 # and now run spread against localhost
+. /etc/os-release
 export GOPATH=/tmp/go
 go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v autopkgtest:
+/tmp/go/bin/spread -v autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)

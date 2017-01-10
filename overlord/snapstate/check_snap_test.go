@@ -237,7 +237,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -279,7 +279,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdateLocal(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -321,7 +321,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdateToUnassertedProhibited(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -362,7 +362,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -403,7 +403,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibitedBySnapID(c *C) {
 name: gadget
 type: gadget
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -509,6 +509,30 @@ confinement: devmode
 	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }
 
+func (s *checkSnapSuite) TestCheckSnapErrorOnClassicDisallowed(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: classic
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	restore = release.MockOnClassic(true)
+	defer restore()
+
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
+
+	c.Assert(err, ErrorMatches, ".* requires consent to use classic confinement")
+}
+
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
@@ -522,7 +546,7 @@ func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {
 name: kernel
 type: kernel
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
@@ -564,7 +588,7 @@ func (s *checkSnapSuite) TestCheckSnapKernelAdditionProhibitedBySnapID(c *C) {
 name: kernel
 type: kernel
 version: 1
-`, si)
+`, "", si)
 	snapstate.Set(st, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,

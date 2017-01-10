@@ -49,7 +49,6 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-support",
 			Interface: "docker-support",
@@ -70,10 +69,6 @@ func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *DockerSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
@@ -107,7 +102,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)
@@ -133,7 +127,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)
@@ -159,7 +152,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)

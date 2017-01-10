@@ -40,7 +40,6 @@ var _ = Suite(&DockerInterfaceSuite{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-daemon",
 			Interface: "docker",
@@ -68,10 +67,6 @@ func (s *DockerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *DockerInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {

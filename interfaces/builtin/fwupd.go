@@ -56,7 +56,7 @@ var fwupdPermanentSlotAppArmor = []byte(`
 
   # Allow access from efivar library
   owner @{PROC}/@{pid}/mounts r,
-  /sys/devices/pci*/**/block/**/partition r,
+  /sys/devices/{pci*,platform}/**/block/**/partition r,
   # Introspect the block devices to get partition guid and size information
   /run/udev/data/b[0-9]*:[0-9]* r,
 
@@ -246,10 +246,6 @@ func (iface *FwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
 // SanitizeSlot checks the slot definition is valid
 func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *FwupdInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

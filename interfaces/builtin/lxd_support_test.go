@@ -48,7 +48,6 @@ var _ = Suite(&LxdSupportInterfaceSuite{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
 				SuggestedName: "lxd",
-				SideInfo:      snap.SideInfo{Developer: "canonical"},
 			},
 			Name:      "lxd-support",
 			Interface: "lxd-support",
@@ -91,10 +90,6 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Check(string(snippet), testutil.Contains, "@unrestricted\n")
-}
-
-func (s *LxdSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
-	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }
 
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {

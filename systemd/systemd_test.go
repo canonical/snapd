@@ -191,22 +191,10 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestDisableNow(c *C) {
-	err := New("xyzzy", s.rep).DisableNow("foo")
-	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "--now", "disable", "foo"}})
-}
-
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
-}
-
-func (s *SystemdTestSuite) TestEnableNow(c *C) {
-	err := New("xyzzy", s.rep).EnableNow("foo")
-	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "--now", "enable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -392,6 +380,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
+Options=ro,allow_other
 
 [Install]
 WantedBy=multi-user.target

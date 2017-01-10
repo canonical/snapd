@@ -112,7 +112,7 @@ func ForceBootloader(booloader Bootloader) {
 	forcedBootloader = booloader
 }
 
-// MarkBootSuccessful marks the current boot as sucessful. This means
+// MarkBootSuccessful marks the current boot as successful. This means
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
 func MarkBootSuccessful(bootloader Bootloader) error {

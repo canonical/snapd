@@ -36,10 +36,10 @@ import (
 // The interfaces listed in the base declaration can be broadly categorized
 // into:
 //
-// - manually connected implicit slots
-// - auto-connected implicit slots
-// - manually connected app-provided slots
-// - auto-connected app-provided slots
+// - manually connected implicit slots (eg, bluetooth-control)
+// - auto-connected implicit slots (eg, network)
+// - manually connected app-provided slots (eg, bluez)
+// - auto-connected app-provided slots (eg, mir)
 //
 // such that they will follow this pattern:
 //
@@ -75,7 +75,7 @@ import (
 // to allow connections with the app-provided slot.
 //
 // Slots dealing with hardware typically will specify 'gadget' and 'core' as
-// the slot-snap-type. Eg:
+// the slot-snap-type (eg, serial-port). Eg:
 //
 //   slots:
 //     manual-connected-hw-slot:
@@ -87,7 +87,7 @@ import (
 //
 // So called super-privileged slot implementations should also be disallowed
 // installation on a system and a snap declaration is required to override the
-// base declaration to allow installation. Eg:
+// base declaration to allow installation (eg, docker). Eg:
 //
 //   slots:
 //     manual-connected-super-privileged-slot:
@@ -97,7 +97,8 @@ import (
 //
 // Like super-privileged slot implementation, super-privileged plugs should
 // also be disallowed installation on a system and a snap declaration is
-// required to override the base declaration to allow installation. Eg:
+// required to override the base declaration to allow installation (eg,
+// kernel-module-control). Eg:
 //
 //   plugs:
 //     manual-connected-super-privileged-plug:
@@ -105,24 +106,23 @@ import (
 //       deny-auto-connection: true
 //   (remember this overrides slot side rules)
 //
-// TODO: when on-classic is implemented
-//
 // Some interfaces have policy that is meant to be used with slot
 // implementations and on classic images. Since the slot implementation is
 // privileged, we require a snap declaration to be used for app-provided slot
-// implementations on non-classic systems. Eg:
+// implementations on non-classic systems (eg, network-manager). Eg:
 //
 //   slots:
 //     classic-or-not-slot:
-//       deny-installation:
+//       allow-installation:
 //         slot-snap-type:
 //           - app
+//           - core
+//       deny-auto-connection: true
+//       deny-connection:
 //         on-classic: false
 //
-// TODO: pulseaudio and network-manager should do this
-//
 // Some interfaces have policy that is only used with implicit slots on
-// classic and should be autoconnected only there. Eg:
+// classic and should be autoconnected only there (eg, home). Eg:
 //
 //   slots:
 //     implicit-classic-slot:
@@ -131,8 +131,6 @@ import (
 //           - core
 //     deny-auto-connection:
 //       on-classic: false
-//
-// TODO: implicit classic slots should do this
 //
 const baseDeclarationHeaders = `
 type: base-declaration
@@ -153,12 +151,25 @@ plugs:
     allow-installation: false
     deny-auto-connection: true
 slots:
+  alsa:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  avahi-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   bluetooth-control:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
   bluez:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
   bool-file:
@@ -192,6 +203,14 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
   dcdbas-control:
     allow-installation:
       slot-snap-type:
@@ -217,6 +236,9 @@ slots:
         - core
     deny-auto-connection: true
   fwupd:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
   gpio:
@@ -246,6 +268,18 @@ slots:
         - core
     deny-auto-connection:
       on-classic: false
+  i2c:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
@@ -262,15 +296,25 @@ slots:
         - core
     deny-auto-connection: true
   location-control:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
   location-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
   log-observe:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  lxd:
+    allow-installation: false
+    deny-connection: true
     deny-auto-connection: true
   lxd-support:
     allow-installation:
@@ -283,8 +327,13 @@ slots:
         - app
     deny-connection: true
   modem-manager:
-    deny-connection: true
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
     deny-auto-connection: true
+    deny-connection:
+      on-classic: false
   mount-observe:
     allow-installation:
       slot-snap-type:
@@ -317,6 +366,8 @@ slots:
         - app
         - core
     deny-auto-connection: true
+    deny-connection:
+      on-classic: false
   network-observe:
     allow-installation:
       slot-snap-type:
@@ -327,10 +378,28 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
   opengl:
     allow-installation:
       slot-snap-type:
         - core
+  openvswitch:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   optical-drive:
     allow-installation:
       slot-snap-type:
@@ -350,6 +419,13 @@ slots:
       slot-snap-type:
         - app
         - core
+    deny-connection:
+      on-classic: false
+  raw-usb:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   removable-media:
     allow-installation:
       slot-snap-type:
@@ -406,6 +482,9 @@ slots:
         - core
     deny-auto-connection: true
   udisks2:
+    allow-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
   unity7:

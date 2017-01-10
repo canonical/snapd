@@ -297,24 +297,24 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
-	ss, err := snapstate.TaskSnapSetup(t)
+	snapsup, err := snapstate.TaskSnapSetup(t)
 	if err != nil {
 		return nil
 	}
 
-	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(ss.SnapPath)
+	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(snapsup.SnapPath)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(t.State(), ss.UserID, func(f asserts.Fetcher) error {
+	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
 		return snapasserts.FetchSnapAssertions(f, sha3_384)
 	})
 	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
 		if notFound.Ref.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
 		} else {
-			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)
 		}
 	}
 	if err != nil {
@@ -322,7 +322,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(t.State())
-	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
+	err = snapasserts.CrossCheck(snapsup.Name(), sha3_384, snapSize, snapsup.SideInfo, db)
 	if err != nil {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
@@ -341,8 +341,8 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapState := range snapStates {
-			info, err := snapState.CurrentInfo()
+		for _, snapst := range snapStates {
+			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return err
 			}
@@ -385,8 +385,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 	if err != nil {
 		return nil, err
 	}
-	for snapName, snapState := range snapStates {
-		info, err := snapState.CurrentInfo()
+	for snapName, snapst := range snapStates {
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
@@ -499,4 +499,42 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 		return nil, err
 	}
 	return a.(*asserts.SnapDeclaration), nil
+}
+
+// Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
+func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": snapID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	snapDecl := a.(*asserts.SnapDeclaration)
+	a, err = db.Find(asserts.AccountType, map[string]string{
+		"account-id": snapDecl.PublisherID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find account assertion for the publisher of snap %q: %v", snapDecl.SnapName(), err)
+	}
+	return a.(*asserts.Account), nil
+}
+
+// AutoAliases returns the auto-aliases list for the given installed snap.
+func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
+	if info.SnapID == "" {
+		// without declaration
+		return nil, nil
+	}
+	decl, err := SnapDeclaration(s, info.SnapID)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+	}
+	return decl.AutoAliases(), nil
+}
+
+func init() {
+	// hook retrieving auto-aliases into snapstate logic
+	snapstate.AutoAliases = AutoAliases
 }

@@ -35,7 +35,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, ss *SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *SnapSetup)
 }
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
@@ -45,13 +45,13 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 		task.State().Lock()
 		kind := task.Kind()
 		status := task.Status()
-		ss, err := TaskSnapSetup(task)
+		snapsup, err := TaskSnapSetup(task)
 		task.State().Unlock()
 		if err != nil {
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, ss)
+		tracker.ForeignTask(kind, status, snapsup)
 
 		return nil
 	}
@@ -69,6 +69,11 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+}
+
+// AddAdhocTaskHandlers registers handlers for ad hoc test handler
+func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
+	m.runner.AddHandler(adhoc, do, undo)
 }
 
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {

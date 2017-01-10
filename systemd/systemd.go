@@ -86,9 +86,7 @@ var JournalctlCmd = jctl
 type Systemd interface {
 	DaemonReload() error
 	Enable(service string) error
-	EnableNow(service string) error
 	Disable(service string) error
-	DisableNow(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
 	Kill(service, signal string) error
@@ -186,21 +184,9 @@ func (s *systemd) Enable(serviceName string) error {
 	return err
 }
 
-// Enable the given service and start it
-func (s *systemd) EnableNow(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "--now", "enable", serviceName)
-	return err
-}
-
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
 	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
-	return err
-}
-
-// Disable the given service and stop it
-func (s *systemd) DisableNow(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "--now", "disable", serviceName)
 	return err
 }
 
@@ -455,9 +441,8 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 	if osutil.IsDirectory(what) {
 		extra = "Options=bind\n"
 		fstype = "none"
-	}
-
-	if fstype == "squashfs" && useFuse() {
+	} else if fstype == "squashfs" && useFuse() {
+		extra = "Options=ro,allow_other\n"
 		fstype = "fuse.squashfuse"
 	}
 

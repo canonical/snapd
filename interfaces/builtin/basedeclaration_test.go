@@ -157,9 +157,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		expected := autoconnect[iface.Name()]
 		comm := Commentf(iface.Name())
 
-		// cross-check with past behavior
-		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
-
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
@@ -191,8 +188,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
-	r1 := release.MockOnClassic(true)
-	defer r1()
+	restore := release.MockOnClassic(true)
+	defer restore()
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
@@ -347,29 +344,33 @@ var (
 	unconstrained = []string{"core", "kernel", "gadget", "app"}
 
 	slotInstallation = map[string][]string{
-		// unconstrained
-		"bluez":            unconstrained,
-		"fwupd":            unconstrained,
-		"location-control": unconstrained,
-		"location-observe": unconstrained,
-		"modem-manager":    unconstrained,
-		"udisks2":          unconstrained,
 		// other
-		"bool-file":       []string{"core", "gadget"},
-		"browser-support": []string{"core"},
-		"content":         []string{"app", "gadget"},
-		"docker-support":  []string{"core"},
-		"gpio":            []string{"core", "gadget"},
-		"hidraw":          []string{"core", "gadget"},
-		"lxd-support":     []string{"core"},
-		"mir":             []string{"app"},
-		"mpris":           []string{"app"},
-		"network-manager": []string{"app", "core"},
-		"ppp":             []string{"core"},
-		"pulseaudio":      []string{"app", "core"},
-		"serial-port":     []string{"core", "gadget"},
+		"bluez":            {"app"},
+		"bool-file":        {"core", "gadget"},
+		"browser-support":  {"core"},
+		"content":          {"app", "gadget"},
+		"dbus":             {"app"},
+		"docker-support":   {"core"},
+		"fwupd":            {"app"},
+		"gpio":             {"core", "gadget"},
+		"hidraw":           {"core", "gadget"},
+		"i2c":              {"core", "gadget"},
+		"iio":              {"core", "gadget"},
+		"location-control": {"app"},
+		"location-observe": {"app"},
+		"lxd-support":      {"core"},
+		"mir":              {"app"},
+		"modem-manager":    {"app", "core"},
+		"mpris":            {"app"},
+		"network-manager":  {"app", "core"},
+		"ofono":            {"app", "core"},
+		"ppp":              {"core"},
+		"pulseaudio":       {"app", "core"},
+		"serial-port":      {"core", "gadget"},
+		"udisks2":          {"app"},
 		// snowflakes
 		"docker": nil,
+		"lxd":    nil,
 	}
 )
 
@@ -431,6 +432,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err := ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+
+	// test lxd specially
+	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -466,8 +473,8 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"fwupd":            true,
 		"location-control": true,
 		"location-observe": true,
+		"lxd":              true,
 		"mir":              true,
-		"modem-manager":    true,
 		"udisks2":          true,
 	}
 
@@ -483,6 +490,43 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 			c.Check(err, IsNil, comm)
 		} else {
 			c.Check(err, NotNil, comm)
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	all := builtin.Interfaces()
+
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	noconnect := map[string]bool{
+		"modem-manager":   true,
+		"network-manager": true,
+		"ofono":           true,
+		"pulseaudio":      true,
+	}
+
+	for _, onClassic := range []bool{true, false} {
+		release.OnClassic = onClassic
+		for _, iface := range all {
+			if !noconnect[iface.Name()] {
+				continue
+			}
+			expected := onClassic
+			comm := Commentf(iface.Name())
+
+			// check base declaration
+			cand := s.connectCand(c, iface.Name(), "", "")
+			err := cand.Check()
+
+			if expected {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, NotNil, comm)
+			}
 		}
 	}
 }

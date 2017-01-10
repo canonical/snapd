@@ -595,6 +595,7 @@ slots:
 // ResolveConnect detects lack of candidates
 func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
 	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	c.Assert(err, IsNil)
 	coreSnap := snaptest.MockInfo(c, `
 name: core
 type: os
@@ -1183,11 +1184,13 @@ func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
+	c.Assert(err, IsNil)
 	err = s.repo.AddInterface(&TestInterface{
 		InterfaceName:        "invalid-slot-iface",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
+	c.Assert(err, IsNil)
 	snapInfo := snaptest.MockInfo(c, `
 name: complex
 plugs:
@@ -1373,7 +1376,7 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 }
 
 func contentPolicyCheck(plug *Plug, slot *Slot) bool {
-	return plug.Snap.Developer == slot.Snap.Developer
+	return plug.Snap.PublisherID == slot.Snap.PublisherID
 }
 
 func contentAutoConnect(plug *Plug, slot *Slot) bool {
@@ -1385,6 +1388,7 @@ func contentAutoConnect(plug *Plug, slot *Slot) bool {
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
 	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
+	c.Assert(err, IsNil)
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
@@ -1432,9 +1436,9 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C)
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *C) {
 	repo, plugSnap, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	// this comes via SideInfo
-	plugSnap.Developer = "foo"
-	slotSnap.Developer = "bar"
+	// real code will use the assertions, this is just for emulation
+	plugSnap.PublisherID = "fooid"
+	slotSnap.PublisherID = "barid"
 
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)

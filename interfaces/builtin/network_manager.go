@@ -410,7 +410,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
+		var new []byte
 		if release.OnClassic {
 			// If we're running on classic NetworkManager will be part
 			// of the OS snap and will run unconfined.
@@ -448,10 +448,6 @@ func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

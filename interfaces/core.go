@@ -150,12 +150,6 @@ type Interface interface {
 	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// LegacyAutoConnect is OBSOLETE, only used temporarily in tests
-	// to cross check with past behavior.
-	// It returned whether plugs and slots should be implicitly
-	// auto-connected when an unambiguous connection candidate is available.
-	LegacyAutoConnect() bool
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
@@ -191,6 +185,22 @@ func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid interface name: %q", name)
+	}
+	return nil
+}
+
+// ValidateDBusBusName checks if a string conforms to
+// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+func ValidateDBusBusName(busName string) error {
+	if len(busName) == 0 {
+		return fmt.Errorf("DBus bus name must be set")
+	} else if len(busName) > 255 {
+		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
+	}
+
+	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
+	if !validBusName.MatchString(busName) {
+		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
 }

@@ -105,13 +105,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	st := task.State()
 	snapName := snapInfo.Name()
 
 	for _, backend := range backends.All {
 		st.Unlock()
-		err := backend.Setup(snapInfo, devMode, repo)
+		err := backend.Setup(snapInfo, opts, repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
@@ -297,18 +297,19 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	// XXX: AddImplicitSlots is really a brittle interface
 	snap.AddImplicitSlots(snapInfo)
 
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, so skip interface checks
+		return nil
+	}
+
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	var snapDecl *asserts.SnapDeclaration
-	if snapInfo.SnapID != "" {
-		var err error
-		snapDecl, err = assertstate.SnapDeclaration(st, snapInfo.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
-		}
+	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
+	if err != nil {
+		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
 	}
 
 	ic := policy.InstallCandidate{

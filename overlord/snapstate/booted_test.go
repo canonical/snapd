@@ -67,9 +67,13 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
+	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+		return nil, nil
+	}
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
+	snapstate.AutoAliases = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
@@ -88,8 +92,8 @@ func (bs *bootedSuite) settle() {
 }
 
 func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
-	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", osSI1)
-	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", osSI2)
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", "", osSI1)
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", "", osSI2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -97,8 +101,8 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 		Current:  snap.R(2),
 	})
 
-	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 1", kernelSI1)
-	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 2", kernelSI2)
+	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 1", "", kernelSI1)
+	snaptest.MockSnap(c, "name: canonical-pc-linux\ntype: os\nversion: 2", "", kernelSI2)
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,

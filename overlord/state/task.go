@@ -279,7 +279,7 @@ func (t *Task) AtTime() time.Time {
 const (
 	// Messages logged in tasks are guaranteed to use the time formatted
 	// per RFC3339 plus the following strings as a prefix, so these may
-	// be handled programatically and parsed or stripped for presentation.
+	// be handled programmatically and parsed or stripped for presentation.
 	LogInfo  = "INFO"
 	LogError = "ERROR"
 )
@@ -403,7 +403,7 @@ func (t *Task) JoinLane(lane int) {
 	t.lanes = append(t.lanes, lane)
 }
 
-// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is supressed.
+// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is suppressed.
 func (t *Task) At(when time.Time) {
 	t.state.writing()
 	iszero := when.IsZero()

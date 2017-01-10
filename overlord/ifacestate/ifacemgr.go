@@ -24,7 +24,7 @@ package ifacestate
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -44,6 +44,7 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
 	}
@@ -133,63 +134,60 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	connectInterface := s.NewTask("connect", summary)
-
-	prepareSlotHookSetup := &hookstate.HookSetup{
-		Snap:     slotSnap,
-		Hook:     "prepare-slot-" + slotName,
-		Optional: true,
-	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s, %s"), slotSnap, slotName, prepareSlotHookSetup.Hook)
 	initialContext := map[string]interface{}{"connect-task": connectInterface.ID()}
-	prepareSlotAttr := hookstate.HookTask(s, summary, prepareSlotHookSetup, initialContext)
 
-	// TODO: restore attributes from a persistent storage?
-	preparePlugHookSetup := &hookstate.HookSetup{
+	plugHookSetup := &hookstate.HookSetup{
 		Snap:     plugSnap,
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
-	preparePlugAttr := hookstate.HookTask(s, summary, preparePlugHookSetup, initialContext)
-	prepareSlotAttr.WaitFor(preparePlugAttr)
+	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
-	confirmPlugHookSetup := &hookstate.HookSetup{
-		Snap:     plugSnap,
-		Hook:     "confirm-plug-" + plugName,
+	slotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
+	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
+
+	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
+	prepareSlotConnection.WaitFor(preparePlugConnection)
+
+	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	attrs, _ := initialConnectAttributes(s, plugSnap, plugName, slotSnap, slotName)
+	if attrs != nil {
+		connectInterface.Set("attributes", attrs)
+	}
+	connectInterface.WaitFor(prepareSlotConnection)
+
 	confirmSlotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
-		Hook:     "confirm-slot-" + slotName,
+		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
 	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, initialContext)
 	confirmSlotConnection.WaitFor(connectInterface)
 
+	confirmPlugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "connect-plug-" + plugName,
+		Optional: true,
+	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
 	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, initialContext)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
-	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-
-	attrs, _ := initialConnectAttributes(s, plugSnap, plugName, slotSnap, slotName)
-
-	if attrs != nil {
-		connectInterface.Set("attributes", attrs)
-	}
 	connectInterface.Set("confirm-plug-task", confirmPlugConnection.ID())
 	connectInterface.Set("confirm-slot-task", confirmSlotConnection.ID())
-	connectInterface.WaitFor(prepareSlotAttr)
 
-	return state.NewTaskSet(preparePlugAttr, prepareSlotAttr, connectInterface, confirmPlugConnection, confirmSlotConnection), nil
+	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmSlotConnection, confirmPlugConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Remove the intent-to-connect from the state so that we no longer
-	// automatically try to reconnect on reboot.
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("disconnect", summary)
