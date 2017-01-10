@@ -41,7 +41,47 @@ import (
 )
 
 // Backend is responsible for maintaining mount files for snap-confine
-type Backend struct{}
+type Backend struct {
+}
+
+// BackendCtrl assists in collecting mount entries associated with an interface.
+//
+// Unlike the Backend itself (which is stateless and non-persistent) this type
+// holds internal state that is used by the mount backend during the interface
+// setup process.
+type BackendCtrl struct {
+	mountEntries []Entry
+}
+
+// AddMountEntry adds a new mount entry.
+func (b *BackendCtrl) AddMountEntry(e Entry) {
+	b.mountEntries = append(b.mountEntries, e)
+}
+
+// MountAware describes the APIs required to interact with the mount backend.
+// Each of the four methods there replaces one of the older snippet based
+// methods. Instead of returning a snippet those methods should call APIs on
+// the backend instance (e.g. the AddMountEntry method) to express their
+// intents.
+type MountAware interface {
+	// ConnectedPlugMounts registers mount entries desired when a given plug
+	// and slot are connected. The entries will be effective in the snap
+	// containing the plug.
+	ConnectedPlugMounts(b *BackendCtrl, plug *interfaces.Plug, slot *interfaces.Slot) error
+
+	// ConnectedSlotMounts registers mount entries desired when a given plug
+	// and slot are connected. The entries will be effective in the snap
+	// containing the slot.
+	ConnectedSlotMounts(b *BackendCtrl, plug *interfaces.Plug, slot *interfaces.Slot) error
+
+	// PermanentPlugMounts registers mount entries desired whenever a given
+	// plug exists.
+	PermanentPlugMounts(b *BackendCtrl, plug *interfaces.Plug) error
+
+	// PermanentSlotMounts registers mount entries desired whenever a given
+	// slot exists.
+	PermanentSlotMounts(b *BackendCtrl, slot *interfaces.Slot) error
+}
 
 // Name returns the name of the backend.
 func (b *Backend) Name() string {
