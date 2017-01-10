@@ -6,26 +6,21 @@ environment:
 debug: |
     cat /var/log/syslog
 
-prepare: |
-    mv ${SNAPD_CONF} ${SNAPD_CONF}.old
-    systemctl daemon-reload
-    systemctl restart snapd.service snapd.socket
-
-restore: |
-    mv ${SNAPD_CONF}.old ${SNAPD_CONF}
-    systemctl daemon-reload
-    systemctl restart snapd.service snapd.socket
-
 execute: |
+    echo "Ensure we re-exec by default"
+    grep "restarting into" /var/log/syslog
+  
+    systemctl stop snapd.service snapd.socket
+    echo "mount something older than our freshly build snapd"
+    mount --bind /bin/true /snap/core/current/usr/lib/snapd/snapd
+    systemctl start snapd.service snapd.socket
+    
     echo "Ensure that we do not re-exec into older versions"
     snap list
     grep "not restarting into.*older than" /var/log/syslog
 
-    echo "Ensure we re-exec for newer versions"
-    mount --bind /usr/lib/snapd/snapd /snap/core/current/usr/lib/snapd/snapd
-    systemctl restart snapd.service snapd.socket
-    snap list
-    grep "restarting into" /var/log/syslog
-
     systemctl stop snapd.service snapd.socket
     umount /snap/core/current/usr/lib/snapd/snapd
+
+    # FIMXE: add test for SNAP_REXEC=0
+    
