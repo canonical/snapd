@@ -47,6 +47,19 @@ const oldCore = "/snap/ubuntu-core/current"
 // old ubuntu-core snaps older than this aren't suitable targets for re-execage
 const minOldRevno = 126
 
+func shouldRexec(envKey string) bool {
+	val := os.Getenv(envKey)
+	if val == "" {
+		return true
+	}
+
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return true
+	}
+	return enabled
+}
+
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
@@ -55,7 +68,7 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	if !osutil.GetenvBool(key) {
+	if !shouldRexec(key) {
 		return
 	}
 
