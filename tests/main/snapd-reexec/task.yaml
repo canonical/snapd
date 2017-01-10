@@ -5,12 +5,9 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 environment:
     SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
 
-debug: |
-    cat /var/log/syslog
-
 execute: |
     echo "Ensure we re-exec by default"
-    grep "restarting into" /var/log/syslog
+    journalctl | MATCH "DEBUG: restarting into"
   
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
