@@ -20,7 +20,8 @@ update_core_snap_with_snap_exec_snapctl() {
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
     mv "$snap" "${snap}.orig"
-    mksquashfs squashfs-root "$snap" -comp xz
+    # cheating to speed things up
+    mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
     rm -rf squashfs-root
 
     # Now mount the new core snap
