@@ -116,6 +116,9 @@ capability setuid,
 
 # TUN/TAP
 /dev/net/tun rw,
+# These are dynamically created via ioctl() on /dev/net/tun
+/dev/tun[0-9]{,[0-9]*} rw,
+/dev/tap[0-9]{,[0-9]*} rw,
 
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via
