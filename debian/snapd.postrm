@@ -41,7 +41,7 @@ if [ "$1" = "purge" ]; then
             rm -rf "/var/snap/$snap/common"
             rm -f "/var/snap/$snap/current"
             # opportunistic remove (may fail if there are still revisions left
-            for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/snap" "/var/snap"; do
+            for d in "/snap/$snap" "/var/snap/$snap"; do
                 if [ -d "$d" ]; then
                     rmdir --ignore-fail-on-non-empty $d
                 fi
@@ -51,6 +51,13 @@ if [ "$1" = "purge" ]; then
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
+    done
+
+    echo "Final directory cleanup"
+    for d in "/snap/bin" "/snap" "/var/snap"; do
+        if [ -d "$d" ]; then
+            rmdir --ignore-fail-on-non-empty $d
+        fi
     done
 
     echo "Discarding preserved snap namespaces"
