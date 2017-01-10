@@ -7,17 +7,18 @@ environment:
 
 execute: |
     echo "Ensure we re-exec by default"
+    snap list
     journalctl | MATCH "DEBUG: restarting into"
-  
+
+    echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
     mount --bind /bin/true /snap/core/current/usr/lib/snapd/snapd
     systemctl start snapd.service snapd.socket
-    
-    echo "Ensure that we do not re-exec into older versions"
     snap list
-    grep "not restarting into.*older than" /var/log/syslog
+    journalctl | MATCH "not restarting into.*older than"
 
+    echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
     umount /snap/core/current/usr/lib/snapd/snapd
 
