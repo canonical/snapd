@@ -69,6 +69,7 @@ func ExecInCoreSnap() {
 	}
 
 	if !shouldRexec(key) {
+		logger.Noticef("not restarting into core: disabled via env")
 		return
 	}
 

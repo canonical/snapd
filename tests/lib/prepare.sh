@@ -14,30 +14,29 @@ update_core_snap_with_snap_exec_snapctl() {
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
-    # Now unpack the core, inject the new snap-exec and snapctl into it, and
-    # repack it.
+    # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # also add snap/snapd because we re-exec by default.
+    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp  /usr/bin/snap squashfs-root/usr/bin/snap
+
+    # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    # cheating to speed things up
     mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
     rm -rf squashfs-root
 
     # Now mount the new core snap
     mount "$snap" "$core"
 
-    # Make sure we're running with the correct snap-exec
-    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
-        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
-        exit 1
-    fi
-
-    # Make sure we're running with the correct snapctl
-    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
-        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
-        exit 1
-    fi
+    # Make sure we're running with the correct copied bits
+    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+        if ! cmp ${p} ${core}${p}; then
+            echo "$p in tree and $p in core snap are unexpectedly not the same"
+            exit 1
+        fi
+    done
 }
 
 prepare_classic() {
