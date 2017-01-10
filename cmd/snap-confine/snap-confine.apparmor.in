@@ -23,6 +23,8 @@
     /lib/@{multiarch}/libseccomp.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
+    # allow re-exec
+    /snap/{ubuntu-core,core}/*/@LIBEXECDIR@/snap-confine mr,
 
     /dev/null rw,
     /dev/full rw,
