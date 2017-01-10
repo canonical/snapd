@@ -112,6 +112,14 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		}
 	}
 
+	confinement := snap.StrictConfinement
+	switch spec.Channel {
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	}
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: strings.Split(spec.Name, ".")[0],
@@ -123,6 +131,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
@@ -162,8 +171,14 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 	}
 
 	revno := snap.R(11)
-	if cand.Channel == "channel-for-7" {
+	confinement := snap.StrictConfinement
+	switch cand.Channel {
+	case "channel-for-7":
 		revno = snap.R(7)
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
 	}
 
 	info := &snap.Info{
@@ -177,6 +192,7 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
 	}
 
 	var hit snap.Revision
