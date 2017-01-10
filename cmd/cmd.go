@@ -69,7 +69,6 @@ func ExecInCoreSnap() {
 	}
 
 	if !shouldRexec(key) {
-		logger.Noticef("not restarting into core: disabled via env")
 		return
 	}
 
@@ -104,7 +103,7 @@ func ExecInCoreSnap() {
 		return
 	}
 	if currentSnapd.ModTime().After(coreSnapSnapd.ModTime()) {
-		logger.Noticef("not restarting into %q: older than %q", full, exe)
+		logger.Debugf("not restarting into %q: older than %q", full, exe)
 		return
 	}
 
