@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/systemd"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 
 	sysd "github.com/snapcore/snapd/systemd"
@@ -50,8 +49,9 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 }
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.BackendSuite.SetUpTest(c)
 	s.Backend = &systemd.Backend{}
+	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 	s.systemctlCmd = testutil.MockCommand(c, "systemctl", "echo ActiveState=inactive")
 }
 
@@ -64,98 +64,10 @@ func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, interfaces.SecuritySystemd)
 }
 
-func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
-	rawSnippetMap := map[string][][]byte{
-		"security-tag": {
-			[]byte(`{"services": {"foo.service": {"exec-start": "/bin/true"}}}`),
-			[]byte(`{"services": {"bar.service": {"exec-start": "/bin/false"}}}`),
-		},
-	}
-	richSnippetMap, err := systemd.UnmarshalRawSnippetMap(rawSnippetMap)
-	c.Assert(err, IsNil)
-	c.Assert(richSnippetMap, DeepEquals, map[string][]*systemd.Snippet{
-		"security-tag": {
-			{
-				Services: map[string]systemd.Service{
-					"foo.service": {ExecStart: "/bin/true"},
-				},
-			},
-			{
-				Services: map[string]systemd.Service{
-					"bar.service": {ExecStart: "/bin/false"},
-				},
-			},
-		},
-	})
-}
-
-func (s *backendSuite) TestMergeSnippetMapOK(c *C) {
-	snippetMap := map[string][]*systemd.Snippet{
-		"security-tag": {
-			{
-				Services: map[string]systemd.Service{
-					"foo.service": {ExecStart: "/bin/true"},
-				},
-			},
-		},
-		"another-tag": {
-			{
-				Services: map[string]systemd.Service{
-					"bar.service": {ExecStart: "/bin/false"},
-				},
-			},
-		},
-	}
-	snippet, err := systemd.MergeSnippetMap(snippetMap)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, &systemd.Snippet{
-		Services: map[string]systemd.Service{
-			"foo.service": {ExecStart: "/bin/true"},
-			"bar.service": {ExecStart: "/bin/false"},
-		},
-	})
-}
-
-func (s *backendSuite) TestMergeSnippetMapClashing(c *C) {
-	snippetMap := map[string][]*systemd.Snippet{
-		"security-tag": {
-			{
-				Services: map[string]systemd.Service{
-					"foo.service": {ExecStart: "/bin/true"},
-				},
-			},
-		},
-		"another-tag": {
-			{
-				Services: map[string]systemd.Service{
-					"foo.service": {ExecStart: "/bin/evil"},
-				},
-			},
-		},
-	}
-	snippet, err := systemd.MergeSnippetMap(snippetMap)
-	c.Assert(err, ErrorMatches, `interface require conflicting system needs`)
-	c.Assert(snippet, IsNil)
-}
-
-func (s *backendSuite) TestRenderSnippet(c *C) {
-	snippet := &systemd.Snippet{
-		Services: map[string]systemd.Service{
-			"foo.service": {ExecStart: "/bin/true"},
-		},
-	}
-	content, err := systemd.RenderSnippet(snippet)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		"foo.service": {
-			Content: []byte("[Service]\nExecStart=/bin/true\n\n[Install]\nWantedBy=multi-user.target\n"),
-			Mode:    0644,
-		},
-	})
-}
-
 func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	prevctlCmd := sysd.SystemctlCmd
+	defer func() { sysd.SystemctlCmd = prevctlCmd }()
+
 	var sysdLog [][]string
 	sysd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
@@ -164,8 +76,8 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 		}
 		return []byte{}, nil
 	}
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
+		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
 	}
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
 	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
@@ -180,12 +92,11 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 		{"start", "snap.samba.interface.foo.service"},
 	})
-	sysd.SystemctlCmd = prevctlCmd
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
+		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 1)
@@ -206,8 +117,12 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 }
 
 func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}, "snap.samba.interface.bar.service": {"exec-start": "/bin/false"}}}`), nil
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
+		err := spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
+		if err != nil {
+			return err
+		}
+		return spec.AddService("snap.samba.interface.bar.service", systemd.Service{ExecStart: "/bin/false"})
 	}
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
 	s.systemctlCmd.ForgetCalls()
@@ -220,8 +135,8 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	c.Check(err, IsNil)
 
 	// Change what the interface returns to simulate some useful change
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(`{"services": {"snap.samba.interface.foo.service": {"exec-start": "/bin/true"}}}`), nil
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
+		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
 	}
 	// Update over to the same snap to regenerate security
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
