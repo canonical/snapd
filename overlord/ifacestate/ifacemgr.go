@@ -141,7 +141,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
+	summary = fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s, hook %s"), plugSnap, plugName, plugHookSetup.Hook)
 	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
@@ -149,7 +149,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
+	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s, hook %s"), slotSnap, slotName, slotHookSetup.Hook)
 
 	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
@@ -167,7 +167,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
+	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s, hook %s"), slotSnap, slotName, confirmSlotHookSetup.Hook)
 	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, initialContext)
 	confirmSlotConnection.WaitFor(connectInterface)
 
@@ -176,7 +176,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "connect-plug-" + plugName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
+	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s, hook %s"), plugSnap, plugName, confirmPlugHookSetup.Hook)
 	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, initialContext)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
