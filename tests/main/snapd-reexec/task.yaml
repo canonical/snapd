@@ -1,0 +1,31 @@
+summary: Test that snapd rexecs itself into core
+
+environment:
+    SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
+
+debug: |
+    cat /var/log/syslog
+
+prepare: |
+    mv ${SNAPD_CONF} ${SNAPD_CONF}.old
+    systemctl daemon-reload
+    systemctl restart snapd.service snapd.socket
+
+restore: |
+    mv ${SNAPD_CONF}.old ${SNAPD_CONF}
+    systemctl daemon-reload
+    systemctl restart snapd.service snapd.socket
+
+execute: |
+    echo "Ensure that we do not re-exec into older versions"
+    snap list
+    grep "not restarting into.*older than" /var/log/syslog
+
+    echo "Ensure we re-exec for newer versions"
+    mount --bind /usr/lib/snapd/snapd /snap/core/current/usr/lib/snapd/snapd
+    systemctl restart snapd.service snapd.socket
+    snap list
+    grep "restarting into" /var/log/syslog
+
+    systemctl stop snapd.service snapd.socket
+    umount /snap/core/current/usr/lib/snapd/snapd
