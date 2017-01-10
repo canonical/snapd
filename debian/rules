@@ -14,7 +14,7 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
-# this is overriden in the ubuntu/14.04 release branch
+# this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 
 # The go tool does not fully support vendoring with gccgo, but we can
