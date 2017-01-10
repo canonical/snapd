@@ -20,7 +20,7 @@ update_core_snap_with_snap_exec_snapctl() {
     cp /usr/bin/snapctl squashfs-root/usr/bin/
     # also add snap/snapd because we re-exec by default.
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp  /usr/bin/snap squashfs-root/usr/bin/snap
+    cp /usr/bin/snap squashfs-root/usr/bin/snap
 
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"

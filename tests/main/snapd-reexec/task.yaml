@@ -5,10 +5,6 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 environment:
     SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
 
-debug: |
-    ls -l /usr/lib/snapd/snapd
-    ls -l /snap/core/current/usr/lib/snapd/snapd
-
 execute: |
     echo "Ensure we re-exec by default"
     snap list
