@@ -92,6 +92,11 @@ func generateWrappers(s *snap.Info) error {
 		return err
 	}
 
+	// add the dbus service files
+	if err := wrappers.AddSnapDBusServiceFiles(s); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -111,7 +116,12 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	err4 := wrappers.RemoveSnapDBusServiceFiles(s)
+	if err4 != nil {
+		logger.Noticef("Cannot remove service files for %q: %v", s.Name(), err4)
+	}
+
+	return firstErr(err1, err2, err3, err4)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.

@@ -114,10 +114,9 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 }
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
-func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+func rewriteExecLine(s *snap.Info, desktopFile, line, env string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
 		// check the prefix to allow %flag style args
@@ -153,7 +152,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		// rewrite exec lines to an absolute path for the binary
 		if strings.HasPrefix(line, "Exec=") {
 			var err error
-			line, err = rewriteExecLine(s, desktopFile, line)
+			line, err = rewriteExecLine(s, desktopFile, line, fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue

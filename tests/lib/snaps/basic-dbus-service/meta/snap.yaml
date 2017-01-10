@@ -1,0 +1,5 @@
+name: basic-dbus
+version: 1.0
+apps:
+ dbus-echo:
+  command: bin/echo

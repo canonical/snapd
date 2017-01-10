@@ -239,7 +239,7 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
+	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid", "")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
@@ -253,7 +253,7 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app", "env BAMF_DESKTOP_FILE_HINT=foo.desktop ")
 	c.Assert(err, IsNil)
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
