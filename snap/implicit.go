@@ -77,6 +77,7 @@ var implicitClassicSlots = []string{
 	"screen-inhibit-control",
 	"unity7",
 	"upower-observe",
+	"upower-control",
 	"x11",
 }
 

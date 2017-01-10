@@ -368,6 +368,7 @@ var (
 		"pulseaudio":       {"app", "core"},
 		"serial-port":      {"core", "gadget"},
 		"udisks2":          {"app"},
+		"upower-control":   {"app", "core"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
@@ -476,6 +477,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":              true,
 		"mir":              true,
 		"udisks2":          true,
+		"upower-control":   true,
 	}
 
 	for _, iface := range all {

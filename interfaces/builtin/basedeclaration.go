@@ -491,6 +491,13 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  upower-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+        - app
+    deny-connection: true
+    deny-auto-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:
