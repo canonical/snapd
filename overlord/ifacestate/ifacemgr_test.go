@@ -139,6 +139,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
+	var hs hookstate.HookSetup
 	i := 0
 	task := ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -165,6 +166,18 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hs)
+	c.Assert(err, IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	err = task.Get("hook-setup", &hs)
+	c.Assert(err, IsNil)
+	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -178,7 +191,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 
 	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
@@ -228,7 +241,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "otherplug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Check(ts.Tasks()[2].Kind(), Equals, "connect")
 	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -289,7 +302,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
@@ -377,14 +390,13 @@ slots:
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 
 	setup()
-
-	//mgr := s.manager(c)
+	_ = s.manager(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
@@ -1224,7 +1236,7 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(ts.Tasks(), HasLen, 5)
 
 	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
