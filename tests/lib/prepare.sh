@@ -194,7 +194,16 @@ EOF
         # when the snap uses confinement.
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
-        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # download pc-kernel snap for the specified channel
+        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
+                               --channel edge \
+                               --extra-snaps $IMAGE_HOME/core_*.snap \
+                               --extra-snaps $PWD/pc-kernel_*.snap \
+                               --output $IMAGE_HOME/$IMAGE
+        rm ./pc-kernel*
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
@@ -296,9 +305,6 @@ prepare_all_snap() {
             exit 1
         fi
     done
-
-    echo "Kernel has a store revision"
-    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
