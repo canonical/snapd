@@ -164,6 +164,19 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 	return context, nil
 }
 
+// SnapContext snap obtains the context for the given context ID.
+func (m *HookManager) SnapContext(contextID string) (*Context, error) {
+	m.snapContexts.contextsMutex.RLock()
+	defer m.snapContexts.contextsMutex.RUnlock()
+
+	context, ok := m.snapContexts.contexts[contextID]
+	if !ok {
+		return nil, fmt.Errorf("no snap context for ID: %q", contextID)
+	}
+
+	return context, nil
+}
+
 func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	var hooksup HookSetup
 	err := task.Get("hook-setup", &hooksup)
