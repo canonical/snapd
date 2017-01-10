@@ -43,7 +43,7 @@ import (
 
 var (
 	// minimum time between refreshes
-	refreshInterval = 4 * time.Hour
+	minRefreshInterval = 4 * time.Hour
 
 	// random interval on top of the minmum time between refreshes
 	refreshRandomness = 4 * time.Hour
@@ -1130,7 +1130,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 func scheduleNextRefresh(st *state.State) time.Time {
 	randomness := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
+	nextRefreshTime := time.Now().Add(minRefreshInterval).Add(time.Duration(randomness))
 	st.Set("next-auto-refresh-time", nextRefreshTime)
 
 	return nextRefreshTime
