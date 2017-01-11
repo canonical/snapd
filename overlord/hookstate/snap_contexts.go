@@ -84,15 +84,6 @@ func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
 	if err = osutil.EnsureFileState(path, &fstate); err != nil {
 		return nil, err
 	}
-	/*var fd *os.File
-	if fd, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0600); err != nil {
-		return nil, err
-	}
-	defer fd.Close()
-	if _, err = fd.WriteString(context.ID()); err != nil {
-		os.Remove(path)
-		return nil, err
-	}*/
 	m.addContext(context)
 	return context, nil
 }
