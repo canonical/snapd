@@ -23,6 +23,6 @@ execute: |
     snap install --classic test-snapd-classic-confinement
     test-snapd-classic-confinement | MATCH lala
 
-    echo "Snap refresh also works"
+    echo "Snap refresh from the store also works (2.0 is in beta, 1.0 in stable)
     snap refresh --beta test-snapd-classic-confinement
     test-snapd-classic-confinement | MATCH lala
