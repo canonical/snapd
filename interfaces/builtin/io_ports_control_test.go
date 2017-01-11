@@ -58,7 +58,7 @@ plugs:
 apps:
   app-accessing-io-ports:
     command: foo
-    plugs: [io-ports-control]
+    plugs: [plug-for-io-ports]
 `, nil)
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-io-ports"]}
 }
