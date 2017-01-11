@@ -22,17 +22,16 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
 
 const uhidConnectedPlugAppArmor = `
 # Description: Allows accessing the UHID to create kernel
-#  hid devices from user-space.
+# hid devices from user-space.
 
   # Requires CONFIG_UHID
-  /dev/uhid                       rw,
+  /dev/uhid rw,
 `
 
 type UhidInterface struct{}
@@ -52,11 +51,6 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	// Only os can create slot of this type
-	if slot.Snap.Type != "os" {
-		return fmt.Errorf("%s slots only allowed on core snaps", iface.Name())
-	}
-
 	return nil
 }
 
@@ -69,28 +63,23 @@ func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Return snipped granted on install
+// No permmissions granted to slot permanently
 func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // Getter for the security system specific to the plug
 func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
-		return nil, nil
-	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(uhidConnectedPlugAppArmor), nil
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
-		const pathPrefix = "/dev/"
-		const udevRule = `KERNEL=="%s", TAG+="%s"`
+		const udevRule = `KERNEL=="uhid", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
+			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
 			tagSnippet.WriteString("\n")
 		}
 		return tagSnippet.Bytes(), nil
