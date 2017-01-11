@@ -674,7 +674,7 @@ var statusesMatrix = []struct {
 	{"alias1", "", "reset", "", "-"},
 	{"alias1", "enabled", "reset", "", "rm"},
 	{"alias1", "disabled", "reset", "", "-"},
-	{"alias1", "auto", "reset", "auto", "-"},
+	{"alias1", "auto", "reset", "", "rm"}, // used to retire auto-aliases
 	{"alias5", "", "reset", "auto", "add"},
 	{"alias5", "enabled", "reset", "auto", "-"},
 	{"alias5", "disabled", "reset", "auto", "add"},
@@ -682,11 +682,11 @@ var statusesMatrix = []struct {
 	{"alias1gone", "", "reset", "", "-"},
 	{"alias1gone", "enabled", "reset", "", "-"},
 	{"alias1gone", "disabled", "reset", "", "-"},
-	{"alias1gone", "auto", "reset", "auto", "-"},
+	{"alias1gone", "auto", "reset", "", "-"},
 	{"alias5gone", "", "reset", "", "-"},
 	{"alias5gone", "enabled", "reset", "", "-"},
 	{"alias5gone", "disabled", "reset", "", "-"},
-	{"alias5gone", "auto", "reset", "auto", "-"},
+	{"alias5gone", "auto", "reset", "", "-"},
 }
 
 func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
@@ -769,7 +769,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		}
 		// start with an easier-to-read error if this fails:
 		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops(), comm)
-		c.Assert(s.fakeBackend.ops, DeepEquals, expected, comm)
+		c.Check(s.fakeBackend.ops, DeepEquals, expected, comm)
 
 		var allAliases map[string]map[string]string
 		err = s.state.Get("aliases", &allAliases)
@@ -890,7 +890,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 		}
 		// start with an easier-to-read error if this fails:
 		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops(), comm)
-		c.Assert(s.fakeBackend.ops, DeepEquals, expected, comm)
+		c.Check(s.fakeBackend.ops, DeepEquals, expected, comm)
 
 		var allAliases map[string]map[string]string
 		err = s.state.Get("aliases", &allAliases)

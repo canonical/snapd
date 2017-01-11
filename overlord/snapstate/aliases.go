@@ -212,7 +212,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	var add []*backend.Alias
 	var remove []*backend.Alias
 	for alias, newStatus := range changes {
-		if aliasStatuses[alias] == newStatus {
+		if newStatus != "auto" && aliasStatuses[alias] == newStatus {
 			// nothing to do
 			continue
 		}
@@ -303,7 +303,7 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	var remove []*backend.Alias
 Next:
 	for alias, newStatus := range changes {
-		if oldStatuses[alias] == newStatus {
+		if newStatus != "auto" && oldStatuses[alias] == newStatus {
 			// nothing to undo
 			continue
 		}
