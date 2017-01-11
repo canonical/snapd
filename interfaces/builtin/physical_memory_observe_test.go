@@ -58,7 +58,7 @@ plugs:
 apps:
   app-accessing-physical-memory:
     command: foo
-    plugs: [physical-memory-observe]
+    plugs: [plug-for-physical-memory]
 `, nil)
 	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-physical-memory"]}
 }
