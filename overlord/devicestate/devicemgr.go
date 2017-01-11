@@ -793,7 +793,17 @@ func canAutoRefresh(st *state.State) bool {
 	// on all-snap devices we need to be seeded first
 	var seeded bool
 	st.Get("seeded", &seeded)
-	return seeded
+	if !seeded {
+		return false
+	}
+
+	// and we also need to have a serial
+	_, err := Serial(st)
+	if err != nil {
+		return false
+	}
+
+	return true
 }
 
 var repeatRequestSerial string
