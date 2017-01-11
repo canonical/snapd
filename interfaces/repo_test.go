@@ -928,6 +928,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 }
 
 // Tests for Repository.SecuritySnippetsForSnap()
+// and for RecordInterfacesAffectingSnap()
 
 const testSecurity SecuritySystem = "security"
 
@@ -956,6 +957,22 @@ var testInterface = &ifacetest.TestInterface{
 			return []byte(`connection-specific slot snippet`), nil
 		}
 		return nil, nil
+	},
+	RecordTestPermanentPlugCallback: func(rec *ifacetest.TestRecorder, plug *Plug) error {
+		rec.AddSnippet("static plug snippet")
+		return nil
+	},
+	RecordTestConnectedPlugCallback: func(rec *ifacetest.TestRecorder, plug *Plug, slot *Slot) error {
+		rec.AddSnippet("connection-specific plug snippet")
+		return nil
+	},
+	RecordTestPermanentSlotCallback: func(rec *ifacetest.TestRecorder, slot *Slot) error {
+		rec.AddSnippet("static slot snippet")
+		return nil
+	},
+	RecordTestConnectedSlotCallback: func(rec *ifacetest.TestRecorder, plug *Plug, slot *Slot) error {
+		rec.AddSnippet("connection-specific slot snippet")
+		return nil
 	},
 }
 
@@ -1007,6 +1024,46 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`static slot snippet`),
 			[]byte(`connection-specific slot snippet`),
 		},
+	})
+}
+
+func (s *RepositorySuite) TestRecordInterfacesAffectingSnap(c *C) {
+	repo := s.emptyRepo
+	c.Assert(repo.AddInterface(testInterface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+
+	// Snaps should get static security now
+	rec := &ifacetest.TestRecorder{}
+	err := repo.RecordInterfacesAffectingSnap(s.plug.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{"static plug snippet"})
+
+	rec = &ifacetest.TestRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.slot.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{"static slot snippet"})
+
+	// Establish connection between plug and slot
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
+	err = repo.Connect(connRef)
+	c.Assert(err, IsNil)
+
+	// Snaps should get static and connection-specific security now
+	rec = &ifacetest.TestRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.plug.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{
+		"static plug snippet",
+		"connection-specific plug snippet",
+	})
+
+	rec = &ifacetest.TestRecorder{}
+	err = repo.RecordInterfacesAffectingSnap(s.slot.Snap.Name(), rec)
+	c.Assert(err, IsNil)
+	c.Check(rec.Snippets, DeepEquals, []string{
+		"static slot snippet",
+		"connection-specific slot snippet",
 	})
 }
 
