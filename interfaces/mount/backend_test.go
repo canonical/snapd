@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
@@ -43,7 +42,7 @@ func Test(t *testing.T) {
 }
 
 type backendSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 
 	iface2 *ifacetest.TestInterface
 }
