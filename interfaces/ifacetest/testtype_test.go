@@ -24,27 +24,27 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/snapcore/snapd/interfaces"
-	. "github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 )
 
 type TestInterfaceSuite struct {
-	iface Interface
-	plug  *Plug
-	slot  *Slot
+	iface interfaces.Interface
+	plug  *interfaces.Plug
+	slot  *interfaces.Slot
 }
 
 var _ = Suite(&TestInterfaceSuite{
-	iface: &TestInterface{InterfaceName: "test"},
-	plug: &Plug{
+	iface: &ifacetest.TestInterface{InterfaceName: "test"},
+	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "test",
 		},
 	},
-	slot: &Slot{
+	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
@@ -66,9 +66,9 @@ func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizePlugCallback: func(plug *Plug) error {
+		SanitizePlugCallback: func(plug *interfaces.Plug) error {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
@@ -78,7 +78,7 @@ func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
-	plug := &Plug{
+	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
@@ -96,9 +96,9 @@ func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizeSlotCallback: func(slot *Slot) error {
+		SanitizeSlotCallback: func(slot *interfaces.Slot) error {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
@@ -108,7 +108,7 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
-	slot := &Slot{
+	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
@@ -120,13 +120,13 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 
 // TestInterface hands out empty plug security snippets
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecurityDBus)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
@@ -136,13 +136,13 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecuritySecComp)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecurityDBus)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
@@ -153,7 +153,7 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 
-	iface := &TestInterface{AutoConnectCallback: func(*Plug, *Slot) bool { return false }}
+	iface := &ifacetest.TestInterface{AutoConnectCallback: func(*interfaces.Plug, *interfaces.Slot) bool { return false }}
 
 	c.Check(iface.AutoConnect(nil, nil), Equals, false)
 }

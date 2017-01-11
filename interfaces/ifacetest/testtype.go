@@ -22,7 +22,7 @@ package ifacetest
 import (
 	"fmt"
 
-	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -31,19 +31,19 @@ type TestInterface struct {
 	// InterfaceName is the name of this interface
 	InterfaceName string
 	// AutoConnectCallback is the callback invoked inside AutoConnect
-	AutoConnectCallback func(*Plug, *Slot) bool
+	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
-	SanitizePlugCallback func(plug *Plug) error
+	SanitizePlugCallback func(plug *interfaces.Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
-	SanitizeSlotCallback func(slot *Slot) error
+	SanitizeSlotCallback func(slot *interfaces.Slot) error
 	// SlotSnippetCallback is the callback invoked inside ConnectedSlotSnippet()
-	SlotSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	SlotSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
-	PermanentSlotSnippetCallback func(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	PermanentSlotSnippetCallback func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PlugSnippetCallback is the callback invoked inside ConnectedPlugSnippet()
-	PlugSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	PlugSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
-	PermanentPlugSnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	PermanentPlugSnippetCallback func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -57,7 +57,7 @@ func (t *TestInterface) Name() string {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (t *TestInterface) SanitizePlug(plug *Plug) error {
+func (t *TestInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if t.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", t))
 	}
@@ -68,7 +68,7 @@ func (t *TestInterface) SanitizePlug(plug *Plug) error {
 }
 
 // SanitizeSlot checks and possibly modifies a slot.
-func (t *TestInterface) SanitizeSlot(slot *Slot) error {
+func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if t.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", t))
 	}
@@ -80,7 +80,7 @@ func (t *TestInterface) SanitizeSlot(slot *Slot) error {
 
 // ConnectedPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PlugSnippetCallback != nil {
 		return t.PlugSnippetCallback(plug, slot, securitySystem)
 	}
@@ -89,7 +89,7 @@ func (t *TestInterface) ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySys
 
 // PermanentPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PermanentPlugSnippetCallback != nil {
 		return t.PermanentPlugSnippetCallback(plug, securitySystem)
 	}
@@ -98,7 +98,7 @@ func (t *TestInterface) PermanentPlugSnippet(plug *Plug, securitySystem Security
 
 // ConnectedSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.SlotSnippetCallback != nil {
 		return t.SlotSnippetCallback(plug, slot, securitySystem)
 	}
@@ -107,7 +107,7 @@ func (t *TestInterface) ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySys
 
 // PermanentSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PermanentSlotSnippetCallback != nil {
 		return t.PermanentSlotSnippetCallback(slot, securitySystem)
 	}
@@ -117,7 +117,7 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 // AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
-func (t *TestInterface) AutoConnect(plug *Plug, slot *Slot) bool {
+func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	if t.AutoConnectCallback != nil {
 		return t.AutoConnectCallback(plug, slot)
 	}
