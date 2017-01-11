@@ -842,12 +842,20 @@ func (s *snapmgrTestSuite) TestUpdateClassic(c *C) {
 	})
 
 	// snap installed with --classic, update needs classic, refresh without --classic works
-	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
 
 	// snap installed with --classic, update needs classic, refresh with --classic also works
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {

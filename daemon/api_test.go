@@ -2426,6 +2426,38 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshClassic(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have ubuntu-core
+		return nil, nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		return nil, nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:  "refresh",
+		Classic: true,
+		Snaps:   []string{"some-snap"},
+		userID:  17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{Classic: true})
+}
+
 func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	var calledFlags snapstate.Flags
 	calledUserID := 0
