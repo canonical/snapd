@@ -313,7 +313,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 
 	if !validInfoForFlags(info, &snapst, flags) {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, store.ErrSnapNotFound
 	}
 
 	snapsup := &SnapSetup{
@@ -555,7 +555,7 @@ func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
 
 		return false
 	default:
-		logger.Panicf("unknown confinement %q", c)
+		logger.Noticef("unknown confinement %q", c)
 	}
 
 	return false
