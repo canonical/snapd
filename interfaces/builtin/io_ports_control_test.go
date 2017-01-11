@@ -110,7 +110,7 @@ ioperm
 iopl
 `)
 
-	expectedSnippet3 := []byte(`KERNEL=="/dev/ports", TAG+="snap_client-snap_app-accessing-io-ports"
+	expectedSnippet3 := []byte(`KERNEL=="ports", TAG+="snap_client-snap_app-accessing-io-ports"
 `)
 
 	// connected plugs have a non-nil security snippet for apparmor
