@@ -24,22 +24,90 @@ import (
 )
 
 const classicDimensionPlugAppArmor = `
-# Description: Extra permissions to use the classic dimension on Ubuntu Core
+# Description: permissions to use classic dimension. This policy is
+# intentionally not restricted. This gives device ownership to
+# connected snaps.
 
-mount fstype=devpts options=(rw) devpts -> /dev/pts/,
-/bin/mountpoint ixr,
-@{PROC}/[0-9]*/mountinfo r,
-/var/lib/extrausers/{,*} r,
+# Description: permissions to use classic dimension. This policy is intentionally
+# not restricted. This gives device ownership to connected snaps.
+
+# for 'create'
+/{,usr/}bin/unsquashfs ixr,
+/var/lib/snapd/snaps/core_*.snap r,
+capability chown,
+capability fowner,
+capability mknod,
+
+# This allows running anything unconfined
+/{,usr/}bin/sudo Uxr,
 capability fsetid,
 capability dac_override,
-/etc/sudoers.d/{,*} r,
+
+# Allow copying configuration to the chroot
+/etc/{,**} r,
+/var/lib/extrausers/{,*} r,
+
+# Allow bind mounting various directories
+capability sys_admin,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/mountpoint ixr,
+/run/mount/utab rw,
+@{PROC}/[0-9]*/mountinfo r,
+mount options=(rw bind) /home/ -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw bind) /run/ -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw bind) /proc/ -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw bind) /sys/ -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw bind) /dev/ -> /var/snap/@{SNAP_NAME}/**/,
+mount options=(rw bind) / -> /var/snap/@{SNAP_NAME}/**/,
+mount fstype=devpts options=(rw) devpts -> /dev/pts/,
+mount options=(rw rprivate) -> /var/snap/@{SNAP_NAME}/**/,
+
+# reset
+/{,usr/}bin/umount ixr,
+umount /var/snap/@{SNAP_NAME}/**/,
+
+# These rules allow running anything unconfined as well as managing systemd
 /usr/bin/systemd-run Uxr,
 /bin/systemctl Uxr,
+`
+
+const classicDimensionPlugSecComp = `
+# Description: permissions to use classic dimension. This policy is intentionally
+# not restricted. This gives device ownership to connected snaps.
+# create
+chown
+chown32
+lchown
+lchown32
+fchown
+fchown32
+fchownat
+mknod
+chroot
+
+# sudo
+bind
+sendmsg
+sendmmsg
+sendto
+recvfrom
+recvmsg
+setgroups
+setgroups32
+
+# classic
+mount
+getsockopt
+
+# reset
+umount
+umount2
 `
 
 func NewClassicDimensionInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "classic-dimension",
 		connectedPlugAppArmor: classicDimensionPlugAppArmor,
+		connectedPlugSecComp:  classicDimensionPlugSecComp,
 	}
 }

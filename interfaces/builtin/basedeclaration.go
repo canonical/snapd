@@ -138,6 +138,9 @@ authority-id: canonical
 series: 16
 revision: 0
 plugs:
+  classic-dimension:
+    allow-installation: false
+    deny-auto-connection: true
   docker-support:
     allow-installation: false
     deny-auto-connection: true
@@ -186,11 +189,6 @@ slots:
       plug-attributes:
         allow-sandbox: true
   camera:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  classic-dimension:
     allow-installation:
       slot-snap-type:
         - core

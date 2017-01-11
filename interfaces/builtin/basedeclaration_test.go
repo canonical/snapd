@@ -174,9 +174,10 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":     true,
-		"home":        true,
-		"lxd-support": true,
+		"classic-dimension": true,
+		"content":           true,
+		"home":              true,
+		"lxd-support":       true,
 	}
 
 	for _, iface := range all {
@@ -294,6 +295,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionClassicDimensionSupportOverride(c *C) {
+	cand := s.connectCand(c, "classic-dimension", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-dimension\"")
+
+	plugsSlots := `
+plugs:
+  classic-dimension:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "classic", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -345,33 +364,33 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
-		"bluez":             {"app"},
-		"bool-file":         {"core", "gadget"},
-		"browser-support":   {"core"},
-		"classic-dimension": {"core"},
-		"content":           {"app", "gadget"},
-		"dbus":              {"app"},
-		"docker-support":    {"core"},
-		"fwupd":             {"app"},
-		"gpio":              {"core", "gadget"},
-		"hidraw":            {"core", "gadget"},
-		"i2c":               {"core", "gadget"},
-		"iio":               {"core", "gadget"},
-		"location-control":  {"app"},
-		"location-observe":  {"app"},
-		"lxd-support":       {"core"},
-		"mir":               {"app"},
-		"modem-manager":     {"app", "core"},
-		"mpris":             {"app"},
-		"network-manager":   {"app", "core"},
-		"ofono":             {"app", "core"},
-		"ppp":               {"core"},
-		"pulseaudio":        {"app", "core"},
-		"serial-port":       {"core", "gadget"},
-		"udisks2":           {"app"},
+		"bluez":            {"app"},
+		"bool-file":        {"core", "gadget"},
+		"browser-support":  {"core"},
+		"content":          {"app", "gadget"},
+		"dbus":             {"app"},
+		"docker-support":   {"core"},
+		"fwupd":            {"app"},
+		"gpio":             {"core", "gadget"},
+		"hidraw":           {"core", "gadget"},
+		"i2c":              {"core", "gadget"},
+		"iio":              {"core", "gadget"},
+		"location-control": {"app"},
+		"location-observe": {"app"},
+		"lxd-support":      {"core"},
+		"mir":              {"app"},
+		"modem-manager":    {"app", "core"},
+		"mpris":            {"app"},
+		"network-manager":  {"app", "core"},
+		"ofono":            {"app", "core"},
+		"ppp":              {"core"},
+		"pulseaudio":       {"app", "core"},
+		"serial-port":      {"core", "gadget"},
+		"udisks2":          {"app"},
 		// snowflakes
-		"docker": nil,
-		"lxd":    nil,
+		"classic-dimension": nil,
+		"docker":            nil,
+		"lxd":               nil,
 	}
 )
 
@@ -445,6 +464,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"classic-dimension":     true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
@@ -539,6 +559,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"classic-dimension":     true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
