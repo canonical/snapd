@@ -102,29 +102,38 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	if revision.Unset() {
-		revision = snap.R(11)
-		if channel == "channel-for-7" {
-			revision.N = 7
+	if spec.Revision.Unset() {
+		spec.Revision = snap.R(11)
+		if spec.Channel == "channel-for-7" {
+			spec.Revision.N = 7
 		}
+	}
+
+	confinement := snap.StrictConfinement
+	switch spec.Channel {
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
 	}
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			RealName: strings.Split(name, ".")[0],
-			Channel:  channel,
+			RealName: strings.Split(spec.Name, ".")[0],
+			Channel:  spec.Channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision: revision,
+			Revision: spec.Revision,
 		},
-		Version: name,
+		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revision})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
 }
@@ -162,8 +171,14 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 	}
 
 	revno := snap.R(11)
-	if cand.Channel == "channel-for-7" {
+	confinement := snap.StrictConfinement
+	switch cand.Channel {
+	case "channel-for-7":
 		revno = snap.R(7)
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
 	}
 
 	info := &snap.Info{
@@ -177,6 +192,7 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
 	}
 
 	var hit snap.Revision

@@ -8,6 +8,7 @@ environment:
     # a different go in gccgo tests)
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
+    SNAPPY_TESTING: 1
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
@@ -20,7 +21,7 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
-    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
@@ -175,7 +176,7 @@ prepare: |
     [Unit]
     StartLimitInterval=0
     [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
     EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
@@ -246,11 +247,16 @@ prepare: |
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
-    go get -u github.com/kardianos/govendor
+    if [ "$(which govendor)" = "" ]; then
+        rm -rf $GOPATH/src/github.com/kardianos/govendor
+        go get -u github.com/kardianos/govendor
+    fi
     govendor sync
 
-    # increment version so upgrade can work
-    dch -i "testing build"
+    # increment version so upgrade can work, use "zzz" as version
+    # component to ensure that its higher than any "ubuntuN" version
+    # that might also be in the archive
+    dch -lzzz "testing build"
 
     if ! id test >& /dev/null; then
         # manually setting the UID and GID to 12345 because we need to
