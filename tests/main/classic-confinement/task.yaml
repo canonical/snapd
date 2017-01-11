@@ -22,3 +22,7 @@ execute: |
     echo "Check that we can install classic confinement snaps from the store"
     snap install --classic test-snapd-classic-confinement
     test-snapd-classic-confinement | MATCH lala
+
+    echo "Snap refresh also works"
+    snap refresh --beta test-snapd-classic-confinement
+    test-snapd-classic-confinement | MATCH lala
