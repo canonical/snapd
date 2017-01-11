@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -1757,11 +1758,13 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		}
 		s.state.Set("aliases", aliases)
 
-		_, tts, err := snapstate.UpdateMany(s.state, scen.names, s.user.ID)
+		updates, tts, err := snapstate.UpdateMany(s.state, scen.names, s.user.ID)
 		c.Check(err, IsNil)
 		j := 0
 		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
+
+		expectedUpdatesSet := make(map[string]bool)
 		var expectedRetiring map[string]map[string]string
 		var retireTs *state.TaskSet
 		if len(scen.retire) != 0 {
@@ -1780,12 +1783,16 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			expectedRetiring = make(map[string]map[string]string)
 			for _, snapName := range scen.retire {
 				expectedRetiring[snapName] = expectedAuto(retiring[snapName])
+				if snapName == "other-snap" && !scen.new && !scen.update {
+					expectedUpdatesSet["other-snap"] = true
+				}
 			}
 			c.Check(taskAliases, DeepEquals, expectedRetiring)
 		}
 		if scen.update {
 			updateTs := tts[j]
 			j++
+			expectedUpdatesSet["some-snap"] = true
 			first := updateTs.Tasks()[0]
 			c.Check(first.Kind(), Equals, "download-snap")
 			wait := false
@@ -1803,6 +1810,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		if scen.new {
 			newTs := tts[j]
 			j++
+			expectedUpdatesSet["other-snap"] = true
 			tasks := newTs.Tasks()
 			c.Check(tasks, HasLen, 1)
 			aliasTask := tasks[0]
@@ -1824,6 +1832,16 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			}
 		}
 		c.Assert(j, Equals, len(tts))
+
+		// check reported updated names
+		c.Check(len(updates) > 0, Equals, true)
+		sort.Strings(updates)
+		expectedUpdates := make([]string, 0, len(expectedUpdatesSet))
+		for x := range expectedUpdatesSet {
+			expectedUpdates = append(expectedUpdates, x)
+		}
+		sort.Strings(expectedUpdates)
+		c.Check(updates, DeepEquals, expectedUpdates, Commentf("%#v", scen))
 	}
 
 }
