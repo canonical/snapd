@@ -77,10 +77,7 @@ func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
-// Interface describes a group of interchangeable capabilities with common features.
-// Interfaces act as a contract between system builders, application developers
-// and end users.
-type Interface interface {
+type commonInterfaceMethods interface {
 	// Unique and public name of this interface.
 	Name() string
 
@@ -90,6 +87,14 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
+	// AutoConnect returns whether plug and slot should be
+	// implicitly auto-connected assuming they will be an
+	// unambiguous connection candidate and declaration-based checks
+	// allow.
+	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+type oldInterfaceMethods interface {
 	// PermanentPlugSnippet returns the snippet of text for the given security
 	// system that is used during the whole lifetime of affected applications,
 	// whether the plug is connected or not.
@@ -149,12 +154,49 @@ type Interface interface {
 	// that are required to implement this interface or when the interface
 	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+}
 
-	// AutoConnect returns whether plug and slot should be
-	// implicitly auto-connected assuming they will be an
-	// unambiguous connection candidate and declaration-based checks
-	// allow.
-	AutoConnect(plug *Plug, slot *Slot) bool
+type newInterfaceMethods interface {
+	// XXX: name those better. "rec" is a "recorder" that remembers what the
+	// interface would like to do in a given case. Each backend offers
+	// recorders that the interfaces can recognize and work with.
+	RecordConnectedPlug(rec interface{}, plug *Plug, slot *Slot) error
+	RecordConnectedSlot(rec interface{}, plug *Plug, slot *Slot) error
+	RecordPermanentPlug(rec interface{}, plug *Plug) error
+	RecordPermanentSlot(rec interface{}, slot *Slot) error
+}
+
+// Interface describes a group of interchangeable capabilities with common features.
+// Interfaces act as a contract between system builders, application developers
+// and end users.
+//
+// Interface interacts with backends through opaque snippets.
+type Interface interface {
+	commonInterfaceMethods
+	oldInterfaceMethods
+}
+
+// NewInterface describes a group of interchangeable capabilities with common
+// features.  Interfaces act as a contract between system builders, application
+// developers and end users.
+//
+// NewInterface interacts with backends through dedicated APIs rather than
+// through opaque snippets.
+type NewInterface interface {
+	commonInterfaceMethods
+	newInterfaceMethods
+}
+
+// HybridInterface describes a group of interchangeable capabilities with
+// common features.  Interfaces act as a contract between system builders,
+// application developers and end users.
+//
+// HybridInterface interacts with backends through both the dedicated APIs and
+// opaque snipets.
+type HybridInterface interface {
+	commonInterfaceMethods
+	oldInterfaceMethods
+	newInterfaceMethods
 }
 
 // SecuritySystem is a name of a security system.
@@ -169,12 +211,8 @@ const (
 	SecurityDBus SecuritySystem = "dbus"
 	// SecurityUDev identifies the UDev security system.
 	SecurityUDev SecuritySystem = "udev"
-	// SecurityMount identifies the mount security system.
-	SecurityMount SecuritySystem = "mount"
 	// SecurityKMod identifies the kernel modules security system
 	SecurityKMod SecuritySystem = "kmod"
-	// SecuritySystemd identifies the systemd services security system
-	SecuritySystemd SecuritySystem = "systemd"
 )
 
 // Regular expression describing correct identifiers.

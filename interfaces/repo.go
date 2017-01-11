@@ -609,6 +609,44 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
+// RecordInterfacesAffectingSnap records all the security changes of a given snap.
+//
+// Note that only new-style (NewInterface) interfaces are considered.
+func (r *Repository) RecordInterfacesAffectingSnap(snapName string, recorder interface{}) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// slot side
+	for _, slot := range r.slots[snapName] {
+		iface := r.ifaces[slot.Interface]
+		if niface, ok := iface.(NewInterface); ok {
+			if err := niface.RecordPermanentSlot(recorder, slot); err != nil {
+				return err
+			}
+			for plug := range r.slotPlugs[slot] {
+				if err := niface.RecordConnectedSlot(recorder, plug, slot); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// plug side
+	for _, plug := range r.plugs[snapName] {
+		iface := r.ifaces[plug.Interface]
+		if niface, ok := iface.(NewInterface); ok {
+			if err := niface.RecordPermanentPlug(recorder, plug); err != nil {
+				return err
+			}
+			for slot := range r.plugSlots[plug] {
+				if err := niface.RecordConnectedPlug(recorder, plug, slot); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // BadInterfacesError is returned when some snap interfaces could not be registered.
 // Those interfaces not mentioned in the error were successfully registered.
 type BadInterfacesError struct {

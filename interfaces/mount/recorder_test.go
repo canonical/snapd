@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,10 +17,23 @@
  *
  */
 
-package systemd
+package mount_test
 
-var (
-	UnmarshalRawSnippetMap = unmarshalRawSnippetMap
-	MergeSnippetMap        = mergeSnippetMap
-	RenderSnippet          = renderSnippet
+import (
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/interfaces/mount"
 )
+
+type recorderSuite struct{}
+
+var _ = Suite(&recorderSuite{})
+
+func (s *recorderSuite) TestSmoke(c *C) {
+	ent0 := mount.Entry{FsName: "fs1"}
+	ent1 := mount.Entry{FsName: "fs2"}
+	rec := mount.Recorder{}
+	rec.AddMountEntry(ent0)
+	rec.AddMountEntry(ent1)
+	c.Assert(rec.MountEntries, DeepEquals, []mount.Entry{ent0, ent1})
+}

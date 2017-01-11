@@ -22,7 +22,6 @@
 package systemd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,23 +66,15 @@ func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[
 }
 
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	// Record all the extra systemd services for this snap.
 	snapName := snapInfo.Name()
-	rawSnippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySystemd)
-	if err != nil {
-		return fmt.Errorf("cannot obtain systemd security snippets for snap %q: %s", snapName, err)
+	recorder := Recorder{}
+	if err := repo.RecordInterfacesAffectingSnap(snapName, &recorder); err != nil {
+		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
-	snippets, err := unmarshalRawSnippetMap(rawSnippets)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal systemd snippets for snap %q: %s", snapName, err)
-	}
-	snippet, err := mergeSnippetMap(snippets)
-	if err != nil {
-		return fmt.Errorf("cannot merge systemd snippets for snap %q: %s", snapName, err)
-	}
-	content, err := renderSnippet(snippet)
-	if err != nil {
-		return fmt.Errorf("cannot render systemd snippets for snap %q: %s", snapName, err)
-	}
+	// now recorder.Services contains all the services we want!
+	content := deriveContent(&recorder, snapInfo)
+	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
@@ -142,49 +133,19 @@ func (b *Backend) Remove(snapName string) error {
 	return errEnsure
 }
 
-func unmarshalRawSnippetMap(rawSnippetMap map[string][][]byte) (map[string][]*Snippet, error) {
-	richSnippetMap := make(map[string][]*Snippet)
-	for tag, rawSnippets := range rawSnippetMap {
-		for _, rawSnippet := range rawSnippets {
-			richSnippet := &Snippet{}
-			err := json.Unmarshal(rawSnippet, &richSnippet)
-			if err != nil {
-				return nil, err
-			}
-			richSnippetMap[tag] = append(richSnippetMap[tag], richSnippet)
-		}
+// deriveContent computes .service files based on requests made to the recorder.
+func deriveContent(rec *Recorder, snapInfo *snap.Info) map[string]*osutil.FileState {
+	if len(rec.Services) == 0 {
+		return nil
 	}
-	return richSnippetMap, nil
-}
-
-// Flatten, deduplicate and check for conflicts in the services in the given snippet map
-func mergeSnippetMap(snippetMap map[string][]*Snippet) (*Snippet, error) {
-	services := make(map[string]Service)
-	for _, snippets := range snippetMap {
-		for _, snippet := range snippets {
-			for name, service := range snippet.Services {
-				if old, present := services[name]; present {
-					if old != service {
-						return nil, fmt.Errorf("interface require conflicting system needs")
-					}
-				} else {
-					services[name] = service
-				}
-			}
-		}
-	}
-	return &Snippet{Services: services}, nil
-}
-
-func renderSnippet(snippet *Snippet) (map[string]*osutil.FileState, error) {
 	content := make(map[string]*osutil.FileState)
-	for name, service := range snippet.Services {
+	for name, service := range rec.Services {
 		content[name] = &osutil.FileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}
 	}
-	return content, nil
+	return content
 }
 
 type dummyReporter struct{}

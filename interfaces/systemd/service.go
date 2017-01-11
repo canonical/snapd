@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,19 +24,13 @@ import (
 	"fmt"
 )
 
-// Snippet describes systemd services that interface wishes to create.
-// Identical services from all snippets are combined and ignored.
-type Snippet struct {
-	Services map[string]Service `json:"services,omitempty"`
-}
-
 // Service describes a single systemd service file
 type Service struct {
-	Description     string `json:"description,omitempty"`
-	Type            string `json:"type"`
-	RemainAfterExit bool   `json:"remain-after-exit,omitempty"`
-	ExecStart       string `json:"exec-start,omitempty"`
-	ExecStop        string `json:"exec-stop,omitempty"`
+	Description     string
+	Type            string
+	RemainAfterExit bool
+	ExecStart       string
+	ExecStop        string
 }
 
 func (s *Service) String() string {
