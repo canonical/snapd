@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -53,7 +54,7 @@ type interfaceManagerSuite struct {
 	privateMgr      *ifacestate.InterfaceManager
 	privateHookMgr  *hookstate.HookManager
 	extraIfaces     []interfaces.Interface
-	secBackend      *interfaces.TestSecurityBackend
+	secBackend      *ifacetest.TestSecurityBackend
 	restoreBackends func()
 	mockSnapCmd     *testutil.MockCmd
 	storeSigning    *assertstest.StoreStack
@@ -85,7 +86,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.privateHookMgr = nil
 	s.privateMgr = nil
 	s.extraIfaces = nil
-	s.secBackend = &interfaces.TestSecurityBackend{}
+	s.secBackend = &ifacetest.TestSecurityBackend{}
 	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
 }
 
