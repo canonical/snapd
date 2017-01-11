@@ -280,7 +280,7 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+"
+    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
