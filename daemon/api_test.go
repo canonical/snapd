@@ -289,6 +289,7 @@ version: %s
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
+		snapst.Channel = "beta"
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -343,25 +344,26 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
-			"id":          "foo-id",
-			"name":        "foo",
-			"revision":    snap.R(10),
-			"version":     "v1",
-			"channel":     "stable",
-			"summary":     "summary",
-			"description": "description",
-			"developer":   "bar",
-			"status":      "active",
-			"icon":        "/v2/icons/foo/icon",
-			"type":        string(snap.TypeApp),
-			"resource":    "/v2/snaps/foo",
-			"private":     false,
-			"devmode":     false,
-			"jailmode":    false,
-			"confinement": snap.StrictConfinement,
-			"trymode":     false,
-			"apps":        []appJSON{},
-			"broken":      "",
+			"id":               "foo-id",
+			"name":             "foo",
+			"revision":         snap.R(10),
+			"version":          "v1",
+			"channel":          "stable",
+			"tracking-channel": "beta",
+			"summary":          "summary",
+			"description":      "description",
+			"developer":        "bar",
+			"status":           "active",
+			"icon":             "/v2/icons/foo/icon",
+			"type":             string(snap.TypeApp),
+			"resource":         "/v2/snaps/foo",
+			"private":          false,
+			"devmode":          false,
+			"jailmode":         false,
+			"confinement":      snap.StrictConfinement,
+			"trymode":          false,
+			"apps":             []appJSON{},
+			"broken":           "",
 		},
 		Meta: meta,
 	}
