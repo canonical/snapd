@@ -189,12 +189,15 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// if a snap is devmode, you can't install it without --devmode
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot find snap "some-snap"`)
+	c.Assert(err, ErrorMatches, `snap not found`)
 
+	// if a snap is devmode, you *can* install it with --devmode
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 
+	// if a snap is *not* devmode, you can still install it with --devmode
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 }
@@ -203,12 +206,15 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// if a snap is classic, you can't install it without --classic
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot find snap "some-snap"`)
+	c.Assert(err, ErrorMatches, `snap not found`)
 
+	// if a snap is classic, you *can* install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 
+	// if a snap is *not* classic, you can still install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 }
@@ -340,6 +346,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 		SnapType: "app",
 	})
 
+	// updated snap is devmode, updatemany doesn't update it
 	_, tts, _ := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
@@ -357,6 +364,7 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 		SnapType: "app",
 	})
 
+	// if a snap installed without --classic gets a classic update it isn't installed
 	_, tts, _ := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
 	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
 	c.Assert(tts, HasLen, 0)
@@ -788,9 +796,12 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 		SnapType: "app",
 	})
 
+	// updated snap is devmode, refresh without --devmode, do nothing
+	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
 
+	// updated snap is devmode, refresh with --devmode
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 }
@@ -807,9 +818,12 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 		SnapType: "app",
 	})
 
+	// updated snap is classic, refresh without --classic, do nothing
+	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
 
+	// updated snap is classic, refresh with --classic
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 }
@@ -827,10 +841,11 @@ func (s *snapmgrTestSuite) TestUpdateClassic(c *C) {
 		Flags:    snapstate.Flags{Classic: true},
 	})
 
-	// snap installed with classic: refresh gets classic
+	// snap installed with --classic, update needs classic, refresh without --classic works
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
+	// snap installed with --classic, update needs classic, refresh with --classic also works
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 }
@@ -848,10 +863,11 @@ func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
 		Flags:    snapstate.Flags{Classic: true},
 	})
 
-	// snap installed with classic: refresh gets classic
+	// snap installed with --classic, update does not need classic, refresh works without --classic
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
+	// snap installed with --classic, update does not need classic, refresh works with --classic
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 }
