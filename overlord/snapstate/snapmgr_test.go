@@ -842,7 +842,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	c.Check(snapst.Classic, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestUpdateClassic(c *C) {
+func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
