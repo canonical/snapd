@@ -163,26 +163,26 @@ EOF
         # FIXME: fetch directly once its in the assertion service
         cat > $IMAGE_HOME/pc.model <<EOF
 type: model
-authority-id: canonical
+authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
 series: 16
-brand-id: canonical
+brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
 model: pc
 architecture: amd64
 gadget: pc
 kernel: pc-kernel
-timestamp: 2016-08-31T00:00:00.0Z
-sign-key-sha3-384: 9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+timestamp: 2016-09-16T15:03:21+00:00
+sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
 
-AcLBXAQAAQoABgUCV8lRDQAKCRDgT5vottzAEg9GEACsSb+qXB34mwESsd7ns6VpM9BfAOOSstwB
-KJlWOlcJ39M7is/fO+dxRH4XsI7Td6BI1WEf5188sJuld8APUsTPn8tPYN3JB5CJ8Edkr6p78YUW
-f3Wo26USAE32ewjq9kHo6uBqIr4VixjTXfGUeDXc7tvKcduIMokSKjDLRHJRur1NC8LjkBn2ZPi8
-9d0BpJzr5y8wK0yFEyAhaS8H8LvL7VMjKG7/BkZcQ0a3jv69qh9jdmxnKDN2zcd1btRR1Giew3gw
-VJ8lNtfxQSWi+nYNEuzDqwKdffo9sVyCzBC+vEH3xYYk8NpRx2QgCSzDCPMoxaJgLwhAeWz6mHQp
-8EaGOsMZm7c85BXUcdJGEhZ5MpNGSzCb/ifgOKBB6zYzekiQh4TVLgi9Uk/acsLH75vNrI8Kwyl+
-r4Pahf///LbeWNwcEonaSV48S5fg3QqxEQeb42xcp6wPfRr7LN1LvQ9kRQTt42GDAlIva5HKlo0T
-cUb5A4zz3IlBn/KQ4BS/2sBcixrH97tHInef4oA8IrBiBDGnIv/s4qyZ+gB5fX8Ohnn/a5bUgU5u
-GmwRQ12Ix54YGJrzZocu1AiQINij4s6ZSoJAEJobI9VBK8WnV8PRmra6UJonV+qrJOiSKTJVCkAF
-+RFartQL+pjF/H29FsyBkIEcPwhTslxWKUWajHsExw==
+AcLBXAQAAQoABgUCV+JS/QAKCRCi4irWmF+hRWiBD/43ZWNoYff2lQXdmqAHGmfnCp13GqaSNBvf
+rfOYw7rOoQK1FeAdijfzLfoBEaP+CfPB7WdenTQGRxwX2z1p8sSxPyD9eXjw/spzdhIh6/8lp8yC
+4Dq3G9r9ySbokExwsV4XQnly9dWPzZP+DejxyroUFERsj3drEEI94b7aN/fUEYeqU1QEIOi+VCmT
+t9iGV+fUYuk7UBIOOVqLmSKgqOw3NsmSjLbASsl4SsyQ3eMQoNs8hzCmp2N/IrwMXPoUu7Ivi/zZ
+bOIiCGC1YPrWJzUZ4C/B89EiilOPHnk98Umr76tIM7X0EnS8cYnyuLx9hDczLC5a2uE0PC45rmZB
+abjkTVea6i735RrE6Ffw/aWLMfp32vL7JOnOqkyzp/2g0IyYAyY3wvVea2IyWhI2wz532Es71gEa
+MAu8jiWn3rncvQNf0j2eCzhg0ZJ7G0+Qe19D7heLCP+/tpt+kOYDT0o8+drezRMuIiU5JE4/sxan
+YVRjpYzQPuNx13elAzJXy+24wnKMOwUuHCm25TMUPI1j/3Fw2xPqqYnkhkR6OaBF0ZuAxRYMUsWw
+gKWGS2nim2+DVh2d4NbAQtYDVRqAm/jCY0180aZ9/G2iqk66pMGDW9Njy9Rl+YgXyyqn6PYpSt6r
+v0ZF1XkDWGLaB2ohNugO6j8fp0MiKWs3WPWdnsXVIw==
 EOF
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
@@ -261,6 +261,9 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
+        if [ "$SPREAD_BACKEND" = "linode" ]; then
+            prepare_autoimport
+        fi
 }
 
 prepare_all_snap() {
@@ -319,4 +322,54 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
+}
+
+prepare_autoimport(){
+    # prepare block device on swap for cold-plug system-user autoimport testing
+    # deactivate swap
+    swapoff -a
+    wipefs -a -f /dev/sdb
+    sync
+
+    # create new partition
+    parted --script /dev/sdb mklabel gpt mkpart primary ext4 1MiB 127MiB
+    sync
+    mkfs.ext4 /dev/sdb1
+
+    # mount and write system-user assertion
+    mount /dev/sdb1 /mnt
+    cat > /mnt/auto-import.assert <<"EOF"
+type: system-user
+authority-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+revision: 1
+brand-id: ezPmSahqWjPQWhv3o4cY0MG0JkqpKIoL
+email: snappy-dev@lists.launchpad.net
+models:
+  - pc
+  - pi2
+  - pi3
+  - dragonboard
+name: user1
+password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
+series:
+  - 16
+since: 2016-10-10T15:03:21+00:00
+ssh-keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAxnaIJtNvjR0sPO92hJla/Q71pczHn9KFx/Tc4gHHgY8kY6ysV7F9JxcfmDPzpTrYPNAylHTUR3SNWZGcgk2hYo2AChbTNyUh+PiyrvsEenMifl8e4qnb7145BStK6QdxQkZwkhVebm+T1pXEO+RwR9x2SPdV8+vHJ8EZ/FHwMyQAKGFWXYHkPCtwMgoFElB406VDeGxXCpeL1kpYGpK/2CgXgz4Dpm8nwvxfOWAmBYIDKOIrblzraQhFiyqBQp0fNlI2lgxFEGxpaMLL3WguMGqf7kKAvupUz32DWbY9i6//xFkhoaMWWiigAOZSWCcq7yE30d63Pg3mZE8YMIw3Kw== autoimported-user1
+until: 2017-10-09T15:03:21+00:00
+username: user1
+sign-key-sha3-384: uv2i3nctwgiMQQ2rd_9mhwHsQbTRJPHnpeQjpRbSfs4m3lxhH2E89wkKKqYp_8i5
+
+AcLBXAQAAQoABgUCWBdvsAAKCRCi4irWmF+hRUe7EACubB652d3mUzMFFCzbMCRFXseY+FHI3U3p
+wRM71oPC7TtnOtvdVv0QrZncf2uGuAJnVxZEDiFlZITEgZg1nj8IaUXLGzWbJlYphmBaiBwRU3Yq
+dcS7i7G6A7Fm0FpGjkRNxOg8x7LmjOU5fAqgMJbNw0VbRLkhM9oKnIAtHPJIoJJNCD3k6XHe7AlL
+Ys3OJz+hheCJTARkKuId2fFyakeFOikbgyya2I54ilGHO0LlMqltnmmOqNbcs1R7Eh7lXBx6LsAY
+BThitOtITSVclfWmWkELXwrcIpJz+BHle/LgvrHtTcApBs/qQ7klNbOZFWQRIQL9w6amKFY+/4c+
+J0qATpAt5slFJofwSGE4BH7FbA5b4eUBvmV/ZgKQBtPVEl0HI2P175u5+a7CGjAJJ7+jaeots4ES
+ZYmdUUSVe5AURyv6E+qICiGe5J5x/k7xmTng1vQZxHCapyGgbPnF4Qzpv7Z6wtbIzhC1ofofF6x+
+mw244TiSfoRdQvx98R9Lh7K8nxk4KNXNPFdKdl/DFfrAcDtZ9cTOfjBshPdF2gAoYdXTUjpb/r0A
+cHDFgdjLZ3An1c04+BlGTmSKSjBh7MFr/lFWECIacLhnEiewKkJ04ICUEkJhflORa9Nuk/IvSG0F
+gEuty0JJoVqXqlK4LQOzLO/QsYowkJKYp9n2An5TIQ==
+EOF
+    umount /mnt
 }

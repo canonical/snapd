@@ -1,5 +1,10 @@
 summary: Ensure that snap create-user works in ubuntu-core
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+
+prepare: |
+    . $TESTSLIB/state.sh
+    save_state
+
 restore: |
     # meh, deluser has no --extrausers support
     sed -i '/^mvo/d' /var/lib/extrausers/passwd
@@ -7,6 +12,9 @@ restore: |
     sed -i '/^mvo/d' /var/lib/extrausers/group
     rm -rf /home/mvo
     rm -f create.error
+    . $TESTSLIB/state.sh
+    restore_state
+
 execute: |
     if [ "$MANAGED_DEVICE" = "true" ]; then
         if snap create-user --sudoer mvo@ubuntu.com 2>create.error; then
@@ -16,6 +24,10 @@ execute: |
         grep "cannot create user: device already managed" create.error
         exit 0
     fi
+    # there's currently a system user created on first boot, we'll remove the state that denotes this
+    . $TESTSLIB/state.sh
+    remove_users_from_state
+
     echo "Adding valid user"
     expected='created user "mvo"'
     output=$(snap create-user --sudoer mvo@ubuntu.com)
@@ -36,7 +48,7 @@ execute: |
         echo "snap create-user should fail for unknown users but it did not"
         exit 1
     fi
-    if !echo $output|grep expected; then
+    if !echo "$output" | grep "$expected"; then
         echo "Unexpected output $output"
         exit 1
     fi
