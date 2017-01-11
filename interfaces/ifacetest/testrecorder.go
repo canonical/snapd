@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// TestRecorder is a recorder intented for testing.
+// TestRecorder is a recorder intended for testing.
 type TestRecorder struct {
 	Snippets []string
 }
