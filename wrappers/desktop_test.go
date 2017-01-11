@@ -280,8 +280,8 @@ apps:
 
 func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	langs := []struct {
-		in  string
-		out bool
+		line    string
+		isValid bool
 	}{
 		// langCodes
 		{"Name[lang]=lang-alone", true},
@@ -302,6 +302,6 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 		{"Icon[xx]=bar", false},
 	}
 	for _, t := range langs {
-		c.Assert(wrappers.IsValidDesktopFileLine(t.in), Equals, t.out)
+		c.Assert(wrappers.IsValidDesktopFileLine(t.line), Equals, t.isValid)
 	}
 }

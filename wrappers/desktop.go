@@ -126,10 +126,11 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
-	for scanner.Scan() {
+	for i := 0; scanner.Scan(); i++ {
 		line := scanner.Text()
 
 		if !isValidDesktopFileLine(line) {
+			logger.Debugf("ignoring line %d (%q) in source of desktop file %q", i, line, filepath.Base(desktopFile))
 			continue
 		}
 
