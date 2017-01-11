@@ -349,7 +349,6 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
-	runner.AddHandler("schedule-next-refresh", m.scheduleNextRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -461,15 +460,6 @@ func (m *SnapManager) ensureRefreshes() error {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
-
-	// Add "schedule-next-refresh" after a successful refresh. This ensures
-	// that if the refresh takes e.g. 7h we don't hit the store again 1h
-	// later. We could remove this to keep the behaviour simpler.
-	nextRefreshTask := m.state.NewTask("schedule-next-refresh", i18n.G("Schedule next refresh"))
-	for _, ts := range tasksets {
-		nextRefreshTask.WaitAll(ts)
-	}
-	tasksets = append(tasksets, state.NewTaskSet(nextRefreshTask))
 
 	chg := m.state.NewChange("auto-refresh", msg)
 	for _, ts := range tasksets {
@@ -1134,15 +1124,6 @@ func scheduleNextRefresh(st *state.State) time.Time {
 	st.Set("next-auto-refresh-time", nextRefreshTime)
 
 	return nextRefreshTime
-}
-
-func (m *SnapManager) scheduleNextRefresh(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	scheduleNextRefresh(st)
-	return nil
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {

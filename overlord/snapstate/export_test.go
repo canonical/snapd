@@ -106,6 +106,7 @@ var (
 	CanDisable           = canDisable
 	CachedStore          = cachedStore
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+	ScheduleNextRefresh  = scheduleNextRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
