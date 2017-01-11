@@ -17,10 +17,12 @@
  *
  */
 
-package interfaces
+package ifacetest
 
 import (
 	"fmt"
+
+	. "github.com/snapcore/snapd/interfaces"
 )
 
 // TestInterface is a interface for various kind of tests.
