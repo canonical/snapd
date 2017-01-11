@@ -182,6 +182,8 @@ type Store struct {
 	architecture string
 	series       string
 
+	noCDN bool
+
 	fallbackStoreID string
 
 	detailFields []string
@@ -422,6 +424,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		sectionsURI:     sectionsURI,
 		series:          series,
 		architecture:    architecture,
+		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
 		authContext:     authContext,
@@ -778,6 +781,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)

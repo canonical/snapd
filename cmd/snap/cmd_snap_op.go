@@ -623,6 +623,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
 			DevMode:          x.DevMode,
+			Classic:          x.Classic,
 			JailMode:         x.JailMode,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
