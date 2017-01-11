@@ -102,7 +102,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 capability sys_rawio,
 /dev/mem rw,
 `)
-	expectedSnippet2 := []byte(`KERNEL=="/dev/mem", TAG+="snap_client-snap_app-accessing-physical-memory"
+	expectedSnippet2 := []byte(`KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"
 `)
 
 	// connected plugs have a non-nil security snippet for apparmor

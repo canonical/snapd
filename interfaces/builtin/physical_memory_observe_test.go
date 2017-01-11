@@ -98,7 +98,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # space, BIOS code and data regions on x86, etc).
 /dev/mem r,
 `)
-	expectedSnippet2 := []byte(`KERNEL=="/dev/mem", TAG+="snap_client-snap_app-accessing-physical-memory"
+	expectedSnippet2 := []byte(`KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"
 `)
 
 	// connected plugs have a non-nil security snippet for apparmor

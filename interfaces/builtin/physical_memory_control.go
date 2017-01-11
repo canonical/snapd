@@ -87,7 +87,7 @@ func (iface *PhysicalMemoryControlInterface) ConnectedPlugSnippet(plug *interfac
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
-		const udevRule = `KERNEL=="/dev/mem", TAG+="%s"`
+		const udevRule = `KERNEL=="mem", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
