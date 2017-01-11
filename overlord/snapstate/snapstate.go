@@ -520,8 +520,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
-	if !flags.JailMode {
-		// so `snap refresh --jailmode` gets you out of classic
+	if !(flags.JailMode || flags.DevMode) {
+		// adding a mode flag means add them all
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
 
