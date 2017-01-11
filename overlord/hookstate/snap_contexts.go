@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -44,7 +45,10 @@ func newSnapContexts(s *state.State) *SnapContexts {
 		panic(fmt.Errorf("cannot create directory for snap contexts %q: %s", dir, err))
 	}
 	//_, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
-	return &SnapContexts{}
+	return &SnapContexts{
+		contexts:        make(map[string]*Context),
+		snapToContextID: make(map[string]string),
+	}
 }
 
 func (m *SnapContexts) addContext(c *Context) {
@@ -73,7 +77,14 @@ func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
 		return nil, err
 	}
 	path := filepath.Join(dirs.SnapContextsDir, snapName)
-	var fd *os.File
+	fstate := osutil.FileState{
+		Content: []byte(context.ID()),
+		Mode:    0600,
+	}
+	if err = osutil.EnsureFileState(path, &fstate); err != nil {
+		return nil, err
+	}
+	/*var fd *os.File
 	if fd, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0600); err != nil {
 		return nil, err
 	}
@@ -81,7 +92,7 @@ func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
 	if _, err = fd.WriteString(context.ID()); err != nil {
 		os.Remove(path)
 		return nil, err
-	}
+	}*/
 	m.addContext(context)
 	return context, nil
 }
