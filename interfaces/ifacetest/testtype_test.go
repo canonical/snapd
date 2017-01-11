@@ -17,7 +17,7 @@
  *
  */
 
-package interfaces_test
+package ifacetest_test
 
 import (
 	"fmt"
@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	. "github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 )
 

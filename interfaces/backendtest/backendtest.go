@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -32,7 +33,7 @@ import (
 type BackendSuite struct {
 	Backend interfaces.SecurityBackend
 	Repo    *interfaces.Repository
-	Iface   *interfaces.TestInterface
+	Iface   *ifacetest.TestInterface
 	RootDir string
 }
 
@@ -42,7 +43,7 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.RootDir)
 	// Create a fresh repository for each test
 	s.Repo = interfaces.NewRepository()
-	s.Iface = &interfaces.TestInterface{InterfaceName: "iface"}
+	s.Iface = &ifacetest.TestInterface{InterfaceName: "iface"}
 	err := s.Repo.AddInterface(s.Iface)
 	c.Assert(err, IsNil)
 }
