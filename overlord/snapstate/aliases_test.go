@@ -931,7 +931,7 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesRunThrough(c *C) {
 	defer s.snapmgr.Stop()
 	for _, scenario := range statusesMatrix {
 		if scenario.action != "reset" {
-			// only reset
+			// we reuse the scenarios but here want to test only reset i.e. ResetAliases for the disabled snap case (the other actions are still unsupported for disabled snaps)
 			continue
 		}
 
@@ -1004,7 +1004,7 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesTotalUndoRunThrough(c *C)
 	defer s.snapmgr.Stop()
 	for _, scenario := range statusesMatrix {
 		if scenario.action != "reset" {
-			// only reset
+			// we reuse the scenarios but here want to test only reset i.e. ResetAliases for the disabled snap case (the other actions are still unsupported for disabled snaps)
 			continue
 		}
 
