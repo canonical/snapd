@@ -462,6 +462,16 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 	}
 
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		snapst := stateByID[update.SnapID]
+		return snapst.Channel, snapst.Flags, snapst
+
+	}
+
+	return doUpdate(st, names, updates, params, userID)
+}
+
+func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	var retiredAutoAliasesTs *state.TaskSet
 
@@ -501,7 +511,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	}
 
 	for _, update := range updates {
-		snapst := stateByID[update.SnapID]
+		channel, flags, snapst := params(update)
 
 		if !validInfoForFlags(update, snapst, Flags{}) {
 			// XXX: log something
@@ -509,9 +519,9 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 
 		snapsup := &SnapSetup{
-			Channel:      snapst.Channel,
+			Channel:      channel,
 			UserID:       userID,
-			Flags:        snapst.Flags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 		}
@@ -667,20 +677,34 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
-	info, err := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	var updates []*snap.Info
+	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if infoErr != nil {
+		if _, ok := infoErr.(*snap.NoUpdateAvailableError); !ok {
+			return nil, infoErr
+		}
+		// there may be some new auto-aliases
+	} else {
+		updates = append(updates, info)
+	}
+
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		return channel, flags, &snapst
+	}
+
+	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	snapsup := &SnapSetup{
-		Channel:      channel,
-		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &info.DownloadInfo,
-		SideInfo:     &info.SideInfo,
+	if len(tts) == 0 && len(updates) == 0 {
+		// really nothing to do, return the original no-update-available error
+		return nil, infoErr
 	}
-
-	return doInstall(st, &snapst, snapsup)
+	flat := state.NewTaskSet()
+	for _, ts := range tts {
+		flat.AddAll(ts)
+	}
+	return flat, nil
 }
 
 func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
