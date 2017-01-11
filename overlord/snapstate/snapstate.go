@@ -521,7 +521,6 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	if !(flags.JailMode || flags.DevMode) {
-		// adding a mode flag means add them all
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
 
