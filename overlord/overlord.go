@@ -114,7 +114,7 @@ func New() (*Overlord, error) {
 	o.assertMgr = assertMgr
 	o.stateEng.AddManager(o.assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil)
 	if err != nil {
 		return nil, err
 	}
