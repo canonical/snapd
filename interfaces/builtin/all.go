@@ -27,6 +27,7 @@ var allInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&BoolFileInterface{},
 	&BrowserSupportInterface{},
+	NewClassicDimensionInterface(),
 	&ContentInterface{},
 	&DbusInterface{},
 	&DockerInterface{},

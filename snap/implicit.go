@@ -31,6 +31,7 @@ var implicitSlots = []string{
 	"alsa",
 	"bluetooth-control",
 	"camera",
+	"classic-dimension",
 	"dcdbas-control",
 	"docker-support",
 	"firewall-control",
