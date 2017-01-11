@@ -441,6 +441,11 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
+  overmount:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: false
   shutdown:
     allow-installation:
       slot-snap-type:

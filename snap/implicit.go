@@ -48,6 +48,7 @@ var implicitSlots = []string{
 	"network-setup-observe",
 	"opengl",
 	"openvswitch-support",
+	"overmount",
 	"ppp",
 	"process-control",
 	"raw-usb",
