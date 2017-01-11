@@ -17,9 +17,10 @@
  *
  */
 
-package interfaces
+package ifacetest
 
 import (
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -30,7 +31,7 @@ type TestSecurityBackend struct {
 	// RemoveCalls stores information about all calls to Remove
 	RemoveCalls []string
 	// SetupCallback is an callback that is optionally called in Setup
-	SetupCallback func(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository) error
+	SetupCallback func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
 	RemoveCallback func(snapName string) error
 }
@@ -40,7 +41,7 @@ type TestSetupCall struct {
 	// SnapInfo is a copy of the snapInfo argument to a particular call to Setup
 	SnapInfo *snap.Info
 	// Options is a copy of the confinement options to a particular call to Setup
-	Options ConfinementOptions
+	Options interfaces.ConfinementOptions
 }
 
 // Name returns the name of the security backend.
@@ -49,7 +50,7 @@ func (b *TestSecurityBackend) Name() string {
 }
 
 // Setup records information about the call and calls the setup callback if one is defined.
-func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository) error {
+func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, Options: opts})
 	if b.SetupCallback == nil {
 		return nil
