@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -72,7 +71,15 @@ const (
 // xxx: this should actually be set per client request, and include the client user agent
 var userAgent = "unset"
 
-func SetUserAgentFromVersion(version string) {
+var isTesting bool
+
+func init() {
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		isTesting = true
+	}
+}
+
+func SetUserAgentFromVersion(version string, extraProds ...string) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
@@ -81,10 +88,17 @@ func SetUserAgentFromVersion(version string) {
 	if release.ReleaseInfo.ForceDevMode() {
 		extras = append(extras, "devmode")
 	}
+	if isTesting {
+		extras = append(extras, "testing")
+	}
+	extraProdStr := ""
+	if len(extraProds) != 0 {
+		extraProdStr = " " + strings.Join(extraProds, " ")
+	}
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s) %s/%s (%s)", version, strings.Join(extras, "; "), release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
 }
 
 func infoFromRemote(d snapDetails) *snap.Info {
@@ -98,8 +112,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.DeveloperID = d.DeveloperID
-	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	info.PublisherID = d.DeveloperID
+	info.Publisher = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -179,20 +193,6 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
-}
-
-func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
-}
-
-func shouldRetryError(attempt *retry.Attempt, err error) bool {
-	if !attempt.More() {
-		return false
-	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
-	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
 }
 
 var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
@@ -354,7 +354,7 @@ type sectionResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
+var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -393,9 +393,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	var sectionsURI *url.URL
 	if cfg.SectionsURI != nil {
-		uri := *cfg.SectionsURI
-		uri.RawQuery = rawQuery
-		sectionsURI = &uri
+		sectionsURI = cfg.SectionsURI
 	}
 
 	architecture := arch.UbuntuArchitecture()
@@ -933,7 +931,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			SnapDetails []*snapDetails `json:"clickindex:package"`
+			ChannelSnapInfoDetails []*channelSnapInfoDetails `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -947,7 +945,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 
 	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.SnapDetails {
+	for _, item := range results.Payload.ChannelSnapInfoDetails {
 		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(item.Revision),
 			Confinement: snap.ConfinementType(item.Confinement),
@@ -961,27 +959,26 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	return channelInfos, nil
 }
 
-// Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
-	u, err := s.detailsURI.Parse(name)
+// A SnapSpec describes a single snap wanted from SnapInfo
+type SnapSpec struct {
+	Name     string
+	Channel  string
+	Revision snap.Revision
+}
+
+// SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
+func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	// get the query before doing Parse, as that overwrites it
+	query := s.detailsURI.Query()
+	u, err := s.detailsURI.Parse(snapSpec.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	query := u.Query()
-
-	query.Set("channel", channel)
-	if !revision.Unset() {
-		query.Set("revision", revision.String())
+	query.Set("channel", snapSpec.Channel)
+	if !snapSpec.Revision.Unset() {
+		query.Set("revision", snapSpec.Revision.String())
 		query.Set("channel", "")
-	}
-
-	// if devmode then don't restrict by confinement as either is fine
-	// XXX: what we really want to do is have the store not specify
-	//      devmode, and have the business logic wrt what to do with
-	//      unwanted devmode further up
-	if !devmode {
-		query.Set("confinement", string(snap.StrictConfinement))
 	}
 
 	u.RawQuery = query.Encode()
@@ -1005,14 +1002,14 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && channel == "" && revision.Unset() {
+	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)
@@ -1021,7 +1018,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		}
 	}
 
-	err = s.decorateOrders([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1082,7 +1079,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		q.Set("section", search.Section)
 	}
 
-	q.Set("confinement", "strict")
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
 	u.RawQuery = q.Encode()
 
 	reqOptions := &requestOptions{
@@ -1162,7 +1163,6 @@ type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
 	Epoch    string
-	DevMode  bool
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1171,16 +1171,11 @@ type RefreshCandidate struct {
 
 // the exact bits that we need to send to the store
 type currentSnapJson struct {
-	SnapID   string `json:"snap_id"`
-	Channel  string `json:"channel"`
-	Revision int    `json:"revision,omitempty"`
-	Epoch    string `json:"epoch"`
-
-	// The store expects a "confinement" value {"strict", "devmode"}.
-	// We map this accordingly from our devmode bool, we do not
-	// use the value of the current snap as we are interested in the
-	// users intention, not the actual value of the snap itself.
-	Confinement snap.ConfinementType `json:"confinement"`
+	SnapID      string `json:"snap_id"`
+	Channel     string `json:"channel"`
+	Revision    int    `json:"revision,omitempty"`
+	Epoch       string `json:"epoch"`
+	Confinement string `json:"confinement"`
 }
 
 type metadataWrapper struct {
@@ -1204,17 +1199,12 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
-		confinement := snap.StrictConfinement
-		if cs.DevMode {
-			confinement = snap.DevModeConfinement
-		}
-
 		currentSnaps = append(currentSnaps, currentSnapJson{
-			SnapID:      cs.SnapID,
-			Channel:     cs.Channel,
-			Confinement: confinement,
-			Epoch:       cs.Epoch,
-			Revision:    revision,
+			SnapID:   cs.SnapID,
+			Channel:  cs.Channel,
+			Epoch:    cs.Epoch,
+			Revision: revision,
+			// confinement purposely left empty
 		})
 		candidateMap[cs.SnapID] = cs
 	}
