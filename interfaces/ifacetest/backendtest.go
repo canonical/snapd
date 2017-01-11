@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,7 @@
  *
  */
 
-// package backendtest contains common code for testing backends
-package backendtest
+package ifacetest
 
 import (
 	. "gopkg.in/check.v1"
@@ -32,7 +31,7 @@ import (
 type BackendSuite struct {
 	Backend interfaces.SecurityBackend
 	Repo    *interfaces.Repository
-	Iface   *interfaces.TestInterface
+	Iface   *TestInterface
 	RootDir string
 }
 
@@ -42,7 +41,7 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.RootDir)
 	// Create a fresh repository for each test
 	s.Repo = interfaces.NewRepository()
-	s.Iface = &interfaces.TestInterface{InterfaceName: "iface"}
+	s.Iface = &TestInterface{InterfaceName: "iface"}
 	err := s.Repo.AddInterface(s.Iface)
 	c.Assert(err, IsNil)
 }
