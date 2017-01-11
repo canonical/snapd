@@ -2,13 +2,8 @@
 
 get_common_syscalls() {
     cat <<EOF
-# syscalls required by snap-confine to finish working
-setresuid
-setgid
-setuid
-geteuid32
-
 # filter that works ok for true
+
 open
 close
 
@@ -31,6 +26,13 @@ exit_group
 geteuid
 geteuid32
 getuid
+getuid32
+setresuid
+setresuid32
+setgid
+setgid32
+setuid
+setuid32
 
 set_thread_area
 EOF
