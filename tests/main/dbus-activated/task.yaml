@@ -1,0 +1,12 @@
+summary: Test dbus activated snaps
+
+execute: |
+    echo "Ensure we have a snap that is dbus service activated"
+    snap install test-snapd-dbus-service
+    if ps afx|grep test-snapd-dbus-service; then
+        echo "test-snapd-dbus-service already running! test broken"
+        exit 1
+    fi
+
+    echo "Then sending methods to it will wake it up"
+    dbus-send --print-reply --dest=io.snapcraft.SnapDbusService  / io.snapcraft.ExampleInterface.ExampleMethod | MATCH hello

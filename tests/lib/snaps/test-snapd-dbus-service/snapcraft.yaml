@@ -1,0 +1,20 @@
+name: test-snapd-dbus-service
+version: 1.0
+summary: Python based example dbus service
+description: ...
+apps:
+  test-snapd-dbus-service:
+    # FIXME: set GI_TYPELIB_PATH=$SNAP/usr/lib/x86_64-linux-gnu/girepository-1.0
+    # FIXME2: confinement issues, this only works with devmode right now
+    command: bin/test-snapd-dbus-service
+    plugs: [network, network-bind]
+parts:
+  test-snapd-dbus-service:
+    plugin: python3
+    stage-packages:
+      - python3-dbus
+      - python3-gi
+      - gir1.2-glib-2.0
+  copy:
+    plugin: dump
+    source: .

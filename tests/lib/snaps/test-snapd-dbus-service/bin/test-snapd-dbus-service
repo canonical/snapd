@@ -1,0 +1,24 @@
+#!/usr/bin/python3
+
+from gi.repository import GLib
+
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+DBusGMainLoop(set_as_default=True)
+
+
+class ServerObject(dbus.service.Object):
+    def __init__(self):
+        bus_name = dbus.service.BusName(
+            'io.snapcraft.SnapDbusService',bus=dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, '/')
+    @dbus.service.method('io.snapcraft.ExampleInterface')
+    def ExampleMethod(self):
+	    return "hello world"
+
+
+if __name__ == "__main__":
+    server = ServerObject()
+    loop = GLib.MainLoop()
+    loop.run()
