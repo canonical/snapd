@@ -37,9 +37,33 @@ execute: |
     echo "Then the fstab files are removed"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
 
+    echo "And we cannot use the shared content"
+    test-snapd-content-plug.content-plug && ( echo "error: could still access shared content!"; exit 1 )
+
     echo "When the plug is reconnected"
     snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the fstab files are recreated"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+
+    echo "And we can still use the shared content"
+    test-snapd-content-plug.content-plug | grep "Some shared content"
+
+    echo "Reinstalling consumer snap"
+    snap remove test-snapd-content-plug
+    snap install --edge test-snapd-content-plug
+
+    echo "and disconnecting its plug"
+    snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "prevents using the shared content"
+    test-snapd-content-plug.content-plug && ( echo "error: could still access shared content!"; exit 1 )
+
+    echo "And when the plug is reconnected"
+    snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "we can use the shared content"
+    test-snapd-content-plug.content-plug | grep "Some shared content"
