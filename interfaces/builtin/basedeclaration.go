@@ -441,6 +441,11 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
+  shadow:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: false
   shutdown:
     allow-installation:
       slot-snap-type:
