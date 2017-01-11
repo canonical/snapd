@@ -1605,6 +1605,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
+	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
+	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -1617,6 +1619,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
+		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
 
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, MockDetailsJSON)
