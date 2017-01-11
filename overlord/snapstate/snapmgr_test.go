@@ -3286,20 +3286,16 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 	restore := snapstate.MockRefreshInterval(refreshInterval, refreshRandomness)
 	defer restore()
 
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	for i := 0; i < 50; i++ {
 		now := time.Now()
 
-		s.state.Lock()
-		chg := s.state.NewChange("auto-refresh", "...")
-		chg.AddTask(s.state.NewTask("schedule-next-refresh", "..."))
-		s.state.Unlock()
-
-		s.settle()
+		snapstate.ScheduleNextRefresh(s.state)
 
 		var nextRefresh time.Time
-		s.state.Lock()
 		s.state.Get("next-auto-refresh-time", &nextRefresh)
-		s.state.Unlock()
 
 		// minimum time is the refreshInterval
 		c.Check(nextRefresh.After(now.Add(refreshInterval)), Equals, true)
@@ -3357,18 +3353,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	var nextRefresh time.Time
 	s.state.Get("next-auto-refresh-time", &nextRefresh)
 	c.Check(nextRefresh.Before(time.Now().Add(24*time.Hour)), Equals, true)
-
-	// run the changes
-	s.state.Unlock()
-	s.settle()
-	s.state.Lock()
-
-	// after the changes are done the next refresh time is set
-	var nextRefresh2 time.Time
-	s.state.Get("next-auto-refresh-time", &nextRefresh2)
-	c.Check(nextRefresh2.Before(time.Now().Add(24*time.Hour)), Equals, true)
-	c.Check(chg.IsReady(), Equals, true)
-	c.Check(nextRefresh2, Not(DeepEquals), nextRefresh)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
