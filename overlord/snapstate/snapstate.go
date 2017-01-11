@@ -520,6 +520,10 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
+	if !(flags.JailMode || flags.DevMode) {
+		flags.Classic = flags.Classic || snapst.Flags.Classic
+	}
+
 	info, err := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
 	if err != nil {
 		return nil, err

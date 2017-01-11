@@ -824,11 +824,25 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
 
 	// updated snap is classic, refresh with --classic
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Classic, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestUpdateClassic(c *C) {
+func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -841,13 +855,59 @@ func (s *snapmgrTestSuite) TestUpdateClassic(c *C) {
 		Flags:    snapstate.Flags{Classic: true},
 	})
 
-	// snap installed with --classic, update needs classic, refresh without --classic works
-	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	// snap installed with --classic, update needs classic, refresh with --classic works
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
 
-	// snap installed with --classic, update needs classic, refresh with --classic also works
-	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	// devmode overrides the snapsetup classic flag
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, false)
+
+	// jailmode overrides it too (you need to provide both)
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{JailMode: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, false)
+
+	// jailmode and classic together gets you both
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{JailMode: true, Classic: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
+
+	// snap installed with --classic, update needs classic, refresh without --classic works
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Classic, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
