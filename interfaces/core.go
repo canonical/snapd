@@ -157,6 +157,18 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
+// Recorder describes interactions between backends and interfaces.
+type Recorder interface {
+	// RecordPermanentSlot records side-effects of having a slot.
+	RecordPermanentSlot(iface interface{}, slot *Slot) error
+	// RecordPermanentSlot records side-effects of having a plug.
+	RecordPermanentPlug(iface interface{}, plug *Plug) error
+	// RecordPermanentSlot records side-effects of having a connected slot.
+	RecordConnectedSlot(iface interface{}, plug *Plug, slot *Slot) error
+	// RecordPermanentSlot records side-effects of having a connected plug.
+	RecordConnectedPlug(iface interface{}, plug *Plug, slot *Slot) error
+}
+
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
