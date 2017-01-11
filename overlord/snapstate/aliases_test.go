@@ -707,7 +707,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -800,11 +800,11 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 
 	// alias1 is a non auto-alias
 	// alias5 is an auto-alias
-	// alias1lost is a non auto-alias and doesn't have an entry in the snap anymore
-	// alias5lost is an auto-alias and doesn't have an entry in the snap any
+	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
+	// alias5gone is an auto-alias and doesn't have an entry in the snap any
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -925,7 +925,7 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesRunThrough(c *C) {
 	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 
 	defer s.snapmgr.Stop()
@@ -994,11 +994,11 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesTotalUndoRunThrough(c *C)
 
 	// alias1 is a non auto-alias
 	// alias5 is an auto-alias
-	// alias1lost is a non auto-alias and doesn't have an entry in the snap anymore
-	// alias5lost is an auto-alias and doesn't have an entry in the snap any
+	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
+	// alias5gone is an auto-alias and doesn't have an entry in the snap any
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 
 	defer s.snapmgr.Stop()
