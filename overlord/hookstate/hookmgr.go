@@ -97,22 +97,21 @@ func (m *HookManager) doSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	c, err := m.snapContexts.CreateSnapContext(snapsup.Name())
+	_, err = m.snapContexts.CreateSnapContext(snapsup.Name())
 	if err != nil {
 		return err
 	}
-	m.snapContexts.addContext(c)
 	return nil
 }
 
 func (m *HookManager) undoSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
-	//TODO
 	t.State().Lock()
-	_, err := snapstate.TaskSnapSetup(t)
+	snapsup, err := snapstate.TaskSnapSetup(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
+	m.snapContexts.DeleteSnapContext(snapsup.Name())
 	return nil
 }
 
