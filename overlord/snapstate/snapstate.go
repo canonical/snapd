@@ -463,10 +463,20 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	tasksets := make([]*state.TaskSet, 0, len(updates))
 	var retiredAutoAliasesTs *state.TaskSet
 
+	var nameSet map[string]bool
+	if len(names) != 0 {
+		nameSet = make(map[string]bool, len(names))
+		for _, name := range names {
+			nameSet[name] = true
+		}
+	}
+
 	newAutoAliases, mustRetireAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	reportUpdated := make(map[string]bool, len(updates))
 
 	if len(mustRetireAutoAliases) != 0 {
 		retiredAutoAliasesTs = state.NewTaskSet()
@@ -481,11 +491,13 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 				return nil, nil, err
 			}
 			retiredAutoAliasesTs.AddAll(ts)
+			if nameSet[name] {
+				reportUpdated[name] = true
+			}
 		}
 		tasksets = append(tasksets, retiredAutoAliasesTs)
 	}
 
-	updated := make([]string, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
 
@@ -512,7 +524,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 			ts.WaitAll(retiredAutoAliasesTs)
 		}
 
-		updated = append(updated, update.Name())
+		reportUpdated[update.Name()] = true
 		tasksets = append(tasksets, ts)
 	}
 
@@ -532,8 +544,14 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 				ts.WaitAll(retiredAutoAliasesTs)
 			}
 			addAutoAliasesTs.AddAll(ts)
+			reportUpdated[name] = true
 		}
 		tasksets = append(tasksets, addAutoAliasesTs)
+	}
+
+	updated := make([]string, 0, len(reportUpdated))
+	for name := range reportUpdated {
+		updated = append(updated, name)
 	}
 
 	return updated, tasksets, nil

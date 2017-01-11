@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -1429,7 +1430,8 @@ apps:
 
 	updated, tss, err := snapstate.UpdateMany(st, nil, 0)
 	c.Assert(err, IsNil)
-	c.Assert(updated, DeepEquals, []string{"foo"})
+	sort.Strings(updated)
+	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
 	c.Assert(tss, HasLen, 3)
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
