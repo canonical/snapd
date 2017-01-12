@@ -624,7 +624,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
-// records all the security changes of a given snap.
+// SnapSpecification returns the specification of a given snap in a given security system.
 func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
