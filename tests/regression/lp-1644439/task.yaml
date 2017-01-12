@@ -13,9 +13,14 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local_devmode test-snapd-tools
 execute: |
+    echo 1 > /sys/module/apparmor/parameters/debug
+    echo 0 > /proc/sys/kernel/printk_ratelimit
+    echo -n noquiet > /sys/module/apparmor/parameters/audit
     echo "We can run the test snap from itself succesfully!"
     test-snapd-tools.cmd /bin/true
     test-snapd-tools.cmd /bin/sh -c "/snap/bin/test-snapd-tools.cmd /bin/true"
+restore: |
+    echo 5 > /proc/sys/kernel/printk_ratelimit
 debug: |
     # This feature has been noted to cause kernel oops before.
     tail -n 250 /var/log/kern.log
