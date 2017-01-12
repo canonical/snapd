@@ -55,8 +55,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "apparmor"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityAppArmor
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.

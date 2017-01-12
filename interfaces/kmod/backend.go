@@ -52,7 +52,7 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
+func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
 }
 
