@@ -35,7 +35,7 @@ execute: |
 
     # XXX: Those only work when installed from the store
     #
-    CONTENT_CONNECTED_PATTERN = 'test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
+    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
 
     echo "The plug side auto-connects when content is installed"
     snap install --edge test-snapd-content-slot
