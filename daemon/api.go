@@ -565,7 +565,6 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	spec := store.SnapSpec{
 		Name:     name,
 		Channel:  "",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
