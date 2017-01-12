@@ -47,10 +47,10 @@ type TestInterface struct {
 
 	// Support for interacting with the test backend.
 
-	RecordTestConnectedPlugCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestConnectedSlotCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestPermanentPlugCallback func(spec *TestSpecification, plug *interfaces.Plug) error
-	RecordTestPermanentSlotCallback func(spec *TestSpecification, slot *interfaces.Slot) error
+	TestConnectedPlugCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestConnectedSlotCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestPermanentPlugCallback func(spec *TestSpecification, plug *interfaces.Plug) error
+	TestPermanentSlotCallback func(spec *TestSpecification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -133,30 +133,30 @@ func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot
 
 // Support for interacting with the test backend.
 
-func (t *TestInterface) RecordTestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.RecordTestConnectedPlugCallback != nil {
-		return t.RecordTestConnectedPlugCallback(spec, plug, slot)
+func (t *TestInterface) TestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.TestConnectedPlugCallback != nil {
+		return t.TestConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.RecordTestConnectedSlotCallback != nil {
-		return t.RecordTestConnectedSlotCallback(spec, plug, slot)
+func (t *TestInterface) TestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.TestConnectedSlotCallback != nil {
+		return t.TestConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error {
-	if t.RecordTestPermanentPlugCallback != nil {
-		return t.RecordTestPermanentPlugCallback(spec, plug)
+func (t *TestInterface) TestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error {
+	if t.TestPermanentPlugCallback != nil {
+		return t.TestPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error {
-	if t.RecordTestPermanentSlotCallback != nil {
-		return t.RecordTestPermanentSlotCallback(spec, slot)
+func (t *TestInterface) TestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error {
+	if t.TestPermanentSlotCallback != nil {
+		return t.TestPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }

@@ -609,19 +609,19 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
-// RecordInterfacesAffectingSnap records all the security changes of a given snap.
-func (r *Repository) RecordInterfacesAffectingSnap(snapName string, spec Specification) error {
+// InterfacesAffectingSnap records all the security changes of a given snap.
+func (r *Repository) InterfacesAffectingSnap(snapName string, spec Specification) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// slot side
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
-		if err := spec.RecordPermanentSlot(iface, slot); err != nil {
+		if err := spec.PermanentSlot(iface, slot); err != nil {
 			return err
 		}
 		for plug := range r.slotPlugs[slot] {
-			if err := spec.RecordConnectedSlot(iface, plug, slot); err != nil {
+			if err := spec.ConnectedSlot(iface, plug, slot); err != nil {
 				return err
 			}
 		}
@@ -629,11 +629,11 @@ func (r *Repository) RecordInterfacesAffectingSnap(snapName string, spec Specifi
 	// plug side
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
-		if err := spec.RecordPermanentPlug(iface, plug); err != nil {
+		if err := spec.PermanentPlug(iface, plug); err != nil {
 			return err
 		}
 		for slot := range r.plugSlots[plug] {
-			if err := spec.RecordConnectedPlug(iface, plug, slot); err != nil {
+			if err := spec.ConnectedPlug(iface, plug, slot); err != nil {
 				return err
 			}
 		}

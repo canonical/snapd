@@ -35,42 +35,42 @@ func (spec *TestSpecification) AddSnippet(snippet string) {
 
 // Implementation of methods required by interfaces.Specification
 
-// RecordConnectedPlug records test side-effects of having a connected plug.
-func (spec *TestSpecification) RecordConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// ConnectedPlug records test side-effects of having a connected plug.
+func (spec *TestSpecification) ConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestConnectedPlug(spec, plug, slot)
+		return iface.TestConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
-// RecordConnectedSlot records test side-effects of having a connected slot.
-func (spec *TestSpecification) RecordConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// ConnectedSlot records test side-effects of having a connected slot.
+func (spec *TestSpecification) ConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestConnectedSlot(spec, plug, slot)
+		return iface.TestConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
-// RecordPermanentPlug records test side-effects of having a plug.
-func (spec *TestSpecification) RecordPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+// PermanentPlug records test side-effects of having a plug.
+func (spec *TestSpecification) PermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestPermanentPlug(spec, plug)
+		return iface.TestPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
-// RecordPermanentSlot records test side-effects of having a slot.
-func (spec *TestSpecification) RecordPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+// PermanentSlot records test side-effects of having a slot.
+func (spec *TestSpecification) PermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestPermanentSlot(spec, slot)
+		return iface.TestPermanentSlot(spec, slot)
 	}
 	return nil
 }
 
 // testAware describes an Interface that can to interact with the test backend.
 type testAware interface {
-	RecordTestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error
-	RecordTestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error
+	TestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error
+	TestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error
 }
