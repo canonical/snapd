@@ -13,6 +13,8 @@ environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo
     APP/testsnapdtoolscat: test-snapd-tools.cat
     SNAP: /snap/test-snapd-tools/current
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
 
 execute: |
     echo Testing that replacing the wrapper with a symlink works

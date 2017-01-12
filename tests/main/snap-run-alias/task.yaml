@@ -19,6 +19,8 @@ environment:
     ALIAS/testsnapdtoolsecho: test_echo
     ALIAS/testsnapdtoolscat: test_cat
     SNAP: /snap/test-snapd-tools/current
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
 
 execute: |
     echo Testing that creating an alias symlinks works
