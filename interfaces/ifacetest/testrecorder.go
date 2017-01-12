@@ -36,7 +36,7 @@ func (rec *TestRecorder) AddSnippet(snippet string) {
 // Implementation of methods required by interfaces.Recorder
 
 // RecordConnectedPlug records test side-effects of having a connected plug.
-func (rec *TestRecorder) RecordConnectedPlug(iface interface{}, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (rec *TestRecorder) RecordConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.RecordTestConnectedPlug(rec, plug, slot)
 	}
@@ -44,7 +44,7 @@ func (rec *TestRecorder) RecordConnectedPlug(iface interface{}, plug *interfaces
 }
 
 // RecordConnectedSlot records test side-effects of having a connected slot.
-func (rec *TestRecorder) RecordConnectedSlot(iface interface{}, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (rec *TestRecorder) RecordConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.RecordTestConnectedSlot(rec, plug, slot)
 	}
@@ -52,7 +52,7 @@ func (rec *TestRecorder) RecordConnectedSlot(iface interface{}, plug *interfaces
 }
 
 // RecordPermanentPlug records test side-effects of having a plug.
-func (rec *TestRecorder) RecordPermanentPlug(iface interface{}, plug *interfaces.Plug) error {
+func (rec *TestRecorder) RecordPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.RecordTestPermanentPlug(rec, plug)
 	}
@@ -60,7 +60,7 @@ func (rec *TestRecorder) RecordPermanentPlug(iface interface{}, plug *interfaces
 }
 
 // RecordPermanentSlot records test side-effects of having a slot.
-func (rec *TestRecorder) RecordPermanentSlot(iface interface{}, slot *interfaces.Slot) error {
+func (rec *TestRecorder) RecordPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.RecordTestPermanentSlot(rec, slot)
 	}
