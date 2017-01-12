@@ -882,7 +882,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
 		// Case 6 (INVALID)
 		// Slot name is not provided.
 		{"", "plug", "producer", "", "allowed forms are .*"},
-		// Case 7 (SUCCESS)
+		// Case 7 (FAILURE)
 		// Disconnect a specific connection.
 		// The plug side implicit refers to the core snap.
 		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
@@ -963,7 +963,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
 		// Case 6 (INVALID)
 		// Slot name is not provided.
 		{"", "plug", "producer", "", "allowed forms are .*"},
-		// Case 7 (SUCCESS)
+		// Case 7 (FAILURE)
 		// Disconnect a specific connection.
 		// The plug side implicit refers to the core snap.
 		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
