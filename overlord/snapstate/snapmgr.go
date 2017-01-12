@@ -41,6 +41,31 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// FIXME: what we actually want is a schedule spec that is user configurable
+// like:
+// """
+// tue
+// tue,thu
+// tue-thu
+// 9:00
+// 9:00,15:00
+// 9:00-15:00
+// tue,thu@9:00-15:00
+// tue@9:00;thu@15:00
+// mon,wed-fri@9:00-11:00,13:00-15:00
+// """
+// where 9:00 is implicitly taken as 9:00-10:00
+// and tue is implicitly taken as tue@<our current setting?>
+//
+// it is controlled via:
+// $ snap refresh --schedule=<time spec>
+// which is a shorthand for
+// $ snap set core refresh.schedule=<time spec>
+// and we need to validate the time-spec, ideally internally by
+// intercepting the set call
+//
+// FIXME2: think we should invert the logic of "next", and have
+// instead refresh.last (also in config)
 var (
 	// minimum time between refreshes
 	minRefreshInterval = 4 * time.Hour
