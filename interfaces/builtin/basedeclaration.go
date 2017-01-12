@@ -194,7 +194,9 @@ slots:
         - core
     deny-auto-connection: true
   classic-dimension:
-    allow-installation: false
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-auto-connection: true
   content:
     allow-installation:
