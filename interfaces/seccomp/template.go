@@ -399,6 +399,7 @@ socket
 connect
 
 # needed by snapctl
+getsockopt
 setsockopt
 getsockname
 getpeername

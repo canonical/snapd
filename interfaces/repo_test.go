@@ -25,7 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
-	. "github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -42,7 +42,7 @@ type RepositorySuite struct {
 }
 
 var _ = Suite(&RepositorySuite{
-	iface: &TestInterface{
+	iface: &ifacetest.TestInterface{
 		InterfaceName: "interface",
 	},
 })
@@ -117,8 +117,8 @@ func (s *RepositorySuite) TestAddInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestAddInterfaceClash(c *C) {
-	iface1 := &TestInterface{InterfaceName: "iface"}
-	iface2 := &TestInterface{InterfaceName: "iface"}
+	iface1 := &ifacetest.TestInterface{InterfaceName: "iface"}
+	iface2 := &ifacetest.TestInterface{InterfaceName: "iface"}
 	err := s.emptyRepo.AddInterface(iface1)
 	c.Assert(err, IsNil)
 	// Adding an interface with the same name as another interface is not allowed
@@ -128,7 +128,7 @@ func (s *RepositorySuite) TestAddInterfaceClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
-	iface := &TestInterface{InterfaceName: "bad-name-"}
+	iface := &ifacetest.TestInterface{InterfaceName: "bad-name-"}
 	// Adding an interface with invalid name is not allowed
 	err := s.emptyRepo.AddInterface(iface)
 	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
@@ -150,9 +150,9 @@ func (s *RepositorySuite) TestInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestInterfaceSearch(c *C) {
-	ifaceA := &TestInterface{InterfaceName: "a"}
-	ifaceB := &TestInterface{InterfaceName: "b"}
-	ifaceC := &TestInterface{InterfaceName: "c"}
+	ifaceA := &ifacetest.TestInterface{InterfaceName: "a"}
+	ifaceB := &ifacetest.TestInterface{InterfaceName: "b"}
+	ifaceC := &ifacetest.TestInterface{InterfaceName: "c"}
 	err := s.emptyRepo.AddInterface(ifaceA)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddInterface(ifaceB)
@@ -217,7 +217,7 @@ func (s *RepositorySuite) TestAddPlugFailsWithUnknownInterface(c *C) {
 }
 
 func (s *RepositorySuite) TestAddPlugFailsWithUnsanitizedPlug(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		SanitizePlugCallback: func(plug *Plug) error {
 			return fmt.Errorf("plug is dirty")
@@ -318,7 +318,7 @@ plugs:
 
 func (s *RepositorySuite) TestAllPlugsWithInterfaceName(c *C) {
 	// Add another interface so that we can look for it
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
@@ -363,7 +363,7 @@ plugs:
 // Tests for Repository.AllSlots()
 
 func (s *RepositorySuite) TestAllSlots(c *C) {
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
@@ -472,7 +472,7 @@ func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		SanitizeSlotCallback: func(slot *Slot) error {
 			return fmt.Errorf("slot is dirty")
@@ -606,7 +606,7 @@ slots:
 
 // ResolveConnect detects lack of candidates
 func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
-	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	err := s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
 	coreSnap := snaptest.MockInfo(c, `
 name: core
@@ -688,7 +688,7 @@ func (s *RepositorySuite) TestResolveNoSuchSlot(c *C) {
 
 // Plug and slot must have matching types
 func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
-	c.Assert(s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"}), IsNil)
+	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "other-interface"}), IsNil)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "consumer"},
@@ -1052,7 +1052,7 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
-	otherInterface := &TestInterface{InterfaceName: "other-interface"}
+	otherInterface := &ifacetest.TestInterface{InterfaceName: "other-interface"}
 	err := s.testRepo.AddInterface(otherInterface)
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
@@ -1244,7 +1244,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 
 const testSecurity SecuritySystem = "security"
 
-var testInterface = &TestInterface{
+var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
 	PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
@@ -1383,7 +1383,7 @@ slots:
 
 func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
@@ -1409,7 +1409,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippe
 
 func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
-	iface := &TestInterface{
+	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
 		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute static snippet for consumer")
@@ -1436,9 +1436,9 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 func (s *RepositorySuite) TestAutoConnectCandidates(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
-	err := repo.AddInterface(&TestInterface{InterfaceName: "auto"})
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
 	c.Assert(err, IsNil)
-	err = repo.AddInterface(&TestInterface{InterfaceName: "manual"})
+	err = repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
 
 	policyCheck := func(plug *Plug, slot *Slot) bool {
@@ -1482,9 +1482,9 @@ var _ = Suite(&AddRemoveSuite{})
 
 func (s *AddRemoveSuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
-	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface"})
+	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"})
 	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&TestInterface{
+	err = s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
@@ -1493,13 +1493,13 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 }
 
 func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
-	err := s.repo.AddInterface(&TestInterface{
+	err := s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid-plug-iface",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&TestInterface{
+	err = s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:        "invalid-slot-iface",
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
@@ -1618,9 +1618,9 @@ var _ = Suite(&DisconnectSnapSuite{})
 func (s *DisconnectSnapSuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
 
-	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface-a"})
+	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface-a"})
 	c.Assert(err, IsNil)
-	err = s.repo.AddInterface(&TestInterface{InterfaceName: "iface-b"})
+	err = s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface-b"})
 	c.Assert(err, IsNil)
 
 	s.s1 = snaptest.MockInfo(c, `
@@ -1701,7 +1701,7 @@ func contentAutoConnect(plug *Plug, slot *Slot) bool {
 // is a content plug and one a content slot
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
 	c.Assert(err, IsNil)
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
