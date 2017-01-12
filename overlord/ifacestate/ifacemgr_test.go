@@ -773,7 +773,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 // The setup-profiles task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Mock the interface that will be used by the test
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// Add an OS snap.
 	s.mockSnap(c, osSnapYaml)
 	// Add a consumer snap with unconnect plug (interface "test")
