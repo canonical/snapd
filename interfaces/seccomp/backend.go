@@ -133,3 +133,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 		Mode:    0644,
 	}
 }
+
+func (b *Backend) Specification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+}

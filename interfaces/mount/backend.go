@@ -128,3 +128,7 @@ func addContent(securityTag string, executableSnippets [][]byte, content map[str
 		Mode:    0644,
 	}
 }
+
+func (b *Backend) Specification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+}

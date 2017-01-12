@@ -191,3 +191,7 @@ type dummyReporter struct{}
 
 func (dr *dummyReporter) Notify(msg string) {
 }
+
+func (b *Backend) Specification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+}
