@@ -60,6 +60,26 @@ prepare_classic() {
         exit 1
     fi
 
+    # Disable burst limit so resetting the state quickly doesn't create
+    # problems.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    if [ -n "${SNAP_REEXEC:-}" ]; then
+        EXTRA_ENV="SNAP_REEXEC=$SNAP_REEXEC"
+    else
+        EXTRA_ENV=""
+    fi
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 $EXTRA_ENV
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
+
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
@@ -79,24 +99,6 @@ prepare_classic() {
 
         systemctl stop snapd.service snapd.socket
 
-        # Disable burst limit so resetting the state quickly doesn't create problems.
-        mkdir -p /etc/systemd/system/snapd.service.d
-        if [ -n "${SNAP_REEXEC:-}" ]; then
-            EXTRA_ENV="SNAP_REEXEC=$SNAP_REEXEC"
-        else
-            EXTRA_ENV=""
-        fi
-        cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 $EXTRA_ENV
-EOF
-        mkdir -p /etc/systemd/system/snapd.socket.d
-        cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
         update_core_snap_with_snap_exec_snapctl
 
         systemctl daemon-reload

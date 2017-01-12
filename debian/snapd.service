@@ -4,6 +4,8 @@ Requires=snapd.socket
 
 [Service]
 ExecStart=/usr/lib/snapd/snapd
+# add "SNAP_REEXEC=0" to /etc/environment to disable the behaviour of
+# snapd to re-exec itself into the snapd of the core snap
 EnvironmentFile=/etc/environment
 Restart=always
 
