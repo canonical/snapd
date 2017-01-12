@@ -937,7 +937,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 // Tests for Repository.SecuritySnippetsForSnap()
 // and for InterfacesAffectingSnap()
 
-const testSecurity SecuritySystem = "security"
+const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
