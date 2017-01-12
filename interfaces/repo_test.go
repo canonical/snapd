@@ -124,6 +124,13 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+func (s *RepositorySuite) TestAddBackend(c *C) {
+	backend := &ifacetest.TestSecurityBackend{}
+	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
+	err := s.emptyRepo.AddBackend(backend)
+	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
+}
+
 // Tests for Repository.Interface()
 
 func (s *RepositorySuite) TestInterface(c *C) {

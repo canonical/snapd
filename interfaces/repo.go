@@ -39,6 +39,7 @@ type Repository struct {
 	slots     map[string]map[string]*Slot
 	slotPlugs map[*Slot]map[*Plug]bool
 	plugSlots map[*Plug]map[*Slot]bool
+	backends  map[SecuritySystem]SecurityBackend
 }
 
 // NewRepository creates an empty plug repository.
@@ -49,6 +50,7 @@ func NewRepository() *Repository {
 		slots:     make(map[string]map[string]*Slot),
 		slotPlugs: make(map[*Slot]map[*Plug]bool),
 		plugSlots: make(map[*Plug]map[*Slot]bool),
+		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
 
@@ -73,6 +75,19 @@ func (r *Repository) AddInterface(i Interface) error {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+	return nil
+}
+
+// AddBackend adds the provided security backend to the repository.
+func (r *Repository) AddBackend(backend SecurityBackend) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	name := backend.Name()
+	if _, ok := r.backends[name]; ok {
+		return fmt.Errorf("cannot add backend %q, security system name is in use", name)
+	}
+	r.backends[name] = backend
 	return nil
 }
 
