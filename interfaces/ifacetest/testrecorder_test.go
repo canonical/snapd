@@ -37,19 +37,19 @@ type TestSpecificationSuite struct {
 var _ = Suite(&TestSpecificationSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		RecordTestConnectedPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		RecordTestConnectedSlotCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		RecordTestPermanentPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		RecordTestPermanentSlotCallback: func(spec *ifacetest.TestSpecification, slot *interfaces.Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.TestSpecification, slot *interfaces.Slot) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -84,10 +84,10 @@ func (s *TestSpecificationSuite) TestAddSnippet(c *C) {
 // The TestSpecification can be used through the interfaces.Specification interface
 func (s *TestSpecificationSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.RecordConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.RecordConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.RecordPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.RecordPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.ConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.ConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.PermanentPlug(s.iface, s.plug), IsNil)
+	c.Assert(r.PermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(s.spec.Snippets, DeepEquals, []string{
 		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }
