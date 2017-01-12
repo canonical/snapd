@@ -84,4 +84,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called during the process of removing a snap.
 	Remove(snapName string) error
+
+	// Specification returns a new specification associated with this backend.
+	Specification() Specification
 }

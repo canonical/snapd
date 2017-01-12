@@ -150,3 +150,7 @@ func uniqueLines(lines []string) (deduplicated []string) {
 	}
 	return deduplicated
 }
+
+func (b *Backend) Specification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+}

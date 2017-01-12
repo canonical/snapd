@@ -66,3 +66,7 @@ func (b *TestSecurityBackend) Remove(snapName string) error {
 	}
 	return b.RemoveCallback(snapName)
 }
+
+func (b *TestSecurityBackend) Specification() interfaces.Specification {
+	return &TestSpecification{}
+}
