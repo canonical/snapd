@@ -762,7 +762,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 		// The snap name is implicit and refers to the core snap.
 		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
 		// Case 14 (INVALID)
-		// the slot name was not provided.
+		// The slot name was not provided.
 		{"consumer", "plug", "producer", "", "allowed forms are .*"},
 		// Case 15 (FAILURE)
 		// Disconnect a specific connection.
@@ -987,7 +987,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
 		// The snap name is implicit and refers to the core snap.
 		{"consumer", "plug", "", "slot", `snap "core" has no slot named "slot"`},
 		// Case 14 (INVALID)
-		// the slot name was not provided.
+		// The slot name was not provided.
 		{"consumer", "plug", "producer", "", "allowed forms are .*"},
 		// Case 15 (SUCCESS)
 		// Disconnect a specific connection.
