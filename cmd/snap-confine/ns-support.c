@@ -174,8 +174,8 @@ void sc_reassociate_with_pid1_mount_ns()
 	int init_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	int self_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 
-	debug
-	    ("checking if the current process shares mount namespace with the init process");
+	debug("checking if the current process shares mount namespace"
+	      "with the init process");
 
 	init_mnt_fd =
 	    open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
@@ -192,15 +192,17 @@ void sc_reassociate_with_pid1_mount_ns()
 	char init_buf[128], self_buf[128];
 	memset(init_buf, 0, sizeof init_buf);
 	if (readlinkat(init_mnt_fd, "", init_buf, sizeof init_buf) < 0) {
-		die("cannot perform readlinkat() on the mount namespace file descriptor of the init process");
+		die("cannot perform readlinkat() on the mount namespace file "
+		    "descriptor of the init process");
 	}
 	memset(self_buf, 0, sizeof self_buf);
 	if (readlinkat(self_mnt_fd, "", self_buf, sizeof self_buf) < 0) {
-		die("cannot perform readlinkat() on the mount namespace file descriptor of the current process");
+		die("cannot perform readlinkat() on the mount namespace file "
+		    "descriptor of the current process");
 	}
 	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
-		debug
-		    ("the current process does not share mount namespace with the init process, re-association required");
+		debug("the current process does not share mount namespace with "
+		      "the init process, re-association required");
 		if (setns(init_mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot re-associate the mount namespace with the init process");
 		}
