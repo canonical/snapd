@@ -16,3 +16,6 @@ execute: |
     echo "We can run the test snap from itself succesfully!"
     test-snapd-tools.cmd /bin/true
     test-snapd-tools.cmd /bin/sh -c "/snap/bin/test-snapd-tools.cmd /bin/true"
+debug: |
+    # This feature has been noted to cause kernel oops before.
+    tail -n 250 /var/log/kern.log
