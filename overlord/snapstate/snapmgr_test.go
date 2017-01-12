@@ -1907,10 +1907,10 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		updates, tts, err := snapstate.UpdateMany(s.state, scenario.names, s.user.ID)
 		c.Check(err, IsNil)
 
-		j := 0
 		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
 
+		j := 0
 		expectedUpdatesSet := make(map[string]bool)
 		var expectedRetiring map[string]map[string]string
 		var retireTs *state.TaskSet
@@ -2049,12 +2049,11 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
 		c.Assert(err, IsNil)
-		j := 0
 		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
 
+		j := 0
 		tasks := ts.Tasks()
-
 		var expectedRetiring map[string]map[string]string
 		var retireTasks []*state.Task
 		if len(scenario.retire) != 0 {
