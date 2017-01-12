@@ -37,7 +37,10 @@ func (spec *TestSpecification) AddSnippet(snippet string) {
 
 // AddConnectedPlug records test side-effects of having a connected plug.
 func (spec *TestSpecification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if iface, ok := iface.(testAware); ok {
+	type definer interface {
+		TestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	}
+	if iface, ok := iface.(definer); ok {
 		return iface.TestConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -45,7 +48,10 @@ func (spec *TestSpecification) AddConnectedPlug(iface interfaces.Interface, plug
 
 // AddConnectedSlot records test side-effects of having a connected slot.
 func (spec *TestSpecification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if iface, ok := iface.(testAware); ok {
+	type definer interface {
+		TestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	}
+	if iface, ok := iface.(definer); ok {
 		return iface.TestConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -53,7 +59,10 @@ func (spec *TestSpecification) AddConnectedSlot(iface interfaces.Interface, plug
 
 // AddPermanentPlug records test side-effects of having a plug.
 func (spec *TestSpecification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
-	if iface, ok := iface.(testAware); ok {
+	type definer interface {
+		TestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error
+	}
+	if iface, ok := iface.(definer); ok {
 		return iface.TestPermanentPlug(spec, plug)
 	}
 	return nil
@@ -61,16 +70,11 @@ func (spec *TestSpecification) AddPermanentPlug(iface interfaces.Interface, plug
 
 // AddPermanentSlot records test side-effects of having a slot.
 func (spec *TestSpecification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
-	if iface, ok := iface.(testAware); ok {
+	type definer interface {
+		TestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error
+	}
+	if iface, ok := iface.(definer); ok {
 		return iface.TestPermanentSlot(spec, slot)
 	}
 	return nil
-}
-
-// testAware describes an Interface that can to interact with the test backend.
-type testAware interface {
-	TestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	TestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	TestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error
-	TestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error
 }
