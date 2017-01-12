@@ -510,6 +510,9 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+        - app
+    deny-connection:
+      on-classic: false
   x11:
     allow-installation:
       slot-snap-type:
