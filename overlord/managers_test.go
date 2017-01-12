@@ -1412,7 +1412,7 @@ apps:
 
 	// foo gets a new version/revision and a change of auto-aliases
 	// bar gets only the latter
-	// app1 is transfered from foo to bar
+	// app1 is transferred from foo to bar
 	// UpdateMany after a snap-declaration refresh handles all of this
 	ms.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name":    "foo",
