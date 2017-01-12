@@ -104,6 +104,7 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
+# a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
