@@ -1,5 +1,13 @@
 #!/usr/bin/python3
 
+import os
+import os.path
+import glob
+# ensure that typelib path points to the right directory,
+# eg. $SNAP/usr/lib/x86_64-linux-gnu/girepository-1.0 on amd64
+globpath = os.path.join(os.environ["SNAP"], "usr/lib/*/girepository-1.0")
+os.environ["GI_TYPELIB_PATH"] = glob.glob(globpath)[0]
+
 from gi.repository import GLib
 
 import dbus
