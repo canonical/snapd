@@ -4,7 +4,7 @@ set -eux
 
 . $TESTSLIB/apt.sh
 
-update_core_snap_with_snap_exec_snapctl() {
+update_core_snap_with_snap_exec_snapctl_and_friends() {
     # We want to use the in-tree snap-exec and snapctl, not the ones in the core
     # snap. To accomplish that, we'll just unpack the core we just grabbed,
     # shove the new snap-exec and snapctl in there, and repack it.
@@ -19,6 +19,9 @@ update_core_snap_with_snap_exec_snapctl() {
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # Also inject new version of snap-confine and snap-scard-ns
+    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
     mv "$snap" "${snap}.orig"
     mksquashfs squashfs-root "$snap" -comp xz
     rm -rf squashfs-root
@@ -37,6 +40,19 @@ update_core_snap_with_snap_exec_snapctl() {
         echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
         exit 1
     fi
+
+    # Make sure we're running with the correct snap-confine
+    if ! cmp /usr/lib/snapd/snap-confine ${core}/usr/lib/snapd/snap-confine ; then
+        echo "snap-confine in tree and snap-confine in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+    # Make sure we're running with the correct snap-discard-ns
+    if ! cmp /usr/lib/snapd/snap-discard-ns ${core}/usr/lib/snapd/snap-discard-ns; then
+        echo "snap-discard-ns in tree and snap-discard-ns in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
 }
 
 prepare_classic() {
@@ -74,7 +90,7 @@ prepare_classic() {
 
         systemctl stop snapd.service snapd.socket
 
-        update_core_snap_with_snap_exec_snapctl
+        update_core_snap_with_snap_exec_snapctl_and_friends
 
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
