@@ -45,7 +45,7 @@ type TestSetupCall struct {
 }
 
 // Name returns the name of the security backend.
-func (b *TestSecurityBackend) Name() string {
+func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 	return "test"
 }
 

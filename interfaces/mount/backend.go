@@ -44,8 +44,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "mount"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityMount
 }
 
 // Setup creates mount mount profile files specific to a given snap.
