@@ -21,8 +21,13 @@ execute: |
 
     echo "Check that we can install classic confinement snaps from the store"
     snap install --classic test-snapd-classic-confinement
+    snap list | MATCH "test-snapd-classic-confinement.*classic"
+    snap info  test-snapd-classic-confinement|MATCH installed.*classic
     test-snapd-classic-confinement | MATCH lala
 
     echo "Snap refresh from the store also works (2.0 is in beta, 1.0 in stable)"
     snap refresh --beta test-snapd-classic-confinement
+    snap list | MATCH "test-snapd-classic-confinement.*classic"
+    snap info  test-snapd-classic-confinement|MATCH installed.*classic
     test-snapd-classic-confinement | MATCH lala
+
