@@ -35,7 +35,7 @@ func (spec *TestSpecification) AddSnippet(snippet string) {
 
 // Implementation of methods required by interfaces.Specification
 
-// ConnectedPlug records test side-effects of having a connected plug.
+// AddConnectedPlug records test side-effects of having a connected plug.
 func (spec *TestSpecification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestConnectedPlug(spec, plug, slot)
@@ -43,7 +43,7 @@ func (spec *TestSpecification) AddConnectedPlug(iface interfaces.Interface, plug
 	return nil
 }
 
-// ConnectedSlot records test side-effects of having a connected slot.
+// AddConnectedSlot records test side-effects of having a connected slot.
 func (spec *TestSpecification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestConnectedSlot(spec, plug, slot)
@@ -51,7 +51,7 @@ func (spec *TestSpecification) AddConnectedSlot(iface interfaces.Interface, plug
 	return nil
 }
 
-// PermanentPlug records test side-effects of having a plug.
+// AddPermanentPlug records test side-effects of having a plug.
 func (spec *TestSpecification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestPermanentPlug(spec, plug)
@@ -59,7 +59,7 @@ func (spec *TestSpecification) AddPermanentPlug(iface interfaces.Interface, plug
 	return nil
 }
 
-// PermanentSlot records test side-effects of having a slot.
+// AddPermanentSlot records test side-effects of having a slot.
 func (spec *TestSpecification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestPermanentSlot(spec, slot)
