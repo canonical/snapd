@@ -1523,9 +1523,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	tasks := ts.Tasks()
 	last := tasks[len(tasks)-1]
+	// sanity
+	c.Assert(last.Lanes(), HasLen, 1)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
 	chg.AddTask(terr)
 
 	s.state.Unlock()
@@ -1882,6 +1885,34 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 
 }
 
+var orthogonalAutoAliasesScenarios = []struct {
+	aliasesBefore map[string][]string
+	names         []string
+	retire        []string
+	update        bool
+	new           bool
+}{
+	{nil, nil, nil, true, true},
+	{nil, []string{"some-snap"}, nil, true, false},
+	{nil, []string{"other-snap"}, nil, false, true},
+	{map[string][]string{"some-snap": {"aliasA", "aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, nil, []string{"other-snap"}, true, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
+	{map[string][]string{"other-snap": {"aliasC"}}, nil, []string{"other-snap"}, true, true},
+	{map[string][]string{"other-snap": {"aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, nil, []string{"other-snap", "some-snap"}, true, true},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap", "some-snap"}, false, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, nil, []string{"some-snap"}, true, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, []string{"other-snap"}, []string{"some-snap"}, false, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasA"}}, nil, []string{"other-snap"}, true, true},
+	{map[string][]string{"other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
+	{map[string][]string{"other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1914,34 +1945,6 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		SnapType: "app",
 	})
 
-	scenarios := []struct {
-		aliasesBefore map[string][]string
-		names         []string
-		retire        []string
-		update        bool
-		new           bool
-	}{
-		{nil, nil, nil, true, true},
-		{nil, []string{"some-snap"}, nil, true, false},
-		{nil, []string{"other-snap"}, nil, false, true},
-		{map[string][]string{"some-snap": {"aliasA", "aliasC"}}, []string{"some-snap"}, nil, true, false},
-		{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, false},
-		{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, nil, []string{"other-snap"}, true, false},
-		{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"some-snap"}, nil, true, false},
-		{map[string][]string{"other-snap": {"aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
-		{map[string][]string{"other-snap": {"aliasC"}}, nil, []string{"other-snap"}, true, true},
-		{map[string][]string{"other-snap": {"aliasC"}}, []string{"some-snap"}, nil, true, false},
-		{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
-		{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, nil, []string{"other-snap", "some-snap"}, true, true},
-		{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap", "some-snap"}, false, true},
-		{map[string][]string{"some-snap": {"aliasB"}}, nil, []string{"some-snap"}, true, true},
-		{map[string][]string{"some-snap": {"aliasB"}}, []string{"other-snap"}, []string{"some-snap"}, false, true},
-		{map[string][]string{"some-snap": {"aliasB"}}, []string{"some-snap"}, nil, true, false},
-		{map[string][]string{"other-snap": {"aliasA"}}, nil, []string{"other-snap"}, true, true},
-		{map[string][]string{"other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
-		{map[string][]string{"other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
-	}
-
 	expectedAuto := func(aliases []string) map[string]string {
 		res := make(map[string]string, len(aliases))
 		for _, alias := range aliases {
@@ -1950,9 +1953,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		return res
 	}
 
-	for _, scen := range scenarios {
+	for _, scenario := range orthogonalAutoAliasesScenarios {
 		aliases := make(map[string]map[string]string)
-		for snapName, autoAliases := range scen.aliasesBefore {
+		for snapName, autoAliases := range scenario.aliasesBefore {
 			statuses := make(map[string]string)
 			for _, alias := range autoAliases {
 				statuses[alias] = "auto"
@@ -1961,16 +1964,17 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		}
 		s.state.Set("aliases", aliases)
 
-		updates, tts, err := snapstate.UpdateMany(s.state, scen.names, s.user.ID)
+		updates, tts, err := snapstate.UpdateMany(s.state, scenario.names, s.user.ID)
 		c.Check(err, IsNil)
-		j := 0
+
 		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
 
+		j := 0
 		expectedUpdatesSet := make(map[string]bool)
 		var expectedRetiring map[string]map[string]string
 		var retireTs *state.TaskSet
-		if len(scen.retire) != 0 {
+		if len(scenario.retire) != 0 {
 			retireTs = tts[0]
 			j++
 			taskAliases := make(map[string]map[string]string)
@@ -1984,15 +1988,15 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				taskAliases[snapsup.Name()] = aliases
 			}
 			expectedRetiring = make(map[string]map[string]string)
-			for _, snapName := range scen.retire {
+			for _, snapName := range scenario.retire {
 				expectedRetiring[snapName] = expectedAuto(retiring[snapName])
-				if snapName == "other-snap" && !scen.new && !scen.update {
+				if snapName == "other-snap" && !scenario.new && !scenario.update {
 					expectedUpdatesSet["other-snap"] = true
 				}
 			}
 			c.Check(taskAliases, DeepEquals, expectedRetiring)
 		}
-		if scen.update {
+		if scenario.update {
 			updateTs := tts[j]
 			j++
 			expectedUpdatesSet["some-snap"] = true
@@ -2010,7 +2014,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Check(first.WaitTasks(), HasLen, 0)
 			}
 		}
-		if scen.new {
+		if scenario.new {
 			newTs := tts[j]
 			j++
 			expectedUpdatesSet["other-snap"] = true
@@ -2044,9 +2048,132 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			expectedUpdates = append(expectedUpdates, x)
 		}
 		sort.Strings(expectedUpdates)
-		c.Check(updates, DeepEquals, expectedUpdates, Commentf("%#v", scen))
+		c.Check(updates, DeepEquals, expectedUpdates)
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(2)},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		switch info.Name() {
+		case "some-snap":
+			return []string{"aliasA"}, nil
+		case "other-snap":
+			return []string{"aliasB"}, nil
+		}
+		return nil, nil
 	}
 
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	expectedAuto := func(aliases []string) map[string]string {
+		res := make(map[string]string, len(aliases))
+		for _, alias := range aliases {
+			res[alias] = "auto"
+		}
+		return res
+	}
+
+	for _, scenario := range orthogonalAutoAliasesScenarios {
+		if len(scenario.names) != 1 {
+			continue
+		}
+
+		aliases := make(map[string]map[string]string)
+		for snapName, autoAliases := range scenario.aliasesBefore {
+			statuses := make(map[string]string)
+			for _, alias := range autoAliases {
+				statuses[alias] = "auto"
+			}
+			aliases[snapName] = statuses
+		}
+		s.state.Set("aliases", aliases)
+
+		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
+		c.Assert(err, IsNil)
+
+		j := 0
+		tasks := ts.Tasks()
+		var expectedRetiring map[string]map[string]string
+		var retireTasks []*state.Task
+		if len(scenario.retire) != 0 {
+			nretire := len(scenario.retire)
+			retireTasks = tasks[:nretire]
+			j += nretire
+			taskAliases := make(map[string]map[string]string)
+			for _, aliasTask := range retireTasks {
+				c.Check(aliasTask.Kind(), Equals, "alias")
+				var aliases map[string]string
+				err := aliasTask.Get("aliases", &aliases)
+				c.Assert(err, IsNil)
+				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
+				c.Assert(err, IsNil)
+				taskAliases[snapsup.Name()] = aliases
+			}
+			expectedRetiring = make(map[string]map[string]string)
+			for _, snapName := range scenario.retire {
+				expectedRetiring[snapName] = expectedAuto(retiring[snapName])
+			}
+			c.Check(taskAliases, DeepEquals, expectedRetiring)
+		}
+		if scenario.update {
+			first := tasks[j]
+			j += 14
+			c.Check(first.Kind(), Equals, "download-snap")
+			wait := false
+			if expectedRetiring["other-snap"]["aliasA"] != "" {
+				wait = true
+			} else if expectedRetiring["some-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(first.WaitTasks(), DeepEquals, retireTasks)
+			} else {
+				c.Check(first.WaitTasks(), HasLen, 0)
+			}
+		}
+		if scenario.new {
+			aliasTask := tasks[j]
+			j++
+			c.Check(aliasTask.Kind(), Equals, "alias")
+			var aliases map[string]string
+			err := aliasTask.Get("aliases", &aliases)
+			c.Assert(err, IsNil)
+			c.Check(aliases, DeepEquals, expectedAuto(new["other-snap"]))
+			wait := false
+			if expectedRetiring["some-snap"]["aliasB"] != "" {
+				wait = true
+			} else if expectedRetiring["other-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(aliasTask.WaitTasks(), DeepEquals, retireTasks)
+			} else {
+				c.Check(aliasTask.WaitTasks(), HasLen, 0)
+			}
+		}
+		c.Assert(j, Equals, len(tasks))
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateLocalSnapFails(c *C) {
@@ -4138,6 +4265,12 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		last := tasks[len(tasks)-1]
 		terr := s.state.NewTask("error-trigger", "provoking total undo")
 		terr.WaitFor(last)
+		if len(last.Lanes()) > 0 {
+			lanes := last.Lanes()
+			// sanity
+			c.Assert(lanes, HasLen, 1)
+			terr.JoinLane(lanes[0])
+		}
 		chg.AddTask(terr)
 	}
 	chg.AddAll(ts)
