@@ -216,7 +216,7 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)
-	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `model assertion timestamp outside of signing key validity \(key valid between.*\)`)
 }
 
 type serialSuite struct {
