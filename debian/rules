@@ -109,8 +109,10 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 endif
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
+endif
 
 override_dh_systemd_enable:
 	# enable auto-import
