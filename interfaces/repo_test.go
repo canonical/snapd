@@ -1034,22 +1034,21 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	})
 }
 
-func (s *RepositorySuite) TestInterfacesAffectingSnap(c *C) {
+func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	repo := s.emptyRepo
+	c.Assert(repo.AddBackend(&ifacetest.TestSecurityBackend{}), IsNil)
 	c.Assert(repo.AddInterface(testInterface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
 
 	// Snaps should get static security now
-	spec := &ifacetest.TestSpecification{}
-	err := repo.InterfacesAffectingSnap(s.plug.Snap.Name(), spec)
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(spec.Snippets, DeepEquals, []string{"static plug snippet"})
+	c.Check(spec.(*ifacetest.TestSpecification).Snippets, DeepEquals, []string{"static plug snippet"})
 
-	spec = &ifacetest.TestSpecification{}
-	err = repo.InterfacesAffectingSnap(s.slot.Snap.Name(), spec)
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(spec.Snippets, DeepEquals, []string{"static slot snippet"})
+	c.Check(spec.(*ifacetest.TestSpecification).Snippets, DeepEquals, []string{"static slot snippet"})
 
 	// Establish connection between plug and slot
 	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
@@ -1057,18 +1056,16 @@ func (s *RepositorySuite) TestInterfacesAffectingSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	// Snaps should get static and connection-specific security now
-	spec = &ifacetest.TestSpecification{}
-	err = repo.InterfacesAffectingSnap(s.plug.Snap.Name(), spec)
+	spec, err = repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(spec.Snippets, DeepEquals, []string{
+	c.Check(spec.(*ifacetest.TestSpecification).Snippets, DeepEquals, []string{
 		"static plug snippet",
 		"connection-specific plug snippet",
 	})
 
-	spec = &ifacetest.TestSpecification{}
-	err = repo.InterfacesAffectingSnap(s.slot.Snap.Name(), spec)
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
 	c.Assert(err, IsNil)
-	c.Check(spec.Snippets, DeepEquals, []string{
+	c.Check(spec.(*ifacetest.TestSpecification).Snippets, DeepEquals, []string{
 		"static slot snippet",
 		"connection-specific slot snippet",
 	})

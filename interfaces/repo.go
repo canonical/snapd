@@ -624,20 +624,27 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
-// InterfacesAffectingSnap records all the security changes of a given snap.
-func (r *Repository) InterfacesAffectingSnap(snapName string, spec Specification) error {
+// records all the security changes of a given snap.
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
+
+	backend := r.backends[securitySystem]
+	if backend == nil {
+		return nil, fmt.Errorf("cannot obtain specification of snap %q, security system %q is not known", snapName, securitySystem)
+	}
+
+	spec := backend.Specification()
 
 	// slot side
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
 		if err := spec.PermanentSlot(iface, slot); err != nil {
-			return err
+			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
 			if err := spec.ConnectedSlot(iface, plug, slot); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
@@ -645,15 +652,15 @@ func (r *Repository) InterfacesAffectingSnap(snapName string, spec Specification
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
 		if err := spec.PermanentPlug(iface, plug); err != nil {
-			return err
+			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
 			if err := spec.ConnectedPlug(iface, plug, slot); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return spec, nil
 }
 
 // BadInterfacesError is returned when some snap interfaces could not be registered.
