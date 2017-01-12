@@ -5,8 +5,6 @@ environment:
 #    STORE_TYPE/staging: staging
     STORE_TYPE/production: production
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    SNAP_REEXEC/norexec: 0
-    SNAP_REEXEC/withreexec: 1
 
 prepare: |
     if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
