@@ -639,11 +639,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
-		if err := spec.PermanentSlot(iface, slot); err != nil {
+		if err := spec.AddPermanentSlot(iface, slot); err != nil {
 			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
-			if err := spec.ConnectedSlot(iface, plug, slot); err != nil {
+			if err := spec.AddConnectedSlot(iface, plug, slot); err != nil {
 				return nil, err
 			}
 		}
@@ -651,11 +651,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
-		if err := spec.PermanentPlug(iface, plug); err != nil {
+		if err := spec.AddPermanentPlug(iface, plug); err != nil {
 			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
-			if err := spec.ConnectedPlug(iface, plug, slot); err != nil {
+			if err := spec.AddConnectedPlug(iface, plug, slot); err != nil {
 				return nil, err
 			}
 		}

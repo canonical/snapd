@@ -36,7 +36,7 @@ func (spec *TestSpecification) AddSnippet(snippet string) {
 // Implementation of methods required by interfaces.Specification
 
 // ConnectedPlug records test side-effects of having a connected plug.
-func (spec *TestSpecification) ConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *TestSpecification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestConnectedPlug(spec, plug, slot)
 	}
@@ -44,7 +44,7 @@ func (spec *TestSpecification) ConnectedPlug(iface interfaces.Interface, plug *i
 }
 
 // ConnectedSlot records test side-effects of having a connected slot.
-func (spec *TestSpecification) ConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *TestSpecification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestConnectedSlot(spec, plug, slot)
 	}
@@ -52,7 +52,7 @@ func (spec *TestSpecification) ConnectedSlot(iface interfaces.Interface, plug *i
 }
 
 // PermanentPlug records test side-effects of having a plug.
-func (spec *TestSpecification) PermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *TestSpecification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestPermanentPlug(spec, plug)
 	}
@@ -60,7 +60,7 @@ func (spec *TestSpecification) PermanentPlug(iface interfaces.Interface, plug *i
 }
 
 // PermanentSlot records test side-effects of having a slot.
-func (spec *TestSpecification) PermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *TestSpecification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
 		return iface.TestPermanentSlot(spec, slot)
 	}

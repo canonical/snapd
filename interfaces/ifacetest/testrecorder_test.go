@@ -84,10 +84,10 @@ func (s *TestSpecificationSuite) TestAddSnippet(c *C) {
 // The TestSpecification can be used through the interfaces.Specification interface
 func (s *TestSpecificationSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.ConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.ConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.PermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.PermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(s.spec.Snippets, DeepEquals, []string{
 		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }
