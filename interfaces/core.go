@@ -160,13 +160,13 @@ type Interface interface {
 // Recorder describes interactions between backends and interfaces.
 type Recorder interface {
 	// RecordPermanentSlot records side-effects of having a slot.
-	RecordPermanentSlot(iface interface{}, slot *Slot) error
+	RecordPermanentSlot(iface Interface, slot *Slot) error
 	// RecordPermanentSlot records side-effects of having a plug.
-	RecordPermanentPlug(iface interface{}, plug *Plug) error
+	RecordPermanentPlug(iface Interface, plug *Plug) error
 	// RecordPermanentSlot records side-effects of having a connected slot.
-	RecordConnectedSlot(iface interface{}, plug *Plug, slot *Slot) error
+	RecordConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
 	// RecordPermanentSlot records side-effects of having a connected plug.
-	RecordConnectedPlug(iface interface{}, plug *Plug, slot *Slot) error
+	RecordConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
 }
 
 // SecuritySystem is a name of a security system.
