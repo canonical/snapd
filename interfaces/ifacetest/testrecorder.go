@@ -23,54 +23,54 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// TestRecorder is a recorder intended for testing.
-type TestRecorder struct {
+// TestSpecification is a recorder intended for testing.
+type TestSpecification struct {
 	Snippets []string
 }
 
 // AddSnippet appends a snippet to a list stored in the recorder.
-func (rec *TestRecorder) AddSnippet(snippet string) {
-	rec.Snippets = append(rec.Snippets, snippet)
+func (spec *TestSpecification) AddSnippet(snippet string) {
+	spec.Snippets = append(spec.Snippets, snippet)
 }
 
-// Implementation of methods required by interfaces.Recorder
+// Implementation of methods required by interfaces.Specification
 
 // RecordConnectedPlug records test side-effects of having a connected plug.
-func (rec *TestRecorder) RecordConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *TestSpecification) RecordConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestConnectedPlug(rec, plug, slot)
+		return iface.RecordTestConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // RecordConnectedSlot records test side-effects of having a connected slot.
-func (rec *TestRecorder) RecordConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *TestSpecification) RecordConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestConnectedSlot(rec, plug, slot)
+		return iface.RecordTestConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
 // RecordPermanentPlug records test side-effects of having a plug.
-func (rec *TestRecorder) RecordPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *TestSpecification) RecordPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestPermanentPlug(rec, plug)
+		return iface.RecordTestPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
 // RecordPermanentSlot records test side-effects of having a slot.
-func (rec *TestRecorder) RecordPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *TestSpecification) RecordPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	if iface, ok := iface.(testAware); ok {
-		return iface.RecordTestPermanentSlot(rec, slot)
+		return iface.RecordTestPermanentSlot(spec, slot)
 	}
 	return nil
 }
 
 // testAware describes an Interface that can to interact with the test backend.
 type testAware interface {
-	RecordTestConnectedPlug(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestConnectedSlot(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestPermanentPlug(rec *TestRecorder, plug *interfaces.Plug) error
-	RecordTestPermanentSlot(rec *TestRecorder, slot *interfaces.Slot) error
+	RecordTestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	RecordTestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	RecordTestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error
+	RecordTestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error
 }

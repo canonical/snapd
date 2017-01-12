@@ -47,10 +47,10 @@ type TestInterface struct {
 
 	// Support for interacting with the test backend.
 
-	RecordTestConnectedPlugCallback func(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestConnectedSlotCallback func(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error
-	RecordTestPermanentPlugCallback func(rec *TestRecorder, plug *interfaces.Plug) error
-	RecordTestPermanentSlotCallback func(rec *TestRecorder, slot *interfaces.Slot) error
+	RecordTestConnectedPlugCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	RecordTestConnectedSlotCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	RecordTestPermanentPlugCallback func(spec *TestSpecification, plug *interfaces.Plug) error
+	RecordTestPermanentSlotCallback func(spec *TestSpecification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -133,30 +133,30 @@ func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot
 
 // Support for interacting with the test backend.
 
-func (t *TestInterface) RecordTestConnectedPlug(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) RecordTestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.RecordTestConnectedPlugCallback != nil {
-		return t.RecordTestConnectedPlugCallback(rec, plug, slot)
+		return t.RecordTestConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestConnectedSlot(rec *TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) RecordTestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.RecordTestConnectedSlotCallback != nil {
-		return t.RecordTestConnectedSlotCallback(rec, plug, slot)
+		return t.RecordTestConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestPermanentPlug(rec *TestRecorder, plug *interfaces.Plug) error {
+func (t *TestInterface) RecordTestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error {
 	if t.RecordTestPermanentPlugCallback != nil {
-		return t.RecordTestPermanentPlugCallback(rec, plug)
+		return t.RecordTestPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) RecordTestPermanentSlot(rec *TestRecorder, slot *interfaces.Slot) error {
+func (t *TestInterface) RecordTestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error {
 	if t.RecordTestPermanentSlotCallback != nil {
-		return t.RecordTestPermanentSlotCallback(rec, slot)
+		return t.RecordTestPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
