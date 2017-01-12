@@ -6,6 +6,11 @@ environment:
     SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
 
 execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
     echo "Ensure we re-exec by default"
     snap list
     journalctl | MATCH "DEBUG: restarting into"

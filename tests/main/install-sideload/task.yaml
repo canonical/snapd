@@ -6,6 +6,10 @@ prepare: |
         snapbuild $TESTSLIB/snaps/$snap .
     done
 
+environment:
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
+
 restore: |
     for snap in basic test-snapd-tools basic-desktop
     do

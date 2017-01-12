@@ -5,6 +5,8 @@ systems: [+ubuntu-core-16-64]
 environment:
     SNAP_NAME: test-snapd-tools
     DEVMODE_SNAP: test-snapd-devmode
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
 
 execute: |
     echo "Install from different channels"

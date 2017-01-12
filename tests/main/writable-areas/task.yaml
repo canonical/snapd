@@ -1,5 +1,9 @@
 summary: Check that snap apps and services can write to writable areas.
 
+environment:
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
+
 prepare: |
     snapbuild $TESTSLIB/snaps/data-writer .
 
