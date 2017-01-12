@@ -157,8 +157,8 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
-// Recorder describes interactions between backends and interfaces.
-type Recorder interface {
+// Specification describes interactions between backends and interfaces.
+type Specification interface {
 	// RecordPermanentSlot records side-effects of having a slot.
 	RecordPermanentSlot(iface Interface, slot *Slot) error
 	// RecordPermanentSlot records side-effects of having a plug.

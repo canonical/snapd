@@ -27,30 +27,30 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type TestRecorderSuite struct {
+type TestSpecificationSuite struct {
 	iface *ifacetest.TestInterface
-	rec   *ifacetest.TestRecorder
+	spec  *ifacetest.TestSpecification
 	plug  *interfaces.Plug
 	slot  *interfaces.Slot
 }
 
-var _ = Suite(&TestRecorderSuite{
+var _ = Suite(&TestSpecificationSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		RecordTestConnectedPlugCallback: func(rec *ifacetest.TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			rec.AddSnippet("connected-plug")
+		RecordTestConnectedPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		RecordTestConnectedSlotCallback: func(rec *ifacetest.TestRecorder, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			rec.AddSnippet("connected-slot")
+		RecordTestConnectedSlotCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		RecordTestPermanentPlugCallback: func(rec *ifacetest.TestRecorder, plug *interfaces.Plug) error {
-			rec.AddSnippet("permanent-plug")
+		RecordTestPermanentPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug) error {
+			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		RecordTestPermanentSlotCallback: func(rec *ifacetest.TestRecorder, slot *interfaces.Slot) error {
-			rec.AddSnippet("permanent-slot")
+		RecordTestPermanentSlotCallback: func(spec *ifacetest.TestSpecification, slot *interfaces.Slot) error {
+			spec.AddSnippet("permanent-slot")
 			return nil
 		},
 	},
@@ -70,24 +70,24 @@ var _ = Suite(&TestRecorderSuite{
 	},
 })
 
-func (s *TestRecorderSuite) SetUpTest(c *C) {
-	s.rec = &ifacetest.TestRecorder{}
+func (s *TestSpecificationSuite) SetUpTest(c *C) {
+	s.spec = &ifacetest.TestSpecification{}
 }
 
 // AddSnippet is not broken
-func (s *TestRecorderSuite) TestAddSnippet(c *C) {
-	s.rec.AddSnippet("hello")
-	s.rec.AddSnippet("world")
-	c.Assert(s.rec.Snippets, DeepEquals, []string{"hello", "world"})
+func (s *TestSpecificationSuite) TestAddSnippet(c *C) {
+	s.spec.AddSnippet("hello")
+	s.spec.AddSnippet("world")
+	c.Assert(s.spec.Snippets, DeepEquals, []string{"hello", "world"})
 }
 
-// The TestRecorder can be used through the interfaces.Recorder interface
-func (s *TestRecorderSuite) TestRecorderIface(c *C) {
-	var r interfaces.Recorder = s.rec
+// The TestSpecification can be used through the interfaces.Specification interface
+func (s *TestSpecificationSuite) TestSpecificationIface(c *C) {
+	var r interfaces.Specification = s.spec
 	c.Assert(r.RecordConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.RecordConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.RecordPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.RecordPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.rec.Snippets, DeepEquals, []string{
+	c.Assert(s.spec.Snippets, DeepEquals, []string{
 		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }
