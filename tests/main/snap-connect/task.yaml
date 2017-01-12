@@ -34,11 +34,14 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     # XXX: Those only work when installed from the store
+    #
+    CONTENT_CONNECTED_PATTERN = 'test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
 
     echo "The plug side auto-connects when content is installed"
     snap install --edge test-snapd-content-slot
     snap install --edge test-snapd-content-plug
-    snap interfaces | MATCH "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
+
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
 
     # Remove the content snaps so that we can reinstall them the other way around
     snap remove test-snapd-content-plug
@@ -47,4 +50,4 @@ execute: |
     echo "The slot side auto-connects when content snap is installed"
     snap install --edge test-snapd-content-plug
     snap install --edge test-snapd-content-slot
-    snap interfaces | MATCH "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
