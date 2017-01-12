@@ -169,20 +169,6 @@ prepare: |
         exit 1
     fi
 
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
-
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
         if [ ! -f $GOPATH/bin/snapbuild ]; then
