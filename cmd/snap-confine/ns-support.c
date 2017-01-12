@@ -203,7 +203,8 @@ void sc_reassociate_with_pid1_mount_ns()
 		      "the init process, re-association required");
 		// NOTE: we cannot use O_NOFOLLOW here because that file will always be a
 		// symbolic link. We actually want to open it this way.
-		int init_mnt_fd_real __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+		int init_mnt_fd_real
+		    __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 		init_mnt_fd_real = open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC);
 		if (init_mnt_fd_real < 0) {
 			die("cannot open mount namespace of the init process");
