@@ -1416,7 +1416,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -1475,7 +1474,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	_, err = repo.SnapInfo(spec, nil)
@@ -1513,7 +1511,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -1570,7 +1567,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "",
-		Devmode:  false,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -1609,6 +1605,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
+	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
+	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -1621,6 +1619,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
+		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
 
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, MockDetailsJSON)
@@ -1643,7 +1642,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -1677,7 +1675,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -1724,63 +1721,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  true,
 		Revision: snap.R(26),
 	}
 	result, err := repo.SnapInfo(spec, t.user)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Revision, DeepEquals, snap.R(27))
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
-	mockDevmodeJSON := strings.Replace(MockDetailsJSON, `"strict"`, `"devmode"`, -1)
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		c.Check(r.URL.Path, Equals, "/details/hello-world")
-
-		query := r.URL.Query()
-		c.Check(query.Get("channel"), Equals, "edge")
-
-		if query.Get("confinement") == "strict" {
-			w.WriteHeader(http.StatusNotFound)
-			io.WriteString(w, "{}")
-		} else {
-			w.Header().Set("X-Suggested-Currency", "GBP")
-			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, mockDevmodeJSON)
-		}
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
-	c.Assert(err, IsNil)
-	cfg := Config{
-		DetailsURI: detailsURI,
-	}
-	repo := New(&cfg, nil)
-	c.Assert(repo, NotNil)
-
-	// the actual test
-	spec := SnapSpec{
-		Name:     "hello-world",
-		Channel:  "edge",
-		Devmode:  false,
-		Revision: snap.R(0),
-	}
-	result, err := repo.SnapInfo(spec, nil)
-	c.Check(err, Equals, ErrSnapNotFound)
-	c.Check(result, IsNil)
-
-	spec.Devmode = true
-	result, err = repo.SnapInfo(spec, nil)
-	c.Assert(err, IsNil)
-	c.Check(result, NotNil)
-
-	c.Check(snap.Validate(result), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
@@ -1809,7 +1755,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  false,
 		Revision: snap.R(0),
 	}
 	_, err = repo.SnapInfo(spec, nil)
@@ -1859,7 +1804,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	spec := SnapSpec{
 		Name:     "no-such-pkg",
 		Channel:  "edge",
-		Devmode:  false,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -2166,7 +2110,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		c.Check(query.Get("q"), Equals, "hello")
-		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, "<hello>")
 	}))
@@ -2251,7 +2194,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 
 		query := r.URL.Query()
 		c.Check(query.Get("q"), Equals, "foo")
-		c.Check(query.Get("confinement"), Equals, "strict")
+		if release.OnClassic {
+			c.Check(query.Get("confinement"), Matches, `strict,classic|classic,strict`)
+		} else {
+			c.Check(query.Get("confinement"), Equals, "strict")
+		}
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -2369,7 +2316,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			"channel":     "stable",
 			"revision":    float64(1),
 			"epoch":       "0",
-			"confinement": "strict",
+			"confinement": "",
 		})
 		c.Assert(resp.Fields, DeepEquals, detailFields)
 
@@ -2395,7 +2342,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(1),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2437,7 +2383,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(n, Equals, 1)
@@ -2468,7 +2413,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
@@ -2501,7 +2445,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
@@ -2525,7 +2468,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 			"channel":     "stable",
 			"revision":    float64(26),
 			"epoch":       "0",
-			"confinement": "strict",
+			"confinement": "",
 		})
 
 		io.WriteString(w, MockUpdatesJSON)
@@ -2549,7 +2492,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 			Channel:  "stable",
 			Revision: snap.R(26),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2574,7 +2516,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 			"channel":     "stable",
 			"revision":    float64(25),
 			"epoch":       "0",
-			"confinement": "strict",
+			"confinement": "",
 		})
 
 		io.WriteString(w, MockUpdatesJSON)
@@ -2598,7 +2540,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 			Channel:  "stable",
 			Revision: snap.R(25),
 			Epoch:    "0",
-			DevMode:  false,
 			Block:    []snap.Revision{snap.R(26)},
 		},
 	}, nil)
@@ -2699,7 +2640,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 			"channel":     "stable",
 			"revision":    float64(24),
 			"epoch":       "0",
-			"confinement": "strict",
+			"confinement": "",
 		})
 		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}))
 
@@ -2724,7 +2665,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2774,7 +2714,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 			"channel":     "stable",
 			"revision":    float64(24),
 			"epoch":       "0",
-			"confinement": "strict",
+			"confinement": "",
 		})
 		c.Assert(resp.Fields, DeepEquals, detailFields)
 
@@ -2799,7 +2739,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 			Channel:  "stable",
 			Revision: snap.R(24),
 			Epoch:    "0",
-			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -2823,7 +2762,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 			"snap_id":     helloWorldSnapID,
 			"channel":     "stable",
 			"epoch":       "0",
-			"confinement": "devmode",
+			"confinement": "",
 		})
 
 		io.WriteString(w, MockUpdatesJSON)
@@ -2847,7 +2786,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 			Channel:  "stable",
 			Revision: snap.R(-2),
 			Epoch:    "0",
-			DevMode:  true,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -3062,7 +3000,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	spec := SnapSpec{
 		Name:     "hello-world",
 		Channel:  "edge",
-		Devmode:  false,
 		Revision: snap.R(0),
 	}
 	result, err := repo.SnapInfo(spec, nil)
@@ -3567,7 +3504,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 		spec := SnapSpec{
 			Name:     "hello-world",
 			Channel:  "edge",
-			Devmode:  false,
 			Revision: snap.R(0),
 		}
 		snap, err := repo.SnapInfo(spec, t.user)
