@@ -14,29 +14,34 @@ update_core_snap_with_snap_exec_snapctl() {
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
-    # Now unpack the core, inject the new snap-exec and snapctl into it, and
-    # repack it.
+    # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # also add snap/snapd because we re-exec by default.
+    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snap squashfs-root/usr/bin/snap
+
+    # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    mksquashfs squashfs-root "$snap" -comp xz
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # trusty does not support  -Xcompression-level 1
+        mksquashfs squashfs-root "$snap" -comp gzip
+    else
+        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
+    fi
     rm -rf squashfs-root
 
     # Now mount the new core snap
     mount "$snap" "$core"
 
-    # Make sure we're running with the correct snap-exec
-    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
-        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
-        exit 1
-    fi
-
-    # Make sure we're running with the correct snapctl
-    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
-        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
-        exit 1
-    fi
+    # Make sure we're running with the correct copied bits
+    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+        if ! cmp ${p} ${core}${p}; then
+            echo "$p in tree and $p in core snap are unexpectedly not the same"
+            exit 1
+        fi
+    done
 }
 
 prepare_classic() {
@@ -74,6 +79,24 @@ prepare_classic() {
 
         systemctl stop snapd.service snapd.socket
 
+        # Disable burst limit so resetting the state quickly doesn't create problems.
+        mkdir -p /etc/systemd/system/snapd.service.d
+        if [ -n "${SNAP_REEXEC:-}" ]; then
+            EXTRA_ENV="SNAP_REEXEC=$SNAP_REEXEC"
+        else
+            EXTRA_ENV=""
+        fi
+        cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 $EXTRA_ENV
+EOF
+        mkdir -p /etc/systemd/system/snapd.socket.d
+        cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
         update_core_snap_with_snap_exec_snapctl
 
         systemctl daemon-reload
@@ -223,7 +246,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
+Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d

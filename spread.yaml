@@ -9,7 +9,6 @@ environment:
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
-    SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
@@ -169,20 +168,6 @@ prepare: |
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries

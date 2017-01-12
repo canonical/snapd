@@ -47,6 +47,19 @@ const oldCore = "/snap/ubuntu-core/current"
 // old ubuntu-core snaps older than this aren't suitable targets for re-execage
 const minOldRevno = 126
 
+func shouldReexec(envKey string) bool {
+	val := os.Getenv(envKey)
+	if val == "" {
+		return true
+	}
+
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return true
+	}
+	return enabled
+}
+
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
@@ -55,7 +68,7 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	if !osutil.GetenvBool(key) {
+	if !shouldReexec(key) {
 		return
 	}
 
@@ -76,6 +89,22 @@ func ExecInCoreSnap() {
 		if !osutil.FileExists(full) {
 			return
 		}
+	}
+
+	// ensure we do not re-exec into an older version of snapd
+	currentSnapd, err := os.Stat(exe)
+	if err != nil {
+		logger.Noticef("cannot stat %q: %s", exe, err)
+		return
+	}
+	coreSnapSnapd, err := os.Stat(full)
+	if err != nil {
+		logger.Noticef("cannot stat %q: %s", full, err)
+		return
+	}
+	if currentSnapd.ModTime().After(coreSnapSnapd.ModTime()) {
+		logger.Debugf("not restarting into %q: older than %q", full, exe)
+		return
 	}
 
 	logger.Debugf("restarting into %q", full)

@@ -1,5 +1,9 @@
 summary: snap install a large snap from the store (bigger than tmpfs)
 
+environment:
+    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/withreexec: 1
+
 prepare: |
     systemctl stop snapd.{service,socket}
     mount -t tmpfs -o rw,nosuid,nodev,size=4 none /tmp
