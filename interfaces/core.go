@@ -159,14 +159,14 @@ type Interface interface {
 
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
-	// PermanentSlot records side-effects of having a slot.
-	PermanentSlot(iface Interface, slot *Slot) error
-	// PermanentSlot records side-effects of having a plug.
-	PermanentPlug(iface Interface, plug *Plug) error
-	// PermanentSlot records side-effects of having a connected slot.
-	ConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
-	// PermanentSlot records side-effects of having a connected plug.
-	ConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
+	// AddPermanentSlot records side-effects of having a slot.
+	AddPermanentSlot(iface Interface, slot *Slot) error
+	// AddPermanentSlot records side-effects of having a plug.
+	AddPermanentPlug(iface Interface, plug *Plug) error
+	// AddPermanentSlot records side-effects of having a connected slot.
+	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
+	// AddPermanentSlot records side-effects of having a connected plug.
+	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
 }
 
 // SecuritySystem is a name of a security system.
