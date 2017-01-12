@@ -23,12 +23,12 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// TestSpecification is a recorder intended for testing.
+// TestSpecification is a specification intended for testing.
 type TestSpecification struct {
 	Snippets []string
 }
 
-// AddSnippet appends a snippet to a list stored in the recorder.
+// AddSnippet appends a snippet to a list stored in the specification.
 func (spec *TestSpecification) AddSnippet(snippet string) {
 	spec.Snippets = append(spec.Snippets, snippet)
 }
