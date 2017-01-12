@@ -462,9 +462,19 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 	}
 
-	tasksets := make([]*state.TaskSet, 0, len(updates))
-	var retiredAutoAliasesTs *state.TaskSet
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		snapst := stateByID[update.SnapID]
+		return snapst.Channel, snapst.Flags, snapst
 
+	}
+
+	return doUpdate(st, names, updates, params, userID)
+}
+
+func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+	tasksets := make([]*state.TaskSet, 0, len(updates))
+
+	refreshAll := len(names) == 0
 	var nameSet map[string]bool
 	if len(names) != 0 {
 		nameSet = make(map[string]bool, len(names))
@@ -479,46 +489,48 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	}
 
 	reportUpdated := make(map[string]bool, len(updates))
+	var retiredAutoAliasesTs *state.TaskSet
 
 	if len(mustRetireAutoAliases) != 0 {
-		retiredAutoAliasesTs = state.NewTaskSet()
-		for name, retired := range mustRetireAutoAliases {
-			ts, err := ResetAliases(st, name, retired)
-			if err != nil {
-				if len(names) == 0 {
-					// doing "refresh all", just skip this snap
-					logger.Noticef("cannot retire automatic aliases for snap %q: %v", name, err)
-					continue
-				}
-				return nil, nil, err
+		var err error
+		retiredAutoAliasesTs, err = applyAutoAliasesDelta(st, mustRetireAutoAliases, "retire", refreshAll, func(snapName string, _ *state.TaskSet) {
+			if nameSet[snapName] {
+				reportUpdated[snapName] = true
 			}
-			retiredAutoAliasesTs.AddAll(ts)
-			if nameSet[name] {
-				reportUpdated[name] = true
-			}
+		})
+		if err != nil {
+			return nil, nil, err
 		}
 		tasksets = append(tasksets, retiredAutoAliasesTs)
 	}
 
-	for _, update := range updates {
-		snapst := stateByID[update.SnapID]
+	// wait for the auto-alias retire tasks as needed
+	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
+		if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[snapName] != nil || transferTargets[snapName]) {
+			ts.WaitAll(retiredAutoAliasesTs)
+		}
+		reportUpdated[snapName] = true
+	}
 
-		if !validInfoForFlags(update, snapst, Flags{}) {
+	for _, update := range updates {
+		channel, flags, snapst := params(update)
+
+		if !validInfoForFlags(update, snapst, flags) {
 			// XXX: log something
 			continue
 		}
 
 		snapsup := &SnapSetup{
-			Channel:      snapst.Channel,
+			Channel:      channel,
 			UserID:       userID,
-			Flags:        snapst.Flags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup)
 		if err != nil {
-			if len(names) == 0 {
+			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
 				continue
@@ -527,31 +539,14 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 		ts.JoinLane(st.NewLane())
 
-		if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[update.Name()] != nil || transferTargets[update.Name()]) {
-			ts.WaitAll(retiredAutoAliasesTs)
-		}
-
-		reportUpdated[update.Name()] = true
+		scheduleUpdate(update.Name(), ts)
 		tasksets = append(tasksets, ts)
 	}
 
 	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs := state.NewTaskSet()
-		for name, added := range newAutoAliases {
-			ts, err := ResetAliases(st, name, added)
-			if err != nil {
-				if len(names) == 0 {
-					// doing "refresh all", just skip this snap
-					logger.Noticef("cannot enable automatic aliases for snap %q: %v", name, err)
-					continue
-				}
-				return nil, nil, err
-			}
-			if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[name] != nil || transferTargets[name]) {
-				ts.WaitAll(retiredAutoAliasesTs)
-			}
-			addAutoAliasesTs.AddAll(ts)
-			reportUpdated[name] = true
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "enable", refreshAll, scheduleUpdate)
+		if err != nil {
+			return nil, nil, err
 		}
 		tasksets = append(tasksets, addAutoAliasesTs)
 	}
@@ -562,6 +557,24 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	}
 
 	return updated, tasksets, nil
+}
+
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+	applyTs := state.NewTaskSet()
+	for snapName, aliases := range delta {
+		ts, err := ResetAliases(st, snapName, aliases)
+		if err != nil {
+			if refreshAll {
+				// doing "refresh all", just skip this snap
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				continue
+			}
+			return nil, err
+		}
+		linkTs(snapName, ts)
+		applyTs.AddAll(ts)
+	}
+	return applyTs, nil
 }
 
 func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (new map[string][]string, mustRetire map[string][]string, transferTargets map[string]bool, err error) {
@@ -671,20 +684,34 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
 
-	info, err := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	var updates []*snap.Info
+	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if infoErr != nil {
+		if _, ok := infoErr.(*snap.NoUpdateAvailableError); !ok {
+			return nil, infoErr
+		}
+		// there may be some new auto-aliases
+	} else {
+		updates = append(updates, info)
+	}
+
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		return channel, flags, &snapst
+	}
+
+	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	snapsup := &SnapSetup{
-		Channel:      channel,
-		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &info.DownloadInfo,
-		SideInfo:     &info.SideInfo,
+	if len(tts) == 0 && len(updates) == 0 {
+		// really nothing to do, return the original no-update-available error
+		return nil, infoErr
 	}
-
-	return doInstall(st, &snapst, snapsup)
+	flat := state.NewTaskSet()
+	for _, ts := range tts {
+		flat.AddAll(ts)
+	}
+	return flat, nil
 }
 
 func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {

@@ -210,7 +210,6 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
 
 		if !hit.Unset() {
-
 			res = append(res, info)
 		}
 	}
