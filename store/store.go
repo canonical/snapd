@@ -101,6 +101,10 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
 }
 
+func UserAgent() string {
+	return userAgent
+}
+
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
