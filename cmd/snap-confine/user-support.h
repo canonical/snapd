@@ -20,6 +20,7 @@
 
 void setup_user_data();
 void setup_user_xdg_runtime_dir();
+void setup_snap_context_var();
 void mkpath(const char *const path);
 
 #endif
