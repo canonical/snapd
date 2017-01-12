@@ -280,6 +280,11 @@ slots:
         - gadget
         - core
     deny-auto-connection: true
+  io-ports-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
@@ -404,6 +409,16 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   ppp:
     allow-installation:
       slot-snap-type:
