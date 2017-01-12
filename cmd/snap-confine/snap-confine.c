@@ -108,6 +108,7 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
+			sc_reassociate_with_pid1_mount_ns();
 			const char *group_name = getenv("SNAP_NAME");
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
