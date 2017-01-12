@@ -14,32 +14,31 @@ prepare: |
 execute: |
     . $TESTSLIB/names.sh
 
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :home +home-consumer"
+    CONNECTED_PATTERN=':home +home-consumer'
 
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     snap disconnect home-consumer:home "${core_name}:home"
 
     echo "The plug can be connected to a matching slot with slot name omitted"
     snap connect home-consumer:home "${core_name}"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     snap disconnect home-consumer:home "${core_name}:home"
 
     echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
     snap connect home-consumer:home :home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     # XXX: Those only work when installed from the store
 
     echo "The plug side auto-connects when content is installed"
     snap install --edge test-snapd-content-slot
     snap install --edge test-snapd-content-plug
-    snap interfaces | grep -Pzq "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
+    snap interfaces | MATCH "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
 
     # Remove the content snaps so that we can reinstall them the other way around
     snap remove test-snapd-content-plug
@@ -48,4 +47,4 @@ execute: |
     echo "The slot side auto-connects when content snap is installed"
     snap install --edge test-snapd-content-plug
     snap install --edge test-snapd-content-slot
-    snap interfaces | grep -Pzq "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"
+    snap interfaces | MATCH "test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot"

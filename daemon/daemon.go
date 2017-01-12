@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -205,6 +206,7 @@ func (d *Daemon) Init() error {
 	d.addRoutes()
 
 	logger.Debugf("init done in %s", time.Now().Sub(t0))
+	logger.Noticef("started %v.", store.UserAgent())
 
 	return nil
 }
