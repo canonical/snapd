@@ -127,6 +127,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/hostname ixr,
   /{,usr/}bin/id ixr,
   /{,usr/}bin/igawk ixr,
+  /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{,usr/}bin/less{,file,pipe} ixr,
@@ -242,6 +243,10 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/@{pid}/comm r,
 
+  # Per man(5) proc, the kernel enforces that a thread may only modify its comm
+  # value or those in its thread group.
+  owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
   # Miscellaneous accesses
   /dev/{,u}random w,
   /etc/machine-id r,
@@ -326,6 +331,8 @@ var defaultTemplate = []byte(`
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
+  # Also allow app-specific access for sem_open()
+  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
