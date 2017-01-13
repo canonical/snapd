@@ -20,6 +20,7 @@
 package strutil
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -152,13 +153,13 @@ func compareSubversion(va, vb string) int {
 //   -1 if a is smaller than b
 //    0 if a equals b
 //   +1 if a is bigger than b
-func VersionCompare(va, vb string) (res int) {
+func VersionCompare(va, vb string) (res int, err error) {
 	// FIXME: return err here instead
 	if !VersionIsValid(va) {
-		va = "0"
+		return 0, fmt.Errorf("invalid version %q", va)
 	}
 	if !VersionIsValid(vb) {
-		vb = "0"
+		return 0, fmt.Errorf("invalid version %q", vb)
 	}
 
 	if !strings.Contains(va, "-") {
@@ -173,11 +174,11 @@ func VersionCompare(va, vb string) (res int) {
 	mainB := strings.Split(vb, "-")[0]
 	res = compareSubversion(mainA, mainB)
 	if res != 0 {
-		return res
+		return res, nil
 	}
 
 	// the subversion revision behind the "-"
 	revA := strings.Split(va, "-")[1]
 	revB := strings.Split(vb, "-")[1]
-	return compareSubversion(revA, revB)
+	return compareSubversion(revA, revB), nil
 }

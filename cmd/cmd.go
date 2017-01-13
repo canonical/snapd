@@ -91,7 +91,12 @@ func ExecInCoreSnap() {
 		logger.Noticef("cannot find version information in %q", content)
 	}
 	// > 0 means our Version is bigger than the version of snapd in core
-	if strutil.VersionCompare(Version, ver[1]) > 0 {
+	res, err := strutil.VersionCompare(Version, ver[1])
+	if err != nil {
+		logger.Debugf("cannot version compare %q and %q: %s", Version, ver[1], res)
+		return
+	}
+	if res > 0 {
 		logger.Debugf("not restarting into %q (%s): older than %q (%s)", full, ver, exe, Version)
 		return
 	}
