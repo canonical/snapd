@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -517,10 +516,6 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		return nil, retryErr(t, "cannot deliver device serial request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	out, _ := os.Create("/tmp/debug.out")
-	defer out.Close()
-	io.Copy(out, resp.Body)
 
 	switch resp.StatusCode {
 	case 200, 201:
