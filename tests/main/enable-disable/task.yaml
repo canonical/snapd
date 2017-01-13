@@ -1,9 +1,5 @@
 summary: Check that enable/disable works
 
-environment:
-    SNAP_REEXEC/noreexec: 0
-    SNAP_REEXEC/withreexec: 1
-
 execute: |
     echo "Install test-snapd-tools and ensure it runs"
     . $TESTSLIB/snaps.sh
