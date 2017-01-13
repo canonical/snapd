@@ -17,14 +17,12 @@
  *
  */
 
-package cmd
+package strutil
 
 import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -111,8 +109,8 @@ func getFragments(a string) []string {
 	return findFrags(a, -1)
 }
 
-// VersionIsValid returns true if the given string is a valid snap
-// version number
+// VersionIsValid returns true if the given string is a valid
+// version number according to the debian policy
 func VersionIsValid(a string) bool {
 	if matchEpoch(a) {
 		return false
@@ -148,18 +146,18 @@ func compareSubversion(va, vb string) int {
 	return 0
 }
 
-// VersionCompare compare two version strings and
+// VersionCompare compare two version strings that follow the debian
+// version policy and
 // Returns:
 //   -1 if a is smaller than b
 //    0 if a equals b
 //   +1 if a is bigger than b
 func VersionCompare(va, vb string) (res int) {
+	// FIXME: return err here instead
 	if !VersionIsValid(va) {
-		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", va)
 		va = "0"
 	}
 	if !VersionIsValid(vb) {
-		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", vb)
 		vb = "0"
 	}
 
@@ -182,17 +180,4 @@ func VersionCompare(va, vb string) (res int) {
 	revA := strings.Split(va, "-")[1]
 	revB := strings.Split(vb, "-")[1]
 	return compareSubversion(revA, revB)
-}
-
-// ByVersion provides a sort interface
-type ByVersion []string
-
-func (bv ByVersion) Less(a, b int) bool {
-	return (VersionCompare(bv[a], bv[b]) < 0)
-}
-func (bv ByVersion) Swap(a, b int) {
-	bv[a], bv[b] = bv[b], bv[a]
-}
-func (bv ByVersion) Len() int {
-	return len(bv)
 }
