@@ -8,6 +8,7 @@ update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
     if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
+        echo "Not modifying the core snap as requested via MODIFY_CORE_SNAP_FOR_REEXEC"
         return
     fi
 
