@@ -3,7 +3,7 @@
 set -e -x
 
 reset_classic() {
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
 
     # purge all state
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
@@ -32,7 +32,7 @@ reset_classic() {
             systemctl start $unit
         done
     fi
-    systemctl start snapd.socket
+    systemctl start snapd.service
 
     # wait for snapd listening
     while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
@@ -54,11 +54,11 @@ reset_all_snap() {
     done
 
     # ensure we have the same state as initially
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
     rm -rf /var/lib/snapd/*
     $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
     rm -rf /root/.snap
-    systemctl start snapd.service snapd.socket
+    systemctl start snapd.service
 }
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

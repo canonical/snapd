@@ -5,7 +5,7 @@ environment:
 prepare: |
     snapbuild $TESTSLIB/snaps/basic .
 
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
     rm -f /var/lib/snapd/state.json
     mkdir -p $SEED_DIR/snaps
     mkdir -p $SEED_DIR/assertions
@@ -24,11 +24,11 @@ prepare: |
 restore: |
     rm -r $SEED_DIR
     mv /etc/os-release.save /etc/os-release
-    systemctl start snapd.socket snapd.service
+    systemctl start snapd.service
 execute: |
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory."
-    systemctl start snapd.socket snapd.service
+    systemctl start snapd.service
 
     echo "Wait for Seed change to be finished"
     for i in `seq 60`; do

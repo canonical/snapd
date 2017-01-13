@@ -31,13 +31,13 @@ execute: |
         exit
     fi
     echo "Simulate a not running snapd (happens on e.g. early boot)"
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
 
     echo "`snap auto-import` spooled assertions if it can not talk to snapd"
     snap auto-import
     ls /run/snapd/auto-import
     umount /mnt
-    systemctl start snapd.service snapd.socket
+    systemctl start snapd.service
 
     echo "`snap auto-import` reads from the auto-import dir"
     snap auto-import

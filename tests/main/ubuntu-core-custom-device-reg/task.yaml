@@ -8,7 +8,7 @@ prepare: |
         exit
     fi
     . $TESTSLIB/systemd.sh
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
@@ -28,14 +28,14 @@ prepare: |
     # start fake device svc
     systemd_create_and_start_unit fakedevicesvc "$(which fakedevicesvc) localhost:11029"
     # kick first boot again
-    systemctl start snapd.service snapd.socket
+    systemctl start snapd.service
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     . $TESTSLIB/systemd.sh
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
     systemd_stop_and_destroy_unit fakedevicesvc
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -56,7 +56,7 @@ restore: |
     cp model.bak /var/lib/snapd/seed/assertions/model
     rm -f *.bak
     # kick first boot again
-    systemctl start snapd.service snapd.socket
+    systemctl start snapd.service
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 execute: |

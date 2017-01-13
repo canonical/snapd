@@ -4,7 +4,7 @@ STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 . $TESTSLIB/systemd.sh
 
 _configure_store_backends(){
-    systemctl stop snapd.service snapd.socket
+    systemctl stop snapd.service
     mkdir -p $(dirname $STORE_CONFIG)
     cat > $STORE_CONFIG <<EOF
 [Service]
@@ -12,7 +12,7 @@ Environment=SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1
 Environment=$*
 EOF
     systemctl daemon-reload
-    systemctl start snapd.socket
+    systemctl start snapd.service
 }
 
 setup_fake_store(){
@@ -50,10 +50,10 @@ teardown_store(){
 	systemd_stop_and_destroy_unit fakestore
     fi
 
-    systemctl stop snapd.socket
+    systemctl stop snapd.service
     rm -rf $STORE_CONFIG $top_dir
     systemctl daemon-reload
-    systemctl start snapd.socket
+    systemctl start snapd.service
 }
 
 setup_store(){
