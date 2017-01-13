@@ -5,6 +5,12 @@ set -eux
 . $TESTSLIB/apt.sh
 
 update_core_snap_for_classic_reexec() {
+    # it is possible to disable this to test that snapd (the deb) works
+    # fine with whatever is in the core snap
+    if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
+        return
+    fi
+
     # We want to use the in-tree snap/snapd/snap-exec/snapctl, because
     # we re-exec by default.
     # To accomplish that, we'll just unpack the core we just grabbed,
