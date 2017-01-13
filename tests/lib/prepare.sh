@@ -72,7 +72,7 @@ prepare_classic() {
             exit 1
         fi
 
-        systemctl stop snapd.service snapd.socket
+        systemctl stop snapd.service
 
         update_core_snap_with_snap_exec_snapctl
 
@@ -87,7 +87,7 @@ prepare_classic() {
         for unit in $mounts $services; do
             systemctl start $unit
         done
-        systemctl start snapd.socket
+        systemctl start snapd.service
     fi
 }
 
@@ -226,12 +226,6 @@ StartLimitInterval=0
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
-
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
 
@@ -315,8 +309,8 @@ prepare_all_snap() {
             exit 1
         fi
 
-        systemctl stop snapd.service snapd.socket
+        systemctl stop snapd.service 
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
-        systemctl start snapd.socket
+        systemctl start snapd.service
     fi
 }

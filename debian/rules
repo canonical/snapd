@@ -132,9 +132,6 @@ override_dh_systemd_enable:
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
-		snapd.socket
-	dh_systemd_enable \
-		-psnapd \
 		snapd.service
 
 override_dh_systemd_start:
@@ -148,9 +145,6 @@ override_dh_systemd_start:
 		-psnapd \
 		snapd.refresh.service
 	# start snapd
-	dh_systemd_start \
-		-psnapd \
-		snapd.socket
 	dh_systemd_start \
 		-psnapd \
 		snapd.service
@@ -193,7 +187,6 @@ override_dh_install:
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service

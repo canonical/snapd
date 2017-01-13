@@ -1,6 +1,5 @@
 [Unit]
 Description=Snappy daemon
-Requires=snapd.socket
 
 [Service]
 ExecStart=/usr/lib/snapd/snapd

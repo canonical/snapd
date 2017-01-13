@@ -157,22 +157,10 @@ It will print how to reuse the systems. Make sure to use
 To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
-    sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo systemctl stop snapd.service 
+    sudo SNAPD_DEBUG=3 SNAP_REEXEC=0 SNAPD_DEBUG_HTTP=3 ./snapd
 
-or with systemd version >= 230
-
-    sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
-
-This will stop the installed snapd and activate the new one. Once it's
-printed out something like `Listening on /run/snapd.socket as 3.` you
-should then
-
-    sudo chmod 0666 /run/snapd*.socket
-
-so the socket has the right permissions (otherwise you need `sudo` to
-connect).
+This will stop the installed snapd and activate the new one. 
 
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
