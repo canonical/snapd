@@ -1,7 +1,7 @@
 summary: Check that enable/disable works
 
 environment:
-    SNAP_REEXEC/norexec: 0
+    SNAP_REEXEC/noreexec: 0
     SNAP_REEXEC/withreexec: 1
 
 execute: |
