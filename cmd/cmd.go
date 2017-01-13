@@ -79,6 +79,7 @@ func ExecInCoreSnap() {
 	// it
 	fullInfo := filepath.Join(corePath, "/usr/lib/snapd/info")
 	if !osutil.FileExists(fullInfo) {
+		logger.Debugf("not restarting into %q (no version info): older than %q (%s)", full, exe, Version)
 		return
 	}
 	content, err := ioutil.ReadFile(fullInfo)
