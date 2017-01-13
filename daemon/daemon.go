@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	unix "syscall"
 	"time"
@@ -198,9 +199,11 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return nil, err
 	}
 
+	runtime.LockOSThread()
 	oldmask := unix.Umask(0111)
 	listener, err := net.ListenUnix("unix", address)
 	unix.Umask(oldmask)
+	runtime.UnlockOSThread()
 	if err != nil {
 		return nil, err
 	}
