@@ -5,6 +5,17 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 environment:
     SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
 
+restore: |
+    # extra cleanup in case something in this test went wrong
+    rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
+    systemctl stop snapd.service snapd.socket
+    if mount|grep "/snap/core/.*/usr/lib/snapd/snapd"; then
+        umount /snap/core/current/usr/lib/snapd/snapd
+    fi
+    if mount|grep "/snap/core/.*/usr/snap"; then
+        umount /snap/core/current/usr/snap
+    fi
+
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
