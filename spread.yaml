@@ -21,7 +21,7 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
-    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
@@ -253,8 +253,10 @@ prepare: |
     fi
     govendor sync
 
-    # increment version so upgrade can work
-    dch -i "testing build"
+    # increment version so upgrade can work, use "zzz" as version
+    # component to ensure that its higher than any "ubuntuN" version
+    # that might also be in the archive
+    dch -lzzz "testing build"
 
     if ! id test >& /dev/null; then
         # manually setting the UID and GID to 12345 because we need to

@@ -20,6 +20,7 @@ cmd/snap-confine/system-shutdown-unit-tests
 *~
 .*.swp
 *.o
+*.a
 
 # manual pages
 cmd/snap-confine/manpages/*.[1-9]
