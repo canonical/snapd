@@ -64,6 +64,7 @@ char *read_snap_context(const char *snap_name)
 void set_snap_context_env(const char *context)
 {
 	if (context != NULL) {
-		setenv("SNAP_CONTEXT", context, 1);
+		// Don't overwrite an existing value as it may be already set if running a hook.
+		setenv("SNAP_CONTEXT", context, 0);
 	}
 }
