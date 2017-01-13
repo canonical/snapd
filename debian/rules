@@ -138,6 +138,10 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+	if [ -f data/info ]; then \
+                mkdir -p debian/snapd/usr/lib/snapd; \
+		install --mode=0644 data/info debian/snapd/usr/lib/snapd; \
+	fi
 	# etc/profile.d contains the PATH extension for snap packages
 	mkdir -p debian/snapd/etc
 	cp -R etc/profile.d debian/snapd/etc
