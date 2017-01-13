@@ -63,6 +63,17 @@ func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, 
 	}, nil
 }
 
+// NewContextWithID returns a new Context with a predefined contextID (must be base64-encoded).
+func NewContextWithID(task *state.Task, setup *HookSetup, handler Handler, contextID string) *Context {
+	return &Context{
+		task:    task,
+		setup:   setup,
+		id:      contextID,
+		handler: handler,
+		cache:   make(map[interface{}]interface{}),
+	}
+}
+
 // SnapName returns the name of the snap containing the hook.
 func (c *Context) SnapName() string {
 	return c.setup.Snap

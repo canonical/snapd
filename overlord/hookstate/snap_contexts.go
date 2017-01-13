@@ -33,22 +33,46 @@ import (
 
 // SnapContexts maintains a map of snap contexts
 type SnapContexts struct {
+	state           *state.State
 	contextsMutex   sync.RWMutex
 	contexts        map[string]*Context
 	snapToContextID map[string]string
 }
 
 func newSnapContexts(s *state.State) *SnapContexts {
-	// TODO: restore from state
 	dir := dirs.SnapContextsDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		panic(fmt.Errorf("cannot create directory for snap contexts %q: %s", dir, err))
 	}
-	//_, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	return &SnapContexts{
+		state:           s,
 		contexts:        make(map[string]*Context),
 		snapToContextID: make(map[string]string),
 	}
+}
+
+func (m *SnapContexts) ensureState() error {
+	m.state.Lock()
+	if err := m.state.Get("contexts", &m.snapToContextID); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("Failed to get contexts: %q", err)
+	}
+	m.state.Unlock()
+
+	// Iterate over contexts retrieved from the state and populate
+	// contexts map of SnapContexts struct.
+	// Ensure the filesystem (/var/lib/snapd/contexts/) is in sync.
+	content := make(map[string]*osutil.FileState)
+	for snapName, contextID := range m.snapToContextID {
+		fstate := osutil.FileState{
+			Content: []byte(contextID),
+			Mode:    0600,
+		}
+		content[fmt.Sprintf("snap.%s", snapName)] = &fstate
+		m.contexts[contextID] = NewContextWithID(nil, &HookSetup{Snap: snapName}, nil, contextID)
+	}
+	dir := dirs.SnapContextsDir
+	_, _, err := osutil.EnsureDirState(dir, "snap.*", content)
+	return err
 }
 
 func (m *SnapContexts) addContext(c *Context) {
@@ -57,6 +81,9 @@ func (m *SnapContexts) addContext(c *Context) {
 	m.contexts[contextID] = c
 	m.snapToContextID[c.setup.Snap] = contextID
 	m.contextsMutex.Unlock()
+	m.state.Lock()
+	m.state.Set("contexts", &m.snapToContextID)
+	m.state.Unlock()
 }
 
 // DeleteSnapContext removes context mapping for given snap.
@@ -71,8 +98,7 @@ func (m *SnapContexts) DeleteSnapContext(snapName string) {
 
 // CreateSnapContext creates a new context mapping for given snap name
 func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
-	hooksup := &HookSetup{Snap: snapName}
-	context, err := NewContext(nil, hooksup, nil)
+	context, err := NewContext(nil, &HookSetup{Snap: snapName}, nil)
 	if err != nil {
 		return nil, err
 	}
