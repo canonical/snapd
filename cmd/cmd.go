@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // The SNAP_REEXEC environment variable controls whether the command
@@ -63,8 +64,10 @@ func ExecInCoreSnap() {
 		return
 	}
 
+	corePath := newCore
 	full := filepath.Join(newCore, exe)
 	if !osutil.FileExists(full) {
+		corePath = oldCore
 		full = filepath.Join(oldCore, exe)
 		if !osutil.FileExists(full) {
 			return
@@ -74,24 +77,21 @@ func ExecInCoreSnap() {
 	// ensure we do not re-exec into an older version of snapd, look
 	// for info file and ignore version of core that do not yet have
 	// it
-	fullInfo := filepath.Join(newCore, "/usr/lib/snapd/info")
+	fullInfo := filepath.Join(corePath, "/usr/lib/snapd/info")
 	if !osutil.FileExists(fullInfo) {
-		fullInfo = filepath.Join(oldCore, "/usr/lib/snapd/info")
-		if !osutil.FileExists(fullInfo) {
-			return
-		}
+		return
 	}
 	content, err := ioutil.ReadFile(fullInfo)
 	if err != nil {
 		logger.Noticef("cannot read info file %q: %s", fullInfo, err)
 		return
 	}
-	ver := regexp.MustCompile("(?ms)^VERSION=(.*)\n").FindStringSubmatch(string(content))
+	ver := regexp.MustCompile("(?m)^VERSION=(.*)$").FindStringSubmatch(string(content))
 	if len(ver) != 2 {
 		logger.Noticef("cannot find version information in %q", content)
 	}
 	// > 0 means our Version is bigger than the version of snapd in core
-	if VersionCompare(Version, ver[1]) > 0 {
+	if strutil.VersionCompare(Version, ver[1]) > 0 {
 		logger.Debugf("not restarting into %q (%s): older than %q (%s)", full, ver, exe, Version)
 		return
 	}
