@@ -69,7 +69,7 @@ snap_confine_SOURCES = \
 	apparmor-support.c \
 	apparmor-support.h
 
-snap_confine_CFLAGS = -Wall -Werror -DCONTEXTS_DIR=\"/var/lib/snapd/contexts\" $(AM_CFLAGS)
+snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,11 +15,9 @@
  *
  */
 
-#ifndef SNAP_CONFINE_USER_SUPPORT_H
-#define SNAP_CONFINE_USER_SUPPORT_H
+#ifndef SNAP_CONFINE_CONTEXT_SUPPORT_H
+#define SNAP_CONFINE_CONTEXT_SUPPORT_H
 
-void setup_user_data();
-void setup_user_xdg_runtime_dir();
-void mkpath(const char *const path);
+void setup_snap_context_var();
 
 #endif

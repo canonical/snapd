@@ -76,7 +76,7 @@ func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dirs.SnapContextsDir, snapName)
+	path := filepath.Join(dirs.SnapContextsDir, fmt.Sprintf("snap.%s", snapName))
 	fstate := osutil.FileState{
 		Content: []byte(context.ID()),
 		Mode:    0600,

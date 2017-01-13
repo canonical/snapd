@@ -257,9 +257,8 @@
     # Allow snap-confine to move to the void
     /var/lib/snapd/void/ r,
 
-    # Allow snap-confine to read snap context filesystem
-    /var/lib/snapd/contexts/ r,
-    /var/lib/snapd/contexts/** r,
+    # Allow snap-confine to read snap contexts
+    /var/lib/snapd/contexts/snap.* r,
 
     # Support for the quirk system
     /var/ r,
