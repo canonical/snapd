@@ -18,9 +18,13 @@
 #include "config.h"
 #include "context-support.h"
 #include "utils.h"
-#include <stdio.h>
 
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define CONTEXTS_DIR "/var/lib/snapd/contexts"
 
@@ -36,11 +40,11 @@ char *read_snap_context(const char *snap_name)
 	must_snprintf(context_path, 1000, "%s/snap.%s", CONTEXTS_DIR,
 		      snap_name);
 
-	FILE *f = fopen(context_path, "rt");
-	if (f == NULL) {
+	int fd = open(context_path, O_RDONLY);
+	if (fd < 0) {
 		error
-		    ("Cannot open context file %s, SNAP_CONTEXT will not be set",
-		     context_path);
+		    ("Cannot open context file %s, SNAP_CONTEXT will not be set: %s",
+		     context_path, strerror(errno));
 		return NULL;
 	}
 	// context is a 32 bytes, base64-encoding makes it 44.
@@ -48,11 +52,12 @@ char *read_snap_context(const char *snap_name)
 	if (context_val == NULL) {
 		die("Failed to allocate memory for snap context");
 	}
-	if (fgets(context_val, 45, f) == NULL) {
+	if (read(fd, context_val, 45) < 0) {
 		free(context_val);
-		error("Failed to read context file %s", context_path);
+		error("Failed to read context file %s: %s", context_path,
+		      strerror(errno));
 	}
-	fclose(f);
+	close(fd);
 	return context_val;
 }
 
