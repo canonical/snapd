@@ -306,6 +306,10 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
+  # Read-only install directory for other revisions to help with bugs like
+  # LP: #1616650 and LP: #1655992
+  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
+
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
