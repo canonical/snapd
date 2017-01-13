@@ -168,6 +168,7 @@ debug-each: |
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then

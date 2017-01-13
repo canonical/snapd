@@ -9,8 +9,8 @@ prepare: |
 environment:
     # Ensure that running purely from the deb (without re-exec) works
     # correctly
-    SNAP_REEXEC/noreexec: 0
-    SNAP_REEXEC/withreexec: 1
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
 
 restore: |
     for snap in basic test-snapd-tools basic-desktop
