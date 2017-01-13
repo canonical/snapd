@@ -44,11 +44,15 @@ func newSnapContexts(s *state.State) *SnapContexts {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		panic(fmt.Errorf("cannot create directory for snap contexts %q: %s", dir, err))
 	}
-	return &SnapContexts{
+	sc := &SnapContexts{
 		state:           s,
 		contexts:        make(map[string]*Context),
 		snapToContextID: make(map[string]string),
 	}
+	if err := sc.ensureState(); err != nil {
+		panic(fmt.Errorf("Failed to restore state: %q", err))
+	}
+	return sc
 }
 
 func (m *SnapContexts) ensureState() error {
