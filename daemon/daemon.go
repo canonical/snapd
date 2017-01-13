@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	unix "syscall"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
@@ -197,13 +198,10 @@ func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return nil, err
 	}
 
+	oldmask := unix.Umask(0111)
 	listener, err := net.ListenUnix("unix", address)
+	unix.Umask(oldmask)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := os.Chmod(socketPath, 0666); err != nil {
-		listener.Close()
 		return nil, err
 	}
 
