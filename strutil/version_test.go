@@ -20,6 +20,8 @@
 package strutil_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil"
@@ -33,29 +35,36 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 	for _, t := range []struct {
 		A, B string
 		res  int
+		err  error
 	}{
-		{"1.0", "2.0", -1},
-		{"1.3", "1.2.2.2", 1},
-		{"1.3", "1.3.1", -1},
-		{"1.0", "1.0~", 1},
-		{"7.2p2", "7.2", 1},
-		{"0.4a6", "0.4", 1},
-		{"0pre", "0pre", 0},
-		{"0pree", "0pre", 1},
-		{"1.18.36:5.4", "1.18.36:5.5", -1},
-		{"1.18.36:5.4", "1.18.37:1.1", -1},
-		{"2.0.7pre1", "2.0.7r", -1},
-		{"0.10.0", "0.8.7", 1},
+		{"1.0", "2.0", -1, nil},
+		{"1.3", "1.2.2.2", 1, nil},
+		{"1.3", "1.3.1", -1, nil},
+		{"1.0", "1.0~", 1, nil},
+		{"7.2p2", "7.2", 1, nil},
+		{"0.4a6", "0.4", 1, nil},
+		{"0pre", "0pre", 0, nil},
+		{"0pree", "0pre", 1, nil},
+		{"1.18.36:5.4", "1.18.36:5.5", -1, nil},
+		{"1.18.36:5.4", "1.18.37:1.1", -1, nil},
+		{"2.0.7pre1", "2.0.7r", -1, nil},
+		{"0.10.0", "0.8.7", 1, nil},
 		// subrev
-		{"1.0-1", "1.0-2", -1},
-		{"1.0-1.1", "1.0-1", 1},
-		{"1.0-1.1", "1.0-1.1", 0},
+		{"1.0-1", "1.0-2", -1, nil},
+		{"1.0-1.1", "1.0-1", 1, nil},
+		{"1.0-1.1", "1.0-1.1", 0, nil},
 		// do we like strange versions? Yes we like strange versions…
-		{"0", "0", 0},
-		{"0", "00", 0},
+		{"0", "0", 0, nil},
+		{"0", "00", 0, nil},
+		// broken
+		{"0--0", "0", 0, fmt.Errorf(`invalid version "0--0"`)},
 	} {
-		res := strutil.VersionCompare(t.A, t.B)
-		c.Check(res, Equals, t.res, Commentf("%s %s: %v but got %v", t.A, t.B, res, t.res))
+		res, err := strutil.VersionCompare(t.A, t.B)
+		if t.err != nil {
+			c.Check(err, DeepEquals, t.err)
+		} else {
+			c.Check(res, Equals, t.res, Commentf("%s %s: %v but got %v", t.A, t.B, res, t.res))
+		}
 	}
 }
 
