@@ -20,9 +20,10 @@
 package cmd
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"syscall"
 
 	"github.com/snapcore/snapd/logger"
@@ -44,9 +45,6 @@ const newCore = "/snap/core/current"
 // newer than minOldRevno will be ok to re-exec into.
 const oldCore = "/snap/ubuntu-core/current"
 
-// old ubuntu-core snaps older than this aren't suitable targets for re-execage
-const minOldRevno = 126
-
 // ExecInCoreSnap makes sure you're executing the binary that ships in
 // the core snap.
 func ExecInCoreSnap() {
@@ -67,31 +65,34 @@ func ExecInCoreSnap() {
 
 	full := filepath.Join(newCore, exe)
 	if !osutil.FileExists(full) {
-		if rev, err := os.Readlink(oldCore); err != nil {
-			return
-		} else if revno, err := strconv.Atoi(rev); err != nil || revno < minOldRevno {
-			return
-		}
-
 		full = filepath.Join(oldCore, exe)
 		if !osutil.FileExists(full) {
 			return
 		}
 	}
 
-	// ensure we do not re-exec into an older version of snapd
-	currentSnapd, err := os.Stat(exe)
+	// ensure we do not re-exec into an older version of snapd, look
+	// for info file and ignore version of core that do not yet have
+	// it
+	fullInfo := filepath.Join(newCore, "/usr/lib/snapd/info")
+	if !osutil.FileExists(fullInfo) {
+		fullInfo = filepath.Join(oldCore, "/usr/lib/snapd/info")
+		if !osutil.FileExists(fullInfo) {
+			return
+		}
+	}
+	content, err := ioutil.ReadFile(fullInfo)
 	if err != nil {
-		logger.Noticef("cannot stat %q: %s", exe, err)
+		logger.Noticef("cannot read info file %q: %s", fullInfo, err)
 		return
 	}
-	coreSnapSnapd, err := os.Stat(full)
-	if err != nil {
-		logger.Noticef("cannot stat %q: %s", full, err)
-		return
+	ver := regexp.MustCompile("(?ms)^VERSION=(.*)\n").FindStringSubmatch(string(content))
+	if len(ver) != 2 {
+		logger.Noticef("cannot find version information in %q", content)
 	}
-	if currentSnapd.ModTime().After(coreSnapSnapd.ModTime()) {
-		logger.Debugf("not restarting into %q: older than %q", full, exe)
+	// > 0 means our Version is bigger than the version of snapd in core
+	if VersionCompare(Version, ver[1]) > 0 {
+		logger.Debugf("not restarting into %q (%s): older than %q (%s)", full, ver, exe, Version)
 		return
 	}
 
