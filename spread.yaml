@@ -9,7 +9,12 @@ environment:
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
-    SNAP_REEXEC: 0
+    # we run the entire suite with re-exec on (the default) and modify
+    # the core snap so that it contains our new code.  So we run new
+    # snapd from the deb that re-execs into new snapd in core.  To
+    # test purely from the deb, set "export SPREAD_SNAP_REEXEC=0"
+    SNAP_REEXEC: "$(HOST: echo ${SPREAD_SNAP_REEXEC:-})"
+    MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
@@ -163,26 +168,13 @@ debug-each: |
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
