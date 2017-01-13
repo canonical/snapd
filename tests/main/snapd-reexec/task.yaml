@@ -1,4 +1,4 @@
-summary: Test that snapd rexecs itself into core
+summary: Test that snapd reexecs itself into core
 
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
