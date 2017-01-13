@@ -37,6 +37,7 @@
 #include "quirks.h"
 #include "secure-getenv.h"
 #include "apparmor-support.h"
+#include "context-support.h"
 
 int main(int argc, char **argv)
 {
@@ -88,6 +89,13 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 #endif
+
+	char *snap_context = NULL;
+	const char *snap_name = getenv("SNAP_NAME");
+	if (snap_name != NULL) {
+		snap_context = read_snap_context(snap_name);
+	}
+
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
 #ifdef HAVE_SECCOMP
@@ -154,8 +162,10 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
-	setup_snap_context_var();
-
+	if (snap_context != NULL) {
+		set_snap_context_env(snap_context);
+		free(snap_context);
+	}
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);
 #ifdef HAVE_SECCOMP

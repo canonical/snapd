@@ -18,35 +18,47 @@
 #include "config.h"
 #include "context-support.h"
 #include "utils.h"
+#include <stdio.h>
 
 #include <string.h>
 
 #define CONTEXTS_DIR "/var/lib/snapd/contexts"
 
-void setup_snap_context_var()
+char *read_snap_context(const char *snap_name)
 {
-	const char *snap_name = getenv("SNAP_NAME");
 	char context_path[1000];
-	// context is a 32 bytes, base64-encoding makes it 44.
-	char context_val[45];
+	char *context_val = NULL;
 
 	if (snap_name == NULL) {
 		die("SNAP_NAME is not set");
 	}
 
-    must_snprintf(context_path, "%s/snap.%s", CONTEXTS_DIR, snap_name)
+	must_snprintf(context_path, 1000, "%s/snap.%s", CONTEXTS_DIR,
+		      snap_name);
 
 	FILE *f = fopen(context_path, "rt");
 	if (f == NULL) {
 		error
 		    ("Cannot open context file %s, SNAP_CONTEXT will not be set",
 		     context_path);
-		return;
+		return NULL;
+	}
+	// context is a 32 bytes, base64-encoding makes it 44.
+	context_val = malloc(45);
+	if (context_val == NULL) {
+		die("Failed to allocate memory for snap context");
 	}
 	if (fgets(context_val, 45, f) == NULL) {
+		free(context_val);
 		error("Failed to read context file %s", context_path);
-	} else {
-		setenv("SNAP_CONTEXT", context_val, 1);
 	}
 	fclose(f);
+	return context_val;
+}
+
+void set_snap_context_env(const char *context)
+{
+	if (context != NULL) {
+		setenv("SNAP_CONTEXT", context, 1);
+	}
 }

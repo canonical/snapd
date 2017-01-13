@@ -18,6 +18,7 @@
 #ifndef SNAP_CONFINE_CONTEXT_SUPPORT_H
 #define SNAP_CONFINE_CONTEXT_SUPPORT_H
 
-void setup_snap_context_var();
+char *read_snap_context(const char *snap_name);
+void set_snap_context_env(const char *context);
 
 #endif
