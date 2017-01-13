@@ -9,12 +9,13 @@ restore: |
     # extra cleanup in case something in this test went wrong
     rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
     systemctl stop snapd.service snapd.socket
+    if mount|grep "/snap/core/.*/usr/lib/snapd/info"; then
+        umount /snap/core/current/usr/lib/snapd/info
+    fi
     if mount|grep "/snap/core/.*/usr/lib/snapd/snapd"; then
         umount /snap/core/current/usr/lib/snapd/snapd
     fi
-    if mount|grep "/snap/core/.*/usr/snap"; then
-        umount /snap/core/current/usr/snap
-    fi
+    rm -f /tmp/old-info
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
@@ -29,14 +30,15 @@ execute: |
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
-    mount --bind /bin/true /snap/core/current/usr/lib/snapd/snapd
+    echo "VERSION=1.0">/tmp/old-info
+    mount --bind /tmp/old-info /snap/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list
     journalctl | MATCH "not restarting into.*older than"
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount /snap/core/current/usr/lib/snapd/snapd
+    umount /snap/core/current/usr/lib/snapd/info
 
     echo "Ensure SNAP_REEXEC=0 is honored for snapd"
     cat > /etc/systemd/system/snapd.service.d/no-reexec.conf <<EOF

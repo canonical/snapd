@@ -29,6 +29,7 @@ update_core_snap_for_classic_reexec() {
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
     cp /usr/bin/snap squashfs-root/usr/bin/snap
 
     # repack, cheating to speed things up (4sec vs 1.5min)
