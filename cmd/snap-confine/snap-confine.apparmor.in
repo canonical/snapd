@@ -187,6 +187,10 @@
     mount options=(rw bind) /dev/pts/ptmx/ -> /dev/ptmx/,
     mount options=(rw bind) /dev/pts/ptmx/ -> /dev/pts/ptmx/,
 
+    # SNAP_CONFINE_TESTING=bind-packaged-over-core
+    mount options=(rw bind) /var/lib/snapd/hostfs/usr/bin/snapctl -> /snap/{ubuntu-,}core/*/usr/bin/snapctl,
+    mount options=(rw bind) /var/lib/snapd/hostfs/usr/lib/snapd/snap-exec -> /snap/{ubuntu-,}core/*/usr/lib/snapd/snap-exec,
+
     # for running snaps on classic
     /snap/ r,
     /snap/** r,

@@ -1,13 +1,23 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 prepare: |
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --dangerous test-snapd-tools_1.0_all.snap
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 restore: |
-    rm -f *.snap
+    rm -f *.vars.txt
 execute: |
-    echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt 
-    test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt 
+    echo "Collect SNAP environment variables set in the testbed"
+    env | egrep '^SNAP_' | sort > testbed-snap-vars.txt
+
+    echo "Collect SNAP and XDG environment variables as seen by apps"
+    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars-unfiltered.txt
+    test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt
+
+    echo "Filter out testbed variables from observed variables"
+    truncate -s 0 blacklist-vars.txt
+    for varname in $(cat testbed-snap-vars.txt | cut -d '=' -f 1); do
+        printf '^%s=.*$\n' "$varname" >> blacklist-vars.txt
+    done
+    grep -v -f blacklist-vars.txt snap-vars-unfiltered.txt > snap-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
     egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$' snap-vars.txt
@@ -15,16 +25,21 @@ execute: |
     egrep -q '^SNAP_DATA=/var/snap/test-snapd-tools/x1$' snap-vars.txt
     egrep -q '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:$' snap-vars.txt
     egrep -q '^SNAP_NAME=test-snapd-tools$' snap-vars.txt
-    # XXX: probably not something we ought to test
-    # egrep -q '^SNAP_REEXEC=0$' snap-vars.txt
     egrep -q '^SNAP_REVISION=x1$' snap-vars.txt
     egrep -q '^SNAP_USER_COMMON=/root/snap/test-snapd-tools/common$' snap-vars.txt
     egrep -q '^SNAP_USER_DATA=/root/snap/test-snapd-tools/x1$' snap-vars.txt
     egrep -q '^SNAP_VERSION=1.0$' snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 10
+    test $(wc -l < snap-vars.txt) -eq 9
+
+    egrep -q '^SNAP_REEXEC=0$' testbed-snap-vars.txt
+    egrep -q '^SNAP_CONFINE_TESTING=bind-packaged-over-core$' testbed-snap-vars.txt
+    test $(wc -l < testbed-snap-vars.txt) -eq 2
 
     echo "Enure that XDG environment variables are what we expect"
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -ge 1
 debug: |
-    cat *-vars.txt
+    for fname in *-vars.txt; do
+        echo " == $fname == "
+        cat "$fname"
+    done

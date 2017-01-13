@@ -27,4 +27,6 @@
  **/
 void sc_setup_quirks();
 
+const char *sc_get_inner_core_mount_point();
+
 #endif

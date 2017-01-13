@@ -22,6 +22,11 @@ environment:
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
     GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
+    # In classic systems this will cause snap-confine to bind mount snap-exec
+    # and snapctl from the system package (that we rebuild and reinstall) over
+    # to the snap execution environment. Note that *only* classic systems are
+    # supported this way.
+    SNAP_CONFINE_TESTING: bind-packaged-over-core
 
 backends:
     linode:

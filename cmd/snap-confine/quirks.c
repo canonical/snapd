@@ -39,7 +39,7 @@
  * (legacy).  The mount point does not depend on build-time configuration and
  * does not differ from distribution to distribution.
  **/
-static const char *sc_get_inner_core_mount_point()
+const char *sc_get_inner_core_mount_point()
 {
 	const char *core_path = "/snap/core/current/";
 	const char *ubuntu_core_path = "/snap/ubuntu-core/current/";
