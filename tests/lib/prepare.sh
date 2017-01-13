@@ -4,9 +4,10 @@ set -eux
 
 . $TESTSLIB/apt.sh
 
-update_core_snap_with_snap_exec_snapctl() {
-    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
-    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+update_core_snap_for_classic_reexec() {
+    # We want to use the in-tree snap/snapd/snap-exec/snapctl, because
+    # we re-exec by default.
+    # To accomplish that, we'll just unpack the core we just grabbed,
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
@@ -18,7 +19,8 @@ update_core_snap_with_snap_exec_snapctl() {
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
-    # also add snap/snapd because we re-exec by default.
+    # also add snap/snapd because we re-exec by default and want to test
+    # this version
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
     cp /usr/bin/snap squashfs-root/usr/bin/snap
 
@@ -99,7 +101,7 @@ EOF
 
         systemctl stop snapd.service snapd.socket
 
-        update_core_snap_with_snap_exec_snapctl
+        update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
