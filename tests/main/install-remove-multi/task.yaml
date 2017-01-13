@@ -1,9 +1,5 @@
 summary: Check that install/remove of multiple snaps works
 
-environment:
-    SNAP_REEXEC/norexec: 0
-    SNAP_REEXEC/withreexec: 1
-
 execute: |
     echo "Install multiple snaps from the store"
     snap install test-snapd-tools test-snapd-control-consumer
