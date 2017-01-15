@@ -1,0 +1,4 @@
+summary: Test that i18n works
+
+execute: |
+    LANG=de_DE.UTF-8 snap changes everything | MATCH "Ja, ja, allerdings."

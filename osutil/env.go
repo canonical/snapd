@@ -24,16 +24,27 @@ import (
 	"strconv"
 )
 
-// GetenvBool returns whether the given key may be considered "set" in the environment
-// (i.e. it is set to one of "1", "true", etc)
-func GetenvBool(key string) bool {
+// GetenvBool returns whether the given key may be considered "set" in the
+// environment (i.e. it is set to one of "1", "true", etc).
+//
+// An optional second argument can be provided, which determines how to
+// treat missing or unparsable values; default is to treat them as false.
+func GetenvBool(key string, dflt ...bool) bool {
 	val := os.Getenv(key)
 	if val == "" {
+		if len(dflt) > 0 {
+			return dflt[0]
+		}
+
 		return false
 	}
 
 	b, err := strconv.ParseBool(val)
 	if err != nil {
+		if len(dflt) > 0 {
+			return dflt[0]
+		}
+
 		return false
 	}
 

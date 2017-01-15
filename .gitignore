@@ -18,6 +18,7 @@ cmd/snap-confine/decode-mount-opts
 *~
 .*.swp
 *.o
+*.a
 
 # manual pages
 cmd/snap-confine/manpages/*.[1-9]
