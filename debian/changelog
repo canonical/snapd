@@ -1,3 +1,10 @@
+snapd (2.21-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+  * Disable i18n so the package can build in stretch without new packages.
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Mon, 16 Jan 2017 11:15:32 +1300
+
 snapd (2.21) xenial; urgency=medium
 
   * New upstream release, LP: #1656382
