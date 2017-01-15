@@ -1,4 +1,4 @@
-snapd (2.21-1) UNRELEASED; urgency=medium
+snapd (2.21-1) unstable; urgency=medium
 
   * New upstream release.
   * Disable i18n so the package can build in stretch without new packages.
