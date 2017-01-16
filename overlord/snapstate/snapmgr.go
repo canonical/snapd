@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/transaction"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -430,8 +431,9 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// init so that empty state gets refreshed right away
 	nextRefresh := time.Now()
-	err := m.state.Get("next-auto-refresh-time", &nextRefresh)
-	if err != nil && err != state.ErrNoState {
+	tr := transaction.NewTransaction(m.state)
+	err := tr.Get("core", "next-auto-refresh-time", &nextRefresh)
+	if err != nil && !transaction.IsNoOption(err) {
 		return err
 	}
 
@@ -1142,8 +1144,11 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 func scheduleNextRefresh(st *state.State) time.Time {
 	randomness := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := time.Now().Add(minRefreshInterval).Add(time.Duration(randomness))
-	st.Set("next-auto-refresh-time", nextRefreshTime)
+	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
+
+	tr := transaction.NewTransaction(st)
+	tr.Set("core", "next-auto-refresh-time", nextRefreshTime)
+	tr.Commit()
 
 	return nextRefreshTime
 }
