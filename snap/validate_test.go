@@ -157,7 +157,6 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 		{"simple", true},
 		{"forking", true},
 		{"oneshot", true},
-		{"dbus", true},
 		{"notify", true},
 		// bad
 		{"invalid-thing", false},

@@ -2,12 +2,6 @@ summary: Test dbus activated snaps
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
-    # FIXME: currently needs "--devmode" because of:
-    # apparmor="DENIED" operation="connect"
-    # profile="snap.test-snapd-dbus-service.test-snapd-dbus-service"
-    # name="/run/user/1000/bus" pid=29534 comm="test-snapd-dbus"
-    # requested_mask="wr" denied_mask="wr" fsuid=1000 ouid=1000
-    
     snap install test-snapd-dbus-service
     if ps afx|grep test-snapd-dbus-service; then
         echo "test-snapd-dbus-service already running! test broken"

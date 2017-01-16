@@ -2,18 +2,20 @@ name: test-snapd-dbus-service
 version: 1.0
 summary: Python based example dbus service
 description: ...
-plugs:
-  test-snapd-dbus-service-plug:
+slots:
+  test-snapd-dbus-service-slot:
     interface: dbus
     bus: session
+    service: true
     name: io.snapcraft.SnapDbusService
 apps:
   test-snapd-dbus-service:
     command: bin/test-snapd-dbus-service
     plugs:
-      - test-snapd-dbus-service-plug
       - network
       - network-bind
+    slots:
+      - test-snapd-dbus-service-slot
 parts:
   test-snapd-dbus-service:
     plugin: python3

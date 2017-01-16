@@ -56,8 +56,7 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "simple\n")
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "dbus\nBusName=foo.bar.baz")
+	expectedAppService = fmt.Sprintf(expectedServiceFmt, "simple\n")
 )
 
 var (
@@ -168,30 +167,4 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 
 	_, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, NotNil)
-}
-
-func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
-
-	yamlText := `
-name: snap
-version: 1.0
-apps:
-    app:
-        command: bin/start
-        stop-command: bin/stop
-        post-stop-command: bin/stop --post
-        stop-timeout: 10s
-        bus-name: foo.bar.baz
-        daemon: dbus
-`
-
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	info.Revision = snap.R(44)
-	app := info.Apps["app"]
-
-	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
-	c.Assert(err, IsNil)
-
-	c.Assert(wrapperText, Equals, expectedDbusService)
 }
