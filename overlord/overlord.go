@@ -35,9 +35,9 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/hook"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -68,8 +68,8 @@ type Overlord struct {
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
-	configMgr *configstate.ConfigManager
+	hookMgr   *hook.HookManager
+	configMgr *config.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 }
 
@@ -93,7 +93,7 @@ func New() (*Overlord, error) {
 
 	o.stateEng = NewStateEngine(s)
 
-	hookMgr, err := hookstate.Manager(s)
+	hookMgr, err := hook.Manager(s)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func New() (*Overlord, error) {
 	o.ifaceMgr = ifaceMgr
 	o.stateEng.AddManager(o.ifaceMgr)
 
-	configMgr, err := configstate.Manager(s, hookMgr)
+	configMgr, err := config.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +320,7 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 
 // HookManager returns the hook manager responsible for running hooks under the
 // overlord.
-func (o *Overlord) HookManager() *hookstate.HookManager {
+func (o *Overlord) HookManager() *hook.HookManager {
 	return o.hookMgr
 }
 

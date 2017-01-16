@@ -34,7 +34,7 @@ type repositorySuite struct{}
 var _ = Suite(&repositorySuite{})
 
 func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
-	repository := newRepository()
+	repository := NewRepository()
 
 	var calledContext *Context
 	mockHandlerGenerator := func(context *Context) Handler {
@@ -43,7 +43,7 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	}
 
 	// Verify that a handler generator can be added to the repository
-	repository.addHandlerGenerator(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+	repository.AddHandlerGenerator(regexp.MustCompile("test-hook"), mockHandlerGenerator)
 
 	state := state.New(nil)
 	state.Lock()
@@ -55,15 +55,15 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	c.Assert(context, NotNil)
 
 	// Verify that the handler can be generated
-	handlers := repository.generateHandlers(context)
+	handlers := repository.GenerateHandlers(context)
 	c.Check(handlers, HasLen, 1)
 	c.Check(calledContext, DeepEquals, context)
 
 	// Add another handler
-	repository.addHandlerGenerator(regexp.MustCompile(".*-hook"), mockHandlerGenerator)
+	repository.AddHandlerGenerator(regexp.MustCompile(".*-hook"), mockHandlerGenerator)
 
 	// Verify that two handlers are generated for the test-hook, now
-	handlers = repository.generateHandlers(context)
+	handlers = repository.GenerateHandlers(context)
 	c.Check(handlers, HasLen, 2)
 	c.Check(calledContext, DeepEquals, context)
 }
