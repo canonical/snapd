@@ -51,7 +51,7 @@ func init() {
 }
 */
 
-// reexec will rexec itself with sudo
+// reexec will reexec itself with sudo
 func reexecWithSudo() error {
 	args := []string{"/usr/bin/sudo"}
 	args = append(args, os.Args...)
