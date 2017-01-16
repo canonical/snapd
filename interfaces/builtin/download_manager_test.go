@@ -61,14 +61,14 @@ func (s *DownloadInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DownloadInterfaceSuite) TestSanitizeSlot(c *C) {
-    err := s.iface.SanitizeSlot(s.slot)
-    c.Assert(err, IsNil)
-    err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-        Snap:      &snap.Info{SuggestedName: "some-snap"},
-        Name:      "download-manager",
-        Interface: "download-manager",
-    }})
-    c.Assert(err, IsNil)
+	err := s.iface.SanitizeSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Name:      "download-manager",
+		Interface: "download-manager",
+	}})
+	c.Assert(err, IsNil)
 }
 
 func (s *DownloadInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
