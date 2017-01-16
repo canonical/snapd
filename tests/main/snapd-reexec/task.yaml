@@ -17,6 +17,10 @@ restore: |
     fi
     rm -f /tmp/old-info
 
+debug: |
+    ls /etc/systemd/system/snapd.service.d
+    cat /etc/systemd/system/snapd.service.d/*
+
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
