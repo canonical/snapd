@@ -1,0 +1,7 @@
+name: snapctl-from-snap
+version: 1.0
+apps:
+    app1:
+        command: bin/app1
+    app2:
+        command: bin/app2
