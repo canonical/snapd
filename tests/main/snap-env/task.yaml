@@ -8,7 +8,7 @@ debug: |
     cat *-vars.txt
 execute: |
     echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt 
+    test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt 
 
     echo "Ensure that SNAP environment variables are what we expect"
@@ -23,7 +23,7 @@ execute: |
     egrep -q '^SNAP_USER_COMMON=/root/snap/test-snapd-tools/common$' snap-vars.txt
     egrep -q '^SNAP_USER_DATA=/root/snap/test-snapd-tools/x1$' snap-vars.txt
     egrep -q '^SNAP_VERSION=1.0$' snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 11
+    test $(wc -l < snap-vars.txt) -eq 10
 
     echo "Enure that XDG environment variables are what we expect"
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
