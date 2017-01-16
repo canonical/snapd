@@ -18,7 +18,10 @@ prepare: |
     # Remember what we want to have when we restore.
     dpkg --get-selections > pkg-list
     # Download test kernel packages.
-    for f in linux-image-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb linux-image-extra-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb linux-headers-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb; do
+    for f in \
+            linux-image-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb \
+            linux-image-extra-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb \
+            linux-headers-4.8.0-34-generic_4.8.0-34.36+lp1656121_amd64.deb; do
         wget --quiet http://people.canonical.com/~jj/lp1656121/$f
     done
     # Remove any installed regular kernel packages.
