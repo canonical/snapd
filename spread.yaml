@@ -27,6 +27,8 @@ environment:
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
     GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
+    DELTA_REF: 2.17
+    DELTA_PREFIX: snapd-$DELTA_REF/
 
 backends:
     linode:
@@ -148,6 +150,10 @@ path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
+    - cmd/snap/snap
+    - cmd/snapd/snapd
+    - cmd/snapctl/snapctl
+    - cmd/snap-exec/snap-exec
 
 prepare-each: |
     # systemd on 14.04 does not know about --rotate
@@ -165,8 +171,41 @@ debug-each: |
     journalctl -u snapd
     dmesg | grep DENIED || true
 
+rename:
+    # Move content into a directory, so that deltas computed by repack benefit
+    # from the content looking similar to codeload.github.com.
+    - s,^,$DELTA_PREFIX,S
+
+repack: |
+    # For Linode, compute a delta based on a known git reference that can be
+    # obtained directly from GitHub. There's nothing special about that reference,
+    # other than it will often be in the local repository's history already.
+    # The more recent the reference, the smaller the delta.
+    if ! echo $SPREAD_BACKENDS | grep linode; then
+        cat <&3 >&4
+    elif ! git show-ref $DELTA_REF > /dev/null; then
+        cat <&3 >&4
+    else
+        trap "rm -f delta-ref.tar current.delta" EXIT
+        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        xdelta3 -s delta-ref.tar <&3 > current.delta
+        tar c current.delta >&4
+    fi
+
 prepare: |
-    # this indicates that the server got reused, nothing to setup
+    # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
+    if [ -f current.delta ]; then
+        apt-get update
+        apt-get install -y xdelta3 curl
+        curl -s -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        xdelta3 -d -s delta-ref.tar current.delta | tar x --strip-components=1
+        rm -f delta-ref.tar current.delta
+    elif [ -d $DELTA_PREFIX ]; then
+        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir $DELTA_PREFIX
+    fi
+
+    # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
     # check that we are not updating
@@ -332,3 +371,5 @@ suites:
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
             $TESTSLIB/reset.sh
+
+# vim:ts=4:sw=4:et
