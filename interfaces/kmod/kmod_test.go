@@ -20,14 +20,14 @@
 package kmod_test
 
 import (
-	"github.com/snapcore/snapd/interfaces/backendtest"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
 type kmodSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 }
 
 var _ = Suite(&kmodSuite{})

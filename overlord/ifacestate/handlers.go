@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -114,7 +113,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			logger.Noticef("%s", err)
+			task.Logf("%s", err)
 		} else {
 			return err
 		}
@@ -290,10 +289,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
-	}
+	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
@@ -334,9 +331,14 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		BaseDeclaration:     baseDecl,
 	}
 
-	err = ic.Check()
-	if err != nil {
-		return err
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		err = ic.Check()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = m.repo.Connect(connRef)
@@ -398,29 +400,11 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var affectedConns []interfaces.ConnRef
-	if plugRef.Snap != "" && plugRef.Name != "" && slotRef.Snap != "" && slotRef.Name != "" {
-		if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-			return err
-		}
-		affectedConns = []interfaces.ConnRef{{plugRef, slotRef}}
-	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
-		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
-		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
-		if err != nil {
-			return err
-		}
-		m.repo.DisconnectAll(affectedConns)
-	} else if plugRef.Snap == "" && plugRef.Name == "" && slotRef.Name != "" {
-		// Symmetrically, slotRef.Snap can be either empty or not
-		affectedConns, err = m.repo.Connected(slotRef.Snap, slotRef.Name)
-		if err != nil {
-			return err
-		}
-		m.repo.DisconnectAll(affectedConns)
-	} else {
-		return fmt.Errorf("internal error, unhandled disconnect case plug: %q, slot: %q", plugRef, slotRef)
+	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
 	}
+	m.repo.DisconnectAll(affectedConns)
 	affectedSnaps := snapNamesFromConns(affectedConns)
 	for _, snapName := range affectedSnaps {
 		var snapst snapstate.SnapState

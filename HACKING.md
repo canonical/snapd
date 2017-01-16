@@ -132,8 +132,13 @@ Then setup the environment via:
 
     $ mkdir -p .spread/qemu
     $ cd .spread/qemu
-    $ adt-buildvm-ubuntu-cloud
+    # For xenial (same works for yakkety/zesty)
+    $ adt-buildvm-ubuntu-cloud -r xenial
     $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
+    # For trusty
+    $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
+    $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+
 
 And you can run the tests via:
 
@@ -153,12 +158,12 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=3 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 or with systemd version >= 230
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo systemd-socket-activate -E SNAPD_DEBUG=3 -E SNAPD_DEBUG_HTTP=3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you

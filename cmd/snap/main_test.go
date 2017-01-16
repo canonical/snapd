@@ -31,6 +31,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -42,18 +44,18 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-func openPty() (*os.File, error) {
-	return os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
-}
-
 type BaseSnapSuite struct {
 	testutil.BaseTest
-	stdin  *bytes.Buffer
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
-	term   *os.File
+	stdin    *bytes.Buffer
+	stdout   *bytes.Buffer
+	stderr   *bytes.Buffer
+	password string
 
 	AuthFile string
+}
+
+func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
+	return []byte(s.password), nil
 }
 
 func (s *BaseSnapSuite) SetUpTest(c *C) {
@@ -61,15 +63,12 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
-
-	pty, err := openPty()
-	c.Assert(err, IsNil)
-	s.term = pty
+	s.password = ""
 
 	snap.Stdin = s.stdin
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
-	snap.Terminal = int(s.term.Fd())
+	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 }
@@ -78,9 +77,7 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
-	snap.Terminal = 0
-
-	s.term.Close()
+	snap.ReadPassword = terminal.ReadPassword
 
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
