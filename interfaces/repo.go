@@ -631,7 +631,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 
 	backend := r.backends[securitySystem]
 	if backend == nil {
-		return nil, fmt.Errorf("cannot obtain specification of snap %q, security system %q is not known", snapName, securitySystem)
+		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
 	spec := backend.NewSpecification()
