@@ -4,11 +4,7 @@ STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 . $TESTSLIB/systemd.sh
 
 _configure_store_backends(){
-    for snap in snapd.service snapd.socket; do
-        if systemctl status "$snap"; then
-            systemctl stop "$snap"
-        fi
-    done
+    systemctl stop snapd.service snapd.socket snapd.refresh.timer
     rm -rf $(dirname $STORE_CONFIG) && mkdir -p $(dirname $STORE_CONFIG)
     cat > $STORE_CONFIG <<EOF
 [Service]
@@ -24,9 +20,7 @@ setup_staging_store(){
 }
 
 teardown_staging_store(){
-    if systemctl status snapd.socket; then
-        systemctl stop snapd.socket
-    fi
+    systemctl stop snapd.socket
     rm -rf $STORE_CONFIG
     systemctl daemon-reload
     systemctl start snapd.socket
