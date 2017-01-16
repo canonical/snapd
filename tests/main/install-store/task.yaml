@@ -5,6 +5,10 @@ systems: [+ubuntu-core-16-64]
 environment:
     SNAP_NAME: test-snapd-tools
     DEVMODE_SNAP: test-snapd-devmode
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
 
 execute: |
     echo "Install from different channels"

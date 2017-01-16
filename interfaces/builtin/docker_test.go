@@ -40,7 +40,6 @@ var _ = Suite(&DockerInterfaceSuite{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-daemon",
 			Interface: "docker",
