@@ -2,7 +2,13 @@ summary: Test dbus activated snaps
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
-    snap install test-snapd-dbus-service
+
+    # FIXME: currently needs "--devmode" because of:
+    # ???
+    # without --devmode the dbus-daemon will hang in:
+    # [pid ????] execve("/snap/test-snapd-dbus-service/x10/command-test-snapd-dbus-service.wrapper", ["/snap/test-snapd-dbus-service/x10/command-test-snapd-dbus-service.wrapper"], [/* 74 vars */] <unfinished ...>
+
+    snap install --devmode test-snapd-dbus-service
     if ps afx|grep test-snapd-dbus-service; then
         echo "test-snapd-dbus-service already running! test broken"
         exit 1
