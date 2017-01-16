@@ -206,6 +206,6 @@ func unloadProfiles(profiles []string) error {
 	return nil
 }
 
-func (b *Backend) Specification() interfaces.Specification {
+func (b *Backend) NewSpecification() interfaces.Specification {
 	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }
