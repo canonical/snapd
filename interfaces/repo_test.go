@@ -136,7 +136,7 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestAddBackend(c *C) {
-	backend := &ifacetest.TestSecurityBackend{}
+	backend := &ifacetest.TestSecurityBackend{BackendName: "test"}
 	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
 	err := s.emptyRepo.AddBackend(backend)
 	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
@@ -1349,7 +1349,8 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 
 func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	repo := s.emptyRepo
-	c.Assert(repo.AddBackend(&ifacetest.TestSecurityBackend{}), IsNil)
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
+	c.Assert(repo.AddBackend(backend), IsNil)
 	c.Assert(repo.AddInterface(testInterface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
