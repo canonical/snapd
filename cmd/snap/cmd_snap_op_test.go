@@ -379,26 +379,44 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "refresh",
 		})
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "one"})
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "foo"})
 	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' refreshed`)
+
 }
 
 func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "refresh",
 			"channel": "beta",
 		})
+		s.srv.channel = "beta"
 	}
-	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one"})
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' refreshed`)
+}
+
+func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"classic": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--classic", "one"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -691,7 +709,7 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"stable"}]}\n`)
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"edge"}]}\n`)
 
 		default:
 			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
@@ -703,8 +721,9 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "one", "two"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*one \(stable\) 1.0 from 'bar' installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(stable\) 2.0 from 'baz' installed`)
+	// note that (stable) is omitted
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(edge\) 2.0 from 'baz' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)

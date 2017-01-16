@@ -67,6 +67,7 @@ const unity7ConnectedPlugAppArmor = `
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
 /usr/local/bin/xdg-open ixr,
+/usr/local/share/applications/{,*} r,
 /usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
@@ -253,6 +254,14 @@ dbus (send)
     interface=org.gtk.Menus
     member=Changed
     peer=(name=org.freedesktop.DBus, label=unconfined),
+
+# Ubuntu menus
+dbus (send)
+    bus=session
+    path="/com/ubuntu/MenuRegistrar"
+    interface="com.ubuntu.MenuRegistrar"
+    member="{Register,Unregister}{App,Surface}Menu"
+    peer=(label=unconfined),
 
 # url helper
 dbus (send)

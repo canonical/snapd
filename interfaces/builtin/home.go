@@ -45,8 +45,8 @@ owner @{HOME}/{s,sn,sna}{,/} rwk,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden
 # files; only allow writes to files, not the mount point).
-owner /run/user/[0-9]*/gvfs/**   r,
-owner /run/user/[0-9]*/gvfs/*/** w,
+owner /run/user/[0-9]*/gvfs/{,**} r,
+owner /run/user/[0-9]*/gvfs/*/**  w,
 `
 
 // NewHomeInterface returns a new "home" interface.
