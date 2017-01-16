@@ -31,6 +31,9 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+
+	"golang.org/x/net/context"
 )
 
 // DownloadOptions carries options for downloading snaps plus assertions.
@@ -43,8 +46,8 @@ type DownloadOptions struct {
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
-	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
-	Download(name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
+	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
@@ -64,7 +67,12 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, opts.DevMode, revision, opts.User)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  opts.Channel,
+		Revision: revision,
+	}
+	snap, err := sto.SnapInfo(spec, opts.User)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
@@ -73,7 +81,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 	targetFn = filepath.Join(targetDir, baseName)
 
 	pb := progress.NewTextProgress()
-	if err = sto.Download(name, targetFn, &snap.DownloadInfo, pb, opts.User); err != nil {
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, opts.User); err != nil {
 		return "", nil, err
 	}
 

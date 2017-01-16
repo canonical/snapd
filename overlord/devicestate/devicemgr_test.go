@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
@@ -90,8 +91,8 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.Snap not expected")
+func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.SnapInfo not expected")
 }
 
 func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
@@ -102,7 +103,7 @@ func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([
 	panic("fakeStore.ListRefresh not expected")
 }
 
-func (sto *fakeStore) Download(string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
+func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
 	panic("fakeStore.Download not expected")
 }
 

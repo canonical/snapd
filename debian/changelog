@@ -1,3 +1,233 @@
+snapd (2.20.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - tests: enable the ppc64el tests again
+    - tests: add classic confinement test
+    - tests: run snap confine tests in debian/rules already
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Dec 2016 11:53:29 +0100
+
+snapd (2.20) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - many: implement  "snap alias --reset" using snapstate.ResetAliases
+    - debian: use a packaging branch for 14.04
+    - store: retry downloads on io.Copy errors and sha3 checksum errors
+    - snap: show apps in `snap info`
+    - store: send an explicit X-Ubuntu-Classic header to the store
+    - overlord/snapstate: implement snapstate.ResetAliases
+    - interfaces/builtin: add dbus interface
+    - tests: fix tests on 17.04
+    - store: use mocked retry strategy to make store tests faster
+    - overlord: apply auto-aliases information from the snap-declaration
+      on install or refresh
+    - many: prepare landing on trusty
+    - many: implement snap unalias using snapstate.Unalias
+    - overlord/snapstate: fixing the placement/grouping of some
+      functions
+    - interfaces: support network namespaces via 'ip netns' in network-
+      control
+    - interfaces/builtin: fix pulseaudio apparmor rules
+    - interfaces/builtin: add iio interface
+    - tests: update custom core snap with the freshly build snap-confine
+    - interfaces: use sysd.{Disable,Stop} instead of sysd.DisableNow()
+    - overlord,overlord/snapstate: implement snapstate.Unalias by
+      generalizing the "alias" task
+    - interfaces: misc openstack snap enablement
+    - cmd/snap: mock terminal.ReadPassword instead of using /dev/ptmx
+    - notifications, daemon: kill the unsupported events endpoint
+    - client: only allow Dangerous option in InstallPath
+    - overlord/ifacestate: no interface checks if no snap id
+    - many: implement alias command
+    - snap: tweak snap install output as designed by Mark
+    - debian: fix Pre-Depends on dpkg
+    - tests: check if snap-confine --version is unknown
+    - cmd/snap-confine: allow content interface mounts
+    - tests: remove ppa:snappy-dev/image again
+    - interfaces/apparmor: allow access to core snap
+    - tests: remove snap-confine/ubuntu-core-launcher after the tests
+    - overlord,overlord/snapstate: implement snapstate.Alias
+    - cmd/snap: reject "snap disconnect foo"
+    - debian: add split ubuntu-core-launcher and snap-confine packages
+    - cmd: fix mkversion.sh and add regression test
+    - overlord/snapstate: setup/remove aliases as we link/unlink snaps
+    - cmd/snap,tests: alias support in snap run
+    - snap/snapenv: don't obscure HOME if snap uses classic confinement
+    - store: decode response.Body json inside retry loops
+    - cmd/snap-confine: fix compilation on platforms with gcc < 4.9.0
+    - vendor: update tomb package fixing context support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Dec 2016 22:07:08 +0100
+
+snapd (2.19) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - cmd/snap-confine: disable support for XDG_RUNTIME_DIR
+    - cmd/snap-confine/tests: fix stale path after move to snapd
+    - cmd/snap-confine: don't use __attribute__((nonull))
+    - snap: add description to `snap info`
+    - snap: show last refresh time
+    - store: switch default delta format from xdelta to xdelta3
+    - interfaces: fix system-observe interface to work with ps_mem
+    - debian: add missing ca-certificates dependency
+    - cmd/snap-confine: add support for classic confinement
+    - snapstate/backend: add backend methods to manage aliases
+    - tests: re-enable snap-confine unit tests via spread
+    - many: merge snap-confine into snapd
+    - many: add support for classic confinement
+    - snap: abort install with ctrl+c
+    - cmd/snap: change terms accept URL following UX review
+    - interfaces/apparmor: use distinct apparmor template for classic
+    - snap: add snap size to `snap info`
+    - interfaces: add unconfined access to modem-manager
+    - snap: support for parsing and exposing on snap.Info aliases
+    - debian: disable autopkgtests on ppc64el
+    - snap: disable support for socket activation
+    - tests: fix incorrect restore of the current symlink
+    - asserts: introduce auto-aliases header in snap-declaration
+    - interfaces/seccomp: add support for classic confinement
+    - tests: do not use external snaps
+    - daemon: close the dup()ed file descriptor to not leak it
+    - overlord, daemon, progress: enable building snapd without CGO
+    - daemon, store: let snap info find things in any channel
+    - store: retry tweaks and logging
+    - snap: Improve `snap --help` output as designed by Mark
+    - interfaces/builtin: fix incorrect udev rule in i2c
+    - overlord: increase test timeout and improve failure message
+    - snap: remove unused experimental command
+    - debian: remove unneeded conflict against the "snappy" package
+    - daemon, strutil: move daemon.quotedNames to strutil.Quoted
+    - docs: document SNAP_DEBUG_HTTP in HACKING.md
+    - cmd/snap: have some completers
+    - snap: support "daemon: notify" in snap.yaml
+    - snap: fix try command when daemon linie is added
+    - interfaces: apparmor support for classic confinement
+    - debian/rules: build with -buildoptions=pie
+    - tests: include /boot in saved state (including bootenv and any
+      kernels)
+    - daemon: ensure `snap try` installs core if it's missing
+    - tests: save/restore /snap/core/current symlink
+    - tests: decrease the number of expected featured apps
+    - tests: add set -e to the prepare ssh script
+    - cmd/snap: add tests for section completion; fix bugs.
+    - cmd/snap: document 'snap list --all'
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 08 Dec 2016 16:16:04 +0100
+
+snapd (2.18.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - daemon: fix crash when `snap refresh` contains a single update
+    - fix unhandled error from io.Copy() in download()
+    - interfaces/builtin: fix incorrect udev rule in i2c
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 05 Dec 2016 15:04:13 +0100
+
+snapd (2.18) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - store: retry on io.EOF
+    - tests: skip pty tests on ppc64el and powerpc
+    - client, cmd/snap: introducing "snap info"
+    - snap: do exit 0 on install/remove if that snap is already
+      installed or already removed
+    - snap: add `snap watch <change-id>` to attach to a running change
+    - store: retry downloads using retry loop
+    - snap: try doesn't require snap-dir when run in snap's directory
+    - daemon: show what will change in the "refresh-all" changes
+    - tests: disable autorefresh for the external backend
+    - snap: add `snap list -a` to show all snaps (even inactive ones)
+    - many: unify boolean env var handling
+    - overlord/ifacestate: don't setup jailmode snaps with devmode
+      confinement
+    - snapstate: do not garbage collect the snaps used by the bootenv
+    - debian: drop hard xdelta dependency for now
+    - snap: make `snap login` ask for email if not given as argument
+    - osutil: fix build on armhf (arm in go-arch) and powerpc (ppc in
+      go-arch)
+    - many: rename DevmodeConfinement to DevModeConfinement
+    - store: resp.Body.Close() missing in ReadyToBuy
+    - many: use ConfinementOptions instead of ConfinementType
+    - snap, daemon, store: fake the channel map in the REST API
+    - misc: run github.com/gordonklaus/ineffassign as part of the static
+      checks
+    - docs: add goreportcard badge and remove coveralls badge
+    - tests: force gofmt -s in static checks
+    - many: run gofmt -s -w on all the code
+    - store: DRY actual retry code
+    - many: fix various errors uncovered by goreportcard.com
+    - interfaces/builtin: allow additional shared memory for webkit
+    - many: some more missing snapState->snapst
+    - asserts: introduce an optional freeform display-name for model
+    - interfaces/builtin: rename usb-raw to raw-usb
+    - progress: init pbar with correct total value
+    - daemon/api.go: add quotedNames() helper
+    - interfaces: add ConfinementOptions type
+    - tests: add a test about the extra bits that prepare-device can
+      specify for device registration
+    - tests: check that gpio device nodes are exported after reboot
+    - tests: parameterize core channel with env var for classic too
+    - many: rename variable "ss" to "snapsup" or "snapst" or "st"
+      (depending on context)
+    - tests: do not use external snaps in spread
+    - store: retry buy request
+    - store: retry store.Find
+    - store: retry assertion store call
+    - store: retry call for snap details
+    - many: use snap.ConfinementType rather than bool devmode
+    - daemon: if a bad snap is posted it is not an internal error but a
+      bad request
+    - client: add "Snap.Screenshots" to the client API
+    - interfaces: update base declaration documentation and policy for
+      on-classic and snap-type
+    - store: check payment method before TOS for a better UX
+    - interfaces: allow sched_setaffinity in process-control
+    - tests: parameterize core channel with env var
+    - tests: ensure that the XDG_ env contains at least XDG_RUNTIME_DIR
+    - interfaces: fcitx also listens on the session bus for Qt apps
+    - store: retry ListRefresh
+    - snap: use "Password of <email>:" in the `snap login`
+    - many: reshuffle how we load/inject tests keys so image doesn't
+      need assertstate anymore
+    - store: use range requests if we have a local file already
+    - dirs,interfaces,overlord,snap,snapenv,test: export per-snap
+      XDG_RUNTIME_DIR per user
+    - osutil: make RealUser only look at SUDO_USER when uid==0
+    - tests: do not use the ppa:snappy-dev/image in the tests
+    - store: retry readyToBuy request
+    - tests: increase `expect` timeouts
+    - static tests: add spell check
+    - tests: add debug to all flaky expect tests
+    - systemd: correct the mount arguments when mounting with squashfuse
+    - interfaces: add avahi-observe
+    - store: bring delta downloads back
+    - interfaces: add alsa
+    - interfaces/builtin: fix a broken test that snuck into master
+    - osutil: add chattr funcs
+    - image: init "snap_mode" on image creation time to avoid ugly
+      messages
+    - tests: test-snapd-fuse-consumer needs python-fuse as a build-
+      package
+    - interfaces/builtin: add i2c interface
+    - interfaces: add ofono interface
+    - tests: do not use hello-world in our tests
+    - snap: add support for classic confinement
+    - interfaces: remove LegacyAutoConnect() from the interfaces
+    - interfaces: miscellaneous policy updates
+    - tests: run autopkgtests in the autopkgtest.ubuntu.com
+      infrastructure
+    - Implement lxd-client interface exposing the lxd snap
+    - asserts: validate optional account username
+    - many: remove unnecessary snap name parameter from buying endpoint
+    - tests: do not hardcode the size of /dev/ram0
+    - tests: add test that ensures the right content for /etc/os-release
+    - spread tests: fix snap mode check
+    - docs: fix path for source files location in HACKING.md
+    - interfaces/builtin/mir: allow slot to make recvfrom syscalls
+    - store: sections/featured snaps store support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 24 Nov 2016 19:43:08 +0100
+
 snapd (2.17.1) xenial; urgency=medium
 
   * New upstream release, LP: #1637215:
