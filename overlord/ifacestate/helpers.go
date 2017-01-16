@@ -34,11 +34,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if err := m.addInterfaces(extra); err != nil {
+	if err := m.addInterfaces(extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(); err != nil {
@@ -58,6 +61,20 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	}
 	for _, iface := range extra {
 		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	for _, backend := range backends.All {
+		if err := m.repo.AddBackend(backend); err != nil {
+			return err
+		}
+	}
+	for _, backend := range extra {
+		if err := m.repo.AddBackend(backend); err != nil {
 			return err
 		}
 	}

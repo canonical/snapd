@@ -55,6 +55,7 @@ type interfaceManagerSuite struct {
 	privateMgr      *ifacestate.InterfaceManager
 	privateHookMgr  *hookstate.HookManager
 	extraIfaces     []interfaces.Interface
+	extraBackends   []interfaces.SecurityBackend
 	secBackend      *ifacetest.TestSecurityBackend
 	restoreBackends func()
 	mockSnapCmd     *testutil.MockCmd
@@ -87,7 +88,11 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.privateHookMgr = nil
 	s.privateMgr = nil
 	s.extraIfaces = nil
+	s.extraBackends = nil
 	s.secBackend = &ifacetest.TestSecurityBackend{}
+	// TODO: transition this so that we don't load real backends and instead
+	// just load the test backend here and this is nicely integrated with
+	// extraBackends above.
 	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
 }
 
@@ -103,9 +108,9 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces)
-		mgr.AddForeignTaskHandlers()
+		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
+		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
 	}
 	return s.privateMgr
