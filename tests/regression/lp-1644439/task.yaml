@@ -47,11 +47,17 @@ execute: |
             echo -n noquiet > /sys/module/apparmor/parameters/audit
             # Let's run the test snap from itself and see what happens.
             test-snapd-tools.cmd /bin/true
-            if test-snapd-tools.cmd /bin/sh -c "/snap/bin/test-snapd-tools.cmd /bin/true"; then
+            if test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true 2>/run/snap-confine.log"; then
                 echo "yes" > test-ok
             else
                 echo "no" > test-ok
-                pastebinit /var/log/kern.log > debug.log
+                # Collect interesting error messages
+                echo "kern.lo:" > debug.log
+                pastebinit /var/log/kern.log >> debug.log
+                echo "journalctl:" >> debug.log
+                journalctl | pastebinit >> debug.log
+                echo "snap-confine.log:" >> debug.log
+                pastebinit /run/snap-confine.log >> debug.log
             fi
             # Rebooting to use the stock kernel
             REBOOT
