@@ -72,7 +72,7 @@ snapd (2.21) xenial; urgency=medium
     - snap: provide friendlier `snap find` message when no snaps are
       found
     - tests: fix mkversions.sh failure on zesty
-    - spread: install build-essentail unconditionally
+    - spread: install build-essential unconditionally
     - spread: improve qemu ubuntu-14.04-{32,64} support
     - overlord/snapstate,daemon: implement GET /v2/aliases handling
     - store: retry user info request
