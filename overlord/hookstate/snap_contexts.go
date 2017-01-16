@@ -72,7 +72,7 @@ func (m *SnapContexts) ensureState() error {
 			Mode:    0600,
 		}
 		content[fmt.Sprintf("snap.%s", snapName)] = &fstate
-		m.contexts[contextID] = NewContextWithID(nil, &HookSetup{Snap: snapName}, nil, contextID)
+		m.contexts[contextID] = NewSnapContextWithID(m.state, &HookSetup{Snap: snapName}, nil, contextID)
 	}
 	dir := dirs.SnapContextsDir
 	_, _, err := osutil.EnsureDirState(dir, "snap.*", content)
@@ -102,7 +102,7 @@ func (m *SnapContexts) DeleteSnapContext(snapName string) {
 
 // CreateSnapContext creates a new context mapping for given snap name
 func (m *SnapContexts) CreateSnapContext(snapName string) (*Context, error) {
-	context, err := NewContext(nil, &HookSetup{Snap: snapName}, nil)
+	context, err := NewSnapContext(m.state, &HookSetup{Snap: snapName}, nil)
 	if err != nil {
 		return nil, err
 	}

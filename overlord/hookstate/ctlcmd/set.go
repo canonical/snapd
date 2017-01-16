@@ -79,6 +79,11 @@ func (s *setCommand) Execute(args []string) error {
 
 		transaction.Set(s.context().SnapName(), key, value)
 	}
+	context.Lock()
+	if context.IsSnapContext() {
+		transaction.Commit()
+	}
+	context.Unlock()
 
 	return nil
 }
