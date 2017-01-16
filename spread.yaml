@@ -22,7 +22,7 @@ environment:
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
-    TRUST_TEST_KEYS: "true"
+    TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
