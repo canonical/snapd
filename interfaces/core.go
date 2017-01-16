@@ -161,11 +161,11 @@ type Interface interface {
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
 	AddPermanentSlot(iface Interface, slot *Slot) error
-	// AddPermanentSlot records side-effects of having a plug.
+	// AddPermanentPlug records side-effects of having a plug.
 	AddPermanentPlug(iface Interface, plug *Plug) error
-	// AddPermanentSlot records side-effects of having a connected slot.
+	// AddConnectedSlot records side-effects of having a connected slot.
 	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
-	// AddPermanentSlot records side-effects of having a connected plug.
+	// AddConnectedPlug records side-effects of having a connected plug.
 	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
 }
 
