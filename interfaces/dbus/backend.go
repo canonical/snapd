@@ -211,7 +211,7 @@ Exec=%s
 
 func (b *Backend) removeBusservices(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapSessionDBusServicesFilesDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSessionServicesFilesDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
 	}
