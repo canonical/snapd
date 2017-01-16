@@ -8,7 +8,13 @@ environment:
     # a different go in gccgo tests)
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
-    SNAP_REEXEC: 0
+    SNAPPY_TESTING: 1
+    # we run the entire suite with re-exec on (the default) and modify
+    # the core snap so that it contains our new code.  So we run new
+    # snapd from the deb that re-execs into new snapd in core.  To
+    # test purely from the deb, set "export SPREAD_SNAP_REEXEC=0"
+    SNAP_REEXEC: "$(HOST: echo ${SPREAD_SNAP_REEXEC:-})"
+    MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
@@ -20,7 +26,7 @@ environment:
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
-    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
 
 backends:
     linode:
@@ -47,6 +53,9 @@ backends:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
         systems:
+            - ubuntu-14.04-32:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-14.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -88,10 +97,31 @@ backends:
             - ubuntu-16.04-ppc64el:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.04-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.10-amd64:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-armhf:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-17.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-17.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -124,7 +154,7 @@ prepare-each: |
     # or --vacuum-time.
     # TODO: Find a way to clean out systemd logs on
     # systemd 204.
-    if [ "$SPREAD_SYSTEM" != "ubuntu-14.04-64" ]; then
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         journalctl --rotate
         sleep .1
         journalctl --vacuum-time=1ms
@@ -133,31 +163,18 @@ prepare-each: |
 
 debug-each: |
     journalctl -u snapd
-    dmesg | grep DENIED
+    dmesg | grep DENIED || true
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
@@ -173,11 +190,23 @@ prepare: |
         exit 0
     fi
 
+    if [ "$SPREAD_BACKEND" = qemu ]; then
+        # treat APT_PROXY as a location of apt-cacher-ng to use
+        if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
+            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
+        fi
+    fi
+
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     apt-get update
+
+    # XXX: This seems to be required. Otherwise package build
+    # fails with unmet dependency on "build-essential:native"
+    apt-get install -y build-essential
+
     apt-get install -y software-properties-common
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -198,6 +227,7 @@ prepare: |
          apt-get update
          apt-get install -y --install-recommends linux-generic-lts-xenial
          apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
+
     fi
 
     apt-get purge -y snapd snap-confine ubuntu-core-launcher
@@ -209,11 +239,16 @@ prepare: |
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
-    go get -u github.com/kardianos/govendor
+    if [ "$(which govendor)" = "" ]; then
+        rm -rf $GOPATH/src/github.com/kardianos/govendor
+        go get -u github.com/kardianos/govendor
+    fi
     govendor sync
 
-    # increment version so upgrade can work
-    dch -i "testing build"
+    # increment version so upgrade can work, use "zzz" as version
+    # component to ensure that its higher than any "ubuntuN" version
+    # that might also be in the archive
+    dch -lzzz "testing build"
 
     if ! id test >& /dev/null; then
         # manually setting the UID and GID to 12345 because we need to
@@ -235,6 +270,8 @@ prepare: |
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    # put our debs to a safe place
+    cp ../*.deb $GOPATH
 
     # Build snapbuild.
     apt-get install -y git
@@ -254,6 +291,24 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+        restore-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
+    tests/regression/:
+        summary: Regression tests for snapd
         systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
