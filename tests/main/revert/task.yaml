@@ -1,4 +1,5 @@
 summary: Check that revert works.
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
