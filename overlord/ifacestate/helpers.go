@@ -122,7 +122,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	st := task.State()
 	snapName := snapInfo.Name()
 
-	for _, backend := range backends.All {
+	for _, backend := range repo.Backends() {
 		st.Unlock()
 		err := backend.Setup(snapInfo, opts, repo)
 		st.Lock()
@@ -134,9 +134,9 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	return nil
 }
 
-func removeSnapSecurity(task *state.Task, snapName string) error {
+func removeSnapSecurity(task *state.Task, snapName string, repo *interfaces.Repository) error {
 	st := task.State()
-	for _, backend := range backends.All {
+	for _, backend := range repo.Backends() {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()
