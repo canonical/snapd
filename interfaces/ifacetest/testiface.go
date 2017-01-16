@@ -47,10 +47,10 @@ type TestInterface struct {
 
 	// Support for interacting with the test backend.
 
-	TestConnectedPlugCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	TestConnectedSlotCallback func(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	TestPermanentPlugCallback func(spec *TestSpecification, plug *interfaces.Plug) error
-	TestPermanentSlotCallback func(spec *TestSpecification, slot *interfaces.Slot) error
+	TestConnectedPlugCallback func(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestConnectedSlotCallback func(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	TestPermanentPlugCallback func(spec *Specification, plug *interfaces.Plug) error
+	TestPermanentSlotCallback func(spec *Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -133,28 +133,28 @@ func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot
 
 // Support for interacting with the test backend.
 
-func (t *TestInterface) TestConnectedPlug(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) TestConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.TestConnectedPlugCallback != nil {
 		return t.TestConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) TestConnectedSlot(spec *TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) TestConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.TestConnectedSlotCallback != nil {
 		return t.TestConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) TestPermanentPlug(spec *TestSpecification, plug *interfaces.Plug) error {
+func (t *TestInterface) TestPermanentPlug(spec *Specification, plug *interfaces.Plug) error {
 	if t.TestPermanentPlugCallback != nil {
 		return t.TestPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) TestPermanentSlot(spec *TestSpecification, slot *interfaces.Slot) error {
+func (t *TestInterface) TestPermanentSlot(spec *Specification, slot *interfaces.Slot) error {
 	if t.TestPermanentSlotCallback != nil {
 		return t.TestPermanentSlotCallback(spec, slot)
 	}

@@ -68,5 +68,5 @@ func (b *TestSecurityBackend) Remove(snapName string) error {
 }
 
 func (b *TestSecurityBackend) NewSpecification() interfaces.Specification {
-	return &TestSpecification{}
+	return &Specification{}
 }
