@@ -47,7 +47,7 @@ execute: |
             echo -n noquiet > /sys/module/apparmor/parameters/audit
             # Let's run the test snap from itself and see what happens.
             test-snapd-tools.cmd /bin/true
-            if test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true 2>/run/snap-confine.log"; then
+            if test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true 2>&1 >/run/snap-confine.log"; then
                 echo "yes" > test-ok
             else
                 echo "no" > test-ok
