@@ -37,11 +37,9 @@ trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
 quiet apt-get update
 
-# XXX: This seems to be required. Otherwise package build
+# XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"
-quiet apt-get install -y build-essential
-
-quiet apt-get install -y software-properties-common
+quiet apt-get install -y build-essential software-properties-common
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     if [ ! -d debian-ubuntu-14.04 ]; then
@@ -55,17 +53,16 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     mv debian-ubuntu-14.04 debian
 
     echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
+    quiet add-apt-repository ppa:snappy-dev/image
     quiet apt-get update
+fi
 
-    add-apt-repository ppa:snappy-dev/image
-    quiet apt-get update
+if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --install-recommends linux-generic-lts-xenial
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
-
 fi
 
 quiet apt-get purge -y snapd snap-confine ubuntu-core-launcher
-quiet apt-get update
 # utilities
 quiet apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
 
@@ -108,9 +105,7 @@ quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackag
 cp ../*.deb $GOPATH
 
 # Build snapbuild.
-quiet apt-get install -y git
 go get ./tests/lib/snapbuild
-
 # Build fakestore.
 go get ./tests/lib/fakestore/cmd/fakestore
 # Build fakedevicesvc.
