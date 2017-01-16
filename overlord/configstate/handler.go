@@ -19,7 +19,10 @@
 
 package configstate
 
-import "github.com/snapcore/snapd/overlord/hookstate"
+import (
+	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/hookstate"
+)
 
 // configureHandler is the handler for the configure hook.
 type configureHandler struct {
@@ -32,23 +35,23 @@ type cachedTransaction struct{}
 
 // ContextTransaction retrieves the transaction cached within the context (and
 // creates one if it hasn't already been cached).
-func ContextTransaction(context *hookstate.Context) *Transaction {
+func ContextTransaction(context *hookstate.Context) *transaction.Transaction {
 	// Check for one already cached
-	transaction, ok := context.Cached(cachedTransaction{}).(*Transaction)
+	tr, ok := context.Cached(cachedTransaction{}).(*transaction.Transaction)
 	if ok {
-		return transaction
+		return tr
 	}
 
 	// It wasn't already cached, so create and cache a new one
-	transaction = NewTransaction(context.State())
+	tr = transaction.NewTransaction(context.State())
 
 	context.OnDone(func() error {
-		transaction.Commit()
+		tr.Commit()
 		return nil
 	})
 
-	context.Cache(cachedTransaction{}, transaction)
-	return transaction
+	context.Cache(cachedTransaction{}, tr)
+	return tr
 }
 
 func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
