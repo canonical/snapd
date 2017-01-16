@@ -142,6 +142,14 @@ func (s *RepositorySuite) TestAddBackend(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
 }
 
+func (s *RepositorySuite) TestBackends(c *C) {
+	b1 := &ifacetest.TestSecurityBackend{BackendName: "b1"}
+	b2 := &ifacetest.TestSecurityBackend{BackendName: "b2"}
+	c.Assert(s.emptyRepo.AddBackend(b2), IsNil)
+	c.Assert(s.emptyRepo.AddBackend(b1), IsNil)
+	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b1, b2})
+}
+
 // Tests for Repository.Interface()
 
 func (s *RepositorySuite) TestInterface(c *C) {
