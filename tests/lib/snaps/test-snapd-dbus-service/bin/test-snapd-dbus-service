@@ -20,7 +20,7 @@ class ServerObject(dbus.service.Object):
     def __init__(self):
         bus_name = dbus.service.BusName(
             'io.snapcraft.SnapDbusService',bus=dbus.SessionBus())
-        dbus.service.Object.__init__(self, bus_name, '/')
+        dbus.service.Object.__init__(self, bus_name, '/io/snapcraft/SnapDbusService')
     @dbus.service.method('io.snapcraft.ExampleInterface')
     def ExampleMethod(self):
 	    return "hello world"
