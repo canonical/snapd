@@ -634,7 +634,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		return nil, fmt.Errorf("cannot obtain specification of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
-	spec := backend.Specification()
+	spec := backend.NewSpecification()
 
 	// slot side
 	for _, slot := range r.slots[snapName] {
