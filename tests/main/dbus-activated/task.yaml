@@ -11,7 +11,7 @@ restore: |
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
-    snap install test-snapd-dbus-service
+    snap install --edge test-snapd-dbus-service
 
     eval $(dbus-launch --auto-syntax)
 
