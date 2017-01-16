@@ -36,6 +36,7 @@ type cmdPrepareImage struct {
 
 	ExtraSnaps []string `long:"extra-snaps"`
 	Channel    string   `long:"channel"`
+	Devmode    bool     `long:"devmode"`
 }
 
 func init() {
@@ -47,6 +48,7 @@ func init() {
 		}, map[string]string{
 			"extra-snaps": "Extra snaps to be installed",
 			"channel":     "The channel to use",
+			"devmode":     "Allow devmode snaps",
 		}, []argDesc{
 			{
 				name: i18n.G("<model-assertion>"),
@@ -66,6 +68,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		RootDir:         filepath.Join(x.Positional.Rootdir, "image"),
 		GadgetUnpackDir: filepath.Join(x.Positional.Rootdir, "gadget"),
 		Channel:         x.Channel,
+		Devmode:         x.Devmode,
 		Snaps:           x.ExtraSnaps,
 	}
 

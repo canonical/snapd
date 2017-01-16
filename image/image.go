@@ -48,6 +48,7 @@ type Options struct {
 	Snaps           []string
 	RootDir         string
 	Channel         string
+	Devmode         bool
 	ModelFile       string
 	GadgetUnpackDir string
 }
@@ -270,7 +271,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	dlOpts := &DownloadOptions{
 		TargetDir: snapSeedDir,
 		Channel:   opts.Channel,
-		DevMode:   false, // XXX: should this be true?
+		DevMode:   opts.Devmode,
 	}
 
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
