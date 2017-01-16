@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -308,6 +309,30 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+}
+
+// SecurityTags returns security tags associated with a given plug.
+func (plug *PlugInfo) SecurityTags() []string {
+	var tags []string
+	for _, app := range plug.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range plug.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// SecurityTags returns security tags associated with a given slot.
+func (slot *SlotInfo) SecurityTags() []string {
+	var tags []string
+	for _, app := range slot.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	// NOTE: hooks cannot have slots
+	sort.Strings(tags)
+	return tags
 }
 
 // SlotInfo provides information about a slot.
