@@ -70,7 +70,6 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 	spec := store.SnapSpec{
 		Name:     name,
 		Channel:  opts.Channel,
-		Devmode:  opts.DevMode,
 		Revision: revision,
 	}
 	snap, err := sto.SnapInfo(spec, opts.User)

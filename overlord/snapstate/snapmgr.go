@@ -295,7 +295,7 @@ func Store(st *state.State) StoreService {
 	panic("internal error: needing the store before managers have initialized it")
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
+func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -311,9 +311,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel: channel,
-		DevMode: flags.DevModeAllowed(),
-
+		Channel:  channel,
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
 		Epoch:    curInfo.Epoch,
@@ -329,10 +327,11 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	if len(res) == 0 {
 		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
 	}
+
 	return res[0], nil
 }
 
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -342,7 +341,6 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	spec := store.SnapSpec{
 		Name:     name,
 		Channel:  channel,
-		Devmode:  flags.DevModeAllowed(),
 		Revision: revision,
 	}
 	snap, err := theStore.SnapInfo(spec, user)
@@ -617,7 +615,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		spec := store.SnapSpec{
 			Name:     snapsup.Name(),
 			Channel:  snapsup.Channel,
-			Devmode:  snapsup.DevModeAllowed(),
 			Revision: snapsup.Revision(),
 		}
 		storeInfo, err = theStore.SnapInfo(spec, user)

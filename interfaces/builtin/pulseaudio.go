@@ -121,6 +121,7 @@ recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
+setgroups32
 `
 
 type PulseAudioInterface struct{}
