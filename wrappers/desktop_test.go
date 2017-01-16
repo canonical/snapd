@@ -278,3 +278,15 @@ func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
 		c.Assert(wrappers.TrimLang(t.in), Equals, t.out)
 	}
 }
+
+func (s *sanitizeDesktopFileSuite) TestValidKeys(c *C) {
+	for _, t := range []struct {
+		in   string
+		good bool
+	}{
+		{"Activactable=true", false},
+		{"DBusActivatable=true", true},
+	} {
+		c.Check(wrappers.IsValidDesktopFilePrefix(t.in), Equals, t.good)
+	}
+}
