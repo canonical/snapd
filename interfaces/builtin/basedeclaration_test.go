@@ -387,6 +387,7 @@ var (
 		"pulseaudio":       {"app", "core"},
 		"serial-port":      {"core", "gadget"},
 		"udisks2":          {"app"},
+		"upower-observe":   {"app", "core"},
 		// snowflakes
 		"classic-dimension": nil,
 		"docker":            nil,
@@ -528,6 +529,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
+		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {

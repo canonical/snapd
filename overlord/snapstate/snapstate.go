@@ -307,17 +307,21 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
-	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
+	info, err := snapInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !validInfoForFlags(info, &snapst, flags) {
+		return nil, store.ErrSnapNotFound
 	}
 
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &snapInfo.DownloadInfo,
-		SideInfo:     &snapInfo.SideInfo,
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
 	}
 
 	return doInstall(st, &snapst, snapsup)
@@ -404,9 +408,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		// get confinement preference from the snapstate
 		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
-			Channel: snapst.Channel,
-			DevMode: snapst.DevModeAllowed(),
-
+			Channel:  snapst.Channel,
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
@@ -460,22 +462,75 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 	}
 
-	updated := make([]string, 0, len(updates))
-	tasksets := make([]*state.TaskSet, 0, len(updates))
-	for _, update := range updates {
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
 		snapst := stateByID[update.SnapID]
+		return snapst.Channel, snapst.Flags, snapst
+
+	}
+
+	return doUpdate(st, names, updates, params, userID)
+}
+
+func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+	tasksets := make([]*state.TaskSet, 0, len(updates))
+
+	refreshAll := len(names) == 0
+	var nameSet map[string]bool
+	if len(names) != 0 {
+		nameSet = make(map[string]bool, len(names))
+		for _, name := range names {
+			nameSet[name] = true
+		}
+	}
+
+	newAutoAliases, mustRetireAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reportUpdated := make(map[string]bool, len(updates))
+	var retiredAutoAliasesTs *state.TaskSet
+
+	if len(mustRetireAutoAliases) != 0 {
+		var err error
+		retiredAutoAliasesTs, err = applyAutoAliasesDelta(st, mustRetireAutoAliases, "retire", refreshAll, func(snapName string, _ *state.TaskSet) {
+			if nameSet[snapName] {
+				reportUpdated[snapName] = true
+			}
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		tasksets = append(tasksets, retiredAutoAliasesTs)
+	}
+
+	// wait for the auto-alias retire tasks as needed
+	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
+		if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[snapName] != nil || transferTargets[snapName]) {
+			ts.WaitAll(retiredAutoAliasesTs)
+		}
+		reportUpdated[snapName] = true
+	}
+
+	for _, update := range updates {
+		channel, flags, snapst := params(update)
+
+		if !validInfoForFlags(update, snapst, flags) {
+			// XXX: log something
+			continue
+		}
 
 		snapsup := &SnapSetup{
-			Channel:      snapst.Channel,
+			Channel:      channel,
 			UserID:       userID,
-			Flags:        snapst.Flags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup)
 		if err != nil {
-			if len(names) == 0 {
+			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
 				continue
@@ -484,11 +539,123 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 		ts.JoinLane(st.NewLane())
 
-		updated = append(updated, update.Name())
+		scheduleUpdate(update.Name(), ts)
 		tasksets = append(tasksets, ts)
 	}
 
+	if len(newAutoAliases) != 0 {
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "enable", refreshAll, scheduleUpdate)
+		if err != nil {
+			return nil, nil, err
+		}
+		tasksets = append(tasksets, addAutoAliasesTs)
+	}
+
+	updated := make([]string, 0, len(reportUpdated))
+	for name := range reportUpdated {
+		updated = append(updated, name)
+	}
+
 	return updated, tasksets, nil
+}
+
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+	applyTs := state.NewTaskSet()
+	for snapName, aliases := range delta {
+		ts, err := ResetAliases(st, snapName, aliases)
+		if err != nil {
+			if refreshAll {
+				// doing "refresh all", just skip this snap
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				continue
+			}
+			return nil, err
+		}
+		linkTs(snapName, ts)
+		applyTs.AddAll(ts)
+	}
+	return applyTs, nil
+}
+
+func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (new map[string][]string, mustRetire map[string][]string, transferTargets map[string]bool, err error) {
+	new, retired, err := AutoAliasesDelta(st, nil)
+	if err != nil {
+		if len(names) != 0 {
+			// not "refresh all", error
+			return nil, nil, nil, err
+		}
+		// log and continue
+		logger.Noticef("cannot find the delta for automatic aliases for some snaps: %v", err)
+	}
+
+	refreshAll := len(names) == 0
+
+	// retired alias -> snapName
+	retiringAliases := make(map[string]string, len(retired))
+	for snapName, aliases := range retired {
+		for _, alias := range aliases {
+			retiringAliases[alias] = snapName
+		}
+	}
+
+	// filter new considering only names if set:
+	// we add auto-aliases only for mentioned snaps
+	if !refreshAll && len(new) != 0 {
+		filteredNew := make(map[string][]string, len(new))
+		for _, name := range names {
+			if new[name] != nil {
+				filteredNew[name] = new[name]
+			}
+		}
+		new = filteredNew
+	}
+
+	// mark snaps that are sources or target of transfers
+	transferSources := make(map[string]bool, len(retired))
+	transferTargets = make(map[string]bool, len(new))
+	for snapName, aliases := range new {
+		for _, alias := range aliases {
+			if source := retiringAliases[alias]; source != "" {
+				transferTargets[snapName] = true
+				transferSources[source] = true
+			}
+		}
+	}
+
+	// snaps with updates
+	updating := make(map[string]bool, len(updates))
+	for _, info := range updates {
+		updating[info.Name()] = true
+	}
+
+	// add explicitly auto-aliases only for snaps that are not updated
+	for snapName := range new {
+		if updating[snapName] {
+			delete(new, snapName)
+		}
+	}
+
+	// retire explicitly auto-aliases only for snaps that are mentioned
+	// and not updated OR the source of transfers
+	mustRetire = make(map[string][]string, len(retired))
+	for snapName := range transferSources {
+		mustRetire[snapName] = retired[snapName]
+	}
+	if refreshAll {
+		for snapName, aliases := range retired {
+			if !updating[snapName] {
+				mustRetire[snapName] = aliases
+			}
+		}
+	} else {
+		for _, name := range names {
+			if !updating[name] && retired[name] != nil {
+				mustRetire[name] = retired[name]
+			}
+		}
+	}
+
+	return new, mustRetire, transferTargets, nil
 }
 
 // Update initiates a change updating a snap.
@@ -513,28 +680,74 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
-	info, err := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if !(flags.JailMode || flags.DevMode) {
+		flags.Classic = flags.Classic || snapst.Flags.Classic
+	}
+
+	var updates []*snap.Info
+	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if infoErr != nil {
+		if _, ok := infoErr.(*snap.NoUpdateAvailableError); !ok {
+			return nil, infoErr
+		}
+		// there may be some new auto-aliases
+	} else {
+		updates = append(updates, info)
+	}
+
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		return channel, flags, &snapst
+	}
+
+	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
 	if err != nil {
 		return nil, err
 	}
+	if len(tts) == 0 && len(updates) == 0 {
+		// really nothing to do, return the original no-update-available error
+		return nil, infoErr
+	}
+	flat := state.NewTaskSet()
+	for _, ts := range tts {
+		flat.AddAll(ts)
+	}
+	return flat, nil
+}
 
-	snapsup := &SnapSetup{
-		Channel:      channel,
-		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &info.DownloadInfo,
-		SideInfo:     &info.SideInfo,
+func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
+	switch c := info.Confinement; c {
+	case snap.StrictConfinement, "":
+		// strict is always fine
+		return true
+	case snap.DevModeConfinement:
+		// --devmode needs to be specified every time (==> ignore snapst)
+		return flags.DevModeAllowed()
+	case snap.ClassicConfinement:
+		if flags.Classic {
+			return true
+		}
+
+		if snapst != nil && snapst.Flags.Classic {
+			return true
+		}
+
+		return false
+	default:
+		logger.Noticef("unknown confinement %q", c)
 	}
 
-	return doInstall(st, &snapst, snapsup)
+	return false
 }
 
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, userID, flags)
+		info, err := updateInfo(st, snapst, channel, userID)
 		if err != nil {
 			return nil, err
+		}
+		if !validInfoForFlags(info, snapst, flags) {
+			return nil, snap.NoUpdateAvailableError{name}
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
@@ -553,7 +766,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return snapInfo(st, name, channel, revision, userID, flags)
+		return snapInfo(st, name, channel, revision, userID)
 	}
 
 	// refresh-to-local
