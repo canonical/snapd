@@ -198,7 +198,7 @@ Exec=%s
 	}
 
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
-	dir := dirs.SnapDBusServicesFilesDir
+	dir := dirs.SnapDBusSessionServicesFilesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus service files %q: %s", dir, err)
 	}
@@ -211,7 +211,7 @@ Exec=%s
 
 func (b *Backend) removeBusservices(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusServicesFilesDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapSessionDBusServicesFilesDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
 	}
