@@ -20,10 +20,10 @@
 package builtin
 
 import (
-    "bytes"
-    "fmt"
+	"bytes"
+	"fmt"
 
-    "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
@@ -211,69 +211,69 @@ socket
 type DownloadInterface struct{}
 
 func (iface *DownloadInterface) Name() string {
-    return "download-manager"
+	return "download-manager"
 }
 
 func (iface *DownloadInterface) String() string {
-    return iface.Name()
+	return iface.Name()
 }
 
 func (iface *DownloadInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    return nil, nil
+	return nil, nil
 }
 
 func (iface *DownloadInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    switch securitySystem {
-    case interfaces.SecurityAppArmor:
-        old := []byte("###SLOT_SECURITY_TAGS###")
-        new := slotAppLabelExpr(slot)
-        snippet := bytes.Replace(downloadConnectedPlugAppArmor, old, new, -1)
-        return snippet, nil
-    case interfaces.SecuritySecComp:
-        return downloadConnectedPlugSecComp, nil
-    }
-    return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace(downloadConnectedPlugAppArmor, old, new, -1)
+		return snippet, nil
+	case interfaces.SecuritySecComp:
+		return downloadConnectedPlugSecComp, nil
+	}
+	return nil, nil
 }
 
 func (iface *DownloadInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    switch securitySystem {
-    case interfaces.SecurityAppArmor:
-        return downloadPermanentSlotAppArmor, nil
-    case interfaces.SecuritySecComp:
-        return downloadPermanentSlotSecComp, nil
-    }
-    return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		return downloadPermanentSlotAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return downloadPermanentSlotSecComp, nil
+	}
+	return nil, nil
 }
 
 func (iface *DownloadInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    switch securitySystem {
-    case interfaces.SecurityAppArmor:
-        old := []byte("###PLUG_SECURITY_TAGS###")
-        new := plugAppLabelExpr(plug)
-        snippet := bytes.Replace(downloadConnectedSlotAppArmor, old, new, -1)
-        old = []byte("###PLUG_NAME###")
-        new = []byte(plug.Snap.Name())
-        snippet = bytes.Replace(snippet, old, new, -1)
-        return snippet, nil
-    }
-    return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace(downloadConnectedSlotAppArmor, old, new, -1)
+		old = []byte("###PLUG_NAME###")
+		new = []byte(plug.Snap.Name())
+		snippet = bytes.Replace(snippet, old, new, -1)
+		return snippet, nil
+	}
+	return nil, nil
 }
 
 func (iface *DownloadInterface) SanitizePlug(slot *interfaces.Plug) error {
-    if iface.Name() != slot.Interface {
-        panic(fmt.Sprintf("plug is not of interface %q", iface))
-    }
-    return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	return nil
 }
 
 func (iface *DownloadInterface) SanitizeSlot(slot *interfaces.Slot) error {
-    if iface.Name() != slot.Interface {
-        panic(fmt.Sprintf("slot is not of interface %q", iface))
-    }
-    return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+	return nil
 }
 
 func (iface *DownloadInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-    // allow what declarations allowed
-    return true
+	// allow what declarations allowed
+	return true
 }
