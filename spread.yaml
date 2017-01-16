@@ -196,7 +196,7 @@ prepare: |
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     if [ -f current.delta ]; then
         apt-get update
-        apt-get install -y xdelta3
+        apt-get install -y xdelta3 curl
         curl -s -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
         xdelta3 -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
