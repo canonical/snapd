@@ -27,29 +27,29 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type TestSpecificationSuite struct {
+type SpecificationSuite struct {
 	iface *ifacetest.TestInterface
-	spec  *ifacetest.TestSpecification
+	spec  *ifacetest.Specification
 	plug  *interfaces.Plug
 	slot  *interfaces.Slot
 }
 
-var _ = Suite(&TestSpecificationSuite{
+var _ = Suite(&SpecificationSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		TestConnectedPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		TestConnectedSlotCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		TestPermanentPlugCallback: func(spec *ifacetest.TestSpecification, plug *interfaces.Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		TestPermanentSlotCallback: func(spec *ifacetest.TestSpecification, slot *interfaces.Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *interfaces.Slot) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -70,19 +70,19 @@ var _ = Suite(&TestSpecificationSuite{
 	},
 })
 
-func (s *TestSpecificationSuite) SetUpTest(c *C) {
-	s.spec = &ifacetest.TestSpecification{}
+func (s *SpecificationSuite) SetUpTest(c *C) {
+	s.spec = &ifacetest.Specification{}
 }
 
 // AddSnippet is not broken
-func (s *TestSpecificationSuite) TestAddSnippet(c *C) {
+func (s *SpecificationSuite) TestAddSnippet(c *C) {
 	s.spec.AddSnippet("hello")
 	s.spec.AddSnippet("world")
 	c.Assert(s.spec.Snippets, DeepEquals, []string{"hello", "world"})
 }
 
-// The TestSpecification can be used through the interfaces.Specification interface
-func (s *TestSpecificationSuite) TestSpecificationIface(c *C) {
+// The Specification can be used through the interfaces.Specification interface
+func (s *SpecificationSuite) SpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
