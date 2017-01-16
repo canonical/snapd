@@ -9,8 +9,16 @@ execute: |
     aliases.cmd1|MATCH "ok command 1"
     aliases.cmd2|MATCH "ok command 2"
 
+    echo "Default statuses"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +-"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +-"
+
     echo "Enable aliases"
     snap alias aliases alias1 alias2
+
+    echo "Enabled statuses"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
 
     echo "Test the aliases"
     test -h /snap/bin/alias1
@@ -20,6 +28,10 @@ execute: |
 
     echo "Disable an alias explicitly"
     snap unalias aliases alias2
+
+    echo "One disabled status"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +disabled"
 
     echo "One still works, one is not there"
     alias1|MATCH "ok command 1"
@@ -31,8 +43,16 @@ execute: |
     test -h /snap/bin/alias2
     alias2|MATCH "ok command 2"
 
+    echo "Both enabled again"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
+
     echo "Reset the aliases to their automatic states (disabled)"
     snap alias --reset aliases alias1
+
+    echo "One default again"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +-"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
 
     echo "Alias is gone"
     test ! -e /snap/bin/alias1
@@ -42,6 +62,10 @@ execute: |
     snap alias aliases alias1 alias2
     alias1|MATCH "ok command 1"
     alias2|MATCH "ok command 2"
+
+    echo "Both enabled again"
+    snap aliases|MATCH "aliases.cmd1 +alias1 +enabled"
+    snap aliases|MATCH "aliases.cmd2 +alias2 +enabled"
 
     echo "Removing the snap should remove the aliases"
     snap remove aliases

@@ -85,7 +85,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary := fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
-	collectPlugAttr := hookstate.HookTask(s, summary, plugHookSetup, nil)
+	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, nil)
 
 	slotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
@@ -93,17 +93,35 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
-	collectSlotAttr := hookstate.HookTask(s, summary, slotHookSetup, nil)
+	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, nil)
+	prepareSlotConnection.WaitFor(preparePlugConnection)
 
 	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	connectInterface := s.NewTask("connect", summary)
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.WaitFor(collectPlugAttr)
-	connectInterface.WaitFor(collectSlotAttr)
+	connectInterface.WaitFor(prepareSlotConnection)
 
-	return state.NewTaskSet(collectPlugAttr, collectSlotAttr, connectInterface), nil
+	confirmSlotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "connect-slot-" + slotName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
+	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, nil)
+	confirmSlotConnection.WaitFor(connectInterface)
+
+	confirmPlugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "connect-plug-" + plugName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
+	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, nil)
+	confirmPlugConnection.WaitFor(confirmSlotConnection)
+
+	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmSlotConnection, confirmPlugConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.

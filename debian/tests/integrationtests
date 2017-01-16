@@ -2,14 +2,8 @@
 
 set -ex
 
-# for these tests, run snap and snapd from outside of the core snap
-mkdir -p /etc/systemd/system/snapd.service.d/
-cat <<EOF | tee /etc/systemd/system/snapd.service.d/no-reexec.conf
-[Service]
-Environment=SNAP_REEXEC=0
-EOF
-
 # required for the debian adt host
+mkdir -p /etc/systemd/system/snapd.service.d/ 
 if [ "$http_proxy" != "" ]; then
     cat <<EOF | tee /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
