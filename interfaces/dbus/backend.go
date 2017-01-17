@@ -42,7 +42,7 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
+func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
@@ -216,4 +216,8 @@ func (b *Backend) removeBusservices(snapName string) error {
 		return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
 	}
 	return nil
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }
