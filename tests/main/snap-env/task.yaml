@@ -10,7 +10,7 @@ execute: |
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt 
 
     echo "Ensure that SNAP environment variables are what we expect"
-    egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf)$' snap-vars.txt
+    egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$' snap-vars.txt
     egrep -q '^SNAP_COMMON=/var/snap/test-snapd-tools/common$' snap-vars.txt
     egrep -q '^SNAP_DATA=/var/snap/test-snapd-tools/x1$' snap-vars.txt
     egrep -q '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:$' snap-vars.txt

@@ -1,4 +1,15 @@
 SUBDIRS = manpages tests
+
+noinst_LIBRARIES = libsnap-confine-private.a
+
+libsnap_confine_private_a_SOURCES = \
+	error.h \
+	error.c \
+	utils.h \
+	utils.c \
+	secure-getenv.c \
+	secure-getenv.h
+
 libexec_PROGRAMS = snap-confine snap-discard-ns
 noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
@@ -15,10 +26,6 @@ snap_discard_ns_SOURCES = \
 	ns-support.h \
 	apparmor-support.c \
 	apparmor-support.h \
-	utils.c \
-	utils.h \
-	secure-getenv.c \
-	secure-getenv.h \
 	cleanup-funcs.c \
 	cleanup-funcs.h \
 	mountinfo.c \
@@ -26,7 +33,7 @@ snap_discard_ns_SOURCES = \
 	snap-discard-ns.c
 snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
-snap_discard_ns_LDADD =
+snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
 snap_discard_ns_LDADD += $(SECCOMP_LIBS)
 
@@ -37,10 +44,6 @@ endif
 
 snap_confine_SOURCES = \
 	snap-confine.c \
-	utils.c \
-	utils.h \
-	secure-getenv.c \
-	secure-getenv.h \
 	snap.c \
 	snap.h \
 	classic.c \
@@ -72,7 +75,7 @@ snap_confine_SOURCES = \
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
-snap_confine_LDADD =
+snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_LDADD += $(LIBUDEV_LIBS)
 

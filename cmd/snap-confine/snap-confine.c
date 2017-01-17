@@ -55,7 +55,18 @@ int main(int argc, char **argv)
 		argv++;
 		argc--;
 	}
-
+	// XXX: replace with pull request 2416 in snapd
+	bool classic_confinement = false;
+	if (argc > 2 && strcmp(argv[1], "--classic") == 0) {
+		classic_confinement = true;
+		// Shift remaining arguments left
+		int i;
+		for (i = 1; i + 1 < argc; ++i) {
+			argv[i] = argv[i + 1];
+		}
+		argv[i] = NULL;
+		argc -= 1;
+	}
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
@@ -86,33 +97,46 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		const char *group_name = getenv("SNAP_NAME");
-		if (group_name == NULL) {
-			die("SNAP_NAME is not set");
+		if (classic_confinement) {
+			/* 'classic confinement' is designed to run without the sandbox
+			 * inside the shared namespace. Specifically:
+			 * - snap-confine skips using the snap-specific mount namespace
+			 * - snap-confine skips using device cgroups
+			 * - snapd sets up a lenient AppArmor profile for snap-confine to use
+			 * - snapd sets up a lenient seccomp profile for snap-confine to use
+			 */
+			debug
+			    ("skipping sandbox setup, classic confinement in use");
+		} else {
+			const char *group_name = getenv("SNAP_NAME");
+			if (group_name == NULL) {
+				die("SNAP_NAME is not set");
+			}
+			sc_initialize_ns_groups();
+			struct sc_ns_group *group = NULL;
+			group = sc_open_ns_group(group_name, 0);
+			sc_lock_ns_mutex(group);
+			sc_create_or_join_ns_group(group, &apparmor);
+			if (sc_should_populate_ns_group(group)) {
+				sc_populate_mount_ns(security_tag);
+				sc_preserve_populated_ns_group(group);
+			}
+			sc_unlock_ns_mutex(group);
+			sc_close_ns_group(group);
+			// Reset path as we cannot rely on the path from the host OS to
+			// make sense. The classic distribution may use any PATH that makes
+			// sense but we cannot assume it makes sense for the core snap
+			// layout. Note that the /usr/local directories are explicitly
+			// left out as they are not part of the core snap.
+			debug
+			    ("resetting PATH to values in sync with core snap");
+			setenv("PATH",
+			       "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
+			struct snappy_udev udev_s;
+			if (snappy_udev_init(security_tag, &udev_s) == 0)
+				setup_devices_cgroup(security_tag, &udev_s);
+			snappy_udev_cleanup(&udev_s);
 		}
-		sc_initialize_ns_groups();
-		struct sc_ns_group *group = NULL;
-		group = sc_open_ns_group(group_name, 0);
-		sc_lock_ns_mutex(group);
-		sc_create_or_join_ns_group(group, &apparmor);
-		if (sc_should_populate_ns_group(group)) {
-			sc_populate_mount_ns(security_tag);
-			sc_preserve_populated_ns_group(group);
-		}
-		sc_unlock_ns_mutex(group);
-		sc_close_ns_group(group);
-		// Reset path as we cannot rely on the path from the host OS to
-		// make sense. The classic distribution may use any PATH that makes
-		// sense but we cannot assume it makes sense for the core snap
-		// layout. Note that the /usr/local directories are explicitly
-		// left out as they are not part of the core snap.
-		debug("resetting PATH to values in sync with core snap");
-		setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
-		struct snappy_udev udev_s;
-		if (snappy_udev_init(security_tag, &udev_s) == 0)
-			setup_devices_cgroup(security_tag, &udev_s);
-		snappy_udev_cleanup(&udev_s);
-
 		// The rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
@@ -127,7 +151,9 @@ int main(int argc, char **argv)
 	}
 	// Ensure that the user data path exists.
 	setup_user_data();
+#if 0
 	setup_user_xdg_runtime_dir();
+#endif
 
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);

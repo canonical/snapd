@@ -94,7 +94,12 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("revert", name, options)
 }
 
+var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
+
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
+	if options != nil && options.Dangerous {
+		return "", ErrDangerousNotApplicable
+	}
 	action := actionData{
 		Action:      actionName,
 		SnapOptions: options,
@@ -161,6 +166,9 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 func (client *Client) Try(path string, options *SnapOptions) (changeID string, err error) {
 	if options == nil {
 		options = &SnapOptions{}
+	}
+	if options.Dangerous {
+		return "", ErrDangerousNotApplicable
 	}
 
 	buf := bytes.NewBuffer(nil)
