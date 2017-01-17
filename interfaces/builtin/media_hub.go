@@ -23,11 +23,12 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 var mediaHubPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the the media-hub service. Reserved because
-#  this gives privileged access to the system.
+# this gives privileged access to the system.
 # Usage: reserved
 
 # DBus accesses
@@ -70,28 +71,16 @@ dbus (receive, send)
 	interface=org.freedesktop.DBus**
 	peer=(label=unconfined),
 
-dbus (send)
-	bus=session
-	path=/org/freedesktop/Telepathy/AccountManager
-	interface=org.freedesktop.DBus.Properties
-	member="GetAll",
-
 # We can always connect to ourselves
 dbus (receive)
 	bus=session
 	path=/core/ubuntu/media/Service
 	peer=(label=@{profile_name}),
 
-# Allow all access to powerd for now, but we can fine-tune this if needed
-dbus (receive, send)
-	bus=system
-	path=/com/canonical/powerd
-	interface=com.canonical.powerd,
-
-dbus (receive, send)
-	bus=system
-	path=/com/canonical/Unity/Screen
-	interface=com.canonical.Unity.Screen,
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=unconfined),
 `)
 
 var mediaHubConnectedSlotAppArmor = []byte(`
@@ -121,7 +110,7 @@ dbus (receive)
     path=/core/ubuntu/media/Service
     interface=core.ubuntu.media.Service
     member="{Create,Detach,Reattach,Destroy,CreateFixed,Resume}Session"
-	peer=(label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to pause all other sessions
 dbus (receive)
@@ -129,14 +118,12 @@ dbus (receive)
     path=/core/ubuntu/media/Service
     interface=core.ubuntu.media.Service
     member="PauseOtherSessions"
-	peer=(label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to query/modify service properties
 dbus (receive)
     bus=session
-    path=/core/ubuntu/media/Service
-    interface=org.freedesktop.DBus.Properties
-    member="{Get,Set}"
+    path=/core/ubuntu/media/Service{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (send)
@@ -153,50 +140,17 @@ dbus (receive)
     bus=session
     path=/core/ubuntu/media/Service
     peer=(label=unconfined),
-
-dbus (receive)
-    bus=session
-    interface=org.freedesktop.DBus.Introspectable
-    peer=(label=unconfined),
 `)
 
 var mediaHubConnectedPlugAppArmor = []byte(`
-# Description: Allow using media-hub service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+# Description: Allow using media-hub service.
 
 #include <abstractions/dbus-strict>
 
-# Allow clients to manage Player sessions
-dbus (send)
+dbus (receive, send)
     bus=session
-    path=/core/ubuntu/media/Service
-    interface=core.ubuntu.media.Service
-    member="{Create,Detach,Reattach,Destroy,CreateFixed,Resume}Session"
-	peer=(label=###SLOT_SECURITY_TAGS###),
-
-# Allow clients to pause all other sessions
-dbus (send)
-    bus=session
-    path=/core/ubuntu/media/Service
-    interface=core.ubuntu.media.Service
-    member="PauseOtherSessions"
-	peer=(label=###SLOT_SECURITY_TAGS###),
-
-# Allow clients to query service properties
-dbus (send)
-    bus=system
-    path=/core/ubuntu/media/Service
-    interface=org.freedesktop.DBus.Properties
-    member="{Get,Set}"
+    path=/core/ubuntu/media/Service{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (receive)
-   bus=system
-   path=/core/ubuntu/media/Service
-   interface=org.freedesktop.DBus.Properties
-   member=PropertiesChanged
-   peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
@@ -206,17 +160,17 @@ dbus (receive)
 `)
 
 var mediaHubPermanentSlotSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto
+recvfrom
 `)
 
 var mediaHubConnectedPlugSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto
+recvfrom
 `)
 
 var mediaHubPermanentSlotDBus = []byte(`
@@ -249,7 +203,13 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
+		new := []byte("")
+		if release.OnClassic {
+			// On classic MediaHub will run unconfined
+			new = []byte("unconfined")
+		} else {
+			new = slotAppLabelExpr(slot)
+		}
 		snippet := bytes.Replace(mediaHubConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus:
