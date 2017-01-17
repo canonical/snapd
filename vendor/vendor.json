@@ -37,16 +37,22 @@
 			"revisionTime": "2016-01-28T16:48:56Z"
 		},
 		{
-			"checksumSHA1": "e0K21bVI674WQms/1HjP1m1hOVE=",
-			"path": "github.com/gosexy/gettext",
-			"revision": "98b7b91596d20b96909e6b60d57411547dd9959c",
-			"revisionTime": "2013-02-21T11:21:43Z"
-		},
-		{
 			"checksumSHA1": "Fsff4Yngdyqbq9ulSyTT4LGrxck=",
 			"path": "github.com/jessevdk/go-flags",
 			"revision": "6b9493b3cb60367edd942144879646604089e3f7",
 			"revisionTime": "2016-02-27T09:34:14Z"
+		},
+		{
+			"checksumSHA1": "MXOfmoFN5PBz/N5pDNrFe9ugYf8=",
+			"path": "github.com/mvo5/gettext.go",
+			"revision": "da4fdf605f1b0e2aa523423db5c0a3f727d62019",
+			"revisionTime": "2016-12-13T07:12:38Z"
+		},
+		{
+			"checksumSHA1": "wClBtrHsGvzusCkIFdF78Iak6y0=",
+			"path": "github.com/mvo5/gettext.go/pluralforms",
+			"revision": "da4fdf605f1b0e2aa523423db5c0a3f727d62019",
+			"revisionTime": "2016-12-13T07:12:38Z"
 		},
 		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
@@ -110,10 +116,10 @@
 			"revisionTime": "2016-10-25T18:07:18Z"
 		},
 		{
-			"checksumSHA1": "RDshSIhn01+axeOW8yQ9TR88cZQ=",
+			"checksumSHA1": "t95/FNK2nGCx3e6IARbO7OrcCuY=",
 			"path": "gopkg.in/tomb.v2",
-			"revision": "9dde971544235898fc9720ed594059f79fd3273c",
-			"revisionTime": "2016-11-14T17:47:44Z"
+			"revision": "d5d1b5820637886def9eef33e03a27a9f166942c",
+			"revisionTime": "2016-12-08T15:16:19Z"
 		},
 		{
 			"checksumSHA1": "hiOUviIMDKo7y918uBiEhfJyOkk=",

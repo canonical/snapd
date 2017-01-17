@@ -500,3 +500,41 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 	}
 	return a.(*asserts.SnapDeclaration), nil
 }
+
+// Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
+func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": snapID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	snapDecl := a.(*asserts.SnapDeclaration)
+	a, err = db.Find(asserts.AccountType, map[string]string{
+		"account-id": snapDecl.PublisherID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find account assertion for the publisher of snap %q: %v", snapDecl.SnapName(), err)
+	}
+	return a.(*asserts.Account), nil
+}
+
+// AutoAliases returns the auto-aliases list for the given installed snap.
+func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
+	if info.SnapID == "" {
+		// without declaration
+		return nil, nil
+	}
+	decl, err := SnapDeclaration(s, info.SnapID)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
+	}
+	return decl.AutoAliases(), nil
+}
+
+func init() {
+	// hook retrieving auto-aliases into snapstate logic
+	snapstate.AutoAliases = AutoAliases
+}

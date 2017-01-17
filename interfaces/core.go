@@ -157,6 +157,18 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
+// Specification describes interactions between backends and interfaces.
+type Specification interface {
+	// AddPermanentSlot records side-effects of having a slot.
+	AddPermanentSlot(iface Interface, slot *Slot) error
+	// AddPermanentPlug records side-effects of having a plug.
+	AddPermanentPlug(iface Interface, plug *Plug) error
+	// AddConnectedSlot records side-effects of having a connected slot.
+	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
+	// AddConnectedPlug records side-effects of having a connected plug.
+	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
+}
+
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
@@ -185,6 +197,22 @@ func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid interface name: %q", name)
+	}
+	return nil
+}
+
+// ValidateDBusBusName checks if a string conforms to
+// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+func ValidateDBusBusName(busName string) error {
+	if len(busName) == 0 {
+		return fmt.Errorf("DBus bus name must be set")
+	} else if len(busName) > 255 {
+		return fmt.Errorf("DBus bus name is too long (must be <= 255)")
+	}
+
+	validBusName := regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*(\\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$")
+	if !validBusName.MatchString(busName) {
+		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
 }
