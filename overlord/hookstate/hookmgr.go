@@ -85,7 +85,8 @@ func Manager(s *state.State) (*HookManager, error) {
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
-	runner.AddHandler("setup-snap-context", manager.doSetupSnapContext, manager.undoSetupSnapContext)
+	runner.AddHandler("setup-snap-context", manager.doSetupSnapContext, manager.doRemoveSnapContext)
+	runner.AddHandler("remove-snap-context", manager.doRemoveSnapContext, nil)
 
 	return manager, nil
 }
@@ -104,7 +105,7 @@ func (m *HookManager) doSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *HookManager) undoSetupSnapContext(t *state.Task, _ *tomb.Tomb) error {
+func (m *HookManager) doRemoveSnapContext(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	snapsup, err := snapstate.TaskSnapSetup(t)
 	t.State().Unlock()

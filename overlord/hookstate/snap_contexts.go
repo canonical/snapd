@@ -93,11 +93,13 @@ func (m *SnapContexts) addContext(c *Context) {
 // DeleteSnapContext removes context mapping for given snap.
 func (m *SnapContexts) DeleteSnapContext(snapName string) {
 	m.contextsMutex.Lock()
+	defer m.contextsMutex.Unlock()
 	if contextID, ok := m.snapToContextID[snapName]; ok {
 		delete(m.contexts, contextID)
 		delete(m.snapToContextID, snapName)
 	}
-	m.contextsMutex.Unlock()
+	// error on removing the context file is not fatal
+	_ = os.Remove(filepath.Join(dirs.SnapContextsDir, fmt.Sprintf("snap.%s", snapName)))
 }
 
 // CreateSnapContext creates a new context mapping for given snap name
