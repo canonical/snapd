@@ -181,6 +181,11 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 		return err
 	}
 
+	// FIMXE: make this more elegant
+	if core.Name() == "ubuntu-core" {
+		return nil
+	}
+
 	if core.Name() != snapInfo.Name() {
 		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.Name(), core.Name())
 	}

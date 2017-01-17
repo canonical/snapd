@@ -427,3 +427,50 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	setConns(st, conns)
 	return nil
 }
+
+func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	// transition over, ubuntu-core has only slots
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for id := range conns {
+		plugRef, slotRef, err := parseConnID(id)
+		if err != nil {
+			return err
+		}
+		if slotRef.Snap == oldName {
+			slotRef.Snap = newName
+			newConnID := connID(plugRef, slotRef)
+			conns[newConnID] = conns[id]
+			delete(conns, id)
+		}
+	}
+	setConns(st, conns)
+
+	if err := m.reloadConnections(oldName); err != nil {
+		return err
+	}
+	if err := m.reloadConnections(newName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *InterfaceManager) undoTransitionConnections(task *state.Task, _ *tomb.Tomb) error {
+	return nil
+}

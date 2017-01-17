@@ -1,0 +1,32 @@
+summary: Ensure that the ubuntu-core -> core transition works
+
+systems: [-ubuntu-core-16,-ubuntu-core-16-arm32,-ubuntu-core-16-arm64]
+
+warn-timeout: 1m
+kill-timeout: 5m
+execute: |
+    . "$TESTSLIB/apt.sh"
+    echo "Ensure core is gone and we have ubuntu-core instead"
+    dpkg --purge snapd
+    apt_install_local ${GOPATH}/snapd_*.deb
+    snap install ubuntu-core
+    snap install xkcd-webserver
+    snap interfaces |MATCH ":network.*xkcd-webserver"
+
+    # FIXME: what is slightly ugly is that snapd will try to transition
+    #        the new ubuntu-core right away which will of course fail
+    
+    echo "Start/stop snapd so that the transition is triggered"
+    systemctl stop snapd.service snapd.socket
+    systemctl start snapd.service snapd.socket
+
+    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
+        snap changes
+        sleep 1
+    done
+
+    if snap list|grep ubuntu-core; then
+        echo "ubuntu-core still installed, transition failed"
+        exit 1
+    fi
+    snap interfaces |MATCH ":network.*xkcd-webserver"
