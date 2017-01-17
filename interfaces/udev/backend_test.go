@@ -79,7 +79,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "udev")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityUDev)
 }
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
