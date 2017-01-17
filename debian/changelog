@@ -1,3 +1,106 @@
+snapd (2.21) xenial; urgency=medium
+
+  * New upstream release, LP: #1656382
+    - daemon: re-enable reexec
+    - interfaces: allow reading installed files from previous revisions
+      by default
+    - daemon: make activation optional
+    - tests: run all snap-confine tests in c-unit-tests task
+    - many: fix abbreviated forms of disconnect
+    - tests: switch more tests to MATCH
+    - store: export userAgent. daemon: print store.UserAgent() on
+      startup.
+    - tests: test classic confinement `snap list` and  `snap info`
+      output
+    - debian: skip snap-confine unit tests on nocheck
+    - overlord/snapstate: share code between Update and UpdateMany, so
+      that it deals with auto-aliases correctly
+    - interfaces: upower-observe: refactor to allow snaps to provide a
+      slot
+    - tests: add end-to-end store test for classic confinement
+    - overlord,overlord/snapstate: have UpdateMany retire/enable auto-
+      aliases even without new revision
+    - interfaces/browser-support: add @{PROC}/@{pid}/fd/[0-9] w and misc
+      /run/udev
+    - interfaces/builtin: add physical-memory-* and io-ports-control
+    - interfaces: allow getsockopt by default since it is so commonly
+      used
+    - cmd/snap, daemon, overlord/snapstate: tests and fixes for "snap
+      refresh" of a classic snap
+    - interfaces: allow read/write access of real-time clock with time-
+      control interface
+    - store: request no CDN via a header using SNAPPY_STORE_NO_CDN
+      envvar
+    - snap: add information about tracking channel (not just actual
+      channel)
+    - interfaces: use fewer dot imports
+    - overlord/snapstate: remove restrictions on ResetAliases
+    - overlord, store: move confinement filtering to the overlord (from
+      The Store)
+    - many: move interface test helpers to ifacetest package
+    - many: implement 'snap aliases'
+    - vet: fix for unkeyed fields error on aliases_test.go
+    - interfaces: miscellaneous policy updates for network-control,
+      unity7, pulseaudio, default and home
+    - tests: test for auto-aliases
+    - interface hooks: connect plug slot hooks (step 2)
+    - cmd/snap: fix internal naming in snap connect
+    - snap: use "size" as the json tag in snap.ChannelSnapInfo
+    - tests: restore the missing initialization of iface manager causing
+      race
+    - snap: fix missing sizes in `snap info <remote-snap>`
+    - tests: improve cleanup for c-unit-tests
+    - cmd/snap-confine: build non-installed libsnap-confine-private.a
+    - cmd/snap-confine: small tweaks to seccomp support code
+    - interfaces/docker-support: allow /run/shm/aufs.xeno for 14.04
+    - many: obtain installed snaps developer/publisher username through
+      assertions
+    - store: setting of fields for details endpoint
+    - cmd/snap-confine: check for rst2man on configure
+    - snap: show `snap --help` output when just running `snap`
+    - interface/builtin: drop the obsolete checks in udisks2
+      SanitizeSlot
+    - cmd/snap: remove currency switch following UX review
+    - spread: find top-level directory before running generate-
+      packaging-dir
+    - interface hooks: prepare plug slot hooks (step 1)
+    - i18n: use github.com/mvo5/gettext.go (pure go) for i18n to avoid
+      cgo
+    - many: put a marker in the User-Agent sent by snapd/snap when under
+      testingThe User-Agent will look like:
+    - tests: fix -reuse and -resend when govendor is missing
+    - snap: provide friendlier `snap find` message when no snaps are
+      found
+    - tests: fix mkversions.sh failure on zesty
+    - spread: install build-essential unconditionally
+    - spread: improve qemu ubuntu-14.04-{32,64} support
+    - overlord/snapstate,daemon: implement GET /v2/aliases handling
+    - store: retry user info request
+    - tests: port more snap-confine regression tests
+    - tests: cancel the scheduled reboot on ubuntu-core-upgrade-no-gc
+      and restore state
+    - tests: debug zesty autopkgtest failures
+    - overlord/snapstate: use keyed fields on literals
+    - tests: use MATCH in install-remove-multi
+    - tests: increase wait time for service to be up
+    - tests: make debug-each succeed if DENIED doesn't match
+    - tests: skip packaging dir generation for non-git based autopkgtest
+      runs
+    - tests: port refresh-all-undo to MATCH
+    - tests: improve snap connect test
+    - tests: port additional snap-confine regression tests
+    - tests: show --version when it matches unknown
+    - tests: optionally use apt proxy for qemu
+    - tests: add hello-classic test
+    - many: behave more consistently when pointed to staging and
+      possibly the fake store
+    - overlord/ifacestate: remove stale comments
+    - interfaces/apparmor: ignore snippets in classic confinement
+    - tests: port first regression test from snap-confine
+    - cmd/snap-confine: disable old tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Jan 2017 19:39:51 +0100
+
 snapd (2.20.1) xenial; urgency=medium
 
   * New upstream release, LP: #1648520

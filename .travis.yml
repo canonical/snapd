@@ -16,7 +16,7 @@ env:
 
 install:
   - sudo apt-get update -qq
-  - sudo apt-get install -qq squashfs-tools
+  - sudo apt-get install -qq squashfs-tools xdelta3
   - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
 
 script: ./run-checks --$RUN

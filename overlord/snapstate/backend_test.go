@@ -112,6 +112,14 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		}
 	}
 
+	confinement := snap.StrictConfinement
+	switch spec.Channel {
+	case "channel-for-devmode":
+		confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		confinement = snap.ClassicConfinement
+	}
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: strings.Split(spec.Name, ".")[0],
@@ -123,6 +131,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		Confinement: confinement,
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
@@ -139,64 +148,73 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 	if len(cands) == 0 {
 		return nil, nil
 	}
-	if len(cands) != 1 {
-		panic("ListRefresh unexpectedly called with more than one candidate")
-	}
-	cand := cands[0]
-
-	snapID := cand.SnapID
-
-	if snapID == "" {
-		return nil, nil
+	if len(cands) > 2 {
+		panic("ListRefresh unexpectedly called with more than two candidates")
 	}
 
-	if snapID == "fakestore-please-error-on-refresh" {
-		return nil, fmt.Errorf("failing as requested")
-	}
+	var res []*snap.Info
+	for _, cand := range cands {
+		snapID := cand.SnapID
 
-	var name string
-	if snapID == "some-snap-id" {
-		name = "some-snap"
-	} else {
-		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
-	}
+		if snapID == "" || snapID == "other-snap-id" {
+			continue
+		}
 
-	revno := snap.R(11)
-	if cand.Channel == "channel-for-7" {
-		revno = snap.R(7)
-	}
+		if snapID == "fakestore-please-error-on-refresh" {
+			return nil, fmt.Errorf("failing as requested")
+		}
 
-	info := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: name,
-			Channel:  cand.Channel,
-			SnapID:   cand.SnapID,
-			Revision: revno,
-		},
-		Version: name,
-		DownloadInfo: snap.DownloadInfo{
-			DownloadURL: "https://some-server.com/some/path.snap",
-		},
-	}
+		var name string
+		if snapID == "some-snap-id" {
+			name = "some-snap"
+		} else {
+			panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
+		}
 
-	var hit snap.Revision
-	if cand.Revision != revno {
-		hit = revno
-	}
-	for _, blocked := range cand.Block {
-		if blocked == revno {
-			hit = snap.Revision{}
-			break
+		revno := snap.R(11)
+		confinement := snap.StrictConfinement
+		switch cand.Channel {
+		case "channel-for-7":
+			revno = snap.R(7)
+		case "channel-for-classic":
+			confinement = snap.ClassicConfinement
+		case "channel-for-devmode":
+			confinement = snap.DevModeConfinement
+		}
+
+		info := &snap.Info{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Channel:  cand.Channel,
+				SnapID:   cand.SnapID,
+				Revision: revno,
+			},
+			Version: name,
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "https://some-server.com/some/path.snap",
+			},
+			Confinement: confinement,
+		}
+
+		var hit snap.Revision
+		if cand.Revision != revno {
+			hit = revno
+		}
+		for _, blocked := range cand.Block {
+			if blocked == revno {
+				hit = snap.Revision{}
+				break
+			}
+		}
+
+		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
+
+		if !hit.Unset() {
+			res = append(res, info)
 		}
 	}
 
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
-
-	if hit.Unset() {
-		return nil, nil
-	}
-
-	return []*snap.Info{info}, nil
+	return res, nil
 }
 
 func (f *fakeStore) SuggestedCurrency() string {
