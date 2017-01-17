@@ -27,6 +27,8 @@ environment:
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
     GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
+    REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
+    SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
 
@@ -317,7 +319,11 @@ prepare: |
     go get ./tests/lib/snapbuild
 
     # Build fakestore.
-    go get ./tests/lib/fakestore/cmd/fakestore
+    fakestore_tags=
+    if [ "$REMOTE_STORE" = staging ]; then
+        fakestore_tags="-tags withstagingkeys"
+    fi
+    go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
 
@@ -339,7 +345,7 @@ suites:
                 prepare_classic
             fi
         restore: |
-            $TESTSLIB/reset.sh
+            $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
@@ -366,10 +372,18 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme]
-        restore:
+        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        restore: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             $TESTSLIB/reset.sh
 
 # vim:ts=4:sw=4:et
