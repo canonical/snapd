@@ -1,6 +1,254 @@
-SUBDIRS = snap-confine
-EXTRA_DIST = VERSION
+EXTRA_DIST = \
+	VERSION \
+	snap-confine/PORTING \
+	snap-confine/80-snappy-assign.rules \
+	snap-confine/snappy-app-dev \
+	snap-confine/snap-confine.apparmor.in \
+	snap-confine/manpages/snap-confine.rst \
+	snap-confine/manpages/snap-discard-ns.rst \
+	snap-confine/manpages/ubuntu-core-launcher.rst
+	$(all_tests) snap-confine/tests/common.sh
 
-.PHONY: check-syntax
-check-syntax:
-	shellcheck --format=gcc snap-confine/spread-tests/spread-prepare.sh
+CLEANFILES = \
+	snap-confine/manpages/snap-confine.5 \
+	snap-confine/manpages/snap-discard-ns.5 \
+	snap-confine/manpages/ubuntu-core-launcher.1
+
+libexec_PROGRAMS = \
+	snap-confine/snap-confine \
+	snap-confine/snap-discard-ns
+
+# The list of manual pages
+dist_man_MANS = \
+	snap-confine/manpages/snap-confine.5 \
+	snap-confine/manpages/snap-discard-ns.5 \
+	snap-confine/manpages/ubuntu-core-launcher.1
+
+noinst_LIBRARIES = \
+	libsnap-confine-private.a
+
+noinst_PROGRAMS = \
+	snap-confine/decode-mount-opts
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += \
+	snap-confine/snap-confine-unit-tests
+endif
+
+# Run check-syntax when checking
+# TODO: conver those to autotools-style tests later
+check: check-syntax-c check-syntax-sh check-unit-tests
+
+# Force particular coding style on all source and header files.
+.PHONY: check-syntax-c
+check-syntax-c:
+	@d=`mktemp -d`; \
+	trap 'rm -rf $d' EXIT; \
+	for f in $(wildcard $(srcdir)/snap-confine/*.c) $(wildcard $(srcdir)/snap-confine/*.h); do \
+	       out="$$d/`basename $$f.out`"; \
+	       echo "Checking $$f ... "; \
+	       indent -linux "$$f" -o "$$out"; \
+	       diff -Naur "$$f" "$$out" || exit 1; \
+	done;
+
+# Check for common shell errors
+.PHONY: check-syntax-sh
+check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*)) snap-confine/tests/common.sh
+	shellcheck --format=gcc $^
+
+.PHONY: check-unit-tests
+check-unit-tests: snap-confine/snap-confine-unit-tests
+if WITH_UNIT_TESTS
+	./snap-confine/snap-confine-unit-tests
+endif
+
+.PHONY: fmt
+fmt: $(wildcard $(srcdir)/snap-confine/*.c) $(wildcard $(srcdir)/snap-confine/*.h)
+	indent -linux $^
+
+snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
+# NOTE: This makes distcheck fail but it is required for udev, so go figure.
+# http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
+#
+# Install udev rules and the apparmor profile
+#
+# NOTE: the funky make functions here just convert /foo/bar/froz into foo.bar.froz
+# The inner subst replaces slashes with dots and the outer patsubst strips the leading dot
+#
+# NOTE: The 'void' directory *has to* be chmod 000
+install-data-local: snap-confine/snap-confine.apparmor
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -m 644 $(srcdir)/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
+	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
+
+# Install support script for udev rules
+install-exec-local:
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+
+install-exec-hook:
+if CAPS_OVER_SETUID
+# Ensure that snap-confine has CAP_SYS_ADMIN capability
+	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
+else
+# Ensure that snap-confine is +s (setuid)
+	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+endif
+	install -d -m 755 $(DESTDIR)$(bindir)
+	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+
+# The hack target helps devlopers work on snap-confine on their live system by
+# installing a fresh copy of snap confine and the appropriate apparmor profile.
+.PHONY: hack
+hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
+	sudo install -D -m 4755 snap-conifne/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
+
+snap-confine/manpages/%.5: snap-confine/manpages/%.rst
+	$(HAVE_RST2MAN) $^ > $@
+
+snap-confine/manpages/ubuntu-core-launcher.1: snap-confine/manpages/ubuntu-core-launcher.rst
+	$(HAVE_RST2MAN) $^ > $@
+
+all_tests = \
+    snap-confine/tests/test_bad_seccomp_filter_args \
+    snap-confine/tests/test_bad_seccomp_filter_args_clone \
+    snap-confine/tests/test_bad_seccomp_filter_args_null \
+    snap-confine/tests/test_bad_seccomp_filter_args_prctl \
+    snap-confine/tests/test_bad_seccomp_filter_args_prio \
+    snap-confine/tests/test_bad_seccomp_filter_args_socket \
+    snap-confine/tests/test_bad_seccomp_filter_length \
+    snap-confine/tests/test_bad_seccomp_filter_missing_trailing_newline \
+    snap-confine/tests/test_complain \
+    snap-confine/tests/test_complain_missed \
+    snap-confine/tests/test_noprofile \
+    snap-confine/tests/test_restrictions \
+    snap-confine/tests/test_restrictions_working \
+    snap-confine/tests/test_restrictions_working_args \
+    snap-confine/tests/test_restrictions_working_args_clone \
+    snap-confine/tests/test_restrictions_working_args_prctl \
+    snap-confine/tests/test_restrictions_working_args_prio \
+    snap-confine/tests/test_restrictions_working_args_socket \
+    snap-confine/tests/test_unrestricted \
+    snap-confine/tests/test_unrestricted_missed \
+    snap-confine/tests/test_whitelist
+
+if SECCOMP
+if CONFINEMENT_TESTS
+TESTS = $(all_tests)
+endif
+endif
+
+libsnap_confine_private_a_SOURCES = \
+	snap-confine/error.h \
+	snap-confine/error.c \
+	snap-confine/utils.h \
+	snap-confine/utils.c \
+	snap-confine/secure-getenv.c \
+	snap-confine/secure-getenv.h
+
+snap_confine_decode_mount_opts_SOURCES = \
+	snap-confine/decode-mount-opts.c \
+	snap-confine/mount-opt.c \
+	snap-confine/mount-opt.h
+
+snap_confine_snap_discard_ns_SOURCES = \
+	snap-confine/ns-support.c \
+	snap-confine/ns-support.h \
+	snap-confine/apparmor-support.c \
+	snap-confine/apparmor-support.h \
+	snap-confine/cleanup-funcs.c \
+	snap-confine/cleanup-funcs.h \
+	snap-confine/mountinfo.c \
+	snap-confine/mountinfo.h \
+	snap-confine/snap-discard-ns.c
+snap_confine_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_confine_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
+snap_confine_snap_discard_ns_LDADD = libsnap-confine-private.a
+snap_confine_snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
+snap_confine_snap_discard_ns_LDADD += $(SECCOMP_LIBS)
+
+if APPARMOR
+snap_confine_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
+snap_confine_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
+endif
+
+snap_confine_snap_confine_SOURCES = \
+	snap-confine/snap-confine.c \
+	snap-confine/snap.c \
+	snap-confine/snap.h \
+	snap-confine/classic.c \
+	snap-confine/classic.h \
+	snap-confine/mount-support.c \
+	snap-confine/mount-support.h \
+	snap-confine/mount-support-nvidia.c \
+	snap-confine/mount-support-nvidia.h \
+	snap-confine/cleanup-funcs.c \
+	snap-confine/cleanup-funcs.h \
+	snap-confine/udev-support.c \
+	snap-confine/udev-support.h \
+	snap-confine/user-support.c \
+	snap-confine/user-support.h \
+	snap-confine/quirks.c \
+	snap-confine/quirks.h \
+	snap-confine/mount-opt.c \
+	snap-confine/mount-opt.h \
+	snap-confine/mountinfo.c \
+	snap-confine/mountinfo.h \
+	snap-confine/ns-support.c \
+	snap-confine/ns-support.h \
+	snap-confine/apparmor-support.c \
+	snap-confine/apparmor-support.h
+
+snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
+snap_confine_snap_confine_LDADD = libsnap-confine-private.a
+snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
+snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
+
+# This is here to help fix rpmlint hardening issue.
+# https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
+snap_confine_snap_confine_CFLAGS += $(SUID_CFLAGS)
+snap_confine_snap_confine_LDFLAGS += $(SUID_LDFLAGS)
+
+if SECCOMP
+snap_confine_snap_confine_SOURCES += \
+	snap-confine/seccomp-support.c \
+	snap-confine/seccomp-support.h
+snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
+snap_confine_snap_confine_LDADD += $(SECCOMP_LIBS)
+endif
+
+if APPARMOR
+snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
+snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
+endif
+
+if WITH_UNIT_TESTS
+snap_confine_snap_confine_unit_tests_SOURCES = \
+	snap-confine/unit-tests-main.c \
+	snap-confine/classic.c \
+	snap-confine/classic.h \
+	snap-confine/quirks.c \
+	snap-confine/quirks.h \
+	snap-confine/unit-tests.c \
+	snap-confine/unit-tests.h \
+	snap-confine/utils-test.c \
+	snap-confine/cleanup-funcs-test.c \
+	snap-confine/mount-support-test.c \
+	snap-confine/verify-executable-name-test.c \
+	snap-confine/mountinfo-test.c \
+	snap-confine/ns-support-test.c \
+	snap-confine/apparmor-support.c \
+	snap-confine/apparmor-support.h \
+	snap-confine/mount-opt-test.c \
+	snap-confine/error-test.c
+snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
+snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
+snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+endif
