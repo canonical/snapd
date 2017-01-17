@@ -346,6 +346,11 @@ suites:
             else
                 prepare_classic
             fi
+        prepare-each: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
