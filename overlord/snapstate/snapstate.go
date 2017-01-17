@@ -804,7 +804,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		addNext(removeInactiveRevision(st, name, revision))
 	}
 
-	removeSnapContext := st.NewTask("remove-snap-context", fmt.Sprintf(i18n.G("Remove snap %q context"), snapsup.Name()))
+	removeSnapContext := st.NewTask("remove-snap-context", fmt.Sprintf(i18n.G("Remove the context of snap %q"), snapsup.Name()))
+	removeSnapContext.Set("snap-setup", snapsup)
 	addNext(state.NewTaskSet(removeSnapContext))
 
 	return full, nil
