@@ -1,19 +1,4 @@
 #!/bin/bash
-# apt update is hanging on security.ubuntu.com with IPv6.
-sysctl -w net.ipv6.conf.all.disable_ipv6=1
-trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
-
-# Unpack delta, or move content out of the prefixed directory (see rename and repack in spread.yaml).
-if [ -f current.delta ]; then
-   quiet apt-get update
-   quiet apt-get install -y xdelta3 curl
-   curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
-   xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
-   rm -f delta-ref.tar current.delta
-elif [ -d $DELTA_PREFIX ]; then
-   find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
-   rmdir $DELTA_PREFIX
-fi
 
 # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
 [ "$REUSE_PROJECT" != 1 ] || exit 0
