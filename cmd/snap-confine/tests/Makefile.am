@@ -2,6 +2,7 @@ TESTS =
 
 all_tests = \
     test_bad_seccomp_filter_args \
+    test_bad_seccomp_filter_args_clone \
     test_bad_seccomp_filter_args_null \
     test_bad_seccomp_filter_args_prctl \
     test_bad_seccomp_filter_args_prio \
@@ -14,6 +15,7 @@ all_tests = \
     test_restrictions \
     test_restrictions_working \
     test_restrictions_working_args \
+    test_restrictions_working_args_clone \
     test_restrictions_working_args_prctl \
     test_restrictions_working_args_prio \
     test_restrictions_working_args_socket \
@@ -33,4 +35,4 @@ check: ../snap-confine
 
 .PHONY: check-syntax
 check-syntax:
-	shellcheck --format=gcc $(wildcard test_*) common.sh
+	shellcheck --format=gcc $(wildcard $(srcdir)/test_*) common.sh

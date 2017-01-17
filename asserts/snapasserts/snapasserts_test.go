@@ -234,12 +234,10 @@ func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
 	si, err := snapasserts.DeriveSideInfo(snapPath, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(si, DeepEquals, &snap.SideInfo{
-		RealName:    "foo",
-		SnapID:      "snap-id-1",
-		Revision:    snap.R(42),
-		Channel:     "",
-		DeveloperID: s.dev1Acct.AccountID(),
-		Developer:   "developer1",
+		RealName: "foo",
+		SnapID:   "snap-id-1",
+		Revision: snap.R(42),
+		Channel:  "",
 	})
 }
 

@@ -203,6 +203,14 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  dbus:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-attributes:
+        name: .+
+    deny-auto-connection: true
   dcdbas-control:
     allow-installation:
       slot-snap-type:
@@ -264,6 +272,17 @@ slots:
     allow-installation:
       slot-snap-type:
         - gadget
+        - core
+    deny-auto-connection: true
+  iio:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+        - core
+    deny-auto-connection: true
+  io-ports-control:
+    allow-installation:
+      slot-snap-type:
         - core
     deny-auto-connection: true
   kernel-module-control:
@@ -376,10 +395,30 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  openvswitch:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  openvswitch-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   optical-drive:
     allow-installation:
       slot-snap-type:
         - core
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   ppp:
     allow-installation:
       slot-snap-type:
@@ -471,6 +510,9 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+        - app
+    deny-connection:
+      on-classic: false
   x11:
     allow-installation:
       slot-snap-type:

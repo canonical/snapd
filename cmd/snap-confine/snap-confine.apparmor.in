@@ -107,7 +107,10 @@
     # NOTE: this doesn't capture the MERGED_USR configuration option so that
     # when a distro with merged /usr and / that uses apparmor shows up it
     # should be handled here.
+    /{,run/}media/ w,
     mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
+    /run/netns/ w,
+    mount options=(rw rbind) /run/netns/ -> /tmp/snap.rootfs_*/run/netns/,
     # unidirectional mounts (only for classic system)
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/dev/,
@@ -193,9 +196,22 @@
     # NOTE: at this stage the /snap directory is stable as we have called
     # pivot_root already.
 
-    # Support mount profiles via the content interface
-    mount options=(rw bind) /snap/*/** -> /snap/*/*/**,
+    # Support mount profiles via the content interface. This should correspond
+    # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
+    # $SNAP_{DATA,COMMON} for both reading and writing.
+    #
+    # Note that:
+    #   /snap/*/*/**
+    # is meant to mean:
+    #   /snap/$SNAP_NAME/$SNAP_REVISION/and-any-subdirectory
+    # but:
+    #   /var/snap/*/**
+    # is meant to mean:
+    #   /var/snap/$SNAP_NAME/$SNAP_REVISION/
     mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
+    mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
+    mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
+    mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
     # But we don't want anyone to touch /snap/bin
     audit deny mount /snap/bin/** -> /**,
     audit deny mount /** -> /snap/bin/**,
