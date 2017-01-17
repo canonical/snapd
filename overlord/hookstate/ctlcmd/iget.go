@@ -37,7 +37,7 @@ type getAttrCommand struct {
 
 var shortGetAttrHelp = i18n.G("Prints values of interface attributes")
 var longGetAttrHelp = i18n.G(`
-The get command prints values of interface attributes for current connection.
+The iget command prints values of interface attributes for current connection.
 
     $ snapctl iget serialpath
     /dev/ttyS0

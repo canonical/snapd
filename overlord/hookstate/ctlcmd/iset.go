@@ -38,7 +38,7 @@ type setAttrCommand struct {
 
 var shortSetAttrHelp = i18n.G("Changes configuration options")
 var longSetAttrHelp = i18n.G(`
-The setattr command changes the provided interface attributes as requested.
+The iset command changes the provided interface attributes as requested.
 
     $ snapctl iset path=/dev/ttyS0 usb-product=1000
 
