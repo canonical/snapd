@@ -1,3 +1,12 @@
+snapd (2.21~14.04.2) trusty; urgency=medium
+
+  * New upstream release, LP: #1656382:
+    - trusty backport
+    - remove debian/tests/control golang-golang-x-net-dev dependency
+      to make autopkgtests work
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Jan 2017 11:42:00 +0100
+
 snapd (2.21~14.04.1) trusty; urgency=medium
 
   * New upstream release, LP: #1656382:
