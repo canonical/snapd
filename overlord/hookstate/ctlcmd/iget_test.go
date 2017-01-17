@@ -58,19 +58,19 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *getAttrSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get-attr", "foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iget", "foo"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get-attr", "baz"})
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"iget", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestUnknownKey(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get-attr", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iget", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown attribute "x"`)
 	c.Check(string(stdout), Equals, "")

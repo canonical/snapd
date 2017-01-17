@@ -134,7 +134,7 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)

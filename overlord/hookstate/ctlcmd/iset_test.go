@@ -52,7 +52,7 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *setAttrSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set-attr", "foo=bar", `baz=["a", "b"]`})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iset", "foo=bar", `baz=["a", "b"]`})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -79,7 +79,7 @@ func (s *setAttrSuite) TestCommandFailsOutsideOfValidContext(c *C) {
 	mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set-attr", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"iset", "foo=bar"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks`)
 	c.Check(string(stdout), Equals, "")

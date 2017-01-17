@@ -40,14 +40,14 @@ var shortSetAttrHelp = i18n.G("Changes configuration options")
 var longSetAttrHelp = i18n.G(`
 The setattr command changes the provided interface attributes as requested.
 
-    $ snapctl set-attr path=/dev/ttyS0 usb-product=1000
+    $ snapctl iset path=/dev/ttyS0 usb-product=1000
 
 Attributes can only be set in the context of prepare-plug- and prepare-slot-
 interface hooks.
 `)
 
 func init() {
-	addCommand("set-attr", shortSetAttrHelp, longSetAttrHelp, func() command { return &setAttrCommand{} })
+	addCommand("iset", shortSetAttrHelp, longSetAttrHelp, func() command { return &setAttrCommand{} })
 }
 
 func (s *setAttrCommand) Execute(args []string) error {
@@ -56,7 +56,7 @@ func (s *setAttrCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	// Make sure set-attr is only supported during the execution of prepare-[plug|slot] hooks
+	// Make sure iset is only supported during the execution of prepare-[plug|slot] hooks
 	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
 		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
 		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))

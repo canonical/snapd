@@ -2,8 +2,8 @@
 
 echo "Getting attributes from confirm-slot-bar hook"
 
-if ! output=$(snapctl get-attr target); then
-    echo "Expected snapctl get-attr to be able to read the value of 'target' attribute"
+if ! output=$(snapctl iget target); then
+    echo "Expected snapctl iget to be able to read the value of 'target' attribute"
     exit 1
 fi
 
@@ -13,7 +13,7 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-if snapctl set-attr target=slottarget; then
-    echo "Expected snapctl set-attr to fail when run from confirm-plug hook"
+if snapctl iset target=slottarget; then
+    echo "Expected snapctl iset to fail when run from confirm-plug hook"
     exit 1
 fi

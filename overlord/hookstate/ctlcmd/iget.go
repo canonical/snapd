@@ -39,12 +39,12 @@ var shortGetAttrHelp = i18n.G("Prints values of interface attributes")
 var longGetAttrHelp = i18n.G(`
 The get command prints values of interface attributes for current connection.
 
-    $ snapctl get-attr serialpath
+    $ snapctl iget serialpath
     /dev/ttyS0
 
 If multiple attribute names are provided, a document is returned:
 
-    $ snapctl get serialpath usb-vendor
+    $ snapctl iget serialpath usb-vendor
     {
         "serialpath": "/dev/ttyS0",
         "usb-vendor": "1000"
@@ -52,13 +52,13 @@ If multiple attribute names are provided, a document is returned:
 `)
 
 func init() {
-	addCommand("get-attr", shortGetAttrHelp, longGetAttrHelp, func() command { return &getAttrCommand{} })
+	addCommand("iget", shortGetAttrHelp, longGetAttrHelp, func() command { return &getAttrCommand{} })
 }
 
 func (c *getAttrCommand) Execute(args []string) error {
 	context := c.context()
 	if context == nil {
-		return fmt.Errorf("cannot get-attr without a context")
+		return fmt.Errorf("cannot iget without a context")
 	}
 
 	var err error
