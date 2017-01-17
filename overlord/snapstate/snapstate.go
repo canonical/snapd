@@ -863,9 +863,13 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 }
 
 // canDisable verifies that a snap can be deactivated.
-func canDisable(st *snap.Info) bool {
+func canDisable(si *snap.Info) bool {
+	if si.Name() == "ubuntu-core" {
+		return true
+	}
+
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == st.Type {
+		if importantSnapType == si.Type {
 			return false
 		}
 	}
@@ -875,6 +879,10 @@ func canDisable(st *snap.Info) bool {
 
 // canRemove verifies that a snap can be removed.
 func canRemove(si *snap.Info, active bool) bool {
+	if si.Name() == "ubuntu-core" {
+		return true
+	}
+
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Pruning non active ones
 	// is acceptable.
@@ -1096,6 +1104,58 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		Flags:    flags.ForSnapSetup(),
 	}
 	return doInstall(st, &snapst, snapsup)
+}
+
+// TransitionCore transitions from an old snap name to a new snap name. It is
+// used for the ubuntu-core -> core transition (that is not just a rename
+// because the two snaps have different snapIDs)
+// Note that this function makes some assumptions like:
+// - no aliases setup for both snaps
+// - no data needs to be copied
+func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
+	var oldSnapst, newSnapst SnapState
+	err := Get(st, oldName, &oldSnapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !oldSnapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
+	}
+
+	// FIXME: what user ID to use for an automatic transition?
+	userID := 0
+	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// FIXME: do we need to disable all the snaps that have active
+	//        interfaces on "oldSnap"?
+
+	// start by instaling the new snap
+	tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+		Channel:      oldSnapst.Channel,
+		DownloadInfo: &newInfo.DownloadInfo,
+		SideInfo:     &newInfo.SideInfo,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// the transition the interface connections over
+	transIf := st.NewTask("transition-connections", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
+	transIf.Set("old-name", oldName)
+	transIf.Set("new-name", newName)
+	transIf.WaitAll(tsInst)
+	tsTrans := state.NewTaskSet(transIf)
+
+	// then remove the oldName
+	tsRm, err := Remove(st, oldName, snap.R(0))
+	if err != nil {
+		return nil, err
+	}
+	tsRm.WaitFor(transIf)
+
+	return []*state.TaskSet{tsInst, tsTrans, tsRm}, nil
 }
 
 // State/info accessors
