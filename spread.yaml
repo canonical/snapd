@@ -193,6 +193,10 @@ repack: |
     fi
 
 prepare: |
+    # apt update is hanging on security.ubuntu.com with IPv6.
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     if [ -f current.delta ]; then
         apt-get update
@@ -235,10 +239,6 @@ prepare: |
             printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
         fi
     fi
-
-    # apt update is hanging on security.ubuntu.com with IPv6.
-    sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     apt-get update
 
