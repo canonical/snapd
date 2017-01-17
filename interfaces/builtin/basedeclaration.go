@@ -312,6 +312,12 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  login-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+    deny-connection: true
   log-observe:
     allow-installation:
       slot-snap-type:

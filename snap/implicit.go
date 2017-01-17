@@ -39,6 +39,7 @@ var implicitSlots = []string{
 	"io-ports-control",
 	"kernel-module-control",
 	"locale-control",
+	"login-control",
 	"log-observe",
 	"lxd-support",
 	"mount-observe",
