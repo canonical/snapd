@@ -17,14 +17,14 @@ noinst_PROGRAMS += snap-confine-unit-tests
 noinst_PROGRAMS += system-shutdown-unit-tests
 endif
 
-system-shutdown: \
+system-shutdown$(EXEEXT): \
 	mountinfo.c \
 	mountinfo.h \
 	system-shutdown-utils.c \
 	system-shutdown-utils.h \
 	system-shutdown.c
-system-shutdown: CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
-system-shutdown: LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
+system-shutdown$(EXEEXT): CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system-shutdown$(EXEEXT): LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 decode_mount_opts_SOURCES = \
 	decode-mount-opts.c \
