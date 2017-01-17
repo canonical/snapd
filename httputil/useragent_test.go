@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,36 @@
  *
  */
 
-package store
+package httputil_test
 
 import (
-	"github.com/snapcore/snapd/testutil"
+	"strings"
 
-	"gopkg.in/retry.v1"
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/httputil"
 )
 
-// MockDefaultRetryStrategy mocks the retry strategy used by several store requests
-func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
-	originalDefaultRetryStrategy := defaultRetryStrategy
-	defaultRetryStrategy = strategy
-	t.AddCleanup(func() {
-		defaultRetryStrategy = originalDefaultRetryStrategy
-	})
+type UASuite struct {
+	restore func()
+}
+
+var _ = Suite(&UASuite{})
+
+func (s *UASuite) SetUpTest(c *C) {
+	s.restore = httputil.MockUserAgent("-")
+}
+
+func (s *UASuite) TearDownTest(c *C) {
+	s.restore()
+}
+
+func (s *UASuite) TestUserAgent(c *C) {
+	httputil.SetUserAgentFromVersion("10")
+	ua := httputil.UserAgent()
+	c.Check(strings.HasPrefix(ua, "snapd/10 "), Equals, true)
+
+	httputil.SetUserAgentFromVersion("10", "extraProd")
+	ua = httputil.UserAgent()
+	c.Check(strings.Contains(ua, "extraProd"), Equals, true)
 }
