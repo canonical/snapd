@@ -104,6 +104,11 @@ cp ../*.deb $GOPATH
 # Build snapbuild.
 go get ./tests/lib/snapbuild
 # Build fakestore.
-go get ./tests/lib/fakestore/cmd/fakestore
+
+fakestore_tags=
+if [ "$REMOTE_STORE" = staging ]; then
+    fakestore_tags="-tags withstagingkeys"
+fi
+go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
 # Build fakedevicesvc.
 go get ./tests/lib/fakedevicesvc
