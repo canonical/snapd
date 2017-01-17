@@ -406,6 +406,20 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from 'bar' refreshed`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"classic": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--classic", "one"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) TestRefreshOneDevmode(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
