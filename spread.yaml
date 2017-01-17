@@ -154,6 +154,8 @@ exclude:
     - cmd/snapd/snapd
     - cmd/snapctl/snapctl
     - cmd/snap-exec/snap-exec
+    - "*.o"
+    - "*.a"
 
 prepare-each: |
     # systemd on 14.04 does not know about --rotate
