@@ -26,7 +26,7 @@ restore: |
     rm -f request.txt
 
 execute: |
-    response=$(nc -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
+    response=$(nc -q 5 -"$IP_VERSION" "$LOCALHOST" "$PORT" < request.txt)
 
     statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
     echo "$response" | grep -Pzq "$statusPattern"

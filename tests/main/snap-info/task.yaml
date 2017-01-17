@@ -1,6 +1,7 @@
 summary: Check that snap info works
 
 prepare: |
+    apt-get install -y python3-yaml
     snapbuild $TESTSLIB/snaps/basic .
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode

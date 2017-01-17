@@ -55,8 +55,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "apparmor"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityAppArmor
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.
@@ -153,7 +153,6 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAll(policy, attachComplain)
 	}
-	// TODO: add support for opts.Classic later
 	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 		switch {
 		case bytes.Equal(placeholder, placeholderVar):
@@ -161,7 +160,22 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
 		case bytes.Equal(placeholder, placeholderSnippets):
-			return bytes.Join(snippets[securityTag], []byte("\n"))
+			var tagSnippets [][]byte
+
+			if opts.Classic && opts.JailMode {
+				// Add a special internal snippet for snaps using classic confinement
+				// and jailmode together. This snippet provides access to the core snap
+				// so that the dynamic linker and shared libraries can be used.
+				tagSnippets = append(tagSnippets, classicJailmodeSnippet)
+				tagSnippets = append(tagSnippets, snippets[securityTag]...)
+			} else if opts.Classic && !opts.JailMode {
+				// When classic confinement (without jailmode) is in effect we
+				// are ignoring all apparmor snippets as they may conflict with
+				// the super-broad template we are starting with.
+			} else {
+				tagSnippets = snippets[securityTag]
+			}
+			return bytes.Join(tagSnippets, []byte("\n"))
 		}
 		return nil
 	})
@@ -190,4 +204,8 @@ func unloadProfiles(profiles []string) error {
 		}
 	}
 	return nil
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

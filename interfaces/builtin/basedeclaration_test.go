@@ -349,11 +349,13 @@ var (
 		"bool-file":        {"core", "gadget"},
 		"browser-support":  {"core"},
 		"content":          {"app", "gadget"},
+		"dbus":             {"app"},
 		"docker-support":   {"core"},
 		"fwupd":            {"app"},
 		"gpio":             {"core", "gadget"},
 		"hidraw":           {"core", "gadget"},
 		"i2c":              {"core", "gadget"},
+		"iio":              {"core", "gadget"},
 		"location-control": {"app"},
 		"location-observe": {"app"},
 		"lxd-support":      {"core"},
@@ -366,6 +368,7 @@ var (
 		"pulseaudio":       {"app", "core"},
 		"serial-port":      {"core", "gadget"},
 		"udisks2":          {"app"},
+		"upower-observe":   {"app", "core"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
@@ -505,6 +508,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
+		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {

@@ -11,6 +11,7 @@ AC_PROG_CC_C99
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
+AC_PROG_RANLIB
 
 AC_LANG([C])
 # Checks for libraries.
@@ -160,6 +161,9 @@ AM_CONDITIONAL([CAPS_OVER_SETUID], [test "x$enable_caps_over_setuid" = "xyes"])
 AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
+
+AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
+AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man tool, install python-docutils or similar"])])
 
 AC_CONFIG_FILES([Makefile snap-confine/Makefile snap-confine/tests/Makefile snap-confine/manpages/Makefile])
 AC_OUTPUT
