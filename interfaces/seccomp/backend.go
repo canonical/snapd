@@ -47,8 +47,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "seccomp"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecuritySecComp
 }
 
 // Setup creates seccomp profiles specific to a given snap.
@@ -132,4 +132,8 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

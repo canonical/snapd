@@ -1,4 +1,9 @@
 #!/bin/bash
+# apt update is hanging on security.ubuntu.com with IPv6.
+sysctl -w net.ipv6.conf.all.disable_ipv6=1
+trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
+# Unpack delta, or move content out of the prefixed directory (see rename and repack in spread.yaml).
 if [ -f current.delta ]; then
    quiet apt-get update
    quiet apt-get install -y xdelta3 curl
@@ -41,10 +46,6 @@ if [ "$SPREAD_BACKEND" = qemu ]; then
        printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
    fi
 fi
-
-# apt update is hanging on security.ubuntu.com with IPv6.
-sysctl -w net.ipv6.conf.all.disable_ipv6=1
-trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
 quiet apt-get update
 

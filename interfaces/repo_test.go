@@ -135,6 +135,13 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+func (s *RepositorySuite) TestAddBackend(c *C) {
+	backend := &ifacetest.TestSecurityBackend{}
+	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
+	err := s.emptyRepo.AddBackend(backend)
+	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
+}
+
 // Tests for Repository.Interface()
 
 func (s *RepositorySuite) TestInterface(c *C) {
@@ -1241,8 +1248,9 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 }
 
 // Tests for Repository.SecuritySnippetsForSnap()
+// and for SnapSpecification()
 
-const testSecurity SecuritySystem = "security"
+const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
@@ -1269,6 +1277,22 @@ var testInterface = &ifacetest.TestInterface{
 			return []byte(`connection-specific slot snippet`), nil
 		}
 		return nil, nil
+	},
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		spec.AddSnippet("static plug snippet")
+		return nil
+	},
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific plug snippet")
+		return nil
+	},
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		spec.AddSnippet("static slot snippet")
+		return nil
+	},
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific slot snippet")
+		return nil
 	},
 }
 
@@ -1320,6 +1344,43 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`static slot snippet`),
 			[]byte(`connection-specific slot snippet`),
 		},
+	})
+}
+
+func (s *RepositorySuite) TestSnapSpecification(c *C) {
+	repo := s.emptyRepo
+	c.Assert(repo.AddBackend(&ifacetest.TestSecurityBackend{}), IsNil)
+	c.Assert(repo.AddInterface(testInterface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+
+	// Snaps should get static security now
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static plug snippet"})
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static slot snippet"})
+
+	// Establish connection between plug and slot
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
+	err = repo.Connect(connRef)
+	c.Assert(err, IsNil)
+
+	// Snaps should get static and connection-specific security now
+	spec, err = repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static plug snippet",
+		"connection-specific plug snippet",
+	})
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static slot snippet",
+		"connection-specific slot snippet",
 	})
 }
 
