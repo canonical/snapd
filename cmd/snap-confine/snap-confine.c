@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "classic.h"
 #include "mount-support.h"
@@ -38,8 +40,48 @@
 #include "secure-getenv.h"
 #include "apparmor-support.h"
 
+void execInCoreSnap(int args, char **argv)
+{
+	// no need to re-exec if not on classic
+	if (!is_running_on_classic_distribution()) {
+		return;
+	}
+	// check if it is disabled via env
+	char *env = getenv("SNAP_REEXEC");
+	if (env != NULL && (strcmp(env, "0") == 0)) {
+		return;
+	}
+
+	char full[PATH_MAX];
+	struct stat buf;
+	if (stat("/snap/core/current", &buf) == 0) {
+		must_snprintf(full, sizeof(full),
+			      "/snap/core/current/usr/lib/snapd/snap-confine");
+	} else if (stat("/snap/ubuntu-core/current", &buf) == 0) {
+		must_snprintf(full, sizeof(full),
+			      "/snap/ubuntu-core/current/usr/lib/snapd/snap-confine");
+	} else {
+		// no core/ubuntu-core snap installed ?!?
+		return;
+	}
+
+	if (stat(full, &buf) < 0) {
+		return;
+	}
+	setenv("SNAP_REEXEC", "0", 1);
+
+	debug("restarting into %s", full);
+
+	execv(full, argv);
+	perror("re-execv failed");
+	_exit(111);
+}
+
 int main(int argc, char **argv)
 {
+	// see if we need to re-exec
+	execInCoreSnap(argc, argv);
+
 	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;

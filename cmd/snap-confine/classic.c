@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 
+// FIXME: use /etc/os-release instead
 bool is_running_on_classic_distribution()
 {
 	// NOTE: keep this list sorted please

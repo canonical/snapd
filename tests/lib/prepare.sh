@@ -46,7 +46,7 @@ update_core_snap_for_classic_reexec() {
     mount "$snap" "$core"
 
     # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap /usr/lib/snapd/snap-confine; do
         if ! cmp ${p} ${core}${p}; then
             echo "$p in tree and $p in core snap are unexpectedly not the same"
             exit 1
