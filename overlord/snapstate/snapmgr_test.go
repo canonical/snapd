@@ -793,6 +793,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		"discard-snap",
 		"clear-aliases",
 		"discard-conns",
+		"remove-snap-context",
 	})
 }
 
@@ -2052,7 +2053,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 9)
+	c.Check(len(s.fakeBackend.ops), Equals, 10)
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
@@ -2092,6 +2093,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "remove-snap-context:Doing",
+			name: "some-snap",
+		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2104,7 +2109,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" {
+		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" || t.Kind() == "remove-snap-context" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2220,6 +2225,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "remove-snap-context:Doing",
+			name: "some-snap",
+		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2234,7 +2243,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" {
+		if t.Kind() == "discard-conns" || t.Kind() == "clear-aliases" || t.Kind() == "remove-snap-context" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2363,7 +2372,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 5)
+	c.Check(len(s.fakeBackend.ops), Equals, 6)
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
@@ -2386,6 +2395,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "remove-snap-context:Doing",
+			name: "some-snap",
+		},
 	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2402,7 +2415,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		if t.Kind() != "discard-conns" && t.Kind() != "clear-aliases" {
+		if t.Kind() != "discard-conns" && t.Kind() != "clear-aliases" && t.Kind() != "remove-snap-context" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 
@@ -4247,7 +4260,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -4258,6 +4271,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"discard-snap",
 			"clear-aliases",
 			"discard-conns",
+			"remove-snap-context",
 		})
 	}
 }
