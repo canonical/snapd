@@ -137,7 +137,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
-		"unity8-download-manager": true,
 		"gsettings":               true,
 		"mir":                     true,
 		"network":                 true,
@@ -147,6 +146,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
+		"unity8-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
 	}
@@ -352,7 +352,6 @@ var (
 		"content":                 {"app", "gadget"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
-		"unity8-download-manager": {"app"},
 		"fwupd":                   {"app"},
 		"gpio":                    {"core", "gadget"},
 		"hidraw":                  {"core", "gadget"},
@@ -370,6 +369,9 @@ var (
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
 		"udisks2":                 {"app"},
+		"unity8-calendar":         {"app"},
+		"unity8-contacts":         {"app"},
+		"unity8-download-manager": {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
 		"docker": nil,
@@ -472,7 +474,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":                   true,
-		"unity8-download-manager": true,
 		"docker":                  true,
 		"fwupd":                   true,
 		"location-control":        true,
@@ -480,6 +481,9 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                     true,
 		"mir":                     true,
 		"udisks2":                 true,
+		"unity8-calendar":         true,
+		"unity8-contacts":         true,
+		"unity8-download-manager": true,
 	}
 
 	for _, iface := range all {
