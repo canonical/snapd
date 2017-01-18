@@ -1,4 +1,16 @@
 summary: Test that i18n works
 
 execute: |
+    # The snapd deb from the archive does not contain .mo files, those
+    # are stripped out by the langpack buildd stuff and put into the
+    # the various langpacks.
+    # Therefore this test only makes sense when we build snapd from
+    # the local source. When running against an official snapd deb
+    # or against the core we will not see translations
+    if [ ! -f /usr/share/locale/de/LC_MESSAGES/snappy.mo ]; then
+        echo "SKIP: No mo files for snapd available"
+        exit 0
+    fi
+
+    echo "Ensure that i18n works"
     LANG=de_DE.UTF-8 snap changes everything | MATCH "Ja, ja, allerdings."
