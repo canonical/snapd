@@ -53,6 +53,7 @@ var implicitSlots = []string{
 	"physical-memory-observe",
 	"ppp",
 	"process-control",
+	"realsense",
 	"raw-usb",
 	"removable-media",
 	"shutdown",
