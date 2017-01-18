@@ -229,7 +229,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		if err := m.repo.Connect(connRef); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 		}
-		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
+		key := connRef.ID()
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
 	task.State().Set("conns", conns)
