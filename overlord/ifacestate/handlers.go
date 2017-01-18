@@ -428,19 +428,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var oldName, newName string
-	if err := t.Get("old-name", &oldName); err != nil {
-		return err
-	}
-	if err := t.Get("new-name", &newName); err != nil {
-		return err
-	}
-
+func (m *InterfaceManager) transitionConnections(st *state.State, oldName, newName string) error {
 	// transition over, ubuntu-core has only slots
 	conns, err := getConns(st)
 	if err != nil {
@@ -471,6 +459,35 @@ func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) 
 	return nil
 }
 
-func (m *InterfaceManager) undoTransitionConnections(task *state.Task, _ *tomb.Tomb) error {
-	return nil
+func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnections(st, oldName, newName)
+}
+
+func (m *InterfaceManager) undoTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// symetrical to the "do" method, just reverse them again
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnections(st, newName, oldName)
 }
