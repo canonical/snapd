@@ -209,3 +209,36 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 
 	return buf;
 }
+
+const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
+			  int flags)
+{
+	if (buf_size == 0) {
+		die("cannot work with an empty buffer");
+	}
+	*buf = 0;
+
+	sc_string_append(buf, buf_size, "umount");
+
+	if (flags & MNT_FORCE) {
+		sc_string_append(buf, buf_size, " --force");
+	}
+
+	if (flags & MNT_DETACH) {
+		sc_string_append(buf, buf_size, " --lazy");
+	}
+	if (flags & MNT_EXPIRE) {
+		// NOTE: there's no real command line option for MNT_EXPIRE
+		sc_string_append(buf, buf_size, " --expire");
+	}
+	if (flags & UMOUNT_NOFOLLOW) {
+		// NOTE: there's no real command line option for UMOUNT_NOFOLLOW
+		sc_string_append(buf, buf_size, " --no-follow");
+	}
+	if (target != NULL) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, target);
+	}
+
+	return buf;
+}
