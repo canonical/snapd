@@ -3,7 +3,7 @@ AC_INIT([snap-confine], m4_esyscmd_s([cat VERSION]), [snapcraft@lists.ubuntu.com
 AC_CONFIG_SRCDIR([snap-confine/snap-confine.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_MAINTAINER_MODE([enable])
 
 # Checks for programs.
@@ -165,5 +165,5 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
 AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
 AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man tool, install python-docutils or similar"])])
 
-AC_CONFIG_FILES([Makefile snap-confine/Makefile snap-confine/tests/Makefile snap-confine/manpages/Makefile])
+AC_CONFIG_FILES([Makefile snap-confine/Makefile snap-confine/tests/Makefile snap-confine/manpages/Makefile snap-discard-ns/Makefile])
 AC_OUTPUT
