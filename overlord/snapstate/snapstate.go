@@ -878,20 +878,34 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, active bool) bool {
+func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+	// removing single revisions is generally allowed
+	if !removeAll {
+		return true
+	}
+
+	// required snaps cannot be removed
+	if snapst.Required {
+		return false
+	}
+
+	// FIXME: make this more elegant
 	if si.Name() == "ubuntu-core" {
 		return true
 	}
 
+	// TODO: use Required for these too
+
 	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Pruning non active ones
-	// is acceptable.
-	if si.Type == snap.TypeGadget && active {
+	// building block for Gadgets. Do not remove their last
+	// revision left.
+	if si.Type == snap.TypeGadget {
 		return false
 	}
 
-	// You never want to remove an active kernel or OS
-	if (si.Type == snap.TypeKernel || si.Type == snap.TypeOS) && active {
+	// You never want to remove a kernel or OS Do not remove their
+	// last revision left.
+	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
 	// TODO: on classic likely let remove core even if active if it's only snap left.
@@ -924,11 +938,9 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	active := snapst.Active
 	var removeAll bool
 	if revision.Unset() {
-		removeAll = true
 		revision = snapst.Current
+		removeAll = true
 	} else {
-		removeAll = false
-
 		if active {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
@@ -943,6 +955,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		if !revisionInSequence(&snapst, revision) {
 			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
+
+		removeAll = len(snapst.Sequence) == 1
 	}
 
 	info, err := Info(st, name, revision)
@@ -951,7 +965,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, active) {
+	if !canRemove(info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -995,7 +1009,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		addNext(state.NewTaskSet(stopSnapServices, removeAliases, unlink, removeSecurity))
 	}
 
-	if removeAll || len(snapst.Sequence) == 1 {
+	if removeAll {
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]

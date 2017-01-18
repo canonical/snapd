@@ -1,4 +1,4 @@
-SUBDIRS = snap-confine
+SUBDIRS = snap-confine snap-discard-ns
 EXTRA_DIST = VERSION
 
 .PHONY: check-syntax

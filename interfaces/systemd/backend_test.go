@@ -61,7 +61,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "systemd")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecuritySystemd)
 }
 
 func (s *backendSuite) TestUnmarshalRawSnippetMap(c *C) {
