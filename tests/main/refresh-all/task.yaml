@@ -19,15 +19,16 @@ prepare: |
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_store fake $BLOB_DIR
+    setup_fake_store $BLOB_DIR
 
 restore: |
     . $TESTSLIB/store.sh
-    teardown_store fake $BLOB_DIR
+    teardown_fake_store $BLOB_DIR
 
 execute: |
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable test-snapd-tools,test-snapd-python-webserver -dir $BLOB_DIR
+    . $TESTSLIB/store.sh
+    init_fake_refreshes test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
 
     echo "And a refresh is performed"
     snap refresh

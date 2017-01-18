@@ -898,6 +898,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = snapsup.JailMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
+	if snapsup.Required { // set only on install and left alone on refresh
+		snapst.Required = true
+	}
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
