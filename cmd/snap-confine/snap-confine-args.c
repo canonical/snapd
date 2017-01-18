@@ -48,9 +48,9 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 	int argc = *argcp;
 	char **const argv = *argvp;
 
-	if (argc == 0) {
+	if (argc == 0 || argv == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, 0,
-				    "cannot parse arguments, argc is zero");
+				    "cannot parse arguments, argc is zero or argv is NULL");
 		goto out;
 	}
 
