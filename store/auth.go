@@ -28,6 +28,8 @@ import (
 	"net/http"
 
 	"gopkg.in/macaroon.v1"
+
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
@@ -94,7 +96,7 @@ func requestStoreMacaroon() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -135,7 +137,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -218,7 +220,7 @@ func requestStoreDeviceNonce() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := httpClient.Do(req)
@@ -263,7 +265,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	if previousSession != "" {
