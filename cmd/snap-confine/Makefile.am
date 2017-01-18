@@ -46,7 +46,9 @@ snap_confine_SOURCES = \
 	ns-support.c \
 	ns-support.h \
 	apparmor-support.c \
-	apparmor-support.h
+	apparmor-support.h \
+	context-support.c \
+	context-support.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)

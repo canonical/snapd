@@ -125,6 +125,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	addTask(linkSnap)
 	prev = linkSnap
 
+	setupContext := st.NewTask("setup-snap-context", fmt.Sprintf(i18n.G("Setup snap %q%s context"), snapsup.Name(), revisionStr))
+	addTask(setupContext)
+	prev = setupContext
+
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
 	addTask(setAutoAliases)
@@ -747,7 +751,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 			return nil, err
 		}
 		if !validInfoForFlags(info, snapst, flags) {
-			return nil, snap.NoUpdateAvailableError{name}
+			return nil, snap.NoUpdateAvailableError{Snap: name}
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
@@ -1020,6 +1024,14 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			},
 		})
 		addNext(state.NewTaskSet(clearAliases, discardConns))
+
+		removeSnapContext := st.NewTask("remove-snap-context", fmt.Sprintf(i18n.G("Remove the context of snap %q"), snapsup.Name()))
+		removeSnapContext.Set("snap-setup", &SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		addNext(state.NewTaskSet(removeSnapContext))
 
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))

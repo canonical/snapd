@@ -1,0 +1,43 @@
+summary: Check that `snapctl` can be run from the snap
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/snapctl-from-snap .
+    snap install --dangerous snapctl-from-snap_1.0_all.snap
+
+restore: |
+    rm snapctl-from-snap_1.0_all.snap
+
+execute: |
+    echo "Verify that context file exists and has proper permissions"
+    CONTEXT_FILE=/var/lib/snapd/contexts/snap.snapctl-from-snap
+    if ! test -f $CONTEXT_FILE ; then
+        echo "Context file $CONTEXT_FILE is missing"
+        exit 1
+    fi
+    if [ $(stat -c%a $CONTEXT_FILE) != "600" ]; then
+        echo "Incorrect permissions of file $CONTEXT_FILE"
+        exit 1
+    fi
+
+    echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
+    OUTPUT=$(/snap/bin/snapctl-from-snap.app1)
+    EXPECTED="bar"
+    if [ "$OUTPUT" != $EXPECTED ]; then
+        echo "Expected '$EXPECTED', got '$OUTPUT'"
+        exit 1
+    fi
+
+    echo "Verify that snapctl set can modify configuration values"
+    OUTPUT=$(/snap/bin/snapctl-from-snap.app2)
+    EXPECTED="123"
+    if [ "$OUTPUT" != $EXPECTED ]; then
+        echo "Expected '$EXPECTED', got '$OUTPUT'"
+        exit 1
+    fi
+
+    echo "Verify that snap context is removed on snap removal"
+    snap remove snapctl-from-snap
+    if test -f $CONTEXT_FILE ; then
+        echo "Context file $CONTEXT_FILE still exists"
+        exit 1
+    fi

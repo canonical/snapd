@@ -34,6 +34,7 @@ import (
 // Context represents the context under which a given hook is running.
 type Context struct {
 	task    *state.Task
+	state   *state.State
 	setup   *HookSetup
 	id      string
 	handler Handler
@@ -56,11 +57,43 @@ func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, 
 
 	return &Context{
 		task:    task,
+		state:   task.State(),
 		setup:   setup,
 		id:      base64.URLEncoding.EncodeToString(idBytes),
 		handler: handler,
 		cache:   make(map[interface{}]interface{}),
 	}, nil
+}
+
+// NewSnapContext returns a new snap Context.
+func NewSnapContext(state *state.State, setup *HookSetup, handler Handler) (*Context, error) {
+	// Generate a secure, random ID for this context
+	idBytes := make([]byte, 32)
+	_, err := rand.Read(idBytes)
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate context ID: %s", err)
+	}
+
+	return &Context{
+		task:    nil,
+		state:   state,
+		setup:   setup,
+		id:      base64.URLEncoding.EncodeToString(idBytes),
+		handler: handler,
+		cache:   make(map[interface{}]interface{}),
+	}, nil
+}
+
+// NewSnapContextWithID returns a new snap Context with a predefined contextID (must be base64-encoded).
+func NewSnapContextWithID(state *state.State, setup *HookSetup, handler Handler, contextID string) *Context {
+	return &Context{
+		task:    nil,
+		state:   state,
+		setup:   setup,
+		id:      contextID,
+		handler: handler,
+		cache:   make(map[interface{}]interface{}),
+	}
 }
 
 // SnapName returns the name of the snap containing the hook.
@@ -92,14 +125,22 @@ func (c *Context) Handler() Handler {
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
-	c.task.State().Lock()
+	if c.task != nil {
+		c.task.State().Lock()
+	} else {
+		c.state.Lock()
+	}
 	atomic.AddInt32(&c.mutexChecker, 1)
 }
 
 // Unlock releases the lock for this context.
 func (c *Context) Unlock() {
 	atomic.AddInt32(&c.mutexChecker, -1)
-	c.task.State().Unlock()
+	if c.task != nil {
+		c.task.State().Unlock()
+	} else {
+		c.state.Unlock()
+	}
 	c.mutex.Unlock()
 }
 
@@ -165,7 +206,7 @@ func (c *Context) Get(key string, value interface{}) error {
 
 // State returns the state contained within the context
 func (c *Context) State() *state.State {
-	return c.task.State()
+	return c.state
 }
 
 // Cached returns the cached value associated with the provided key. It returns
@@ -210,4 +251,9 @@ func (c *Context) Done() error {
 	}
 
 	return firstErr
+}
+
+// IsSnapContext returns true if the context is a snap context.
+func (c *Context) IsSnapContext() bool {
+	return c.task == nil
 }
