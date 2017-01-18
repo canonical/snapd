@@ -64,7 +64,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "kmod")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityKMod)
 }
 
 func (s *backendSuite) TestUniqueLines(c *C) {
