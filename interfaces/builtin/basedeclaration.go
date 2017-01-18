@@ -225,7 +225,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  download-manager:
+  unity8-download-manager:
     allow-installation:
       slot-snap-type:
         - app
