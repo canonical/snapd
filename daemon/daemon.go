@@ -35,13 +35,13 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -248,7 +248,7 @@ func (d *Daemon) Init() error {
 	d.addRoutes()
 
 	logger.Debugf("init done in %s", time.Now().Sub(t0))
-	logger.Noticef("started %v.", store.UserAgent())
+	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
 }
