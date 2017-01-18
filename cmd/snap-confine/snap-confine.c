@@ -92,17 +92,11 @@ int main(int argc, char **argv)
 	sc_init_apparmor_support(&apparmor);
 	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
 	    && getuid() != 0 && geteuid() == 0) {
-		// We are not confined, apparmor is *not* disabled on this system (if
-		// it were we'd see SC_AA_NOT_APPLICABLE), the user is not root but the
-		// effective user is.
-		//
-		// This is not very good.
-		//
-		// This means that someone is using snap-confine from a path that
-		// doesn't trigger apparmor to load and apply the correct profile but
-		// has managed to keep the setuid root bit intact (e.g. running the
-		// program directory from the core snap). To avoid escalation attacks
-		// let's just politely refuse to run.
+		// Refuse to run when this process is running unconfined on a system
+		// that supports AppArmor when the effective uid is root and the real
+		// id is non-root.  This protects against, for example, unprivileged
+		// users trying to leverage the snap-confine in the core snap to
+		// escalate privileges.
 		die("snap-confine has elevated permissions and is not confined"
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
