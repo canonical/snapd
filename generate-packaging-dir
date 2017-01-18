@@ -1,22 +1,10 @@
 #!/bin/sh
 set -eu
 
-tree1404() {
-    if [ -z "${TRAVIS_PULL_REQUEST_SLUG:-}" ]; then
-        return 0
-    fi
-
-    local user="${TRAVIS_PULL_REQUEST_SLUG%/*}"
-
-    if ! git remote | grep -q "^$user$"; then
-        git remote add "$user" "https://github.com/$TRAVIS_PULL_REQUEST_SLUG" || return 0
-    fi
-    git fetch --quiet "$user" || return 0
-    local tree="$user/${TRAVIS_PULL_REQUEST_BRANCH}-14.04"
-    git branch --remote | grep -q " $tree$" || return 0
-
-    echo "$tree"
-}
+fetch1404() (
+    set -u
+    git fetch --quiet "https://github.com/$TRAVIS_PULL_REQUEST_SLUG" "$TRAVIS_PULL_REQUEST_BRANCH-14.04"
+)
 
 if [ ! -d .git ]; then
     echo "not running in a git checkout, skipping"
@@ -30,16 +18,11 @@ DST="debian-$ID-$VERSION_ID"
 rm -rf "$DST"
 mkdir -p "$DST"
 
-tree="$(tree1404)"
-if [ -z "$tree" ]; then
-    if ! git remote | grep upstream; then
-        git remote add upstream https://github.com/snapcore/snapd
-    fi
-    git fetch --quiet upstream
-    tree="upstream/$ID/$VERSION_ID"
+if ! fetch1404 2>/dev/null; then
+    git fetch --quiet https://github.com/snapcore/snapd "$ID/$VERSION_ID"
 fi
 
-git ls-tree -r "$tree" debian/ | while read _ type hash file; do
+git ls-tree -r FETCH_HEAD debian/ | while read _ type hash file; do
     if [ "$type" != "blob" ]; then
         continue
     fi
