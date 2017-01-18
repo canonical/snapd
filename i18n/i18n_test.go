@@ -127,3 +127,21 @@ func (s *i18nTestSuite) TestInvalidTextDomainDir(c *C) {
 	var Gtest = G
 	c.Assert(Gtest("singular"), Equals, "singular")
 }
+
+func (s *i18nTestSuite) TestLangpackResolver(c *C) {
+	root := c.MkDir()
+	err := os.MkdirAll(filepath.Join(root, "/usr/share/locale"), 0755)
+	c.Assert(err, IsNil)
+
+	langpackDir := filepath.Join(root, "/usr/share/locale-langpack")
+	err = os.MkdirAll(langpackDir, 0755)
+	c.Assert(err, IsNil)
+
+	makeMockTranslations(c, langpackDir)
+	bindTextDomain("snappy-test", langpackDir)
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "translated singular")
+
+}

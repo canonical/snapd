@@ -49,24 +49,32 @@ func init() {
 	setLocale("")
 }
 
-func langpackResolver(root string, locale string, domain string) string {
-
+func langpackResolver(baseRoot string, locale string, domain string) string {
 	// first check for the real locale (e.g. de_DE)
 	// then try to simplify the locale (e.g. de_DE -> de)
 	locales := []string{locale, strings.SplitN(locale, "_", 2)[0]}
 	for _, locale := range locales {
 		r := filepath.Join(locale, "LC_MESSAGES", fmt.Sprintf("%s.mo", domain))
 
-		// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
-		// implementation
-		langpack := filepath.Join(root, "..", "locale-langpack", r)
-		if osutil.FileExists(langpack) {
-			return langpack
+		// look into the core,ubuntu-core snaps first for
+		// translations, then the main system
+		candidateDirs := []string{
+			filepath.Join("/snap/core/current/", baseRoot),
+			filepath.Join("/snap/ubuntu-core/current/", baseRoot),
+			baseRoot,
 		}
+		for _, root := range candidateDirs {
+			// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
+			// implementation
+			langpack := filepath.Join(root, "..", "locale-langpack", r)
+			if osutil.FileExists(langpack) {
+				return langpack
+			}
 
-		regular := filepath.Join(root, r)
-		if osutil.FileExists(regular) {
-			return regular
+			regular := filepath.Join(root, r)
+			if osutil.FileExists(regular) {
+				return regular
+			}
 		}
 	}
 
