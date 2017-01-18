@@ -51,7 +51,7 @@ var (
 	pruneWait      = 24 * time.Hour * 1
 	abortWait      = 24 * time.Hour * 7
 
-	pruneMaxChanges = 100
+	pruneMaxChanges = 500
 )
 
 // Overlord is the central manager of a snappy system, keeping
