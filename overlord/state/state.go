@@ -376,8 +376,7 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	changes := s.Changes()
 	sort.Sort(byReadyTime(changes))
 
-	// used just for couting
-	readyChanges := map[string]bool{}
+	readyChangesCount := 0
 	for i := range changes {
 		// changes are sorted (not-ready sorts first)
 		// so we know we can iterate in reverse and break once we
@@ -386,7 +385,7 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 		if chg.ReadyTime().IsZero() {
 			break
 		}
-		readyChanges[chg.ID()] = true
+		readyChangesCount++
 	}
 
 	for _, chg := range changes {
@@ -402,13 +401,13 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 			continue
 		}
 		// change old or we have too many changes
-		if readyTime.Before(pruneLimit) || len(readyChanges) > maxReadyChanges {
+		if readyTime.Before(pruneLimit) || readyChangesCount > maxReadyChanges {
 			s.writing()
 			for _, t := range chg.Tasks() {
 				delete(s.tasks, t.ID())
 			}
 			delete(s.changes, chg.ID())
-			delete(readyChanges, chg.ID())
+			readyChangesCount--
 		}
 	}
 
