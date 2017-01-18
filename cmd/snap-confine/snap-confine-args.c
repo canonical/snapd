@@ -41,7 +41,7 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 
 	if (argcp == NULL || argvp == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, 0,
-				    "cannot parse arguments, argc or argv are NULL");
+				    "cannot parse arguments, argcp or argvp is NULL");
 		goto out;
 	}
 	// Use dereferenced versions of argcp and argvp for convenience.
