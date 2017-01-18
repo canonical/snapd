@@ -18,7 +18,15 @@
 #ifndef SNAP_CONFINE_CONTEXT_SUPPORT_H
 #define SNAP_CONFINE_CONTEXT_SUPPORT_H
 
-char *sc_context_get_from_snapd(const char *snap_name);
+#include "error.h"
+
+/**
+* Error domain for errors related to snap context handling.
+**/
+#define SC_CONTEXT_DOMAIN "context"
+
+char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
+					 struct sc_error **errorp);
 void sc_context_set_environment(const char *context);
 
 #endif

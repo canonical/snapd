@@ -93,7 +93,13 @@ int main(int argc, char **argv)
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	const char *snap_name = getenv("SNAP_NAME");
 	if (snap_name != NULL) {
-		snap_context = sc_context_get_from_snapd(snap_name);
+		struct sc_error *err
+		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		snap_context =
+		    sc_nonfatal_context_get_from_snapd(snap_name, &err);
+		if (err != NULL) {
+			error("cannot get context: %s", sc_error_msg(err));
+		}
 	}
 
 	struct sc_apparmor apparmor;

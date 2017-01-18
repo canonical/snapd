@@ -29,25 +29,27 @@
 
 #define CONTEXTS_DIR "/var/lib/snapd/contexts"
 
-char *sc_context_get_from_snapd(const char *snap_name)
+char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
+					 struct sc_error **errorp)
 {
 	char context_path[PATH_MAX];
 	char *context_val = NULL;
+	struct sc_error *err = NULL;
 
 	if (snap_name == NULL) {
 		die("SNAP_NAME is not set");
 	}
 
+	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
 		      CONTEXTS_DIR, snap_name);
-
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
-		error
-		    ("cannot open context file %s, SNAP_CONTEXT will not be set: %s",
-		     context_path, strerror(errno));
-		return NULL;
+		err =
+		    sc_error_init(SC_CONTEXT_DOMAIN, 0,
+				  "cannot open context file %s, SNAP_CONTEXT will not be set: %s",
+				  context_path, strerror(errno));
+		goto out;
 	}
 	// context is a 32 bytes, base64-encoding makes it 44.
 	context_val = calloc(1, 45);
@@ -56,9 +58,16 @@ char *sc_context_get_from_snapd(const char *snap_name)
 	}
 	if (read(fd, context_val, 44) < 0) {
 		free(context_val);
-		error("failed to read context file %s: %s", context_path,
-		      strerror(errno));
+		context_val = NULL;
+		err =
+		    sc_error_init(SC_CONTEXT_DOMAIN, 0,
+				  "failed to read context file %s: %s",
+				  context_path, strerror(errno));
+		goto out;
 	}
+
+ out:
+	sc_error_forward(errorp, err);
 	return context_val;
 }
 
