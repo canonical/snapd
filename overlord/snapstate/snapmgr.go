@@ -386,6 +386,8 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	m.state.Lock()
 	defer m.state.Unlock()
