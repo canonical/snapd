@@ -11,3 +11,6 @@ etc/X11
 data/completion/snap /usr/share/bash-completion/completions
 # udev, must be installed before 80-udisks
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
+# snap/snapd version information
+data/info /usr/lib/snapd/
+
