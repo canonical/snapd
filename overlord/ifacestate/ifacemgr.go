@@ -69,8 +69,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
+
 	// helper for ubuntu-core -> core
-	runner.AddHandler("transition-connections", m.doTransitionConnections, m.undoTransitionConnections)
+	runner.AddHandler("transition-connections-core-migration", m.doTransitionConnectionsCoreMigration, m.undoTransitionConnectionsCoreMigration)
 
 	return m, nil
 }

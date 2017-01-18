@@ -1106,12 +1106,15 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	return doInstall(st, &snapst, snapsup)
 }
 
-// TransitionCore transitions from an old snap name to a new snap name. It is
-// used for the ubuntu-core -> core transition (that is not just a rename
-// because the two snaps have different snapIDs)
+// TransitionCore transitions from an old core snap name to a new core
+// snap name. It is used for the ubuntu-core -> core transition (that
+// is not just a rename because the two snaps have different snapIDs)
+//
 // Note that this function makes some assumptions like:
 // - no aliases setup for both snaps
 // - no data needs to be copied
+// - all interfaces are absolutely identical on both new and old
+// Do not use this as a general way to transition from snap A to snap B.
 func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
 	var oldSnapst, newSnapst SnapState
 	err := Get(st, oldName, &oldSnapst)
@@ -1129,9 +1132,6 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 
-	// FIXME: do we need to disable all the snaps that have active
-	//        interfaces on "oldSnap"?
-
 	// start by instaling the new snap
 	tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 		Channel:      oldSnapst.Channel,
@@ -1141,14 +1141,15 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	if err != nil {
 		return nil, err
 	}
-	// the transition the interface connections over
-	transIf := st.NewTask("transition-connections", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
+
+	// then transition the interface connections over
+	transIf := st.NewTask("transition-connections-core-migration", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
 	transIf.Set("old-name", oldName)
 	transIf.Set("new-name", newName)
 	transIf.WaitAll(tsInst)
 	tsTrans := state.NewTaskSet(transIf)
 
-	// then remove the oldName
+	// then remove the old snap
 	tsRm, err := Remove(st, oldName, snap.R(0))
 	if err != nil {
 		return nil, err

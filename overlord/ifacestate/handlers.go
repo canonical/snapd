@@ -428,7 +428,11 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *InterfaceManager) transitionConnections(st *state.State, oldName, newName string) error {
+// transitionConnectionsCoreMigration will transition all connections
+// from oldName to newName. Note that this is only useful when you
+// know that newName supports everything that oldName supports,
+// otherwise you will be in a world of pain.
+func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
 	// transition over, ubuntu-core has only slots
 	conns, err := getConns(st)
 	if err != nil {
@@ -459,7 +463,7 @@ func (m *InterfaceManager) transitionConnections(st *state.State, oldName, newNa
 	return nil
 }
 
-func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doTransitionConnectionsCoreMigration(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -472,10 +476,10 @@ func (m *InterfaceManager) doTransitionConnections(t *state.Task, _ *tomb.Tomb) 
 		return err
 	}
 
-	return m.transitionConnections(st, oldName, newName)
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) undoTransitionConnections(t *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) undoTransitionConnectionsCoreMigration(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -489,5 +493,5 @@ func (m *InterfaceManager) undoTransitionConnections(t *state.Task, _ *tomb.Tomb
 		return err
 	}
 
-	return m.transitionConnections(st, newName, oldName)
+	return m.transitionConnectionsCoreMigration(st, newName, oldName)
 }
