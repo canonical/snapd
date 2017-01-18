@@ -101,6 +101,7 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
+	// TODO: check for smimilar situation and linux capabilities.
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
