@@ -313,7 +313,7 @@ type PlugInfo struct {
 
 // SecurityTags returns security tags associated with a given plug.
 func (plug *PlugInfo) SecurityTags() []string {
-	var tags []string
+	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
 	for _, app := range plug.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
@@ -326,7 +326,7 @@ func (plug *PlugInfo) SecurityTags() []string {
 
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
-	var tags []string
+	tags := make([]string, 0, len(slot.Apps))
 	for _, app := range slot.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
