@@ -363,8 +363,11 @@ func (s *State) tasksIn(tids []string) []*Task {
 
 // Prune removes changes that became ready for more than pruneWait
 // and aborts tasks spawned for more than abortWait.
-// It also removes tasks unlinked to changes after pruneWait.
-func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
+// It also removes tasks unlinked to changes after pruneWait. When
+// there are more changes than the limit set via "pruneReadyOver"
+// those changes will also removed even if they are below the pruneWait
+// duration.
+func (s *State) Prune(pruneWait, abortWait time.Duration, pruneReadyOver int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
@@ -386,7 +389,7 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 			continue
 		}
 		// change old or we have too many changes
-		if readyTime.Before(pruneLimit) || (chg.Status().Ready() && len(s.changes) > maxReadyChanges) {
+		if readyTime.Before(pruneLimit) || len(s.changes) > pruneReadyOver {
 			s.writing()
 			for _, t := range chg.Tasks() {
 				delete(s.tasks, t.ID())
