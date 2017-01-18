@@ -43,6 +43,11 @@ type PlugRef struct {
 	Name string `json:"plug"`
 }
 
+// String returns the "snap:plug" representation of a plug reference.
+func (ref *PlugRef) String() string {
+	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
+}
+
 // Slot represents a capacity offered by a snap.
 type Slot struct {
 	*snap.SlotInfo
@@ -58,6 +63,11 @@ func (slot *Slot) Ref() SlotRef {
 type SlotRef struct {
 	Snap string `json:"snap"`
 	Name string `json:"slot"`
+}
+
+// String returns the "snap:slot" representation of a slot reference.
+func (ref *SlotRef) String() string {
+	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
 }
 
 // Interfaces holds information about a list of plugs and slots, and their connections.

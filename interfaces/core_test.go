@@ -129,12 +129,24 @@ func (s *CoreSuite) TestPlugRef(c *C) {
 	c.Check(ref.Name, Equals, "plug")
 }
 
+// PlugRef.String works as expected
+func (s *CoreSuite) TestPlugRefString(c *C) {
+	ref := PlugRef{Snap: "snap", Name: "plug"}
+	c.Check(ref.String(), Equals, "snap:plug")
+}
+
 // Slot.Ref works as expected
 func (s *CoreSuite) TestSlotRef(c *C) {
 	slot := &Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}}
 	ref := slot.Ref()
 	c.Check(ref.Snap, Equals, "producer")
 	c.Check(ref.Name, Equals, "slot")
+}
+
+// SlotRef.String works as expected
+func (s *CoreSuite) TestSlotRefString(c *C) {
+	ref := SlotRef{Snap: "snap", Name: "slot"}
+	c.Check(ref.String(), Equals, "snap:slot")
 }
 
 // ConnRef.ID works as expected
