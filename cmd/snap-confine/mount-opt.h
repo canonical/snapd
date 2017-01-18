@@ -39,4 +39,19 @@ char *sc_mount_cmd(const char *source, const char *target,
 		   const char *filesystemtype, unsigned long mountflags,
 		   const void *data);
 
+/**
+ * Compute an equivalent umount(8) command from umount2(2) arguments.
+ *
+ * This function serves as a human-readable representation of the unmount
+ * system call. The return value is a string that looks like a shell unmount
+ * command.
+ *
+ * Note that some flags are not surfaced at umount command line level. For
+ * those flags a fake option is synthesized.
+ *
+ * The return value is dynamically allocated and must be released by the
+ * caller.
+ **/
+char *sc_umount_cmd(const char *target, int flags);
+
 #endif				// SNAP_CONFINE_MOUNT_OPT_H

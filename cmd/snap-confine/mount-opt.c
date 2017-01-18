@@ -204,3 +204,35 @@ char *sc_mount_cmd(const char *source, const char *target,
 	}
 	return buf_copy;
 }
+
+char *sc_umount_cmd(const char *target, int flags)
+{
+	char buf[100 + PATH_MAX];
+	strcpy(buf, "umount");
+
+	if (flags & MNT_FORCE) {
+		strncat(buf, " --force", sizeof buf - 1);
+	}
+
+	if (flags & MNT_DETACH) {
+		strncat(buf, " --lazy", sizeof buf - 1);
+	}
+	if (flags & MNT_EXPIRE) {
+		// NOTE: there's no real command line option for MNT_EXPIRE
+		strncat(buf, " --expire", sizeof buf - 1);
+	}
+	if (flags & UMOUNT_NOFOLLOW) {
+		// NOTE: there's no real command line option for UMOUNT_NOFOLLOW
+		strncat(buf, " --no-follow", sizeof buf - 1);
+	}
+	if (target != NULL) {
+		strncat(buf, " ", sizeof buf - 1);
+		strncat(buf, target, sizeof buf - 1);
+	}
+	// We're done, just copy the buf
+	char *buf_copy = strdup(buf);
+	if (buf_copy == NULL) {
+		die("cannot copy memory buffer");
+	}
+	return buf_copy;
+}

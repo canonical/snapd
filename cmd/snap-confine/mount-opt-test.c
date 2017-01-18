@@ -65,7 +65,7 @@ static void test_sc_mount_cmd()
 {
 	char *cmd;
 
-	// Typical mount 
+	// Typical mount
 	cmd = sc_mount_cmd("/dev/sda3", "/mnt", "ext4", MS_RDONLY, NULL);
 	g_assert_cmpstr(cmd, ==, "mount -t ext4 -o ro /dev/sda3 /mnt");
 	free(cmd);
@@ -123,8 +123,48 @@ static void test_sc_mount_cmd()
 	free(cmd);
 }
 
+static void test_sc_umount_cmd()
+{
+	char *cmd;
+
+	// Typical umount
+	cmd = sc_umount_cmd("/mnt/foo", 0);
+	g_assert_cmpstr(cmd, ==, "umount /mnt/foo");
+	free(cmd);
+
+	// Force
+	cmd = sc_umount_cmd("/mnt/foo", MNT_FORCE);
+	g_assert_cmpstr(cmd, ==, "umount --force /mnt/foo");
+	free(cmd);
+
+	// Detach
+	cmd = sc_umount_cmd("/mnt/foo", MNT_DETACH);
+	g_assert_cmpstr(cmd, ==, "umount --lazy /mnt/foo");
+	free(cmd);
+
+	// Expire
+	cmd = sc_umount_cmd("/mnt/foo", MNT_EXPIRE);
+	g_assert_cmpstr(cmd, ==, "umount --expire /mnt/foo");
+	free(cmd);
+
+	// O_NOFOLLOW variant for umount
+	cmd = sc_umount_cmd("/mnt/foo", UMOUNT_NOFOLLOW);
+	g_assert_cmpstr(cmd, ==, "umount --no-follow /mnt/foo");
+	free(cmd);
+
+	// Everything at once
+	cmd =
+	    sc_umount_cmd("/mnt/foo",
+			  MNT_FORCE | MNT_DETACH | MNT_EXPIRE |
+			  UMOUNT_NOFOLLOW);
+	g_assert_cmpstr(cmd, ==,
+			"umount --force --lazy --expire --no-follow /mnt/foo");
+	free(cmd);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
 	g_test_add_func("/mount/sc_mount_cmd", test_sc_mount_cmd);
+	g_test_add_func("/mount/sc_umount_cmd", test_sc_umount_cmd);
 }
