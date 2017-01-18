@@ -189,6 +189,7 @@ snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLA
 endif
 
 snap-confine/%.5: snap-confine/%.rst
+	mkdir -p snap-confine
 	$(HAVE_RST2MAN) $^ > $@
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
@@ -229,6 +230,7 @@ install-exec-hook::
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ubuntu-core-launcher/%.1: ubuntu-core-launcher/%.rst
+	mkdir -p ubuntu-core-launcher
 	$(HAVE_RST2MAN) $^ > $@
 
 ##
@@ -283,4 +285,5 @@ snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif
 
 snap-discard-ns/%.5: snap-discard-ns/%.rst
+	mkdir -p snap-discard-ns
 	$(HAVE_RST2MAN) $^ > $@
