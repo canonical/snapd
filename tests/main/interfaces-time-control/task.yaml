@@ -1,0 +1,32 @@
+summary: Check that RTC device nodes are accessible through an interface
+
+details: |
+    This test makes sure that a snap using the time-control interface
+    can access the /dev/rtc device node exposed by a slot on the OS
+    snap properly.
+
+systems: [ubuntu-core-16-64]
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Given a snap declaring a plug on time-control is installed"
+    . $TESTSLIB/snaps.sh
+    install_local time-control-consumer
+
+    echo "And the time-control plug is connected"
+    . $TESTSLIB/names.sh
+    snap connect time-control-consumer:time-control :time-control
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    # Read/write access should be possible
+    test -n "`/snap/bin/time-control-consumer.read`"
+    /snap/bin/time-control-consumer.write

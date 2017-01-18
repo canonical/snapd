@@ -32,7 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backendtest"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -42,9 +42,9 @@ func Test(t *testing.T) {
 }
 
 type backendSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 
-	iface2 *interfaces.TestInterface
+	iface2 *ifacetest.TestInterface
 }
 
 var _ = Suite(&backendSuite{})
@@ -57,7 +57,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// add second iface so that we actually test combining snippets
-	s.iface2 = &interfaces.TestInterface{InterfaceName: "iface2"}
+	s.iface2 = &ifacetest.TestInterface{InterfaceName: "iface2"}
 	err = s.Repo.AddInterface(s.iface2)
 	c.Assert(err, IsNil)
 }
@@ -67,7 +67,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "mount")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityMount)
 }
 
 func (s *backendSuite) TestRemove(c *C) {

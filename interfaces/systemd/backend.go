@@ -43,8 +43,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "systemd"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecuritySystemd
 }
 
 func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
@@ -190,4 +190,8 @@ func renderSnippet(snippet *Snippet) (map[string]*osutil.FileState, error) {
 type dummyReporter struct{}
 
 func (dr *dummyReporter) Notify(msg string) {
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

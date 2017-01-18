@@ -35,10 +35,13 @@ type Repository struct {
 	m      sync.Mutex
 	ifaces map[string]Interface
 	// Indexed by [snapName][plugName]
-	plugs     map[string]map[string]*Plug
-	slots     map[string]map[string]*Slot
+	plugs map[string]map[string]*Plug
+	slots map[string]map[string]*Slot
+	// given a slot and a plug, are they connected?
 	slotPlugs map[*Slot]map[*Plug]bool
+	// given a plug and a slot, are they connected?
 	plugSlots map[*Plug]map[*Slot]bool
+	backends  map[SecuritySystem]SecurityBackend
 }
 
 // NewRepository creates an empty plug repository.
@@ -49,6 +52,7 @@ func NewRepository() *Repository {
 		slots:     make(map[string]map[string]*Slot),
 		slotPlugs: make(map[*Slot]map[*Plug]bool),
 		plugSlots: make(map[*Plug]map[*Slot]bool),
+		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
 
@@ -73,6 +77,19 @@ func (r *Repository) AddInterface(i Interface) error {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+	return nil
+}
+
+// AddBackend adds the provided security backend to the repository.
+func (r *Repository) AddBackend(backend SecurityBackend) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	name := backend.Name()
+	if _, ok := r.backends[name]; ok {
+		return fmt.Errorf("cannot add backend %q, security system name is in use", name)
+	}
+	r.backends[name] = backend
 	return nil
 }
 
@@ -332,6 +349,83 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	return ref, nil
 }
 
+// ResolveDisconnect resolves potentially missing plug or slot names and
+// returns a list of fully populated connection references that can be
+// disconnected.
+//
+// It can be used in two different ways:
+// 1: snap disconnect <snap>:<plug> <snap>:<slot>
+// 2: snap disconnect <snap>:<plug or slot>
+//
+// In the first case the referenced plug and slot must be connected.  In the
+// second case any matching connection are returned but it is not an error if
+// there are no connections.
+//
+// In both cases the snap name can be omitted to implicitly refer to the core
+// snap. If there's no core snap it is simply assumed to be called "core" to
+// provide consistent error messages.
+func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	coreSnapName, _ := r.guessCoreSnapName()
+	if coreSnapName == "" {
+		// This is not strictly speaking true BUT when there's no core snap the
+		// produced error messages are consistent to when the is a core snap
+		// and it has the modern form.
+		coreSnapName = "core"
+	}
+
+	// There are two allowed forms (see snap disconnect --help)
+	switch {
+	// 1: <snap>:<plug> <snap>:<slot>
+	// Return exactly one plug/slot or an error if it doesn't exist.
+	case plugName != "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
+		}
+		// Ensure that such plug exists
+		plug := r.plugs[plugSnapName][plugName]
+		if plug == nil {
+			return nil, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
+		}
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
+		}
+		// Ensure that such slot exists
+		slot := r.slots[slotSnapName][slotName]
+		if slot == nil {
+			return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
+		}
+		// Ensure that slot and plug are connected
+		if !r.slotPlugs[slot][plug] {
+			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
+				plugSnapName, plugName, slotSnapName, slotName)
+		}
+		return []ConnRef{{PlugRef: plug.Ref(), SlotRef: slot.Ref()}}, nil
+	// 2: <snap>:<plug or slot> (through 1st pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugName != "" && slotName == "" && slotSnapName == "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
+		}
+		return r.connected(plugSnapName, plugName)
+	// 2: <snap>:<plug or slot> (through 2nd pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugSnapName == "" && plugName == "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
+		}
+		return r.connected(slotSnapName, slotName)
+	default:
+		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
+	}
+}
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 func (r *Repository) Connect(ref ConnRef) error {
@@ -425,14 +519,13 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	return r.connected(snapName, plugOrSlotName)
+}
+
+func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
-		// Look up the core snap if no snap name was given
-		switch {
-		case r.slots["core"] != nil:
-			snapName = "core"
-		case r.slots["ubuntu-core"] != nil:
-			snapName = "ubuntu-core"
-		default:
+		snapName, _ = r.guessCoreSnapName()
+		if snapName == "" {
 			return nil, fmt.Errorf("snap name is empty")
 		}
 	}
@@ -458,6 +551,18 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 		}
 	}
 	return conns, nil
+}
+
+// coreSnapName returns the name of the core snap if one exists
+func (r *Repository) guessCoreSnapName() (string, error) {
+	switch {
+	case r.slots["core"] != nil:
+		return "core", nil
+	case r.slots["ubuntu-core"] != nil:
+		return "ubuntu-core", nil
+	default:
+		return "", fmt.Errorf("cannot guess the name of the core snap")
+	}
 }
 
 // DisconnectAll disconnects all provided connection references.
@@ -607,6 +712,45 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 	}
 	return snippets, nil
+}
+
+// SnapSpecification returns the specification of a given snap in a given security system.
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	backend := r.backends[securitySystem]
+	if backend == nil {
+		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
+	}
+
+	spec := backend.NewSpecification()
+
+	// slot side
+	for _, slot := range r.slots[snapName] {
+		iface := r.ifaces[slot.Interface]
+		if err := spec.AddPermanentSlot(iface, slot); err != nil {
+			return nil, err
+		}
+		for plug := range r.slotPlugs[slot] {
+			if err := spec.AddConnectedSlot(iface, plug, slot); err != nil {
+				return nil, err
+			}
+		}
+	}
+	// plug side
+	for _, plug := range r.plugs[snapName] {
+		iface := r.ifaces[plug.Interface]
+		if err := spec.AddPermanentPlug(iface, plug); err != nil {
+			return nil, err
+		}
+		for slot := range r.plugSlots[plug] {
+			if err := spec.AddConnectedPlug(iface, plug, slot); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return spec, nil
 }
 
 // BadInterfacesError is returned when some snap interfaces could not be registered.

@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -35,81 +36,71 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// valid simple prefixes
-var validDesktopFilePrefixes = []string{
+// From the freedesktop Desktop Entry Specification¹,
+//
+//    Keys with type localestring may be postfixed by [LOCALE], where
+//    LOCALE is the locale type of the entry. LOCALE must be of the form
+//    lang_COUNTRY.ENCODING@MODIFIER, where _COUNTRY, .ENCODING, and
+//    @MODIFIER may be omitted. If a postfixed key occurs, the same key
+//    must be also present without the postfix.
+//
+//    When reading in the desktop entry file, the value of the key is
+//    selected by matching the current POSIX locale for the LC_MESSAGES
+//    category against the LOCALE postfixes of all occurrences of the
+//    key, with the .ENCODING part stripped.
+//
+// sadly POSIX doesn't mention what values are valid for LC_MESSAGES,
+// beyond mentioning² that it's implementation-defined (and can be of
+// the form [language[_territory][.codeset][@modifier]])
+//
+// 1. https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s04.html
+// 2. http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap08.html#tag_08_02
+//
+// So! The following is simplistic, and based on the contents of
+// PROVIDED_LOCALES in locales.config, and does not cover all of
+// "locales -m" (and ignores XSetLocaleModifiers(3), which may or may
+// not be related). Patches welcome, as long as it's readable.
+//
+// REVIEWERS: this could also be left as `(?:\[[@_.A-Za-z-]\])?=` if even
+// the following is hard to read:
+const localizedSuffix = `(?:\[[a-z]+(?:_[A-Z]+)?(?:\.[0-9A-Z-]+)?(?:@[a-z]+)?\])?=`
+
+var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
+	// NOTE (mostly to self): as much as possible keep the
+	// individual regexp simple, optimize for legibility
+	//
+	// empty lines and comments
+	`^\s*$`,
+	`^\s*#`,
 	// headers
-	"[Desktop Entry]",
-	"[Desktop Action ",
+	`^\[Desktop Entry\]$`,
+	`^\[Desktop Action [0-9A-Za-z-]+\]$`,
+	`^\[[A-Za-z0-9-]+ Shortcut Group\]$`,
 	// https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html
-	"Type=",
-	"Version=",
-	"Name=",
-	"GenericName=",
-	"NoDisplay=",
-	"Comment=",
-	"Icon=",
-	"Hidden=",
-	"OnlyShowIn=",
-	"NotShowIn=",
-	"Exec=",
+	"^Type=",
+	"^Version=",
+	"^Name" + localizedSuffix,
+	"^GenericName" + localizedSuffix,
+	"^NoDisplay=",
+	"^Comment" + localizedSuffix,
+	"^Icon=",
+	"^Hidden=",
+	"^OnlyShowIn=",
+	"^NotShowIn=",
+	"^Exec=",
 	// Note that we do not support TryExec, it does not make sense
 	// in the snap context
-	"Terminal=",
-	"Actions=",
-	"MimeType=",
-	"Categories=",
-	"Keywords=",
-	"StartupNotify=",
-	"StartupWMClass=",
-}
-
-// name desktop file keys are localized as key[LOCALE]=:
-//   lang_COUNTRY@MODIFIER
-//   lang_COUNTRY
-//   lang@MODIFIER
-//   lang
-var validLocalizedDesktopFilePrefixes = []string{
-	"Name",
-	"GenericName",
-	"Comment",
-	"Keywords",
-}
-
-func isValidDesktopFilePrefix(line string) bool {
-	for _, prefix := range validDesktopFilePrefixes {
-		if strings.HasPrefix(line, prefix) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func trimLang(s string) string {
-	const langChars = "@_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-
-	if s == "" || s[0] != '[' {
-		return s
-	}
-	t := strings.TrimLeft(s[1:], langChars)
-	if t != "" && t[0] == ']' {
-		return t[1:]
-	}
-	return s
-}
-
-func isValidLocalizedDesktopFilePrefix(line string) bool {
-	for _, prefix := range validLocalizedDesktopFilePrefixes {
-		s := strings.TrimPrefix(line, prefix)
-		if s == line {
-			continue
-		}
-		if strings.HasPrefix(trimLang(s), "=") {
-			return true
-		}
-	}
-	return false
-}
+	"^Terminal=",
+	"^Actions=",
+	"^MimeType=",
+	"^Categories=",
+	"^Keywords" + localizedSuffix,
+	"^StartupNotify=",
+	"^StartupWMClass=",
+	// unity extension
+	"^X-Ayatana-Desktop-Shortcuts=",
+	"^TargetEnvironment=",
+}, "|")).MatchString
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
 func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
@@ -135,19 +126,14 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
-	for scanner.Scan() {
+	for i := 0; scanner.Scan(); i++ {
 		line := scanner.Text()
 
-		// whitespace/comments are just copied
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
-			newContent = append(newContent, line)
+		if !isValidDesktopFileLine(line) {
+			logger.Debugf("ignoring line %d (%q) in source of desktop file %q", i, line, filepath.Base(desktopFile))
 			continue
 		}
 
-		// ignore everything we have not whitelisted
-		if !isValidDesktopFilePrefix(line) && !isValidLocalizedDesktopFilePrefix(line) {
-			continue
-		}
 		// rewrite exec lines to an absolute path for the binary
 		if strings.HasPrefix(line, "Exec=") {
 			var err error
