@@ -31,7 +31,7 @@
 #include <sys/stat.h>		// mkdir
 #include <unistd.h>		// getpid, close
 
-#include "mountinfo.h"
+#include "../snap-confine/mountinfo.h"
 
 bool streq(const char *a, const char *b)
 {
