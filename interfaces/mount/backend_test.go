@@ -67,7 +67,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "mount")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityMount)
 }
 
 func (s *backendSuite) TestRemove(c *C) {
