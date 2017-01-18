@@ -200,6 +200,9 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 	return ic.CheckAutoConnect() == nil
 }
 
+// autoConnect connects the given snap to viable candidates returning the list
+// of connected snap names.  The blacklist can prevent auto-connection to
+// specific interfaces (blacklist entries are plug or slot names).
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) ([]string, error) {
 	var conns map[string]connState
 	var affectedSnapNames []string
