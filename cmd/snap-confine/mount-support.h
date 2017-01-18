@@ -32,4 +32,5 @@
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
 void sc_populate_mount_ns(const char *security_tag);
+
 #endif
