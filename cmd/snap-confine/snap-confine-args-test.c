@@ -224,6 +224,46 @@ static void test_sc_nonfatal_parse_args__version()
 	g_assert_null(argv[3]);
 }
 
+static void test_sc_nonfatal_parse_args__evil_input()
+{
+	// Check that calling without any arguments is reported as error.
+	struct sc_error *err __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+
+	// NULL argcp/argvp attack
+	args = sc_nonfatal_parse_args(NULL, NULL, &err);
+
+	g_assert_nonnull(err);
+	g_assert_null(args);
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"cannot parse arguments, argcp or argvp is NULL");
+
+	int argc;
+	char **argv;
+
+	// NULL argv attack
+	argc = 0;
+	argv = NULL;
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+
+	g_assert_nonnull(err);
+	g_assert_null(args);
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"cannot parse arguments, argc is zero or argv is NULL");
+
+	// NULL argv[i] attack
+	test_argc_argv(&argc, &argv,
+		       "/usr/lib/snapd/snap-confine", "--version", "ignored",
+		       "garbage", NULL);
+	argv[1] = NULL;		// overwrite --version with NULL
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+
+	g_assert_nonnull(err);
+	g_assert_null(args);
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"cannot parse arguments, argument at index 1 is NULL");
+}
+
 static void test_sc_nonfatal_parse_args__nothing_to_parse()
 {
 	// Check that calling without any arguments is reported as error.
@@ -240,7 +280,7 @@ static void test_sc_nonfatal_parse_args__nothing_to_parse()
 
 	// Check the error that we've got
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"cannot parse arguments, argc is zero");
+			"cannot parse arguments, argc is zero or argv is NULL");
 }
 
 static void test_sc_nonfatal_parse_args__no_security_tag()
@@ -344,6 +384,8 @@ static void __attribute__ ((constructor)) init()
 			test_sc_nonfatal_parse_args__version);
 	g_test_add_func("/args/sc_nonfatal_parse_args/nothing_to_parse",
 			test_sc_nonfatal_parse_args__nothing_to_parse);
+	g_test_add_func("/args/sc_nonfatal_parse_args/evil_input",
+			test_sc_nonfatal_parse_args__evil_input);
 	g_test_add_func("/args/sc_nonfatal_parse_args/no_security_tag",
 			test_sc_nonfatal_parse_args__no_security_tag);
 	g_test_add_func("/args/sc_nonfatal_parse_args/no_executable",
