@@ -25,7 +25,11 @@ check-syntax-c:
 # Check for common shell errors
 .PHONY: check-syntax-sh
 check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*)) snap-confine/tests/common.sh
-	shellcheck --format=gcc $^
+if HAVE_SHELLCHECK
+	$(HAVE_SHELLCHECK) --format=gcc $^
+else
+	echo "shellcheck is not installed, skipping (non-critical) syntax test"
+endif
 
 .PHONY: check-unit-tests
 check-unit-tests: snap-confine/snap-confine-unit-tests
