@@ -66,3 +66,14 @@ type snapDeltaDetail struct {
 	Size            int64  `json:"binary_filesize,omitempty"`
 	Sha3_384        string `json:"download_sha3_384,omitempty"`
 }
+
+// channelSnapInfoDetails is the subset of snapDetails we need to get
+// information about the snaps in the various channels
+type channelSnapInfoDetails struct {
+	Revision     int    `json:"revision"` // store revisions are ints starting at 1
+	Confinement  string `json:"confinement"`
+	Version      string `json:"version"`
+	Channel      string `json:"channel"`
+	Epoch        string `json:"epoch"`
+	DownloadSize int64  `json:"binary_filesize"`
+}

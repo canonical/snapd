@@ -8,7 +8,7 @@ reset_classic() {
     # purge all state
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
     # extra purge
-    rm -rvf /var/snap
+    rm -rvf /var/snap /snap/bin
     mkdir -p /snap /var/snap /var/lib/snapd
     if [ "$(find /snap /var/snap -mindepth 1 -print -quit)" ]; then
         echo "postinst purge failed"
@@ -16,7 +16,7 @@ reset_classic() {
         exit 1
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
     fi
 
@@ -65,4 +65,9 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
+fi
+
+if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
+    . $TESTSLIB/store.sh
+    teardown_staging_store
 fi
