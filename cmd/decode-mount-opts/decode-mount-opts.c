@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,21 +15,23 @@
  *
  */
 
-#include "utils.h"
-#include "ns-support.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-int main(int argc, char **argv)
+#include "../snap-confine/mount-opt.h"
+
+int main(int argc, char *argv[])
 {
-	if (argc != 2)
-		die("Usage: %s snap-name", argv[0]);
-	const char *snap_name = argv[1];
-	struct sc_ns_group *group =
-	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
-	if (group != NULL) {
-		sc_lock_ns_mutex(group);
-		sc_discard_preserved_ns_group(group);
-		sc_unlock_ns_mutex(group);
-		sc_close_ns_group(group);
+	if (argc != 2) {
+		printf("usage: decode-mount-opts OPT\n");
+		return 0;
 	}
+	char *end;
+	unsigned long mountflags = strtoul(argv[1], &end, 0);
+	if (*end != '\0') {
+		fprintf(stderr, "cannot parse given argument as a number\n");
+		return 1;
+	}
+	printf("%#lx is %s\n", mountflags, sc_mount_opt2str(mountflags));
 	return 0;
 }
