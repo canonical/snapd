@@ -225,10 +225,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		slot := candidates[0]
-		connRef := interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: plug.Name},
-			SlotRef: interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
-		}
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
 		if err := m.repo.Connect(connRef); err != nil {
 			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
 				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
