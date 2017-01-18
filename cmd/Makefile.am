@@ -1,39 +1,10 @@
-EXTRA_DIST = \
-	VERSION \
-	snap-confine/PORTING \
-	snap-confine/80-snappy-assign.rules \
-	snap-confine/snappy-app-dev \
-	snap-confine/snap-confine.apparmor.in \
-	snap-confine/manpages/snap-confine.rst \
-	snap-confine/manpages/snap-discard-ns.rst \
-	snap-confine/manpages/ubuntu-core-launcher.rst
-	$(all_tests) snap-confine/tests/common.sh
-
-CLEANFILES = \
-	snap-confine/manpages/snap-confine.5 \
-	snap-confine/manpages/snap-discard-ns.5 \
-	snap-confine/manpages/ubuntu-core-launcher.1
-
-libexec_PROGRAMS = \
-	snap-confine/snap-confine \
-	snap-confine/snap-discard-ns
-
-# The list of manual pages
-dist_man_MANS = \
-	snap-confine/manpages/snap-confine.5 \
-	snap-confine/manpages/snap-discard-ns.5 \
-	snap-confine/manpages/ubuntu-core-launcher.1
-
-noinst_LIBRARIES = \
-	libsnap-confine-private.a
-
-noinst_PROGRAMS = \
-	snap-confine/decode-mount-opts
-
-if WITH_UNIT_TESTS
-noinst_PROGRAMS += \
-	snap-confine/snap-confine-unit-tests
-endif
+EXTRA_DIST = VERSION snap-confine/PORTING
+CLEANFILES =
+TESTS =
+libexec_PROGRAMS =
+dist_man_MANS =
+noinst_PROGRAMS =
+noinst_LIBRARIES =
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -44,7 +15,7 @@ check: check-syntax-c check-syntax-sh check-unit-tests
 check-syntax-c:
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
-	for f in $(wildcard $(srcdir)/snap-confine/*.c) $(wildcard $(srcdir)/snap-confine/*.h); do \
+	for f in $(foreach dir,snap-confine snap-discard-ns,$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
 	       indent -linux "$$f" -o "$$out"; \
@@ -63,43 +34,8 @@ if WITH_UNIT_TESTS
 endif
 
 .PHONY: fmt
-fmt: $(wildcard $(srcdir)/snap-confine/*.c) $(wildcard $(srcdir)/snap-confine/*.h)
+fmt: $(foreach dir,snap-confine snap-discard-ns,$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	indent -linux $^
-
-snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
-
-# NOTE: This makes distcheck fail but it is required for udev, so go figure.
-# http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
-#
-# Install udev rules and the apparmor profile
-#
-# NOTE: the funky make functions here just convert /foo/bar/froz into foo.bar.froz
-# The inner subst replaces slashes with dots and the outer patsubst strips the leading dot
-#
-# NOTE: The 'void' directory *has to* be chmod 000
-install-data-local: snap-confine/snap-confine.apparmor
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -m 644 $(srcdir)/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
-	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
-	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
-
-# Install support script for udev rules
-install-exec-local:
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-
-install-exec-hook:
-if CAPS_OVER_SETUID
-# Ensure that snap-confine has CAP_SYS_ADMIN capability
-	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
-else
-# Ensure that snap-confine is +s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
-endif
-	install -d -m 755 $(DESTDIR)$(bindir)
-	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
@@ -109,11 +45,34 @@ hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
 	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 
-snap-confine/manpages/%.5: snap-confine/manpages/%.rst
-	$(HAVE_RST2MAN) $^ > $@
+##
+## lib-snap-confine-private.a
+##
 
-snap-confine/manpages/ubuntu-core-launcher.1: snap-confine/manpages/ubuntu-core-launcher.rst
-	$(HAVE_RST2MAN) $^ > $@
+noinst_LIBRARIES += libsnap-confine-private.a
+
+libsnap_confine_private_a_SOURCES = \
+	snap-confine/error.h \
+	snap-confine/error.c \
+	snap-confine/utils.h \
+	snap-confine/utils.c \
+	snap-confine/secure-getenv.c \
+	snap-confine/secure-getenv.h
+
+##
+## decode-mount-opts
+##
+
+noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
+
+decode_mount_opts_decode_mount_opts_SOURCES = \
+	decode-mount-opts/decode-mount-opts.c \
+	snap-confine/mount-opt.c \
+	snap-confine/mount-opt.h
+
+##
+## snap-confine
+##
 
 all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args \
@@ -138,44 +97,20 @@ all_tests = \
     snap-confine/tests/test_unrestricted_missed \
     snap-confine/tests/test_whitelist
 
+libexec_PROGRAMS += snap-confine/snap-confine
+dist_man_MANS += snap-confine/snap-confine.5
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += \
+	snap-confine/snap-confine-unit-tests
+endif
+CLEANFILES += snap-confine/snap-confine.5
+EXTRA_DIST += snap-confine/snap-confine.rst
+EXTRA_DIST += snap-confine/snap-confine.apparmor.in
+EXTRA_DIST += $(all_tests) snap-confine/tests/common.sh
 if SECCOMP
 if CONFINEMENT_TESTS
-TESTS = $(all_tests)
+TESTS += $(all_tests)
 endif
-endif
-
-libsnap_confine_private_a_SOURCES = \
-	snap-confine/error.h \
-	snap-confine/error.c \
-	snap-confine/utils.h \
-	snap-confine/utils.c \
-	snap-confine/secure-getenv.c \
-	snap-confine/secure-getenv.h
-
-snap_confine_decode_mount_opts_SOURCES = \
-	snap-confine/decode-mount-opts.c \
-	snap-confine/mount-opt.c \
-	snap-confine/mount-opt.h
-
-snap_confine_snap_discard_ns_SOURCES = \
-	snap-confine/ns-support.c \
-	snap-confine/ns-support.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h \
-	snap-confine/cleanup-funcs.c \
-	snap-confine/cleanup-funcs.h \
-	snap-confine/mountinfo.c \
-	snap-confine/mountinfo.h \
-	snap-confine/snap-discard-ns.c
-snap_confine_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
-snap_confine_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
-snap_confine_snap_discard_ns_LDADD = libsnap-confine-private.a
-snap_confine_snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
-snap_confine_snap_discard_ns_LDADD += $(SECCOMP_LIBS)
-
-if APPARMOR
-snap_confine_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
-snap_confine_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif
 
 snap_confine_snap_confine_SOURCES = \
@@ -252,3 +187,100 @@ snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
 endif
+
+snap-confine/%.5: snap-confine/%.rst
+	$(HAVE_RST2MAN) $^ > $@
+
+snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
+# Install the apparmor profile
+#
+# NOTE: the funky make functions here just convert /foo/bar/froz into
+# foo.bar.froz The inner subst replaces slashes with dots and the outer
+# patsubst strips the leading dot
+install-data-local:: snap-confine/snap-confine.apparmor
+	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
+	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+
+# NOTE: The 'void' directory *has to* be chmod 000
+install-data-local::
+	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
+
+install-exec-hook::
+if CAPS_OVER_SETUID
+# Ensure that snap-confine has CAP_SYS_ADMIN capability
+	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
+else
+# Ensure that snap-confine is +s (setuid)
+	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+endif
+
+##
+## ubuntu-core-launcher
+##
+
+dist_man_MANS += ubuntu-core-launcher/ubuntu-core-launcher.1
+CLEANFILES += ubuntu-core-launcher/ubuntu-core-launcher.1
+EXTRA_DIST += ubuntu-core-launcher/ubuntu-core-launcher.rst
+
+install-exec-hook::
+	install -d -m 755 $(DESTDIR)$(bindir)
+	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+
+ubuntu-core-launcher/%.1: ubuntu-core-launcher/%.rst
+	$(HAVE_RST2MAN) $^ > $@
+
+##
+## snappy-app-dev
+##
+
+EXTRA_DIST += \
+	snap-confine/80-snappy-assign.rules \
+	snap-confine/snappy-app-dev
+
+# NOTE: This makes distcheck fail but it is required for udev, so go figure.
+# http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
+#
+# Install udev rules
+install-data-local:: snap-confine/snap-confine.apparmor
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+
+# Install support script for udev rules
+install-exec-local::
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+
+##
+## snap-discard-ns
+##
+
+libexec_PROGRAMS += snap-discard-ns/snap-discard-ns
+dist_man_MANS += snap-discard-ns/snap-discard-ns.5
+CLEANFILES += snap-discard-ns/snap-discard-ns.5
+EXTRA_DIST += snap-discard-ns/snap-discard-ns.rst
+
+snap_discard_ns_snap_discard_ns_SOURCES = \
+	snap-confine/ns-support.c \
+	snap-confine/ns-support.h \
+	snap-confine/apparmor-support.c \
+	snap-confine/apparmor-support.h \
+	snap-confine/cleanup-funcs.c \
+	snap-confine/cleanup-funcs.h \
+	snap-confine/mountinfo.c \
+	snap-confine/mountinfo.h \
+	snap-discard-ns/snap-discard-ns.c
+snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
+snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
+snap_discard_ns_snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
+snap_discard_ns_snap_discard_ns_LDADD += $(SECCOMP_LIBS)
+
+if APPARMOR
+snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
+snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
+endif
+
+snap-discard-ns/%.5: snap-discard-ns/%.rst
+	$(HAVE_RST2MAN) $^ > $@

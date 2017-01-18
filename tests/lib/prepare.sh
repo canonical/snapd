@@ -54,6 +54,18 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+prepare_each_classic() {
+    if [ -z "${SNAP_REEXEC:-}" ]; then
+        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
+    else
+        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
+    fi
+
+}
+
 prepare_classic() {
     apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
     apt_install_local ${GOPATH}/snapd_*.deb
@@ -70,19 +82,12 @@ prepare_classic() {
         exit 1
     fi
 
-    # Disable burst limit so resetting the state quickly doesn't create
-    # problems.
     mkdir -p /etc/systemd/system/snapd.service.d
-    if [ -n "${SNAP_REEXEC:-}" ]; then
-        EXTRA_ENV="SNAP_REEXEC=$SNAP_REEXEC"
-    else
-        EXTRA_ENV=""
-    fi
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 $EXTRA_ENV
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf

@@ -21,7 +21,6 @@ package ifacestate
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -88,17 +87,14 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		return err
 	}
 	for id := range conns {
-		plugRef, slotRef, err := parseConnID(id)
-		if err != nil {
+		var connRef interfaces.ConnRef
+		if err := connRef.ParseID(id); err != nil {
 			return err
 		}
-		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
+		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-
-		connRef := interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
-		err = m.repo.Connect(connRef)
-		if err != nil {
+		if err := m.repo.Connect(connRef); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
@@ -138,25 +134,6 @@ func removeSnapSecurity(task *state.Task, snapName string) error {
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	Interface string `json:"interface,omitempty"`
-}
-
-func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
-	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
-}
-
-func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
-	parts := strings.SplitN(conn, " ", 2)
-	if len(parts) != 2 {
-		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
-	}
-	plugParts := strings.SplitN(parts[0], ":", 2)
-	slotParts := strings.SplitN(parts[1], ":", 2)
-	if len(plugParts) != 2 || len(slotParts) != 2 {
-		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
-	}
-	plugRef := &interfaces.PlugRef{Snap: plugParts[0], Name: plugParts[1]}
-	slotRef := &interfaces.SlotRef{Snap: slotParts[0], Name: slotParts[1]}
-	return plugRef, slotRef, nil
 }
 
 type autoConnectChecker struct {
@@ -248,15 +225,11 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		slot := candidates[0]
-		connRef := interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: plug.Name},
-			SlotRef: interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
-		}
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
 		if err := m.repo.Connect(connRef); err != nil {
-			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
-				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+			task.Logf("cannot auto connect %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 		}
-		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
+		key := connRef.ID()
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
 	task.State().Set("conns", conns)
