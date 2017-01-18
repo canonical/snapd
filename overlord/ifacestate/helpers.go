@@ -200,11 +200,12 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 	return ic.CheckAutoConnect() == nil
 }
 
-func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) error {
+func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) ([]string, error) {
 	var conns map[string]connState
+	var affectedSnapNames []string
 	err := task.State().Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
-		return err
+		return nil, err
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
@@ -212,7 +213,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 
 	autochecker, err := newAutoConnectChecker(task.State())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// XXX: quick hack, auto-connect everything
@@ -234,10 +235,12 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		if err := m.repo.Connect(connRef); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 		}
+		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
+		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
 	task.State().Set("conns", conns)
-	return nil
+	return affectedSnapNames, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
