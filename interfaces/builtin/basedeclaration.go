@@ -225,11 +225,6 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  unity8-download-manager:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   firewall-control:
     allow-installation:
       slot-snap-type:
@@ -511,6 +506,23 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8-calendar:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+  unity8-contacts:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+  unity8-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:
