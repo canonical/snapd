@@ -162,7 +162,7 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
 
-AC_PATH_PROG([HAVE_RST2MAN],[rst2man])
+AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
 AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man tool, install python-docutils or similar"])])
 
 AC_CONFIG_FILES([Makefile snap-confine/Makefile snap-confine/tests/Makefile snap-confine/manpages/Makefile])
