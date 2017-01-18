@@ -1146,6 +1146,9 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 
+	// FIXME: deal with the case that "newName" is already installed
+	// FIXME2: add missing tests
+
 	// start by instaling the new snap
 	tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 		Channel:      oldSnapst.Channel,
