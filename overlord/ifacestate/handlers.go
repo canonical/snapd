@@ -102,7 +102,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	disconnectAffected, err := m.repo.DisconnectSnap(snapName)
+	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	// FIXME: here we should not reconnect auto-connect plug/slot
 	// pairs that were explicitly disconnected by the user
-	autoConnectAffected, err := m.autoConnect(task, snapName, nil)
+	connectedSnaps, err := m.autoConnect(task, snapName, nil)
 	if err != nil {
 		return err
 	}
@@ -131,10 +131,10 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		return err
 	}
 	affectedSet := make(map[string]bool)
-	for _, name := range disconnectAffected {
+	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	for _, name := range autoConnectAffected {
+	for _, name := range connectedSnaps {
 		affectedSet[name] = true
 	}
 	// The principal snap was already handled above.
