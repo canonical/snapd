@@ -56,6 +56,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, Contains, &builtin.TimeControlInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
+	c.Check(all, Contains, &builtin.Unity8DownloadManagerInterface{})
 	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
