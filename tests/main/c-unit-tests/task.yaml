@@ -22,7 +22,7 @@ execute: |
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     # Build and run unit tests
-    make -C check
+    make check
 restore: |
     # Remove autogarbage leftover from testing
     rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
