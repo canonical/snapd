@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,14 @@
  *
  */
 
-package store
+package httputil
 
-import (
-	"github.com/snapcore/snapd/testutil"
+var GetFlags = (*LoggedTransport).getFlags
 
-	"gopkg.in/retry.v1"
-)
-
-// MockDefaultRetryStrategy mocks the retry strategy used by several store requests
-func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
-	originalDefaultRetryStrategy := defaultRetryStrategy
-	defaultRetryStrategy = strategy
-	t.AddCleanup(func() {
-		defaultRetryStrategy = originalDefaultRetryStrategy
-	})
+func MockUserAgent(mock string) (restore func()) {
+	old := userAgent
+	userAgent = mock
+	return func() {
+		userAgent = old
+	}
 }
