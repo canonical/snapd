@@ -1127,6 +1127,46 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
+// setup-profiles needs to setup security for connected slots after autoconnection
+func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c *C) {
+	// Add an OS snap.
+	coreSnapInfo := s.mockSnap(c, osSnapYaml)
+
+	// Initialize the manager. This registers the OS snap.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a "network" plug which should be auto-connected.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that both snaps were setup correctly.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	// The sample snap was setup, with the correct new revision.
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
+	// The OS snap was setup (because its connected to sample snap).
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, coreSnapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+}
+
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
 	s.testDoDicardConns(c, "consumer")
 }

@@ -9,7 +9,12 @@ environment:
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
-    SNAP_REEXEC: 0
+    # we run the entire suite with re-exec on (the default) and modify
+    # the core snap so that it contains our new code.  So we run new
+    # snapd from the deb that re-execs into new snapd in core.  To
+    # test purely from the deb, set "export SPREAD_SNAP_REEXEC=0"
+    SNAP_REEXEC: "$(HOST: echo ${SPREAD_SNAP_REEXEC:-})"
+    MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
@@ -17,11 +22,15 @@ environment:
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
-    TRUST_TEST_KEYS: "true"
+    TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
     # slight abuse
     GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
+    REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
+    SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
+    DELTA_REF: 2.17
+    DELTA_PREFIX: snapd-$DELTA_REF/
 
 backends:
     linode:
@@ -143,6 +152,12 @@ path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
+    - cmd/snap/snap
+    - cmd/snapd/snapd
+    - cmd/snapctl/snapctl
+    - cmd/snap-exec/snap-exec
+    - "*.o"
+    - "*.a"
 
 prepare-each: |
     # systemd on 14.04 does not know about --rotate
@@ -160,29 +175,53 @@ debug-each: |
     journalctl -u snapd
     dmesg | grep DENIED || true
 
+rename:
+    # Move content into a directory, so that deltas computed by repack benefit
+    # from the content looking similar to codeload.github.com.
+    - s,^,$DELTA_PREFIX,S
+
+repack: |
+    # For Linode, compute a delta based on a known git reference that can be
+    # obtained directly from GitHub. There's nothing special about that reference,
+    # other than it will often be in the local repository's history already.
+    # The more recent the reference, the smaller the delta.
+    if ! echo $SPREAD_BACKENDS | grep linode; then
+        cat <&3 >&4
+    elif ! git show-ref $DELTA_REF > /dev/null; then
+        cat <&3 >&4
+    else
+        trap "rm -f delta-ref.tar current.delta" EXIT
+        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        xdelta3 -s delta-ref.tar <&3 > current.delta
+        tar c current.delta >&4
+    fi
+
 prepare: |
-    # this indicates that the server got reused, nothing to setup
+    # apt update is hanging on security.ubuntu.com with IPv6.
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
+    # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
+    if [ -f current.delta ]; then
+        apt-get update
+        apt-get install -y xdelta3 curl
+        curl -s -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        xdelta3 -d -s delta-ref.tar current.delta | tar x --strip-components=1
+        rm -f delta-ref.tar current.delta
+    elif [ -d $DELTA_PREFIX ]; then
+        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir $DELTA_PREFIX
+    fi
+
+    # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
     # check that we are not updating
     . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0 SNAPPY_TESTING=1
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
@@ -204,10 +243,6 @@ prepare: |
             printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
         fi
     fi
-
-    # apt update is hanging on security.ubuntu.com with IPv6.
-    sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     apt-get update
 
@@ -286,7 +321,11 @@ prepare: |
     go get ./tests/lib/snapbuild
 
     # Build fakestore.
-    go get ./tests/lib/fakestore/cmd/fakestore
+    fakestore_tags=
+    if [ "$REMOTE_STORE" = staging ]; then
+        fakestore_tags="-tags withstagingkeys"
+    fi
+    go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
     # Build fakedevicesvc.
     go get ./tests/lib/fakedevicesvc
 
@@ -308,7 +347,7 @@ suites:
                 prepare_classic
             fi
         restore: |
-            $TESTSLIB/reset.sh
+            $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
@@ -335,8 +374,18 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme]
-        restore:
+        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        restore: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             apt-get purge -y snapd snap-confine ubuntu-core-launcher
         restore-each: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             $TESTSLIB/reset.sh
+
+# vim:ts=4:sw=4:et
