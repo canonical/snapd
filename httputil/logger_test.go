@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package store_test
+package httputil_test
 
 import (
 	"bytes"
@@ -26,13 +26,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"testing"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func TestHTTPUtil(t *testing.T) { check.TestingT(t) }
 
 type loggerSuite struct {
 	logbuf *bytes.Buffer
@@ -54,17 +57,17 @@ func (s *loggerSuite) SetUpTest(c *check.C) {
 
 func (loggerSuite) TestFlags(c *check.C) {
 	for _, f := range []interface{}{
-		store.DebugRequest,
-		store.DebugResponse,
-		store.DebugBody,
-		store.DebugRequest | store.DebugResponse | store.DebugBody,
+		httputil.DebugRequest,
+		httputil.DebugResponse,
+		httputil.DebugBody,
+		httputil.DebugRequest | httputil.DebugResponse | httputil.DebugBody,
 	} {
 		os.Setenv("TEST_FOO", fmt.Sprintf("%d", f))
-		tr := &store.LoggedTransport{
+		tr := &httputil.LoggedTransport{
 			Key: "TEST_FOO",
 		}
 
-		c.Check(store.GetFlags(tr), check.Equals, f)
+		c.Check(httputil.GetFlags(tr), check.Equals, f)
 	}
 }
 
@@ -85,7 +88,7 @@ func (s loggerSuite) TestLogging(c *check.C) {
 		Status:     "999 WAT",
 		StatusCode: 999,
 	}
-	tr := &store.LoggedTransport{
+	tr := &httputil.LoggedTransport{
 		Transport: &fakeTransport{
 			rsp: rsp,
 		},
@@ -113,7 +116,7 @@ func (s loggerSuite) TestNotLoggingOctetStream(c *check.C) {
 		},
 		Body: ioutil.NopCloser(strings.NewReader(needle)),
 	}
-	tr := &store.LoggedTransport{
+	tr := &httputil.LoggedTransport{
 		Transport: &fakeTransport{
 			rsp: rsp,
 		},

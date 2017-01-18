@@ -45,7 +45,7 @@ type TestSetupCall struct {
 }
 
 // Name returns the name of the security backend.
-func (b *TestSecurityBackend) Name() string {
+func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 	return "test"
 }
 
@@ -65,4 +65,8 @@ func (b *TestSecurityBackend) Remove(snapName string) error {
 		return nil
 	}
 	return b.RemoveCallback(snapName)
+}
+
+func (b *TestSecurityBackend) NewSpecification() interfaces.Specification {
+	return &Specification{}
 }
