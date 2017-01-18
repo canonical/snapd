@@ -274,3 +274,30 @@ void sc_do_mount(const char *source, const char *target,
 		die("cannot perform operation: %s", mount_cmd);
 	}
 }
+
+void sc_do_umount(const char *target, int flags)
+{
+	char buf[10000];
+	const char *umount_cmd = NULL;
+
+	void ensure_umount_cmd() {
+		if (umount_cmd == NULL) {
+			umount_cmd =
+			    sc_umount_cmd(buf, sizeof buf, target, flags);
+		}
+	}
+
+	if (sc_is_debug_enabled()) {
+		ensure_umount_cmd();
+		debug("performing operation: %s", umount_cmd);
+	}
+	if (sc_faulty("umount", NULL) || umount2(target, flags) < 0) {
+		// Save errno as ensure can clobber it.
+		int saved_errno = errno;
+		ensure_umount_cmd();
+
+		// Restore errno and die.
+		errno = saved_errno;
+		die("cannot perform operation: %s", umount_cmd);
+	}
+}

@@ -67,4 +67,9 @@ void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data);
 
+/**
+ * A thin wrapper around umount(2) with logging and error checks.
+ **/
+void sc_do_umount(const char *target, int flags);
+
 #endif				// SNAP_CONFINE_MOUNT_OPT_H
