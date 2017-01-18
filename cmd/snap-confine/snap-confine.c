@@ -93,6 +93,9 @@ int main(int argc, char **argv)
 	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	const char *snap_name = getenv("SNAP_NAME");
 	if (snap_name != NULL) {
+		if (!verify_snap_name(snap_name)) {
+			die("invalid SNAP_NAME");
+		}
 		struct sc_error *err
 		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
 		snap_context =
@@ -122,13 +125,12 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *group_name = getenv("SNAP_NAME");
-			if (group_name == NULL) {
+			if (snap_name == NULL) {
 				die("SNAP_NAME is not set");
 			}
 			sc_initialize_ns_groups();
 			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(group_name, 0);
+			group = sc_open_ns_group(snap_name, 0);
 			sc_lock_ns_mutex(group);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
