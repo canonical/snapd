@@ -53,6 +53,15 @@ struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
 				    "cannot parse arguments, argc is zero or argv is NULL");
 		goto out;
 	}
+	// Sanity check, look for NULL argv entries.
+	for (int i = 0; i < argc; ++i) {
+		if (argv[i] == NULL) {
+			err = sc_error_init(SC_ARGS_DOMAIN, 0,
+					    "cannot parse arguments, argument at index %d is NULL",
+					    i);
+			goto out;
+		}
+	}
 
 	args = calloc(1, sizeof *args);
 	if (args == NULL) {
