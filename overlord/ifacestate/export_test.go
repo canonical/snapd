@@ -25,7 +25,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
+// AddForeignTaskHandlers registers handlers for tasks handled outside of the
+// InterfaceManager.
 func (m *InterfaceManager) AddForeignTaskHandlers() {
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
