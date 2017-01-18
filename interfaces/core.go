@@ -22,6 +22,7 @@ package interfaces
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -85,6 +86,24 @@ type ConnRef struct {
 // ID returns a string identifying a given connection.
 func (conn *ConnRef) ID() string {
 	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+}
+
+// ParseID parses an ID string
+func (conn *ConnRef) ParseID(id string) error {
+	parts := strings.SplitN(id, " ", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("malformed connection identifier: %q", id)
+	}
+	plugParts := strings.Split(parts[0], ":")
+	slotParts := strings.Split(parts[1], ":")
+	if len(plugParts) != 2 || len(slotParts) != 2 {
+		return fmt.Errorf("malformed connection identifier: %q", id)
+	}
+	conn.PlugRef.Snap = plugParts[0]
+	conn.PlugRef.Name = plugParts[1]
+	conn.SlotRef.Snap = slotParts[0]
+	conn.SlotRef.Name = slotParts[1]
+	return nil
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
