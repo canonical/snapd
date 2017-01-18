@@ -43,11 +43,11 @@ func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	}
 }
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps map[string]bool) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
-	for _, affectedSnapName := range affectedSnaps {
+	for affectedSnapName := range affectedSnaps {
 		// the snap that triggered the change needs to be skipped
 		if affectedSnapName == affectingSnap {
 			continue
@@ -126,6 +126,13 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
+
+	// Now find all snaps affected by any autoconnection to make sure
+	// their security is also setup
+	if err := m.repo.AddConnectedSnaps(snapName, affectedSnaps); err != nil {
+		return err
+	}
+
 	if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
 		return err
 	}
