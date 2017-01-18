@@ -53,6 +53,7 @@ var allInterfaces = []interfaces.Interface{
 	&SerialPortInterface{},
 	&TimeControlInterface{},
 	&UDisks2Interface{},
+	&Unity8DownloadManagerInterface{},
 	&UpowerObserveInterface{},
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),

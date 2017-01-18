@@ -518,6 +518,11 @@ slots:
         - app
     deny-auto-connection: true
     deny-connection: true
+  unity8-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:
