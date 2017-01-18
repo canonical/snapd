@@ -39,4 +39,9 @@ void sc_populate_mount_ns(const char *security_tag);
 void sc_do_mount(const char *source, const char *target,
 		 const char *filesystemtype, unsigned long mountflags,
 		 const void *data);
+
+/**
+ * A thin wrapper around umount(2) with logging and error checks.
+ **/
+void sc_do_umount(const char *target, int flags);
 #endif

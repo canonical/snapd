@@ -593,6 +593,16 @@ void sc_do_mount(const char *source, const char *target,
 	}
 }
 
+void sc_do_umount(const char *target, int flags)
+{
+	char *umount_cmd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	umount_cmd = sc_umount_cmd(target, flags);
+	debug("performing operation: %s", umount_cmd);
+	if (umount2(target, flags) < 0) {
+		die("cannot perform operation: %s", umount_cmd);
+	}
+}
+
 void sc_populate_mount_ns(const char *security_tag)
 {
 	// Get the current working directory before we start fiddling with
