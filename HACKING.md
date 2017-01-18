@@ -158,7 +158,7 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo SNAPD_DEBUG=3 SNAPD_DEBUG_HTTP=3 ./snapd
+    sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./snapd
 
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
