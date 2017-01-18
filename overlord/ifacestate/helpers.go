@@ -226,10 +226,14 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		}
 		slot := candidates[0]
 		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			continue
+		}
 		if err := m.repo.Connect(connRef); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 		}
-		key := connRef.ID()
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
 	task.State().Set("conns", conns)
