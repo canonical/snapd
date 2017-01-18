@@ -90,10 +90,10 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	char *snap_context = NULL;
+	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	const char *snap_name = getenv("SNAP_NAME");
 	if (snap_name != NULL) {
-		snap_context = read_snap_context(snap_name);
+		snap_context = sc_context_get_from_snapd(snap_name);
 	}
 
 	struct sc_apparmor apparmor;
@@ -163,8 +163,7 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	if (snap_context != NULL) {
-		set_snap_context_env(snap_context);
-		free(snap_context);
+		sc_context_set_environment(snap_context);
 	}
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, security_tag);

@@ -15,6 +15,7 @@
  *
  */
 
+#include "cleanup-funcs.h"
 #include "config.h"
 #include "context-support.h"
 #include "utils.h"
@@ -28,40 +29,40 @@
 
 #define CONTEXTS_DIR "/var/lib/snapd/contexts"
 
-char *read_snap_context(const char *snap_name)
+char *sc_context_get_from_snapd(const char *snap_name)
 {
-	char context_path[1000];
+	char context_path[PATH_MAX];
 	char *context_val = NULL;
 
 	if (snap_name == NULL) {
 		die("SNAP_NAME is not set");
 	}
 
-	must_snprintf(context_path, 1000, "%s/snap.%s", CONTEXTS_DIR,
-		      snap_name);
+	must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
+		      CONTEXTS_DIR, snap_name);
 
-	int fd = open(context_path, O_RDONLY);
+	int fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0) {
 		error
-		    ("Cannot open context file %s, SNAP_CONTEXT will not be set: %s",
+		    ("cannot open context file %s, SNAP_CONTEXT will not be set: %s",
 		     context_path, strerror(errno));
 		return NULL;
 	}
 	// context is a 32 bytes, base64-encoding makes it 44.
-	context_val = malloc(45);
+	context_val = calloc(1, 45);
 	if (context_val == NULL) {
-		die("Failed to allocate memory for snap context");
+		die("failed to allocate memory for snap context");
 	}
-	if (read(fd, context_val, 45) < 0) {
+	if (read(fd, context_val, 44) < 0) {
 		free(context_val);
-		error("Failed to read context file %s: %s", context_path,
+		error("failed to read context file %s: %s", context_path,
 		      strerror(errno));
 	}
-	close(fd);
 	return context_val;
 }
 
-void set_snap_context_env(const char *context)
+void sc_context_set_environment(const char *context)
 {
 	if (context != NULL) {
 		// Don't overwrite an existing value as it may be already set if running a hook.
