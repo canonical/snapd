@@ -440,14 +440,13 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	}
 
 	for id := range conns {
-		plugRef, slotRef, err := parseConnID(id)
-		if err != nil {
+		connRef := interfaces.ConnRef{}
+		if err := connRef.ParseID(id); err != nil {
 			return err
 		}
-		if slotRef.Snap == oldName {
-			slotRef.Snap = newName
-			newConnID := connID(plugRef, slotRef)
-			conns[newConnID] = conns[id]
+		if connRef.SlotRef.Snap == oldName {
+			connRef.SlotRef.Snap = newName
+			conns[connRef.ID()] = conns[id]
 			delete(conns, id)
 		}
 	}
