@@ -16,15 +16,16 @@ prepare: |
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_store fake $BLOB_DIR
+    setup_fake_store $BLOB_DIR
 
 restore: |
     . $TESTSLIB/store.sh
-    teardown_store fake $BLOB_DIR
+    teardown_fake_store $BLOB_DIR
 
 execute: |
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable $GOOD_SNAP,$BAD_SNAP -dir $BLOB_DIR
+    . $TESTSLIB/store.sh
+    init_fake_refreshes $GOOD_SNAP,$BAD_SNAP $BLOB_DIR
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap

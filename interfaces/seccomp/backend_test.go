@@ -63,7 +63,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "seccomp")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecuritySecComp)
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {

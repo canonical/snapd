@@ -157,6 +157,18 @@ type Interface interface {
 	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
+// Specification describes interactions between backends and interfaces.
+type Specification interface {
+	// AddPermanentSlot records side-effects of having a slot.
+	AddPermanentSlot(iface Interface, slot *Slot) error
+	// AddPermanentPlug records side-effects of having a plug.
+	AddPermanentPlug(iface Interface, plug *Plug) error
+	// AddConnectedSlot records side-effects of having a connected slot.
+	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
+	// AddConnectedPlug records side-effects of having a connected plug.
+	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
+}
+
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
