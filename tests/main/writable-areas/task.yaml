@@ -1,5 +1,11 @@
 summary: Check that snap apps and services can write to writable areas.
 
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
+
 prepare: |
     snapbuild $TESTSLIB/snaps/data-writer .
 

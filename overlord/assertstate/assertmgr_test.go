@@ -83,8 +83,8 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.Snap not expected")
+func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.SnapInfo not expected")
 }
 
 func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
@@ -560,7 +560,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
 }
 
-func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *asserts.SnapDeclaration {
+func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      name + "-id",
@@ -568,8 +568,8 @@ func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *ass
 		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	if len(control) != 0 {
-		headers["refresh-control"] = control
+	for h, v := range extraHeaders {
+		headers[h] = v
 	}
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -736,7 +736,9 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 
@@ -763,8 +765,12 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
-	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 	s.stateFromDecl(snapDeclBaz, snap.R(1))
@@ -827,8 +833,12 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	defer s.state.Unlock()
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
-	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	snapDeclBaz := s.snapDecl(c, "baz", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
 	s.stateFromDecl(snapDeclFoo, snap.R(7))
 	s.stateFromDecl(snapDeclBar, snap.R(3))
 	s.stateFromDecl(snapDeclBaz, snap.R(1))
@@ -932,4 +942,81 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
 	c.Assert(err, IsNil)
 	c.Check(snapDecl.SnapName(), Equals, "foo")
+}
+
+func (s *assertMgrSuite) TestAutoAliases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// prereqs for developer assertions in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// not from the store
+	aliases, err := assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"})
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// missing
+	_, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "baz",
+			SnapID:   "baz-id",
+		},
+	})
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+
+	// empty list
+	// have a declaration in the system db
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// some aliases
+	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
+		"auto-aliases": []interface{}{"alias1", "alias2"},
+		"revision":     "1",
+	})
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(aliases, DeepEquals, []string{"alias1", "alias2"})
+}
+
+func (s *assertMgrSuite) TestPublisher(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	acct, err := assertstate.Publisher(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
+	c.Check(acct.Username(), Equals, "developer1")
 }

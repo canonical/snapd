@@ -43,8 +43,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "systemd"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecuritySystemd
 }
 
 func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
@@ -55,8 +55,11 @@ func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[
 	for _, path := range paths {
 		service := filepath.Base(path)
 		if content[service] == nil {
-			if err := systemd.DisableNow(service); err != nil {
+			if err := systemd.Disable(service); err != nil {
 				logger.Noticef("cannot disable service %q: %s", service, err)
+			}
+			if err := systemd.Stop(service, 5*time.Second); err != nil {
+				logger.Noticef("cannot stop service %q: %s", service, err)
 			}
 		}
 	}
@@ -122,8 +125,11 @@ func (b *Backend) Remove(snapName string) error {
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
-		if err := systemd.DisableNow(service); err != nil {
+		if err := systemd.Disable(service); err != nil {
 			logger.Noticef("cannot disable service %q: %s", service, err)
+		}
+		if err := systemd.Stop(service, 5*time.Second); err != nil {
+			logger.Noticef("cannot stop service %q: %s", service, err)
 		}
 	}
 	// Reload systemd whenever something is removed
@@ -184,4 +190,8 @@ func renderSnippet(snippet *Snippet) (map[string]*osutil.FileState, error) {
 type dummyReporter struct{}
 
 func (dr *dummyReporter) Notify(msg string) {
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

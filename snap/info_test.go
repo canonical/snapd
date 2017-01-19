@@ -65,7 +65,6 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
-		DeveloperID:       "deviddeviddeviddeviddeviddevidde",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
@@ -73,12 +72,30 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
-	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
+}
+
+func (s *infoSuite) TestPlugSlotSecurityTags(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: name
+apps:
+    app1:
+    app2:
+hooks:
+    hook1:
+plugs:
+    plug:
+slots:
+    slot:
+`))
+	c.Assert(err, IsNil)
+	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
+		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
+	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
+		"snap.name.app1", "snap.name.app2"})
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {

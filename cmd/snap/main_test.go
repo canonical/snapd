@@ -31,7 +31,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 
@@ -41,18 +44,18 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-func openPty() (*os.File, error) {
-	return os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
-}
-
 type BaseSnapSuite struct {
 	testutil.BaseTest
-	stdin  *bytes.Buffer
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
-	term   *os.File
+	stdin    *bytes.Buffer
+	stdout   *bytes.Buffer
+	stderr   *bytes.Buffer
+	password string
 
 	AuthFile string
+}
+
+func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
+	return []byte(s.password), nil
 }
 
 func (s *BaseSnapSuite) SetUpTest(c *C) {
@@ -60,15 +63,12 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
-
-	pty, err := openPty()
-	c.Assert(err, IsNil)
-	s.term = pty
+	s.password = ""
 
 	snap.Stdin = s.stdin
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
-	snap.Terminal = int(s.term.Fd())
+	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 }
@@ -77,9 +77,7 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
-	snap.Terminal = 0
-
-	s.term.Close()
+	snap.ReadPassword = terminal.ReadPassword
 
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
@@ -223,4 +221,43 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see "snap --help"`)
+}
+
+func (s *SnapSuite) TestResolveApp(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, IsNil)
+
+	// "wrapper" symlinks
+	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	c.Assert(err, IsNil)
+
+	// alias symlinks
+	err = os.Symlink("foo", filepath.Join(dirs.SnapBinariesDir, "foo_"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("foo.bar", filepath.Join(dirs.SnapBinariesDir, "foo_bar-1"))
+	c.Assert(err, IsNil)
+
+	snapApp, err := snap.ResolveApp("foo")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo")
+
+	snapApp, err = snap.ResolveApp("foo.bar")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo.bar")
+
+	snapApp, err = snap.ResolveApp("foo_")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo")
+
+	snapApp, err = snap.ResolveApp("foo_bar-1")
+	c.Assert(err, IsNil)
+	c.Check(snapApp, Equals, "foo.bar")
+
+	_, err = snap.ResolveApp("baz")
+	c.Check(err, NotNil)
 }

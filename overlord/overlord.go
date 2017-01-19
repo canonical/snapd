@@ -50,6 +50,8 @@ var (
 	pruneInterval  = 10 * time.Minute
 	pruneWait      = 24 * time.Hour * 1
 	abortWait      = 24 * time.Hour * 7
+
+	pruneMaxChanges = 500
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -114,7 +116,7 @@ func New() (*Overlord, error) {
 	o.assertMgr = assertMgr
 	o.stateEng.AddManager(o.assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +238,7 @@ func (o *Overlord) Loop() {
 			case <-o.pruneTimer.C:
 				st := o.State()
 				st.Lock()
-				st.Prune(pruneWait, abortWait)
+				st.Prune(pruneWait, abortWait, pruneMaxChanges)
 				st.Unlock()
 			}
 		}

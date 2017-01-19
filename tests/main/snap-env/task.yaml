@@ -4,13 +4,15 @@ prepare: |
     snap install --dangerous test-snapd-tools_1.0_all.snap
 restore: |
     rm -f *.snap
+debug: |
+    cat *-vars.txt
 execute: |
     echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt 
+    test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt 
 
     echo "Ensure that SNAP environment variables are what we expect"
-    egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf)$' snap-vars.txt
+    egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$' snap-vars.txt
     egrep -q '^SNAP_COMMON=/var/snap/test-snapd-tools/common$' snap-vars.txt
     egrep -q '^SNAP_DATA=/var/snap/test-snapd-tools/x1$' snap-vars.txt
     egrep -q '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:$' snap-vars.txt
@@ -26,5 +28,3 @@ execute: |
     echo "Enure that XDG environment variables are what we expect"
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -ge 1
-debug: |
-    cat *-vars.txt
