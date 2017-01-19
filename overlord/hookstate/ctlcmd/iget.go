@@ -39,14 +39,14 @@ var shortGetAttrHelp = i18n.G("Prints values of interface attributes")
 var longGetAttrHelp = i18n.G(`
 The iget command prints values of interface attributes for current connection.
 
-    $ snapctl iget serialpath
+    $ snapctl iget serial-path
     /dev/ttyS0
 
 If multiple attribute names are provided, a document is returned:
 
-    $ snapctl iget serialpath usb-vendor
+    $ snapctl iget serial-path usb-vendor
     {
-        "serialpath": "/dev/ttyS0",
+        "serial-path": "/dev/ttyS0",
         "usb-vendor": "1000"
     }
 `)

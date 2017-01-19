@@ -141,7 +141,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s, hook %s"), plugSnap, plugName, plugHookSetup.Hook)
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
 	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
@@ -149,7 +149,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s, hook %s"), slotSnap, slotName, slotHookSetup.Hook)
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
 
 	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
@@ -162,28 +162,28 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	}
 	connectInterface.WaitFor(prepareSlotConnection)
 
-	confirmSlotHookSetup := &hookstate.HookSetup{
+	connectSlotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
 		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s, hook %s"), slotSnap, slotName, confirmSlotHookSetup.Hook)
-	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, initialContext)
-	confirmSlotConnection.WaitFor(connectInterface)
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
+	connectSlotConnection := hookstate.HookTask(s, summary, connectSlotHookSetup, initialContext)
+	connectSlotConnection.WaitFor(connectInterface)
 
-	confirmPlugHookSetup := &hookstate.HookSetup{
+	connectPlugHookSetup := &hookstate.HookSetup{
 		Snap:     plugSnap,
 		Hook:     "connect-plug-" + plugName,
 		Optional: true,
 	}
-	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s, hook %s"), plugSnap, plugName, confirmPlugHookSetup.Hook)
-	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, initialContext)
-	confirmPlugConnection.WaitFor(confirmSlotConnection)
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
+	connectPlugConnection := hookstate.HookTask(s, summary, connectPlugHookSetup, initialContext)
+	connectPlugConnection.WaitFor(connectSlotConnection)
 
-	connectInterface.Set("confirm-plug-task", confirmPlugConnection.ID())
-	connectInterface.Set("confirm-slot-task", confirmSlotConnection.ID())
+	connectInterface.Set("connect-plug-task", connectPlugConnection.ID())
+	connectInterface.Set("connect-slot-task", connectSlotConnection.ID())
 
-	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmSlotConnection, confirmPlugConnection), nil
+	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
