@@ -2,9 +2,6 @@ summary: Test that snapd reexecs itself into core
 
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
-environment:
-    SNAPD_CONF: /etc/systemd/system/snapd.service.d/local.conf 
-
 restore: |
     # extra cleanup in case something in this test went wrong
     rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
@@ -45,7 +42,7 @@ execute: |
     umount /snap/core/current/usr/lib/snapd/info
 
     echo "Ensure SNAP_REEXEC=0 is honored for snapd"
-    cat > /etc/systemd/system/snapd.service.d/no-reexec.conf <<EOF
+    cat > /etc/systemd/system/snapd.service.d/reexec.conf <<EOF
     [Service]
     Environment=SNAP_REEXEC=0
     EOF
@@ -66,7 +63,7 @@ execute: |
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
     umount /snap/core/current/usr/lib/snapd/snapd
-    rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
+    rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
 

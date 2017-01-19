@@ -1,5 +1,8 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build withtestkeys
+
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,23 +18,9 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+package httputil
 
-#include "mount-opt.h"
-
-int main(int argc, char *argv[])
-{
-	if (argc != 2) {
-		printf("usage: decode-mount-opts OPT\n");
-		return 0;
-	}
-	char *end;
-	unsigned long mountflags = strtoul(argv[1], &end, 0);
-	if (*end != '\0') {
-		fprintf(stderr, "cannot parse given argument as a number\n");
-		return 1;
-	}
-	printf("%#lx is %s\n", mountflags, sc_mount_opt2str(mountflags));
-	return 0;
+func init() {
+	// mark as testing if we carry testing keys
+	isTesting = true
 }
