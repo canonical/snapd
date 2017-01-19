@@ -1152,25 +1152,36 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 
-	// FIXME: deal with the case that "newName" is already installed
-	// FIXME2: add missing tests
+	// FIXME: add missing tests
 
-	// start by instaling the new snap
-	tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
-		Channel:      oldSnapst.Channel,
-		DownloadInfo: &newInfo.DownloadInfo,
-		SideInfo:     &newInfo.SideInfo,
-	})
-	if err != nil {
+	var all []*state.TaskSet
+	// install new core (if not already installed)
+	err = Get(st, newName, &newSnapst)
+	if err != nil && err != state.ErrNoState {
 		return nil, err
+	}
+	if !newSnapst.HasCurrent() {
+		// start by instaling the new snap
+		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+			Channel:      oldSnapst.Channel,
+			DownloadInfo: &newInfo.DownloadInfo,
+			SideInfo:     &newInfo.SideInfo,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, tsInst)
 	}
 
 	// then transition the interface connections over
 	transIf := st.NewTask("transition-connections-core-migration", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
 	transIf.Set("old-name", oldName)
 	transIf.Set("new-name", newName)
-	transIf.WaitAll(tsInst)
+	if len(all) > 0 {
+		transIf.WaitAll(all[0])
+	}
 	tsTrans := state.NewTaskSet(transIf)
+	all = append(all, tsTrans)
 
 	// then remove the old snap
 	tsRm, err := Remove(st, oldName, snap.R(0))
@@ -1178,8 +1189,9 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	tsRm.WaitFor(transIf)
+	all = append(all, tsRm)
 
-	return []*state.TaskSet{tsInst, tsTrans, tsRm}, nil
+	return all, nil
 }
 
 // State/info accessors
