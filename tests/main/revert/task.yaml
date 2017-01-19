@@ -7,7 +7,7 @@ environment:
 
 prepare: |
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -30,7 +30,7 @@ prepare: |
 
 restore: |
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -43,7 +43,7 @@ restore: |
 
 execute: |
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
