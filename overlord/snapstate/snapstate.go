@@ -864,10 +864,6 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
-	if si.Name() == "ubuntu-core" {
-		return true
-	}
-
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
 		if importantSnapType == si.Type {
 			return false
@@ -889,11 +885,6 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
-	// FIXME: make this more elegant
-	if si.Name() == "ubuntu-core" {
-		return true
-	}
-
 	// TODO: use Required for these too
 
 	// Gadget snaps should not be removed as they are a key
@@ -903,11 +894,26 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
-	// You never want to remove a kernel or OS Do not remove their
+	// FIXME: alternatively, pass state into canRemove() and check
+	//        if "core" and "ubuntu-core" are both installed.
+	//
+	// Allow "ubuntu-core" removals here because we might have two
+	// core snaps installed (ubuntu-core and core). Note that
+	// ideally we would only allow the removal of "ubuntu-core" if
+	// we know that "core" is installed too and if we are part of
+	// the "ubuntu-core->core" transition. But this transition
+	// starts automatically on startup so the window of a user
+	// triggering this manually is very small.
+	if si.Name() == "ubuntu-core" {
+		return true
+	}
+
+	// You never want to remove a kernel or OS. Do not remove their
 	// last revision left.
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
+
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
@@ -1292,11 +1298,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+func infoForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
+
+	var res []*snap.Info
 	for _, snapst := range stateMap {
 		if !snapst.HasCurrent() {
 			continue
@@ -1308,10 +1316,26 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 		if typ != snapType {
 			continue
 		}
-		return snapst.CurrentInfo()
+		si, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, si)
 	}
 
-	return nil, state.ErrNoState
+	if len(res) == 0 {
+		return nil, state.ErrNoState
+	}
+
+	return res, nil
+}
+
+func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+	res, err := infoForTypes(st, snapType)
+	if err != nil {
+		return nil, err
+	}
+	return res[0], nil
 }
 
 // GadgetInfo finds the current gadget snap's info.
@@ -1319,12 +1343,34 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeGadget)
 }
 
-// CoreInfo finds the current OS snap's info.
-func CoreInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeOS)
-}
-
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
+}
+
+// CoreInfo finds the current OS snap's info. If both
+// "core" and "ubuntu-core" is installed then "core"
+// is preferred.
+func CoreInfo(st *state.State) (*snap.Info, error) {
+	res, err := infoForTypes(st, snap.TypeOS)
+	if err != nil {
+		return nil, err
+	}
+
+	var find = func(needle string) *snap.Info {
+		for _, si := range res {
+			if si.Name() == needle {
+				return si
+			}
+		}
+		return nil
+	}
+	if si := find("core"); si != nil {
+		return si, nil
+	}
+	if si := find("ubuntu-core"); si != nil {
+		return si, nil
+	}
+
+	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %q", res)
 }
