@@ -1362,7 +1362,8 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 
 // CoreInfo finds the current OS snap's info. If both
 // "core" and "ubuntu-core" is installed then "core"
-// is preferred.
+// is preferred. Different core names are not supported
+// currently and will result in an error.
 func CoreInfo(st *state.State) (*snap.Info, error) {
 	res, err := infoForTypes(st, snap.TypeOS)
 	if err != nil {
@@ -1377,6 +1378,7 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 		}
 		return nil
 	}
+
 	if si := find("core"); si != nil {
 		return si, nil
 	}
