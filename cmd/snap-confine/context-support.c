@@ -74,7 +74,7 @@ char *sc_nonfatal_context_get_from_snapd(const char *snap_name,
 void sc_context_set_environment(const char *context)
 {
 	if (context != NULL) {
-		// Don't overwrite an existing value as it may be already set if running a hook.
-		setenv("SNAP_CONTEXT", context, 0);
+		// Overwrite context env value.
+		setenv("SNAP_CONTEXT", context, 1);
 	}
 }

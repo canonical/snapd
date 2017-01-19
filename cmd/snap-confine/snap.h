@@ -21,6 +21,7 @@
 #include <stdbool.h>
 
 bool verify_security_tag(const char *security_tag);
+bool verify_is_hook_security_tag(const char *security_tag);
 bool verify_snap_name(const char *name);
 
 #endif
