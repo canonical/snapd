@@ -309,8 +309,8 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
 system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
-system-shutdown: CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
-system-shutdown: LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
+system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += system-shutdown/system-shutdown-unit-tests
