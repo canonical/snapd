@@ -177,6 +177,19 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	c.Assert(kinds, DeepEquals, expected)
 }
 
+func verifyRemoveTasks(c *C, ts *state.TaskSet) {
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+		"clear-aliases",
+		"discard-conns",
+	})
+}
+
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
 		{Revision: snap.R(7)},
@@ -991,16 +1004,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"stop-snap-services",
-		"remove-aliases",
-		"unlink-snap",
-		"remove-profiles",
-		"clear-snap",
-		"discard-snap",
-		"clear-aliases",
-		"discard-conns",
-	})
+	verifyRemoveTasks(c, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -4843,6 +4847,60 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	c.Assert(runHook.Kind(), Equals, "run-hook")
 	err = runHook.Get("hook-context", &m)
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 3)
+	// 1. install core
+	verifyInstallUpdateTasks(c, 0, 0, tsl[0], s.state)
+	// 2 transition-connections
+	c.Assert(taskKinds(tsl[1].Tasks()), DeepEquals, []string{
+		"transition-connections-core-migration",
+	})
+	// 3 remove-ubuntu-core
+	verifyRemoveTasks(c, tsl[2])
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 2)
+	// 1. transition connections
+	c.Assert(taskKinds(tsl[0].Tasks()), DeepEquals, []string{
+		"transition-connections-core-migration",
+	})
+	// 2. remove ubuntu-core
+	verifyRemoveTasks(c, tsl[1])
 }
 
 type canDisableSuite struct{}
