@@ -502,6 +502,11 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  uhid:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   unity7:
     allow-installation:
       slot-snap-type:
