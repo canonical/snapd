@@ -134,6 +134,7 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from $(pwd)
     for pkg in $(go list ./... | grep -v '/vendor/' ); do
+        go test -i $pkg
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
