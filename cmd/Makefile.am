@@ -15,7 +15,7 @@ check: check-syntax-c check-syntax-sh check-unit-tests
 check-syntax-c:
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
-	for f in $(foreach dir,snap-confine snap-discard-ns,$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
+	for f in $(foreach dir,snap-confine snap-discard-ns system-shutdown,$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
 	       indent -linux "$$f" -o "$$out"; \
@@ -32,13 +32,16 @@ else
 endif
 
 .PHONY: check-unit-tests
-check-unit-tests: snap-confine/snap-confine-unit-tests
 if WITH_UNIT_TESTS
+check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests
 	./snap-confine/snap-confine-unit-tests
+else
+check-unit-tests:
+	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
 .PHONY: fmt
-fmt: $(foreach dir,snap-confine snap-discard-ns,$(wildcard $(srcdir)/$(dir)/*.[ch]))
+fmt: $(foreach dir,snap-confine snap-discard-ns system-shutdown,$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	indent -linux $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
@@ -103,10 +106,6 @@ all_tests = \
 
 libexec_PROGRAMS += snap-confine/snap-confine
 dist_man_MANS += snap-confine/snap-confine.5
-if WITH_UNIT_TESTS
-noinst_PROGRAMS += \
-	snap-confine/snap-confine-unit-tests
-endif
 CLEANFILES += snap-confine/snap-confine.5
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
@@ -169,6 +168,7 @@ snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
 endif
 
 if WITH_UNIT_TESTS
+noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
 snap_confine_snap_confine_unit_tests_SOURCES = \
 	snap-confine/unit-tests-main.c \
 	snap-confine/classic.c \
@@ -291,3 +291,30 @@ endif
 snap-discard-ns/%.5: snap-discard-ns/%.rst
 	mkdir -p snap-discard-ns
 	$(HAVE_RST2MAN) $^ > $@
+
+##
+## system-shutdown
+##
+
+libexec_PROGRAMS += system-shutdown/system-shutdown
+
+system_shutdown_system_shutdown_SOURCES = \
+	snap-confine/mountinfo.c \
+	snap-confine/mountinfo.h \
+	system-shutdown/system-shutdown-utils.c \
+	system-shutdown/system-shutdown-utils.h \
+	system-shutdown/system-shutdown.c
+system-shutdown: CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system-shutdown: LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += system-shutdown/system-shutdown-unit-tests
+system_shutdown_system_shutdown_unit_tests_SOURCES = \
+	snap-confine/unit-tests.c \
+	snap-confine/unit-tests-main.c \
+	snap-confine/mountinfo.c \
+	snap-confine/mountinfo.h \
+	system-shutdown/system-shutdown-utils-test.c
+system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+system_shutdown_system_shutdown_unit_tests_LDADD =  $(GLIB_LIBS)
+endif
