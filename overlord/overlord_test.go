@@ -343,7 +343,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 5*time.Millisecond, 5*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(20*time.Millisecond, 100*time.Millisecond, 100*time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -358,7 +358,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	st.Unlock()
 
 	o.Loop()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	err = o.Stop()
 	c.Assert(err, IsNil)
 
@@ -369,6 +369,49 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	c.Assert(st.Change(chg2.ID()), IsNil)
 
 	c.Assert(t1.Status(), Equals, state.HoldStatus)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
+	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 100*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	// create two changes, one that can be pruned now, one in progress
+	st := o.State()
+	st.Lock()
+	t1 := st.NewTask("foo", "...")
+	chg1 := st.NewChange("pruneNow", "...")
+	chg1.AddTask(t1)
+	t1.SetStatus(state.DoneStatus)
+	t2 := st.NewTask("foo", "...")
+	chg2 := st.NewChange("pruneNext", "...")
+	chg2.AddTask(t2)
+	t2.SetStatus(state.DoStatus)
+	c.Check(st.Changes(), HasLen, 2)
+	st.Unlock()
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+
+	// ensure the first change is pruned
+	time.Sleep(150 * time.Millisecond)
+	st.Lock()
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// ensure the second is also purged after it is ready
+	st.Lock()
+	chg2.SetStatus(state.DoneStatus)
+	st.Unlock()
+	time.Sleep(150 * time.Millisecond)
+	st.Lock()
+	c.Check(st.Changes(), HasLen, 0)
+	st.Unlock()
+
+	// cleanup loop ticker
+	err = o.Stop()
+	c.Assert(err, IsNil)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {
