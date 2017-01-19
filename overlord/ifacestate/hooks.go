@@ -35,16 +35,24 @@ type connectHandler struct {
 	context *hookstate.Context
 }
 
-func copyAttributesFromConnectTask(context *hookstate.Context) error {
+func connectTask(context *hookstate.Context) (*state.Task, error) {
 	var id string
 	err := context.Get("connect-task", &id)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	st := context.State()
-	ts := st.Task(id)
+	state := context.State()
+	ts := state.Task(id)
 	if ts == nil {
-		return fmt.Errorf("Failed to find connect-task")
+		return nil, fmt.Errorf("Failed to find connect-task")
+	}
+	return ts, nil
+}
+
+func copyAttributesFromConnectTask(context *hookstate.Context) (err error) {
+	var ts *state.Task
+	if ts, err = connectTask(context); err != nil {
+		return err
 	}
 
 	var attrs map[string]interface{}
@@ -71,16 +79,11 @@ func copyAttributesToConnectTask(context *hookstate.Context) error {
 		return err
 	}
 
-	var id string
-	err = context.Get("connect-task", &id)
-	if err != nil {
+	var ts *state.Task
+	if ts, err = connectTask(context); err != nil {
 		return err
 	}
-	state := context.State()
-	ts := state.Task(id)
-	if ts == nil {
-		return fmt.Errorf("Failed to find connect-task")
-	}
+
 	ts.Set("attributes", attrs)
 	return nil
 }

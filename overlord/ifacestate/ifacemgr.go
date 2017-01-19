@@ -125,12 +125,12 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	//  - prepare-plug-<plug> hook
 	//  - prepare-slot-<slot> hook
 	//  - connect task
-	//  - confirm-slot-<slot> hook
-	//  - confirm-plug-<plug> hook
+	//  - connect-slot-<slot> hook
+	//  - connect-plug-<plug> hook
 	// The tasks run in sequence (are serialized by WaitFor).
 	// The prepare- hooks collect attributes set via snapctl iset. The attributes set by prepare-plug
 	// hook can be read by both prepare-plug and prepare-slot hooks. All the attributes collected by
-	// first two hooks are available to the connect task and both confirm- hooks for reading.
+	// first two hooks are available to the connect task and both connect- hooks for reading.
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	connectInterface := s.NewTask("connect", summary)
