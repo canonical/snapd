@@ -23,20 +23,20 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "classic.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/utils.h"
+#include "apparmor-support.h"
 #include "mount-support.h"
-#include "snap.h"
-#include "utils.h"
+#include "ns-support.h"
+#include "quirks.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
-#include "cleanup-funcs.h"
 #include "user-support.h"
-#include "ns-support.h"
-#include "quirks.h"
-#include "secure-getenv.h"
-#include "apparmor-support.h"
 
 int main(int argc, char **argv)
 {
