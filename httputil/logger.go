@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package store
+package httputil
 
 import (
 	"errors"
@@ -87,16 +87,16 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	return debugflag(flags)
 }
 
-type httpClientOpts struct {
+type ClientOpts struct {
 	Timeout    time.Duration
 	MayLogBody bool
 }
 
-// returns a new http.Client with a LoggedTransport, a Timeout and preservation
-// of range requests across redirects
-func newHTTPClient(opts *httpClientOpts) *http.Client {
+// NewHTTPCLient returns a new http.Client with a LoggedTransport, a
+// Timeout and preservation of range requests across redirects
+func NewHTTPClient(opts *ClientOpts) *http.Client {
 	if opts == nil {
-		opts = &httpClientOpts{}
+		opts = &ClientOpts{}
 	}
 
 	return &http.Client{

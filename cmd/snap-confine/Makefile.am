@@ -10,7 +10,7 @@ libsnap_confine_private_a_SOURCES = \
 	secure-getenv.c \
 	secure-getenv.h
 
-libexec_PROGRAMS = snap-confine snap-discard-ns
+libexec_PROGRAMS = snap-confine
 noinst_PROGRAMS = decode-mount-opts
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine-unit-tests
@@ -20,27 +20,6 @@ decode_mount_opts_SOURCES = \
 	decode-mount-opts.c \
 	mount-opt.c \
 	mount-opt.h
-
-snap_discard_ns_SOURCES = \
-	ns-support.c \
-	ns-support.h \
-	apparmor-support.c \
-	apparmor-support.h \
-	cleanup-funcs.c \
-	cleanup-funcs.h \
-	mountinfo.c \
-	mountinfo.h \
-	snap-discard-ns.c
-snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
-snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
-snap_discard_ns_LDADD = libsnap-confine-private.a
-snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
-snap_discard_ns_LDADD += $(SECCOMP_LIBS)
-
-if APPARMOR
-snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
-snap_discard_ns_LDADD += $(APPARMOR_LIBS)
-endif
 
 snap_confine_SOURCES = \
 	snap-confine.c \

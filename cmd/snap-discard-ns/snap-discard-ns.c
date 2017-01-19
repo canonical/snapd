@@ -1,8 +1,5 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-// +build withtestkeys
-
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,9 +15,21 @@
  *
  */
 
-package store
+#include "../snap-confine/utils.h"
+#include "../snap-confine/ns-support.h"
 
-func init() {
-	// mark as testing if we carry testing keys
-	isTesting = true
+int main(int argc, char **argv)
+{
+	if (argc != 2)
+		die("Usage: %s snap-name", argv[0]);
+	const char *snap_name = argv[1];
+	struct sc_ns_group *group =
+	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
+	if (group != NULL) {
+		sc_lock_ns_mutex(group);
+		sc_discard_preserved_ns_group(group);
+		sc_unlock_ns_mutex(group);
+		sc_close_ns_group(group);
+	}
+	return 0;
 }

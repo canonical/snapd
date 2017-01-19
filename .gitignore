@@ -10,11 +10,11 @@ vendor/*/
 po/snappy.pot
 
 # snap-confine bits
+cmd/snap-confine/decode-mount-opts
 cmd/snap-confine/snap-confine
-cmd/snap-confine/snap-discard-ns
 cmd/snap-confine/snap-confine-unit-tests
 cmd/snap-confine/snap-confine.apparmor
-cmd/snap-confine/decode-mount-opts
+cmd/snap-discard-ns/snap-discard-ns
 *~
 .*.swp
 *.o
@@ -22,6 +22,7 @@ cmd/snap-confine/decode-mount-opts
 
 # manual pages
 cmd/snap-confine/manpages/*.[1-9]
+cmd/snap-discard-ns/snap-discard-ns.5
 
 # test-driver
 *.log
