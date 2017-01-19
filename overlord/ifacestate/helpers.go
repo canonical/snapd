@@ -246,6 +246,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 	// Auto-connect all the slots
 	for _, slot := range m.repo.Slots(snapName) {
 		if blacklist[slot.Name] {
+			continue
 		}
 		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
 		if len(candidates) != 1 {
