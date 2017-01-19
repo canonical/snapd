@@ -922,9 +922,9 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// AutoConnectCandidates finds and returns viable auto-connection candidates
+// AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
+func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -939,14 +939,47 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 			if slot.Interface != plug.Interface {
 				continue
 			}
+			iface := slot.Interface
 
 			// declaration based checks disallow
 			if !policyCheck(plug, slot) {
 				continue
 			}
 
-			if r.ifaces[plug.Interface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plug, slot) {
 				candidates = append(candidates, slot)
+			}
+		}
+	}
+	return candidates
+}
+
+// AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
+// for a given slot.
+func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*Plug, *Slot) bool) []*Plug {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return nil
+	}
+
+	var candidates []*Plug
+	for _, plugsForSnap := range r.plugs {
+		for _, plug := range plugsForSnap {
+			if slot.Interface != plug.Interface {
+				continue
+			}
+			iface := slot.Interface
+
+			// declaration based checks disallow
+			if !policyCheck(plug, slot) {
+				continue
+			}
+
+			if r.ifaces[iface].AutoConnect(plug, slot) {
+				candidates = append(candidates, plug)
 			}
 		}
 	}

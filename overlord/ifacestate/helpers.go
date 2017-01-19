@@ -219,12 +219,12 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		return nil, err
 	}
 
-	// XXX: quick hack, auto-connect everything
+	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		if blacklist[plug.Name] {
 			continue
 		}
-		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
 		if len(candidates) != 1 {
 			continue
 		}
@@ -236,12 +236,38 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
-			task.Logf("cannot auto connect %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
+			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			continue
 		}
 		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
 		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
+	// Auto-connect all the slots
+	for _, slot := range m.repo.Slots(snapName) {
+		if blacklist[slot.Name] {
+			continue
+		}
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) != 1 {
+			continue
+		}
+		plug := candidates[0]
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			continue
+		}
+		if err := m.repo.Connect(connRef); err != nil {
+			task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			continue
+		}
+		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
+		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
+		conns[key] = connState{Interface: plug.Interface, Auto: true}
+	}
+
 	task.State().Set("conns", conns)
 	return affectedSnapNames, nil
 }
