@@ -181,11 +181,18 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 		return err
 	}
 
-	// FIMXE: make this more elegant
-	if core.Name() == "ubuntu-core" {
+	// Allow installing "core" even if "ubuntu-core" is already
+	// installed. Ideally we should only allow this if we know
+	// this install is part of the ubuntu-core->core transition
+	// (e.g. via a flag) because if this happens outside of this
+	// transition we will end up with not connected interface
+	// connections in the "core" snap. But the transition will
+	// kick in automatically quickly so an extra flag is overkill.
+	if snapInfo.Name() == "core" && core.Name() == "ubuntu-core" {
 		return nil
 	}
 
+	// but generally do not allow to have two cores installed
 	if core.Name() != snapInfo.Name() {
 		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.Name(), core.Name())
 	}
