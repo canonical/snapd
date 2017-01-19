@@ -1152,7 +1152,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 
-	// FIXME: add missing tests
+	// FIXME: add missing runthrough test
 
 	var all []*state.TaskSet
 	// install new core (if not already installed)

@@ -4849,6 +4849,37 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
+func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	_, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, ErrorMatches, `cannot transition snap "ubuntu-core": not installed`)
+}
+
+func verifyTransitionConnectionsTasks(c *C, ts *state.TaskSet) {
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"transition-connections-core-migration",
+	})
+
+	transIf := ts.Tasks()[0]
+	var oldName, newName string
+	err := transIf.Get("old-name", &oldName)
+	c.Assert(err, IsNil)
+	c.Check(oldName, Equals, "ubuntu-core")
+
+	err = transIf.Get("new-name", &newName)
+	c.Assert(err, IsNil)
+	c.Check(newName, Equals, "core")
+}
+
 func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4867,9 +4898,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	// 1. install core
 	verifyInstallUpdateTasks(c, 0, 0, tsl[0], s.state)
 	// 2 transition-connections
-	c.Assert(taskKinds(tsl[1].Tasks()), DeepEquals, []string{
-		"transition-connections-core-migration",
-	})
+	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
 	verifyRemoveTasks(c, tsl[2])
 }
@@ -4896,9 +4925,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 
 	c.Assert(tsl, HasLen, 2)
 	// 1. transition connections
-	c.Assert(taskKinds(tsl[0].Tasks()), DeepEquals, []string{
-		"transition-connections-core-migration",
-	})
+	verifyTransitionConnectionsTasks(c, tsl[0])
 	// 2. remove ubuntu-core
 	verifyRemoveTasks(c, tsl[1])
 }
