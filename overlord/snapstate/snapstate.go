@@ -1152,8 +1152,6 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 
-	// FIXME: add missing runthrough test
-
 	var all []*state.TaskSet
 	// install new core (if not already installed)
 	err = Get(st, newName, &newSnapst)
@@ -1182,6 +1180,13 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	tsTrans := state.NewTaskSet(transIf)
 	all = append(all, tsTrans)
+
+	// FIXME: this is just here for the tests
+	transIf.Set("snap-setup", &SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: oldName,
+		},
+	})
 
 	// then remove the old snap
 	tsRm, err := Remove(st, oldName, snap.R(0))
