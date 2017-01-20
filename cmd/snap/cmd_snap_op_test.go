@@ -538,6 +538,30 @@ func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
 	s.runTryTest(c, true)
 }
 
+func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "kind":"snap-no-snap-dir"
+  },
+  "status-code": 400
+}
+`)
+
+	})
+
+	cmd := []string{"try", "/"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try prime"`)
+}
+
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")

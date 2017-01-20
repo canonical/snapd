@@ -324,6 +324,8 @@ const (
 	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
 	ErrorKindSnapNotInstalled     = "snap-not-installed"
 	ErrorKindNoUpdateAvailable    = "snap-no-update-available"
+
+	ErrorKindNoSnapDir = "snap-no-snap-dir"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems

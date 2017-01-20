@@ -1112,12 +1112,19 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	if !filepath.IsAbs(trydir) {
 		return BadRequest("cannot try %q: need an absolute path", trydir)
 	}
-	if !osutil.IsDirectory(trydir) {
-		return BadRequest("cannot try %q: not a snap directory", trydir)
-	}
 
 	// the developer asked us to do this with a trusted snap dir
 	info, err := unsafeReadSnapInfo(trydir)
+	if _, ok := err.(snap.NoSnapDirError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNoSnapDir,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
