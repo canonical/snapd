@@ -140,117 +140,99 @@ char *sc_mount_cmd(const char *source, const char *target,
 		   const char *filesystemtype, unsigned long mountflags,
 		   const void *data)
 {
-	char buf[100 + PATH_MAX * 2];
-	char *special = NULL;
+	char *buf = NULL;
 	int used_special_flags = 0;
-	strcpy(buf, "mount");
 
+	sc_grow_string(&buf, "mount");
+
+	// Add filesysystem type if it's there and doesn't have the special value "none"
+	if (filesystemtype != NULL && strcmp(filesystemtype, "none") != 0) {
+		sc_grow_string(&buf, " -t ");
+		sc_grow_string(&buf, filesystemtype);
+	}
 	// Check for some special, dedicated syntax. This exists for:
 	// - bind mounts (bind)
 	//   - including the recursive variant
 	if (mountflags & MS_BIND) {
-		if (mountflags & MS_REC) {
-			special = " --rbind";
-		} else {
-			special = " --bind";
-		}
+		const char *special = mountflags & MS_REC ?
+		    " --rbind" : " --bind";
 		used_special_flags |= MS_BIND | MS_REC;
-	} else if (mountflags & MS_MOVE) {
-		// - moving mount point location (move)
-		special = " --move";
+		sc_grow_string(&buf, special);
+	}
+	// - moving mount point location (move)
+	if (mountflags & MS_MOVE) {
+		const char *special = " --move";
 		used_special_flags |= MS_MOVE;
-	} else if (MS_SHARED & mountflags) {
-		// - shared subtree operations (shared, slave, private, unbindable)
-		//   - including the recursive variants
-		if (mountflags & MS_REC) {
-			special = " --make-rshared";
-		} else {
-			special = " --make-shared";
-		}
+		sc_grow_string(&buf, special);
+	}
+	// - shared subtree operations (shared, slave, private, unbindable)
+	//   - including the recursive variants
+	if (MS_SHARED & mountflags) {
+		const char *special = mountflags & MS_REC ?
+		    " --make-rshared" : " --make-shared";
 		used_special_flags |= MS_SHARED | MS_REC;
-	} else if (MS_SLAVE & mountflags) {
-		if (mountflags & MS_REC) {
-			special = " --make-rslave";
-		} else {
-			special = " --make-slave";
-		}
+		sc_grow_string(&buf, special);
+	}
+	if (MS_SLAVE & mountflags) {
+		const char *special = mountflags & MS_REC ?
+		    " --make-rslave" : " --make-slave";
 		used_special_flags |= MS_SLAVE | MS_REC;
-	} else if (MS_PRIVATE & mountflags) {
-		if (mountflags & MS_REC) {
-			special = " --make-rprivate";
-		} else {
-			special = " --make-private";
-		}
+		sc_grow_string(&buf, special);
+	}
+	if (MS_PRIVATE & mountflags) {
+		const char *special = mountflags & MS_REC ?
+		    " --make-rprivate" : " --make-private";
 		used_special_flags |= MS_PRIVATE | MS_REC;
-	} else if (MS_UNBINDABLE & mountflags) {
-		if (mountflags & MS_REC) {
-			special = " --make-runbindable";
-		} else {
-			special = " --make-unbindable";
-		}
+		sc_grow_string(&buf, special);
+	}
+	if (MS_UNBINDABLE & mountflags) {
+		const char *special = mountflags & MS_REC ?
+		    " --make-runbindable" : " --make-unbindable";
 		used_special_flags |= MS_UNBINDABLE | MS_REC;
-	}
-	// Add filesysystem type if it's there and doesn't have the special value "none"
-	if (filesystemtype != NULL && strcmp(filesystemtype, "none") != 0) {
-		strncat(buf, " -t ", sizeof buf - 1);
-		strncat(buf, filesystemtype, sizeof buf - 1);
-	}
-	// If special option syntax exists then use it.
-	if (special != NULL) {
-		strncat(buf, special, sizeof buf - 1);
+		sc_grow_string(&buf, special);
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
 		const char *regular =
 		    sc_mount_opt2str(mountflags & ~used_special_flags);
-		strncat(buf, " -o ", sizeof buf - 1);
-		strncat(buf, regular, sizeof buf - 1);
+		sc_grow_string(&buf, " -o ");
+		sc_grow_string(&buf, regular);
 	}
 	// Add source and target locations
 	if (source != NULL && strcmp(source, "none") != 0) {
-		strncat(buf, " ", sizeof buf - 1);
-		strncat(buf, source, sizeof buf - 1);
+		sc_grow_string(&buf, " ");
+		sc_grow_string(&buf, source);
 	}
 	if (target != NULL && strcmp(target, "none") != 0) {
-		strncat(buf, " ", sizeof buf - 1);
-		strncat(buf, target, sizeof buf - 1);
+		sc_grow_string(&buf, " ");
+		sc_grow_string(&buf, target);
 	}
-	// We're done, just copy the buf
-	char *buf_copy = strdup(buf);
-	if (buf_copy == NULL) {
-		die("cannot copy memory buffer");
-	}
-	return buf_copy;
+	return buf;
 }
 
 char *sc_umount_cmd(const char *target, int flags)
 {
-	char buf[100 + PATH_MAX];
-	strcpy(buf, "umount");
+	char *buf = NULL;
+	sc_grow_string(&buf, "umount");
 
 	if (flags & MNT_FORCE) {
-		strncat(buf, " --force", sizeof buf - 1);
+		sc_grow_string(&buf, " --force");
 	}
 
 	if (flags & MNT_DETACH) {
-		strncat(buf, " --lazy", sizeof buf - 1);
+		sc_grow_string(&buf, " --lazy");
 	}
 	if (flags & MNT_EXPIRE) {
 		// NOTE: there's no real command line option for MNT_EXPIRE
-		strncat(buf, " --expire", sizeof buf - 1);
+		sc_grow_string(&buf, " --expire");
 	}
 	if (flags & UMOUNT_NOFOLLOW) {
 		// NOTE: there's no real command line option for UMOUNT_NOFOLLOW
-		strncat(buf, " --no-follow", sizeof buf - 1);
+		sc_grow_string(&buf, " --no-follow");
 	}
 	if (target != NULL) {
-		strncat(buf, " ", sizeof buf - 1);
-		strncat(buf, target, sizeof buf - 1);
+		sc_grow_string(&buf, " ");
+		sc_grow_string(&buf, target);
 	}
-	// We're done, just copy the buf
-	char *buf_copy = strdup(buf);
-	if (buf_copy == NULL) {
-		die("cannot copy memory buffer");
-	}
-	return buf_copy;
+	return buf;
 }
