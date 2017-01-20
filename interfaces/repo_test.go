@@ -136,10 +136,18 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestAddBackend(c *C) {
-	backend := &ifacetest.TestSecurityBackend{}
+	backend := &ifacetest.TestSecurityBackend{BackendName: "test"}
 	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
 	err := s.emptyRepo.AddBackend(backend)
 	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
+}
+
+func (s *RepositorySuite) TestBackends(c *C) {
+	b1 := &ifacetest.TestSecurityBackend{BackendName: "b1"}
+	b2 := &ifacetest.TestSecurityBackend{BackendName: "b2"}
+	c.Assert(s.emptyRepo.AddBackend(b2), IsNil)
+	c.Assert(s.emptyRepo.AddBackend(b1), IsNil)
+	c.Assert(s.emptyRepo.Backends(), DeepEquals, []SecurityBackend{b1, b2})
 }
 
 // Tests for Repository.Interface()
@@ -1349,7 +1357,8 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 
 func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	repo := s.emptyRepo
-	c.Assert(repo.AddBackend(&ifacetest.TestSecurityBackend{}), IsNil)
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
+	c.Assert(repo.AddBackend(backend), IsNil)
 	c.Assert(repo.AddInterface(testInterface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
