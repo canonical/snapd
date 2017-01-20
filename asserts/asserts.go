@@ -720,13 +720,13 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, fmt.Errorf("cannot sign %q assertion with format %d higher than max supported format %d", assertType.Name, formatnum, assertType.MaxSupportedFormat())
 	}
 
-	suggestedFormatnum, err := SuggestFormat(assertType, finalHeaders, finalBody)
+	suggestedFormat, err := SuggestFormat(assertType, finalHeaders, finalBody)
 	if err != nil {
 		return nil, err
 	}
 
-	if suggestedFormatnum > formatnum {
-		return nil, fmt.Errorf("cannot sign %q assertion with format set to %d lower than min format %d covering included features", assertType.Name, formatnum, suggestedFormatnum)
+	if suggestedFormat > formatnum {
+		return nil, fmt.Errorf("cannot sign %q assertion with format set to %d lower than min format %d covering included features", assertType.Name, formatnum, suggestedFormat)
 	}
 
 	revision, err := checkRevision(finalHeaders)
