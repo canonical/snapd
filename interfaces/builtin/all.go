@@ -96,6 +96,7 @@ var allInterfaces = []interfaces.Interface{
 	NewUnity8CalendarInterface(),
 	NewUnity8ContactsInterface(),
 	NewX11Interface(),
+	NewAutopilotIntrospectionInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
