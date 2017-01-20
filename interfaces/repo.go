@@ -616,7 +616,7 @@ func (r *Repository) Backends() []SecurityBackend {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var result []SecurityBackend
+	result := make([]SecurityBackend, 0, len(r.backends))
 	for _, backend := range r.backends {
 		result = append(result, backend)
 	}
