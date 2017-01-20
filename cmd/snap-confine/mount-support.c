@@ -500,27 +500,6 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_do_mount(const char *source, const char *target,
-		 const char *filesystemtype, unsigned long mountflags,
-		 const void *data)
-{
-	char *mount_cmd =
-	    sc_mount_cmd(source, target, filesystemtype, mountflags, data);
-	debug("performing operation: %s", mount_cmd);
-	if (mount(source, target, filesystemtype, mountflags, data) < 0) {
-		die("cannot perform operation: %s", mount_cmd);
-	}
-}
-
-void sc_do_umount(const char *target, int flags)
-{
-	char *umount_cmd = sc_umount_cmd(target, flags);
-	debug("performing operation: %s", umount_cmd);
-	if (umount2(target, flags) < 0) {
-		die("cannot perform operation: %s", umount_cmd);
-	}
-}
-
 void sc_populate_mount_ns(const char *security_tag)
 {
 	// Get the current working directory before we start fiddling with
