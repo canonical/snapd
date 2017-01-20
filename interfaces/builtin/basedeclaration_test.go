@@ -369,6 +369,7 @@ var (
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
 		"udisks2":                 {"app"},
+		"uhid":                    {"core"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"unity8-download-manager": {"app"},

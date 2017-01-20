@@ -55,6 +55,7 @@ var allInterfaces = []interfaces.Interface{
 	&UDisks2Interface{},
 	&Unity8DownloadManagerInterface{},
 	&UpowerObserveInterface{},
+	&UhidInterface{},
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
