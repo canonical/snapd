@@ -401,10 +401,11 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	// check that there is no change in flight already
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the core transition is safe
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "transition-ubuntu-core" && !chg.Status().Ready() {
-			// change already in motion
+		if !chg.Status().Ready() {
+			// another change already in motion
 			return nil
 		}
 	}
@@ -419,6 +420,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
+
 	return nil
 }
 
