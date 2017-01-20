@@ -46,6 +46,12 @@ func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
 	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
 }
 
+func (as *assertsSuite) TestSuggestFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
