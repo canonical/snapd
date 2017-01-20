@@ -215,6 +215,15 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 }
 
 func checkChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		if chg.Kind() == "transition-ubuntu-core" {
+			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+		}
+	}
+
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()

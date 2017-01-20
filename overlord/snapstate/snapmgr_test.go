@@ -5207,6 +5207,67 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	chg := s.state.NewChange("unrelated-change", "unfinished change blocks core transition")
+	chg.SetStatus(state.DoStatus)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "unrelated-change")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if we have a ubuntu-core -> core transition
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// other tasks block until the transition is done
+	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, "ubuntu-core to core transition in progress, no other changes allowed until this is done")
+
+	// and when the transition is done, other tasks run
+	chg.SetStatus(state.DoneStatus)
+	ts, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+	c.Check(ts, NotNil)
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})
