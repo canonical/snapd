@@ -1391,5 +1391,5 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 		return si, nil
 	}
 
-	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %q", res)
+	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %v", res)
 }
