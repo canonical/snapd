@@ -42,4 +42,12 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *security_tag);
  **/
 void sc_load_seccomp_context(scmp_filter_ctx ctx);
 
+/**
+ * Release a seccomp context with seccomp_release(3)
+ *
+ * This function is designed to be used with
+ * __attribute__((cleanup(sc_cleanup_seccomp_release))).
+ **/
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
+
 #endif
