@@ -60,6 +60,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, Contains, &builtin.UhidInterface{})
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
+	c.Check(all, DeepContains, builtin.NewAutopilotIntrospectionInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
@@ -94,5 +95,4 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewUnity8CalendarInterface())
 	c.Check(all, DeepContains, builtin.NewUnity8ContactsInterface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
-	c.Check(all, DeepContains, builtin.NewAutopilotIntrospectionInterface())
 }

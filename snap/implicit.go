@@ -29,6 +29,7 @@ import (
 
 var implicitSlots = []string{
 	"alsa",
+	"autopilot-introspection",
 	"bluetooth-control",
 	"camera",
 	"dcdbas-control",
@@ -64,7 +65,6 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"uhid",
-	"autopilot-introspection",
 }
 
 var implicitClassicSlots = []string{
