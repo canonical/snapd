@@ -35,6 +35,8 @@ if [ "$SPREAD_BACKEND" = qemu ]; then
    fi
 fi
 
+quiet apt-get update
+
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     if [ ! -d debian-ubuntu-14.04 ]; then
         echo "no debian-ubuntu-14.04/ directory "
@@ -46,7 +48,6 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     rm -rf debian
     mv debian-ubuntu-14.04 debian
 
-    quiet apt-get update
     quiet apt-get install -y software-properties-common
 
     echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list

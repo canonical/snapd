@@ -124,6 +124,9 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		snapd.service
+	dh_systemd_enable \
+		-psnapd \
+		snapd.system-shutdown.service
 
 override_dh_systemd_start:
 	# we want to start the auto-update timer
@@ -170,7 +173,7 @@ override_dh_install:
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	# and now the normal install rules
+	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	dh_install
 
