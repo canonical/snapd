@@ -100,14 +100,28 @@ quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackag
 # put our debs to a safe place
 cp ../*.deb $GOPATH
 
-# Build snapbuild.
-go get ./tests/lib/snapbuild
-# Build fakestore.
-
-fakestore_tags=
-if [ "$REMOTE_STORE" = staging ]; then
-    fakestore_tags="-tags withstagingkeys"
+# Build test binaries. If they are prebuilt and shipped in tests/bin, put them in place
+# and skip the build
+mkdir -p $GOPATH/bin
+# snapbuild.
+if [ -f ./tests/bin/snapbuild ]; then
+    cp ./tests/bin/snapbuild $GOPATH/bin
+else
+    go get ./tests/lib/snapbuild
 fi
-go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
-# Build fakedevicesvc.
-go get ./tests/lib/fakedevicesvc
+# fakestore.
+if [ -f ./tests/bin/fakestore ]; then
+    cp ./tests/bin/fakestore $GOPATH/bin
+else
+    fakestore_tags=
+    if [ "$REMOTE_STORE" = staging ]; then
+        fakestore_tags="-tags withstagingkeys"
+    fi
+    go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore
+fi
+# fakedevicesvc.
+if [ -f ./tests/bin/fakedevicesvc ]; then
+    cp ./tests/bin/fakedevicesvc $GOPATH/bin
+else
+    go get ./tests/lib/fakedevicesvc
+fi
