@@ -29,6 +29,9 @@ prepare: |
 
     flags=
     if [[ $SNAP_NAME =~ classic ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+            exit
+        fi
         flags=--classic
     fi
 
@@ -66,6 +69,10 @@ execute: |
             echo "This test needs test keys to be trusted"
             exit
         fi
+    fi
+
+    if [[ $SNAP_NAME =~ classic && "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+        exit
     fi
 
     # FIXME: currently the --list from channel doesn't work
