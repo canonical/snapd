@@ -34,18 +34,19 @@ dbus (send, receive)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
-dbus (send, receive)
+dbus (send)
     bus=session
     path=/com/canonical/Autopilot/Introspection
     interface=com.canonical.Autopilot.Introspection
     member=GetVersion
     peer=(label=unconfined),
-dbus (send, receive)
+dbus (send)
     bus=session
     path=/com/canonical/Autopilot/Introspection
     interface=com.canonical.Autopilot.Introspection
     member=GetState
-    peer=(label=unconfined),`
+    peer=(label=unconfined),
+`
 
 
 // NewAutopilotIntrospectionInterface returns a new "autopilot-introspection" interface.

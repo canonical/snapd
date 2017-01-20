@@ -57,6 +57,7 @@ var allInterfaces = []interfaces.Interface{
 	&UpowerObserveInterface{},
 	&UhidInterface{},
 	NewAlsaInterface(),
+	NewAutopilotIntrospectionInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
 	NewCameraInterface(),
@@ -96,7 +97,6 @@ var allInterfaces = []interfaces.Interface{
 	NewUnity8CalendarInterface(),
 	NewUnity8ContactsInterface(),
 	NewX11Interface(),
-	NewAutopilotIntrospectionInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
