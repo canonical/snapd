@@ -3820,10 +3820,8 @@ func (s *snapmgrTestSuite) TestScheduleNextRefreshInterval(c *C) {
 		snapstate.ScheduleNextRefresh(s.state)
 
 		var nextRefresh time.Time
-		s.state.Lock()
 		tr := transaction.NewTransaction(s.state)
 		tr.Get("core", "next-auto-refresh-time", &nextRefresh)
-		s.state.Unlock()
 
 		// minimum time is the refreshInterval
 		c.Check(nextRefresh.After(now.Add(refreshInterval)), Equals, true)

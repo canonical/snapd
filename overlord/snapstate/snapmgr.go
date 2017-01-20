@@ -1147,7 +1147,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 func scheduleNextRefresh(st *state.State) time.Time {
 	randomness := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := time.Now().Add(refreshInterval).Add(time.Duration(randomness))
+	nextRefreshTime := time.Now().Add(minRefreshInterval).Add(time.Duration(randomness))
 
 	tr := transaction.NewTransaction(st)
 	tr.Set("core", "next-auto-refresh-time", nextRefreshTime)
