@@ -135,6 +135,13 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+func (s *RepositorySuite) TestAddBackend(c *C) {
+	backend := &ifacetest.TestSecurityBackend{}
+	c.Assert(s.emptyRepo.AddBackend(backend), IsNil)
+	err := s.emptyRepo.AddBackend(backend)
+	c.Assert(err, ErrorMatches, `cannot add backend "test", security system name is in use`)
+}
+
 // Tests for Repository.Interface()
 
 func (s *RepositorySuite) TestInterface(c *C) {
@@ -1241,8 +1248,9 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 }
 
 // Tests for Repository.SecuritySnippetsForSnap()
+// and for SnapSpecification()
 
-const testSecurity SecuritySystem = "security"
+const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
@@ -1269,6 +1277,22 @@ var testInterface = &ifacetest.TestInterface{
 			return []byte(`connection-specific slot snippet`), nil
 		}
 		return nil, nil
+	},
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		spec.AddSnippet("static plug snippet")
+		return nil
+	},
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific plug snippet")
+		return nil
+	},
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		spec.AddSnippet("static slot snippet")
+		return nil
+	},
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, slot *Slot) error {
+		spec.AddSnippet("connection-specific slot snippet")
+		return nil
 	},
 }
 
@@ -1320,6 +1344,43 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`static slot snippet`),
 			[]byte(`connection-specific slot snippet`),
 		},
+	})
+}
+
+func (s *RepositorySuite) TestSnapSpecification(c *C) {
+	repo := s.emptyRepo
+	c.Assert(repo.AddBackend(&ifacetest.TestSecurityBackend{}), IsNil)
+	c.Assert(repo.AddInterface(testInterface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+
+	// Snaps should get static security now
+	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static plug snippet"})
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static slot snippet"})
+
+	// Establish connection between plug and slot
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
+	err = repo.Connect(connRef)
+	c.Assert(err, IsNil)
+
+	// Snaps should get static and connection-specific security now
+	spec, err = repo.SnapSpecification(testSecurity, s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static plug snippet",
+		"connection-specific plug snippet",
+	})
+
+	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"static slot snippet",
+		"connection-specific slot snippet",
 	})
 }
 
@@ -1433,7 +1494,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	c.Check(snippets, IsNil)
 }
 
-func (s *RepositorySuite) TestAutoConnectCandidates(c *C) {
+func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
 	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
@@ -1464,12 +1525,17 @@ slots:
 	err = repo.AddSnap(consumer)
 	c.Assert(err, IsNil)
 
-	candidateSlots := repo.AutoConnectCandidates("consumer", "auto", policyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 
+	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
+	c.Assert(candidatePlugs, HasLen, 1)
+	c.Check(candidatePlugs[0].Snap.Name(), Equals, "consumer")
+	c.Check(candidatePlugs[0].Interface, Equals, "auto")
+	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
 
 // Tests for AddSnap and RemoveSnap
@@ -1707,7 +1773,7 @@ func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken str
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
 plugs:
-  import-content:
+  imported-content:
     interface: content
     content: %s
 `, plugContentToken), nil)
@@ -1729,23 +1795,30 @@ slots:
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 1)
+	c.Check(candidatePlugs[0].Name, Equals, "imported-content")
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) {
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	slotSnap.Type = snap.TypeOS
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *C) {
@@ -1754,6 +1827,8 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	plugSnap.PublisherID = "fooid"
 	slotSnap.PublisherID = "barid"
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
+	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
+	c.Assert(candidatePlugs, HasLen, 0)
 }
