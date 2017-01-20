@@ -48,3 +48,11 @@ type NoUpdateAvailableError struct {
 func (e NoUpdateAvailableError) Error() string {
 	return fmt.Sprintf("snap %q has no updates available", e.Snap)
 }
+
+type NoSnapDirError struct {
+	Dir string
+}
+
+func (e NoSnapDirError) Error() string {
+	return fmt.Sprintf("%q does not contain an unpacked snap", e.Dir)
+}
