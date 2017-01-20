@@ -118,6 +118,24 @@ const char *sc_mount_opt2str(unsigned long flags)
 	return buf;
 }
 
+static void sc_grow_string(char **s, const char *extra)
+{
+	size_t extra_len = extra != NULL ? strlen(extra) : 0;
+	size_t initial_len = *s != NULL ? strlen(*s) : 0;
+	if (extra_len == 0) {
+		return;
+	}
+	char *result = realloc(*s, initial_len + extra_len + 1);
+	if (result == NULL) {
+		die("cannot grow string by %zd bytes to %zd bytes",
+		    initial_len + 1, initial_len + extra_len + 1);
+	}
+	if (extra != NULL) {
+		memcpy(result + initial_len, extra, extra_len + 1);
+	}
+	*s = result;
+}
+
 char *sc_mount_cmd(const char *source, const char *target,
 		   const char *filesystemtype, unsigned long mountflags,
 		   const void *data)
