@@ -483,7 +483,7 @@ func (m *InterfaceManager) undoTransitionConnectionsCoreMigration(t *state.Task,
 	st.Lock()
 	defer st.Unlock()
 
-	// symetrical to the "do" method, just reverse them again
+	// symmetrical to the "do" method, just reverse them again
 	var oldName, newName string
 	if err := t.Get("old-name", &oldName); err != nil {
 		return err
