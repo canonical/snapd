@@ -46,8 +46,32 @@ static void test_sc_endswith()
 	g_assert_false(sc_endswith("", "bar"));
 }
 
+static void test_must_snprintf()
+{
+	char buf[5];
+	must_snprintf(buf, sizeof buf, "1234");
+	g_assert_cmpstr(buf, ==, "1234");
+}
+
+static void test_must_snprintf__fail()
+{
+	if (g_test_subprocess()) {
+		char buf[5];
+		must_snprintf(buf, sizeof buf, "12345");
+		g_test_message("expected must_snprintf not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("failed to snprintf 1234\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
+	g_test_add_func("/string-utils/must_snprintf", test_must_snprintf);
+	g_test_add_func("/string-utils/must_snprintf/fail",
+			test_must_snprintf__fail);
 }
