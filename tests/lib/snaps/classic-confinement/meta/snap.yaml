@@ -1,6 +1,0 @@
-name: classic-confinement
-version: 1.0
-confinement: classic
-apps:
-    classic-confinement:
-        command: bin/classic-confinement
