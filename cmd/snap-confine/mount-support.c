@@ -504,8 +504,7 @@ void sc_do_mount(const char *source, const char *target,
 		 const char *filesystemtype, unsigned long mountflags,
 		 const void *data)
 {
-	char *mount_cmd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-	mount_cmd =
+	char *mount_cmd =
 	    sc_mount_cmd(source, target, filesystemtype, mountflags, data);
 	debug("performing operation: %s", mount_cmd);
 	if (mount(source, target, filesystemtype, mountflags, data) < 0) {
@@ -515,8 +514,7 @@ void sc_do_mount(const char *source, const char *target,
 
 void sc_do_umount(const char *target, int flags)
 {
-	char *umount_cmd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-	umount_cmd = sc_umount_cmd(target, flags);
+	char *umount_cmd = sc_umount_cmd(target, flags);
 	debug("performing operation: %s", umount_cmd);
 	if (umount2(target, flags) < 0) {
 		die("cannot perform operation: %s", umount_cmd);
