@@ -24,9 +24,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#ifdef HAVE_SECCOMP
-#include <seccomp.h>
-#endif				// HAVE_SECCOMP
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -53,16 +50,6 @@ void sc_cleanup_file(FILE ** ptr);
  * __attribute__((cleanup(sc_cleanup_endmntent))).
  **/
 void sc_cleanup_endmntent(FILE ** ptr);
-
-#ifdef HAVE_SECCOMP
-/**
- * Release a seccomp context with seccomp_release(3)
- *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_seccomp_release))).
- **/
-void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
-#endif				// HAVE_SECCOMP
 
 /**
  * Close an open directory with closedir(3)
