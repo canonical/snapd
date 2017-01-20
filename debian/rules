@@ -127,6 +127,9 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		snapd.service
+	dh_systemd_enable \
+		-psnapd \
+		snapd.system-shutdown.service
 
 override_dh_systemd_start:
 	# start snapd
@@ -175,6 +178,7 @@ override_dh_install:
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.autoimport.service

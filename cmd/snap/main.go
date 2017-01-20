@@ -35,15 +35,15 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/store"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	store.SetUserAgentFromVersion(cmd.Version, "snap")
+	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
 }
 
 // Standard streams, redirected for testing.

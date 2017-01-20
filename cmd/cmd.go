@@ -56,6 +56,12 @@ func ExecInCoreSnap() {
 
 	// should we re-exec? no option in the environment means yes
 	if !osutil.GetenvBool(key, true) {
+		logger.Debugf("re-exec disabled by user")
+		return
+	}
+
+	// did we already re-exec?
+	if osutil.GetenvBool("SNAP_DID_REEXEC") {
 		return
 	}
 
@@ -104,6 +110,6 @@ func ExecInCoreSnap() {
 
 	logger.Debugf("restarting into %q", full)
 
-	env := append(os.Environ(), key+"=0")
+	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
 	panic(syscall.Exec(full, os.Args, env))
 }
