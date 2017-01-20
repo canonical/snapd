@@ -28,9 +28,10 @@
 const char *sc_mount_opt2str(unsigned long flags)
 {
 	static char buf[1000];
+	char *to = buf;
 	unsigned long used = 0;
-	strcpy(buf, "");
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { strcat(buf, #TEXT ","); flags ^= (FLAG); } while (0)
+	to = stpcpy(to, "");
+#define F(FLAG, TEXT) do if (flags & (FLAG)) { to = stpcpy(to, #TEXT ","); flags ^= (FLAG); } while (0)
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
@@ -43,10 +44,10 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_NODIRATIME, nodiratime);
 	if (flags & MS_BIND) {
 		if (flags & MS_REC) {
-			strcat(buf, "rbind,");
+			to = stpcpy(to, "rbind,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "bind,");
+			to = stpcpy(to, "bind,");
 		}
 		flags ^= MS_BIND;
 	}
@@ -59,28 +60,28 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_UNBINDABLE, unbindable);
 	if (flags & MS_PRIVATE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rprivate,");
+			to = stpcpy(to, "rprivate,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "private,");
+			to = stpcpy(to, "private,");
 		}
 		flags ^= MS_PRIVATE;
 	}
 	if (flags & MS_SLAVE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rslave,");
+			to = stpcpy(to, "rslave,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "slave,");
+			to = stpcpy(to, "slave,");
 		}
 		flags ^= MS_SLAVE;
 	}
 	if (flags & MS_SHARED) {
 		if (flags & MS_REC) {
-			strcat(buf, "rshared,");
+			to = stpcpy(to, "rshared,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "shared,");
+			to = stpcpy(to, "shared,");
 		}
 		flags ^= MS_SHARED;
 	}
@@ -108,7 +109,7 @@ const char *sc_mount_opt2str(unsigned long flags)
 	if (flags) {
 		char of[128];
 		sprintf(of, "%#lx", flags);
-		strcat(buf, of);
+		to = stpcpy(to, of);
 	}
 	// Chop the excess comma from the end.
 	size_t len = strlen(buf);
