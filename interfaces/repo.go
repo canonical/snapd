@@ -41,6 +41,7 @@ type Repository struct {
 	slotPlugs map[*Slot]map[*Plug]bool
 	// given a plug and a slot, are they connected?
 	plugSlots map[*Plug]map[*Slot]bool
+	backends  map[SecuritySystem]SecurityBackend
 }
 
 // NewRepository creates an empty plug repository.
@@ -51,6 +52,7 @@ func NewRepository() *Repository {
 		slots:     make(map[string]map[string]*Slot),
 		slotPlugs: make(map[*Slot]map[*Plug]bool),
 		plugSlots: make(map[*Plug]map[*Slot]bool),
+		backends:  make(map[SecuritySystem]SecurityBackend),
 	}
 }
 
@@ -75,6 +77,19 @@ func (r *Repository) AddInterface(i Interface) error {
 		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
 	r.ifaces[interfaceName] = i
+	return nil
+}
+
+// AddBackend adds the provided security backend to the repository.
+func (r *Repository) AddBackend(backend SecurityBackend) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	name := backend.Name()
+	if _, ok := r.backends[name]; ok {
+		return fmt.Errorf("cannot add backend %q, security system name is in use", name)
+	}
+	r.backends[name] = backend
 	return nil
 }
 
@@ -699,6 +714,45 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
+// SnapSpecification returns the specification of a given snap in a given security system.
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	backend := r.backends[securitySystem]
+	if backend == nil {
+		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
+	}
+
+	spec := backend.NewSpecification()
+
+	// slot side
+	for _, slot := range r.slots[snapName] {
+		iface := r.ifaces[slot.Interface]
+		if err := spec.AddPermanentSlot(iface, slot); err != nil {
+			return nil, err
+		}
+		for plug := range r.slotPlugs[slot] {
+			if err := spec.AddConnectedSlot(iface, plug, slot); err != nil {
+				return nil, err
+			}
+		}
+	}
+	// plug side
+	for _, plug := range r.plugs[snapName] {
+		iface := r.ifaces[plug.Interface]
+		if err := spec.AddPermanentPlug(iface, plug); err != nil {
+			return nil, err
+		}
+		for slot := range r.plugSlots[plug] {
+			if err := spec.AddConnectedPlug(iface, plug, slot); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return spec, nil
+}
+
 // BadInterfacesError is returned when some snap interfaces could not be registered.
 // Those interfaces not mentioned in the error were successfully registered.
 type BadInterfacesError struct {
@@ -868,9 +922,9 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// AutoConnectCandidates finds and returns viable auto-connection candidates
+// AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
+func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -885,14 +939,47 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 			if slot.Interface != plug.Interface {
 				continue
 			}
+			iface := slot.Interface
 
 			// declaration based checks disallow
 			if !policyCheck(plug, slot) {
 				continue
 			}
 
-			if r.ifaces[plug.Interface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plug, slot) {
 				candidates = append(candidates, slot)
+			}
+		}
+	}
+	return candidates
+}
+
+// AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
+// for a given slot.
+func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*Plug, *Slot) bool) []*Plug {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return nil
+	}
+
+	var candidates []*Plug
+	for _, plugsForSnap := range r.plugs {
+		for _, plug := range plugsForSnap {
+			if slot.Interface != plug.Interface {
+				continue
+			}
+			iface := slot.Interface
+
+			// declaration based checks disallow
+			if !policyCheck(plug, slot) {
+				continue
+			}
+
+			if r.ifaces[iface].AutoConnect(plug, slot) {
+				candidates = append(candidates, plug)
 			}
 		}
 	}

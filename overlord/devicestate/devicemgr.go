@@ -40,6 +40,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -455,6 +456,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 	if err != nil {
 		return "", fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
 	}
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	cfg.applyHeaders(req)
 
 	resp, err := client.Do(req)
@@ -508,6 +510,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot create serial-request request %q", cfg.serialRequestURL)
 	}
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	cfg.applyHeaders(req)
 	req.Header.Set("Content-Type", asserts.MediaType)
 
@@ -556,7 +559,10 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		return a.(*asserts.Serial), nil
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+		Timeout:    30 * time.Second,
+		MayLogBody: true,
+	})
 
 	// NB: until we get at least an Accepted (202) we need to
 	// retry from scratch creating a new request-id because the
