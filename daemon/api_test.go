@@ -176,6 +176,20 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
+
+	// TODO: do something mockable
+	snapstateCoreInfo = nil
+	snapstateInstall = nil
+	snapstateInstallPath = nil
+	snapstateRefreshCandidates = nil
+	snapstateTryPath = nil
+	snapstateUpdate = nil
+	snapstateUpdateMany = nil
+	snapstateInstallMany = nil
+	snapstateRemoveMany = nil
+	snapstateRevert = nil
+	snapstateRevertToRevision = nil
+	assertstateRefreshSnapDeclarations = nil
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -189,6 +203,21 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
+
+	// TODO: do something mockable
+	snapstateCoreInfo = snapstate.CoreInfo
+	snapstateInstall = snapstate.Install
+	snapstateInstallPath = snapstate.InstallPath
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
+	snapstateTryPath = snapstate.TryPath
+	snapstateUpdate = snapstate.Update
+	snapstateUpdateMany = snapstate.UpdateMany
+	snapstateInstallMany = snapstate.InstallMany
+	snapstateRemoveMany = snapstate.RemoveMany
+	snapstateRevert = snapstate.Revert
+	snapstateRevertToRevision = snapstate.RevertToRevision
+
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 }
 
 func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
@@ -467,6 +496,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateInstallMany",
 		"snapstateRemoveMany",
 		"snapstateRefreshCandidates",
+		"snapstateRevert",
+		"snapstateRevertToRevision",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
@@ -1112,6 +1143,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -1134,6 +1166,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -1932,11 +1965,19 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		coreInfoErr error
 		nTasks      int
 		installSnap string
+		flags       snapstate.Flags
+		desc        string
 	}{
 		// core installed
-		{nil, 1, ""},
+		{nil, 1, "", snapstate.Flags{}, "core; -"},
+		{nil, 1, "", snapstate.Flags{DevMode: true}, "core; devmode"},
+		{nil, 1, "", snapstate.Flags{JailMode: true}, "core; jailmode"},
+		{nil, 1, "", snapstate.Flags{Classic: true}, "core; classic"},
 		// no-core-installed
-		{state.ErrNoState, 2, "core"},
+		{state.ErrNoState, 2, "core", snapstate.Flags{}, "no core; -"},
+		{state.ErrNoState, 2, "core", snapstate.Flags{DevMode: true}, "no core; devmode"},
+		{state.ErrNoState, 2, "core", snapstate.Flags{JailMode: true}, "no core; jailmode"},
+		{state.ErrNoState, 2, "core", snapstate.Flags{Classic: true}, "no core; classic"},
 	} {
 		soon := 0
 		ensureStateSoon = func(st *state.State) {
@@ -1946,6 +1987,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 
 		tryWasCalled := true
 		snapstateTryPath = func(s *state.State, name, path string, flags snapstate.Flags) (*state.TaskSet, error) {
+			c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
 			tryWasCalled = true
 			t := s.NewTask("fake-install-snap", "Doing a fake try")
 			return state.NewTaskSet(t), nil
@@ -1953,6 +1995,9 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 
 		installSnap := ""
 		snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+			if name != "core" {
+				c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
+			}
 			installSnap = name
 			t := s.NewTask("fake-install-snap", "Doing a fake install")
 			return state.NewTaskSet(t), nil
@@ -1963,36 +2008,36 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		}
 
 		// try the snap (without an installed core)
-		rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
-		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-		c.Assert(tryWasCalled, check.Equals, true)
+		rsp := trySnap(snapsCmd, req, nil, tryDir, t.flags).(*resp)
+		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync, check.Commentf(t.desc))
+		c.Assert(tryWasCalled, check.Equals, true, check.Commentf(t.desc))
 
 		st := d.overlord.State()
 		st.Lock()
 		chg := st.Change(rsp.Change)
-		c.Assert(chg, check.NotNil)
+		c.Assert(chg, check.NotNil, check.Commentf(t.desc))
 
-		c.Assert(chg.Tasks(), check.HasLen, t.nTasks)
-		c.Check(installSnap, check.Equals, t.installSnap)
+		c.Assert(chg.Tasks(), check.HasLen, t.nTasks, check.Commentf(t.desc))
+		c.Check(installSnap, check.Equals, t.installSnap, check.Commentf(t.desc))
 
 		st.Unlock()
 		<-chg.Ready()
 		st.Lock()
 
-		c.Check(chg.Kind(), check.Equals, "try-snap")
-		c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir))
+		c.Check(chg.Kind(), check.Equals, "try-snap", check.Commentf(t.desc))
+		c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir), check.Commentf(t.desc))
 		var names []string
 		err = chg.Get("snap-names", &names)
-		c.Assert(err, check.IsNil)
-		c.Check(names, check.DeepEquals, []string{"foo"})
+		c.Assert(err, check.IsNil, check.Commentf(t.desc))
+		c.Check(names, check.DeepEquals, []string{"foo"}, check.Commentf(t.desc))
 		var apiData map[string]interface{}
 		err = chg.Get("api-data", &apiData)
-		c.Assert(err, check.IsNil)
+		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(apiData, check.DeepEquals, map[string]interface{}{
 			"snap-name": "foo",
-		})
+		}, check.Commentf(t.desc))
 
-		c.Check(soon, check.Equals, 1)
+		c.Check(soon, check.Equals, 1, check.Commentf(t.desc))
 		st.Unlock()
 	}
 }
@@ -2301,6 +2346,11 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 		return state.NewTaskSet(t), nil
 	}
 
+	defer func() {
+		snapstateCoreInfo = nil
+		snapstateInstall = nil
+	}()
+
 	d := s.daemon(c)
 
 	d.overlord.Loop()
@@ -2506,6 +2556,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
+	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -2830,6 +2881,10 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
+	}
+
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
@@ -2856,6 +2911,10 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
+	}
 
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2912,6 +2971,72 @@ func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {
 	defer st.Unlock()
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.ErrorMatches, "cannot use devmode and jailmode flags together")
+}
+
+func (s *apiSuite) testRevertSnap(inst *snapInstruction, c *check.C) {
+	queue := []string{}
+
+	instFlags, err := inst.modeFlags()
+	c.Assert(err, check.IsNil)
+
+	snapstateRevert = func(s *state.State, name string, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags, check.Equals, instFlags)
+		queue = append(queue, name)
+		return nil, nil
+	}
+	snapstateRevertToRevision = func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags, check.Equals, instFlags)
+		queue = append(queue, fmt.Sprintf("%s (%s)", name, rev))
+		return nil, nil
+	}
+
+	d := s.daemon(c)
+	inst.Action = "revert"
+	inst.Snaps = []string{"some-snap"}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	if inst.Revision.Unset() {
+		c.Check(queue, check.DeepEquals, []string{inst.Snaps[0]})
+	} else {
+		c.Check(queue, check.DeepEquals, []string{fmt.Sprintf("%s (%s)", inst.Snaps[0], inst.Revision)})
+	}
+	c.Check(summary, check.Equals, `Revert "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRevertSnap(c *check.C) {
+	s.testRevertSnap(&snapInstruction{}, c)
+}
+
+func (s *apiSuite) TestRevertSnapDevMode(c *check.C) {
+	s.testRevertSnap(&snapInstruction{DevMode: true}, c)
+}
+
+func (s *apiSuite) TestRevertSnapJailMode(c *check.C) {
+	s.testRevertSnap(&snapInstruction{JailMode: true}, c)
+}
+
+func (s *apiSuite) TestRevertSnapClassic(c *check.C) {
+	s.testRevertSnap(&snapInstruction{Classic: true}, c)
+}
+
+func (s *apiSuite) TestRevertSnapToRevision(c *check.C) {
+	s.testRevertSnap(&snapInstruction{Revision: snap.R(1)}, c)
+}
+
+func (s *apiSuite) TestRevertSnapToRevisionDevMode(c *check.C) {
+	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), DevMode: true}, c)
+}
+
+func (s *apiSuite) TestRevertSnapToRevisionJailMode(c *check.C) {
+	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), JailMode: true}, c)
+}
+
+func (s *apiSuite) TestRevertSnapToRevisionClassic(c *check.C) {
+	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), Classic: true}, c)
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
