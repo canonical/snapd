@@ -231,7 +231,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
-func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
+func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -245,7 +245,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{})
+	ts, err := snapstate.Revert(s.state, "some-snap", flags)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -261,6 +261,35 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		"start-snap-services",
 		"run-hook",
 	})
+
+	chg := s.state.NewChange("revert", "revert snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Flags, Equals, flags)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
+	s.testRevertTasks(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksDevMode(c *C) {
+	s.testRevertTasks(snapstate.Flags{DevMode: true}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
+	s.testRevertTasks(snapstate.Flags{JailMode: true}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
+	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
@@ -4057,6 +4086,20 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestTrySetsTryModeDevMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+}
+
+func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -4068,7 +4111,7 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), snapstate.Flags{})
+	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4081,10 +4124,40 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.TryMode, Equals, true)
+
+	flags.TryMode = true
+	c.Check(snapst.Flags, DeepEquals, flags)
+
+	c.Check(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prepare-snap",
+		"mount-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"set-auto-aliases",
+		"setup-aliases",
+		"start-snap-services",
+		"run-hook",
+	})
+
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesDevMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+}
+
+func (s *snapmgrTestSuite) testTryUndoRemovesTryFlag(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -4096,12 +4169,13 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 			Revision: snap.R(23),
 		},
 	}
+	snapst.Flags = flags
 	snapst.Current = snap.R(23)
 	snapstate.Set(s.state, "foo", &snapst)
 	c.Check(snapst.TryMode, Equals, false)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), snapstate.Flags{})
+	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4118,7 +4192,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	// verify snap is not in try mode, the state got undone
 	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.TryMode, Equals, false)
+	c.Check(snapst.Flags, DeepEquals, flags)
 }
 
 type snapStateSuite struct{}
