@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mount-opt.h"
+#include "../snap-confine/mount-opt.h"
 
 int main(int argc, char *argv[])
 {
