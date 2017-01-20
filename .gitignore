@@ -15,6 +15,8 @@ cmd/snap-confine/snap-confine
 cmd/snap-confine/snap-confine-unit-tests
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-discard-ns/snap-discard-ns
+cmd/system-shutdown/system-shutdown
+cmd/system-shutdown/system-shutdown-unit-tests
 .dirstamp
 *~
 .*.swp

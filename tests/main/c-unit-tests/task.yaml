@@ -33,7 +33,7 @@ restore: |
     rm -f pkg-list
 debug: |
     # Show the test suite failure log if there's one
-    cat $SPREAD_PATH/cmd/autogarbage/snap-confine/tests/test-suite.log || true
+    cat $SPREAD_PATH/cmd/autogarbage/test-suite.log || true
     # Show any autogabare that may need cleaning
     cd $SPREAD_PATH/cmd/
     find . > after
