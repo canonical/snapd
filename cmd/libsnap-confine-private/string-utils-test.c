@@ -64,7 +64,7 @@ static void test_must_snprintf__fail()
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr("failed to snprintf 1234\n");
+	g_test_trap_assert_stderr("cannot format string: 1234\n");
 }
 
 static void __attribute__ ((constructor)) init()
