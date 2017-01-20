@@ -50,7 +50,7 @@ struct sc_fault_state {
  * second argument is a callback that is invoked each time sc_faulty() is
  * called. It is designed to inspect an argument passed to sc_faulty() and as
  * well as the state of the fault injection point and return a boolean
- * indicating that a fault has occured.
+ * indicating that a fault has occurred.
  *
  * After testing faults should be reset using sc_reset_faults().
  **/
