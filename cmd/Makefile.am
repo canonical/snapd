@@ -6,7 +6,7 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-alter-ns
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -323,3 +323,18 @@ system_shutdown_system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snap-alter-ns
+##
+
+libexec_PROGRAMS += snap-alter-ns/snap-alter-ns
+dist_man_MANS += snap-alter-ns/snap-alter-ns.5
+CLEANFILES += snap-alter-ns/snap-alter-ns.5
+EXTRA_DIST += snap-alter-ns/snap-alter-ns.rst
+
+snap_alter_ns_snap_alter_ns_LDADD = libsnap-confine-private.a
+
+snap-alter-ns/%.5: snap-alter-ns/%.rst
+	mkdir -p snap-alter-ns
+	$(HAVE_RST2MAN) $^ > $@
