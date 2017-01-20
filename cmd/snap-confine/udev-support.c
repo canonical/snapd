@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 

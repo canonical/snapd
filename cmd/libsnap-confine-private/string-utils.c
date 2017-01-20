@@ -17,7 +17,11 @@
 
 #include "string-utils.h"
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
+
+#include "utils.h"
 
 bool sc_streq(const char *a, const char *b)
 {
@@ -49,4 +53,19 @@ bool sc_endswith(const char *str, const char *suffix)
 	}
 
 	return strncmp(str - xlen + slen, suffix, xlen) == 0;
+}
+
+int must_snprintf(char *str, size_t size, const char *format, ...)
+{
+	int n;
+
+	va_list va;
+	va_start(va, format);
+	n = vsnprintf(str, size, format, va);
+	va_end(va);
+
+	if (n < 0 || n >= size)
+		die("failed to snprintf %s", str);
+
+	return n;
 }
