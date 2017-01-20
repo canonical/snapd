@@ -15,22 +15,21 @@
  *
  */
 #include "config.h"
-#include "udev-support.h"
 
-#include <unistd.h>
+#include <ctype.h>
+#include <errno.h>
 #include <limits.h>
+#include <linux/kdev_t.h>
+#include <sched.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <errno.h>
-#include <sched.h>
-#include <string.h>
-#include <linux/kdev_t.h>
+#include <unistd.h>
 
-#include <ctype.h>
-
-#include "utils.h"
-#include "snap.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/utils.h"
+#include "udev-support.h"
 
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {

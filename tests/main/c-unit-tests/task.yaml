@@ -7,8 +7,7 @@ prepare: |
     dpkg --get-selections > pkg-list
     apt-get install --yes $EXTRA_PKGS
     # Remove any autogarbage from sent by developer
-    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
-    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     make -C $SPREAD_PATH/cmd distclean || true
 execute: |
     # Refresh autotools build system
@@ -23,12 +22,10 @@ execute: |
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     # Build and run unit tests
-    make -C snap-confine all
-    make -C snap-confine check
+    make check
 restore: |
     # Remove autogarbage leftover from testing
-    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
-    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     # Remove the build tree
     rm -rf $SPREAD_PATH/cmd/autogarbage/
     # Remove any installed packages
@@ -36,7 +33,7 @@ restore: |
     rm -f pkg-list
 debug: |
     # Show the test suite failure log if there's one
-    cat $SPREAD_PATH/cmd/autogarbage/snap-confine/tests/test-suite.log || true
+    cat $SPREAD_PATH/cmd/autogarbage/test-suite.log || true
     # Show any autogabare that may need cleaning
     cd $SPREAD_PATH/cmd/
     find . > after

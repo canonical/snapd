@@ -1,6 +1,10 @@
 #!/bin/sh
+set -eu
 
-set -e
+fetch1404() (
+    set -u
+    git fetch --quiet "https://github.com/$TRAVIS_PULL_REQUEST_SLUG" "$TRAVIS_PULL_REQUEST_BRANCH-14.04"
+)
 
 if [ ! -d .git ]; then
     echo "not running in a git checkout, skipping"
@@ -11,20 +15,18 @@ ID="$1"
 VERSION_ID="$2"
 
 DST="debian-$ID-$VERSION_ID"
-rm -rf $DST
+rm -rf "$DST"
 mkdir -p "$DST"
 
-if ! git remote | grep upstream; then
-    git remote add upstream https://github.com/snapcore/snapd
+if ! fetch1404 2>/dev/null; then
+    git fetch --quiet https://github.com/snapcore/snapd "$ID/$VERSION_ID"
 fi
-git fetch upstream
 
-git ls-tree upstream/"$ID"/"$VERSION_ID" debian/ | while read line ; do
-    file=$(basename $(echo $line | cut -d " " -f4))
-    hash=$(echo $line | cut -d " " -f3)
-    type=$(echo $line | cut -d " " -f2)
-    # FIXME: deal with subdirs
-    if [ "$type" = "blob" ]; then
-        git cat-file -p $hash > "$DST/$file"
+git ls-tree -r FETCH_HEAD debian/ | while read _ type hash file; do
+    if [ "$type" != "blob" ]; then
+        continue
     fi
+    file="$DST/${file#debian/}"
+    mkdir -p "$(dirname "$file")"
+    git cat-file -p "$hash" > "$file"
 done
