@@ -280,8 +280,6 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
-snap_discard_ns_snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
-snap_discard_ns_snap_discard_ns_LDADD += $(SECCOMP_LIBS)
 
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
