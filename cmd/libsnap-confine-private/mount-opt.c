@@ -128,7 +128,7 @@ static void sc_grow_string(char **s, const char *extra)
 	char *result = realloc(*s, initial_len + extra_len + 1);
 	if (result == NULL) {
 		die("cannot grow string by %zd bytes to %zd bytes",
-		    initial_len + 1, initial_len + extra_len + 1);
+		    extra_len, initial_len + extra_len + 1);
 	}
 	if (extra != NULL) {
 		memcpy(result + initial_len, extra, extra_len + 1);
