@@ -23,7 +23,7 @@ import "fmt"
 
 func AddMockCommand(name string) *MockCommand {
 	mockCommand := NewMockCommand()
-	addCommand(name, "", "", func() command { return mockCommand })
+	addCommand(name, "", "", func() command { return mockCommand }, nil, nil)
 	return mockCommand
 }
 

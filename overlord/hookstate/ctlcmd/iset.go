@@ -47,7 +47,7 @@ interface hooks.
 `)
 
 func init() {
-	addCommand("iset", shortSetAttrHelp, longSetAttrHelp, func() command { return &setAttrCommand{} })
+	addCommand("iset", shortSetAttrHelp, longSetAttrHelp, func() command { return &setAttrCommand{} }, nil, nil)
 }
 
 func (s *setAttrCommand) Execute(args []string) error {

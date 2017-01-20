@@ -74,11 +74,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 }
 
 func initialConnectAttributes(s *state.State, plugSnap string, plugName string, slotSnap string, slotName string) (map[string]interface{}, error) {
-	// Combine attributes from plug and slot, store them in connect task.
-	// They will serve as initial attributes for the prepare- hooks.
+	// Set initial interface attributes for the plug- and slot- snaps in connect task.
 	var snapst snapstate.SnapState
 	var err error
-	attrs := make(map[string]interface{})
 
 	if err = snapstate.Get(s, plugSnap, &snapst); err != nil {
 		return nil, err
@@ -88,9 +86,13 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 	if err != nil {
 		return nil, err
 	}
+
+	attrs := make(map[string]interface{})
+
+	plugSnapAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
 		for k, v := range plug.Attrs {
-			attrs[k] = v
+			plugSnapAttrs[k] = v
 		}
 	} else {
 		return nil, fmt.Errorf("Snap %q has no plug named %q", plugSnap, plugName)
@@ -103,13 +105,18 @@ func initialConnectAttributes(s *state.State, plugSnap string, plugName string, 
 	if err != nil {
 		return nil, err
 	}
+
+	slotSnapAttrs := make(map[string]interface{})
 	if slot, ok := snapInfo.Slots[slotName]; ok {
 		for k, v := range slot.Attrs {
-			attrs[k] = v
+			slotSnapAttrs[k] = v
 		}
 	} else {
 		return nil, fmt.Errorf("Snap %q has no slot named %q", slotSnap, slotName)
 	}
+
+	attrs[plugSnap] = plugSnapAttrs
+	attrs[slotSnap] = slotSnapAttrs
 
 	return attrs, err
 }
@@ -128,9 +135,10 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	//  - connect-slot-<slot> hook
 	//  - connect-plug-<plug> hook
 	// The tasks run in sequence (are serialized by WaitFor).
-	// The prepare- hooks collect attributes set via snapctl iset. The attributes set by prepare-plug
-	// hook can be read by both prepare-plug and prepare-slot hooks. All the attributes collected by
-	// first two hooks are available to the connect task and both connect- hooks for reading.
+	// The prepare- hooks collect attributes via snapctl set.
+	// 'snapctl set' can only modify own attributes (plug's attributes in the *-plug-* hook and
+	// slot's attributes in the *-slot-* hook).
+	// 'snapctl get' can read both slot's and plug's attributes.
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	connectInterface := s.NewTask("connect", summary)
@@ -142,6 +150,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
+	initialContext["other-snap"] = slotSnap
 	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
@@ -150,7 +159,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
-
+	initialContext["other-snap"] = plugSnap
 	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
 
@@ -168,6 +177,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
+	initialContext["other-snap"] = plugSnap
 	connectSlotConnection := hookstate.HookTask(s, summary, connectSlotHookSetup, initialContext)
 	connectSlotConnection.WaitFor(connectInterface)
 
@@ -177,11 +187,9 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
+	initialContext["other-snap"] = slotSnap
 	connectPlugConnection := hookstate.HookTask(s, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
-
-	connectInterface.Set("connect-plug-task", connectPlugConnection.ID())
-	connectInterface.Set("connect-slot-task", connectSlotConnection.ID())
 
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }

@@ -51,7 +51,7 @@ Nested values may be modified via a dotted path:
 `)
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
+	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} }, nil, nil)
 }
 
 func (s *setCommand) Execute(args []string) error {

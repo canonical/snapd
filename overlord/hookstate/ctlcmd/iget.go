@@ -52,7 +52,7 @@ If multiple attribute names are provided, a document is returned:
 `)
 
 func init() {
-	addCommand("iget", shortGetAttrHelp, longGetAttrHelp, func() command { return &getAttrCommand{} })
+	addCommand("iget", shortGetAttrHelp, longGetAttrHelp, func() command { return &getAttrCommand{} }, nil, nil)
 }
 
 func (c *getAttrCommand) Execute(args []string) error {

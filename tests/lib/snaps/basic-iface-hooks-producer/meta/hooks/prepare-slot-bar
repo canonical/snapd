@@ -3,8 +3,8 @@
 echo "Getting and setting attribute value from prepare-slot-bar hook"
 
 # prepare-slot- hook should be able to read attribute value set by prepare-plug- hook
-if ! output=$(snapctl iget target); then
-    echo "Expected snapctl iget to be able to read the value of 'target' attribute"
+if ! output=$(snapctl get :foo target); then
+    echo "Expected snapctl get to be able to read the value of 'target' attribute"
     exit 1
 fi
 
@@ -14,13 +14,15 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-if ! snapctl iset target=slottarget; then
-    echo "Expected snapctl iset to be able to set the value of 'target' attribute"
+# Set own (slot's) 'target' attribute
+if ! snapctl set :bar target=slottarget; then
+    echo "Expected snapctl set to be able to set the value of 'target' attribute"
     exit 1
 fi
 
-if ! output=$(snapctl iget target); then
-    echo "Expected snapctl iget to be able to read the value of 'target' attribute"
+# Read own 'target' attribute
+if ! output=$(snapctl get :bar target); then
+    echo "Expected snapctl get to be able to read the value of 'target' attribute"
     exit 1
 fi
 

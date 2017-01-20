@@ -2,13 +2,15 @@
 
 echo "Setting and getting attribute value from prepare-plug-foo hook"
 
-if ! snapctl iset target=plugtarget; then
-    echo "Expected snapctl iset to be able to set the value of 'target' attribute"
+# Set own 'target' attribute.
+if ! snapctl set :foo target=plugtarget; then
+    echo "Expected snapctl set to be able to set the value of 'target' attribute"
     exit 1
 fi
 
-if ! output=$(snapctl iget target); then
-    echo "Expected snapctl iget to be able to read the value of 'target' attribute"
+# Read own (plug's) 'target' attribute
+if ! output=$(snapctl --plug get :foo target); then
+    echo "Expected snapctl get to be able to read the value of 'target' attribute"
     exit 1
 fi
 

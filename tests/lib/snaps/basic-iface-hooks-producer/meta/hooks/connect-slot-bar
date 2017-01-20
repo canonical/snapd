@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "Getting attributes from confirm-slot-bar hook"
+echo "Getting attributes from connect-slot-bar hook"
 
 if ! output=$(snapctl iget target); then
     echo "Expected snapctl iget to be able to read the value of 'target' attribute"

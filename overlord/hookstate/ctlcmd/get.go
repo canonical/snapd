@@ -22,23 +22,60 @@ package ctlcmd
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
+
+// SnapAndName holds a snap name and a plug or slot name.
+// TODO move this somewhere else to share the code with main cmd
+type SnapAndName struct {
+	Snap string `positional-arg-name:"<snappp>"`
+	Name string
+}
+
+// UnmarshalFlag unmarshals snap and plug or slot name.
+// TODO move this somewhere else to share the code with main cmd
+func (sn *SnapAndName) UnmarshalFlag(value string) error {
+	parts := strings.Split(value, ":")
+	sn.Snap = ""
+	sn.Name = ""
+	switch len(parts) {
+	case 1:
+		sn.Snap = parts[0]
+	case 2:
+		sn.Snap = parts[0]
+		sn.Name = parts[1]
+		// Reject "snap:" (that should be spelled as "snap")
+		if sn.Name == "" {
+			sn.Snap = ""
+		}
+	}
+	if sn.Snap == "" && sn.Name == "" {
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
+	}
+	return nil
+}
 
 type getCommand struct {
 	baseCommand
 
+	ForceSlotSide bool `long:"slot" description:"request attribute of the slot"`
+	ForcePlugSide bool `long:"plug" description:"request attribute of the plug"`
+
 	Positional struct {
-		Keys []string `positional-arg-name:"<keys>" description:"option keys" required:"yes"`
-	} `positional-args:"yes" required:"yes"`
+		PlugOrSlotSpec SnapAndName `positional-args:"true" positional-arg-name:"<snap>:<plug|slot>"`
+		Keys           []string    `positional-arg-name:"<keys>" description:"option keys" required:"yes"`
+	} `positional-args:"yes"`
 
 	Document bool `short:"d" description:"always return document, even with single key"`
 	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("Prints configuration options")
+var shortGetHelp = i18n.G("Prints configuration options or attribute values of plug/slot")
 var longGetHelp = i18n.G(`
 The get command prints configuration options for the current snap.
 
@@ -57,10 +94,32 @@ Nested values may be retrieved via a dotted path:
 
     $ snapctl get author.name
     frank
+
+Values of plug or slot attributes may be printed in plug hooks via:
+
+    $ snapctl get :plugname serial-path
+	/dev/ttyS0
+
+	$snapctl get --slot :slotname camera-path
+	/dev/video0
+
+Values of plug or slot attributes may be printed in slot hooks via:
+
+    $ snapctl get --plug :slotname serial-path
+	/dev/ttyS0
+
+	$snapctl get :slotname camera-path
+	/dev/video0
 `)
 
 func init() {
-	addCommand("get", shortGetHelp, longGetHelp, func() command { return &getCommand{} })
+	addCommand("get", shortGetHelp, longGetHelp, func() command {
+		return &getCommand{}
+	}, map[string]string{
+		"slot": i18n.G("Access the slot side of the connection"),
+		"plug": i18n.G("Access the plug side of the connection"),
+	}, []argDesc{
+		{name: i18n.G("<snap>:<slot>")}})
 }
 
 func (c *getCommand) Execute(args []string) error {
@@ -71,6 +130,10 @@ func (c *getCommand) Execute(args []string) error {
 
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
+	}
+
+	if c.Positional.PlugOrSlotSpec.Name != "" {
+		return c.handleGetInterfaceAttributes(context, c.Positional.PlugOrSlotSpec.Snap, c.Positional.PlugOrSlotSpec.Name)
 	}
 
 	patch := make(map[string]interface{})
@@ -114,6 +177,65 @@ func (c *getCommand) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	c.printf("%s\n", string(bytes))
+
+	return nil
+}
+
+func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, snapName string, plugOrSlot string) error {
+	var err error
+	var attributes map[string]map[string]interface{}
+
+	context.Lock()
+	err = context.Get("attributes", &attributes)
+	context.Unlock()
+
+	if err == state.ErrNoState {
+		return fmt.Errorf(i18n.G("no attributes found"))
+	}
+	if err != nil {
+		return err
+	}
+
+	if snapName == "" {
+		// snap name not given, default to the other end of the interface connection unless
+		// --slot or --plug argument is provided.
+		isPlugSide := (strings.HasPrefix(context.HookName(), "prepare-plug-") || strings.HasPrefix(context.HookName(), "connect-plug-"))
+		isSlotSide := (strings.HasPrefix(context.HookName(), "prepare-slot-") || strings.HasPrefix(context.HookName(), "connect-slot-"))
+		if (c.ForcePlugSide && isPlugSide) || (c.ForceSlotSide && isSlotSide) {
+			// get own attributes
+			snapName = context.SnapName()
+		} else {
+			// get attributes of the remote end
+			err = context.Get("other-snap", &snapName)
+			if err != nil {
+				return fmt.Errorf(i18n.G("failed to get the other snap name from hook context: %q"), err)
+			}
+		}
+	}
+
+	attrsToPrint := make(map[string]interface{})
+	for _, key := range c.Positional.Keys {
+		if value, ok := attributes[snapName][key]; ok {
+			attrsToPrint[key] = value
+		} else {
+			return fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		}
+	}
+
+	if len(attrsToPrint) == 1 {
+		if val, ok := attrsToPrint[c.Positional.Keys[0]].(string); ok {
+			c.printf("%s\n", val)
+			return nil
+		}
+	}
+
+	var bytes []byte
+	bytes, err = json.MarshalIndent(attrsToPrint, "", "\t")
+	if err != nil {
+		return err
 	}
 
 	c.printf("%s\n", string(bytes))
