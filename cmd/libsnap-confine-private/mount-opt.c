@@ -118,37 +118,23 @@ const char *sc_mount_opt2str(unsigned long flags)
 	return buf;
 }
 
-static void sc_grow_string(char **s, const char *extra)
-{
-	size_t extra_len = extra != NULL ? strlen(extra) : 0;
-	size_t initial_len = *s != NULL ? strlen(*s) : 0;
-	if (extra_len == 0) {
-		return;
-	}
-	char *result = realloc(*s, initial_len + extra_len + 1);
-	if (result == NULL) {
-		die("cannot grow string by %zd bytes to %zd bytes",
-		    extra_len, initial_len + extra_len + 1);
-	}
-	if (extra != NULL) {
-		memcpy(result + initial_len, extra, extra_len + 1);
-	}
-	*s = result;
-}
-
 char *sc_mount_cmd(const char *source, const char *target,
 		   const char *filesystemtype, unsigned long mountflags,
 		   const void *data)
 {
-	char *buf = NULL;
+	// NOTE: this uses static buffer because it has lower complexity than a
+	// dynamically allocated buffer. We've decided as a team to prefer this
+	// approach.
+	static char buf[PATH_MAX * 2 + 1000];
+	char *to = buf;
 	int used_special_flags = 0;
 
-	sc_grow_string(&buf, "mount");
+	to = stpcpy(to, "mount");
 
 	// Add filesysystem type if it's there and doesn't have the special value "none"
 	if (filesystemtype != NULL && strcmp(filesystemtype, "none") != 0) {
-		sc_grow_string(&buf, " -t ");
-		sc_grow_string(&buf, filesystemtype);
+		to = stpcpy(to, " -t ");
+		to = stpcpy(to, filesystemtype);
 	}
 	// Check for some special, dedicated syntax. This exists for:
 	// - bind mounts (bind)
@@ -157,13 +143,13 @@ char *sc_mount_cmd(const char *source, const char *target,
 		const char *special = mountflags & MS_REC ?
 		    " --rbind" : " --bind";
 		used_special_flags |= MS_BIND | MS_REC;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	// - moving mount point location (move)
 	if (mountflags & MS_MOVE) {
 		const char *special = " --move";
 		used_special_flags |= MS_MOVE;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	// - shared subtree operations (shared, slave, private, unbindable)
 	//   - including the recursive variants
@@ -171,68 +157,73 @@ char *sc_mount_cmd(const char *source, const char *target,
 		const char *special = mountflags & MS_REC ?
 		    " --make-rshared" : " --make-shared";
 		used_special_flags |= MS_SHARED | MS_REC;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	if (MS_SLAVE & mountflags) {
 		const char *special = mountflags & MS_REC ?
 		    " --make-rslave" : " --make-slave";
 		used_special_flags |= MS_SLAVE | MS_REC;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	if (MS_PRIVATE & mountflags) {
 		const char *special = mountflags & MS_REC ?
 		    " --make-rprivate" : " --make-private";
 		used_special_flags |= MS_PRIVATE | MS_REC;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	if (MS_UNBINDABLE & mountflags) {
 		const char *special = mountflags & MS_REC ?
 		    " --make-runbindable" : " --make-unbindable";
 		used_special_flags |= MS_UNBINDABLE | MS_REC;
-		sc_grow_string(&buf, special);
+		to = stpcpy(to, special);
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
 		const char *regular =
 		    sc_mount_opt2str(mountflags & ~used_special_flags);
-		sc_grow_string(&buf, " -o ");
-		sc_grow_string(&buf, regular);
+		to = stpcpy(to, " -o ");
+		to = stpcpy(to, regular);
 	}
 	// Add source and target locations
 	if (source != NULL && strcmp(source, "none") != 0) {
-		sc_grow_string(&buf, " ");
-		sc_grow_string(&buf, source);
+		to = stpcpy(to, " ");
+		to = stpcpy(to, source);
 	}
 	if (target != NULL && strcmp(target, "none") != 0) {
-		sc_grow_string(&buf, " ");
-		sc_grow_string(&buf, target);
+		to = stpcpy(to, " ");
+		to = stpcpy(to, target);
 	}
 	return buf;
 }
 
 char *sc_umount_cmd(const char *target, int flags)
 {
-	char *buf = NULL;
-	sc_grow_string(&buf, "umount");
+	// NOTE: this uses static buffer because it has lower complexity than a
+	// dynamically allocated buffer. We've decided as a team to prefer this
+	// approach.
+	static char buf[PATH_MAX + 1000];
+	char *to = buf;
+
+	to = stpcpy(to, "umount");
 
 	if (flags & MNT_FORCE) {
-		sc_grow_string(&buf, " --force");
+		to = stpcpy(to, " --force");
 	}
 
 	if (flags & MNT_DETACH) {
-		sc_grow_string(&buf, " --lazy");
+		to = stpcpy(to, " --lazy");
 	}
 	if (flags & MNT_EXPIRE) {
 		// NOTE: there's no real command line option for MNT_EXPIRE
-		sc_grow_string(&buf, " --expire");
+		to = stpcpy(to, " --expire");
 	}
 	if (flags & UMOUNT_NOFOLLOW) {
 		// NOTE: there's no real command line option for UMOUNT_NOFOLLOW
-		sc_grow_string(&buf, " --no-follow");
+		to = stpcpy(to, " --no-follow");
 	}
 	if (target != NULL) {
-		sc_grow_string(&buf, " ");
-		sc_grow_string(&buf, target);
+		to = stpcpy(to, " ");
+		to = stpcpy(to, target);
 	}
 	return buf;
 }

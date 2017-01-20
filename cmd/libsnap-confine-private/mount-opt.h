@@ -32,8 +32,8 @@ const char *sc_mount_opt2str(unsigned long flags);
  * This function serves as a human-readable representation of the mount system
  * call. The return value is a string that looks like a shell mount command.
  *
- * The return value is dynamically allocated and must be released by the
- * caller.
+ * The function uses an internal static buffer that is overwritten on each
+ * request.
  **/
 char *sc_mount_cmd(const char *source, const char *target,
 		   const char *filesystemtype, unsigned long mountflags,
@@ -49,8 +49,8 @@ char *sc_mount_cmd(const char *source, const char *target,
  * Note that some flags are not surfaced at umount command line level. For
  * those flags a fake option is synthesized.
  *
- * The return value is dynamically allocated and must be released by the
- * caller.
+ * The function uses an internal static buffer that is overwritten on each
+ * request.
  **/
 char *sc_umount_cmd(const char *target, int flags);
 
