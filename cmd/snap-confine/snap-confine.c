@@ -90,6 +90,18 @@ int main(int argc, char **argv)
 #endif
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
+	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
+	    && getuid() != 0 && geteuid() == 0) {
+		// Refuse to run when this process is running unconfined on a system
+		// that supports AppArmor when the effective uid is root and the real
+		// id is non-root.  This protects against, for example, unprivileged
+		// users trying to leverage the snap-confine in the core snap to
+		// escalate privileges.
+		die("snap-confine has elevated permissions and is not confined"
+		    " but should be. Refusing to continue to avoid"
+		    " permission escalation attacks");
+	}
+	// TODO: check for similar situation and linux capabilities.
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
