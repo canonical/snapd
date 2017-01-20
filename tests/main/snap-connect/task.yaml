@@ -30,4 +30,25 @@ execute: |
 
     echo "The plug can be connected to a slot on the core snap using abbreviated syntax"
     snap connect home-consumer:home :home
+
     snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    # NOTE: Those only work when installed from the store as otherwise we don't
+    # have snap declaration assertion and cannot check if a given connection
+    # should be allowed.
+    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
+
+    echo "The plug side auto-connects when content is installed"
+    snap install --edge test-snapd-content-slot
+    snap install --edge test-snapd-content-plug
+
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
+
+    # Remove the content snaps so that we can reinstall them the other way around
+    snap remove test-snapd-content-plug
+    snap remove test-snapd-content-slot
+
+    echo "The slot side auto-connects when content snap is installed"
+    snap install --edge test-snapd-content-plug
+    snap install --edge test-snapd-content-slot
+    snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
