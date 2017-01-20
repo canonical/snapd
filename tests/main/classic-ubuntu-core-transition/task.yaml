@@ -33,9 +33,6 @@ execute: |
     wait_for_service snap.xkcd-webserver.xkcd-webserver
     curl http://localhost | MATCH "XKCD rocks"
 
-    # FIXME: what is slightly ugly is that snapd will try to transition
-    #        the new ubuntu-core right away which will of course fail
-
     echo "Start/stop snapd so that the transition is triggered"
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
