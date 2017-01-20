@@ -25,8 +25,6 @@ import (
 	"gopkg.in/retry.v1"
 )
 
-var GetFlags = (*LoggedTransport).getFlags
-
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	originalDefaultRetryStrategy := defaultRetryStrategy

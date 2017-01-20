@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -185,6 +186,40 @@ func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	c.Check(snapst.LastIndex(snap.R(11)), Equals, 2)
 }
 
+func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if a snap is devmode, you can't install it without --devmode
+	_, err := snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap not found`)
+
+	// if a snap is devmode, you *can* install it with --devmode
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+
+	// if a snap is *not* devmode, you can still install it with --devmode
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if a snap is classic, you can't install it without --classic
+	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap not found`)
+
+	// if a snap is classic, you *can* install it with --classic
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+
+	// if a snap is *not* classic, you can still install it with --classic
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-strict", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -298,6 +333,61 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	ts := tts[0]
 	verifyInstallUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-devmode",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	// updated snap is devmode, updatemany doesn't update it
+	_, tts, _ := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
+	c.Assert(tts, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-classic",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	// if a snap installed without --classic gets a classic update it isn't installed
+	_, tts, _ := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	// FIXME: UpdateMany will not error out in this case (daemon catches this case, with a weird error)
+	c.Assert(tts, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-classic",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+		Flags:    snapstate.Flags{Classic: true},
+	})
+
+	// snap installed with classic: refresh gets classic
+	_, tts, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
@@ -646,7 +736,7 @@ func (s *snapmgrTestSuite) TestInstallPathSnapIDRevisionUnset(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap id set to install %q but revision is unset`, mockSnap))
 }
 
-func (s *snapmgrTestSuite) TestUpdateTasksPropagtesErrors(c *C) {
+func (s *snapmgrTestSuite) TestUpdateTasksPropagatesErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -695,6 +785,154 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(snapsup.Channel, Equals, "some-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-devmode",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	// updated snap is devmode, refresh without --devmode, do nothing
+	// TODO: better error message here
+	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+
+	// updated snap is devmode, refresh with --devmode
+	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-classic",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	// updated snap is classic, refresh without --classic, do nothing
+	// TODO: better error message here
+	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+
+	// updated snap is classic, refresh with --classic
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Classic, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel-for-classic",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+		Flags:    snapstate.Flags{Classic: true},
+	})
+
+	// snap installed with --classic, update needs classic, refresh with --classic works
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
+
+	// devmode overrides the snapsetup classic flag
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, false)
+
+	// jailmode overrides it too (you need to provide both)
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{JailMode: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, false)
+
+	// jailmode and classic together gets you both
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{JailMode: true, Classic: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
+
+	// snap installed with --classic, update needs classic, refresh without --classic works
+	ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+	snapsup, err = snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.Classic, Equals, true)
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Classic, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "channel",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+		Flags:    snapstate.Flags{Classic: true},
+	})
+
+	// snap installed with --classic, update does not need classic, refresh works without --classic
+	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// snap installed with --classic, update does not need classic, refresh works with --classic
+	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -715,34 +953,6 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "edge")
-}
-
-func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
-		Current:  snap.R(7),
-		SnapType: "app",
-	})
-
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
-	c.Assert(err, IsNil)
-
-	c.Assert(s.fakeBackend.ops, HasLen, 1)
-	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-list-refresh",
-		cand: store.RefreshCandidate{
-			SnapID:   "some-snap-id",
-			Revision: snap.R(7),
-			Epoch:    "",
-			DevMode:  true,
-			Channel:  "some-channel",
-		},
-		revno: snap.R(11),
-	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
@@ -955,6 +1165,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision: snap.R(42),
 	})
+	c.Assert(snapst.Required, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -992,7 +1203,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1167,7 +1377,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1315,9 +1524,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	tasks := ts.Tasks()
 	last := tasks[len(tasks)-1]
+	// sanity
+	c.Assert(last.Lanes(), HasLen, 1)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
 	chg.AddTask(terr)
 
 	s.state.Unlock()
@@ -1333,7 +1545,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 				Epoch:    "",
-				DevMode:  false,
 			},
 			revno: snap.R(11),
 		},
@@ -1593,7 +1804,6 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 			Epoch:    "",
-			DevMode:  false,
 			Channel:  "some-channel",
 		},
 	})
@@ -1633,7 +1843,6 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			DevMode:  false,
 		},
 	})
 
@@ -1671,11 +1880,301 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			DevMode:  false,
 			Block:    []snap.Revision{snap.R(11)},
 		},
 	})
 
+}
+
+var orthogonalAutoAliasesScenarios = []struct {
+	aliasesBefore map[string][]string
+	names         []string
+	retire        []string
+	update        bool
+	new           bool
+}{
+	{nil, nil, nil, true, true},
+	{nil, []string{"some-snap"}, nil, true, false},
+	{nil, []string{"other-snap"}, nil, false, true},
+	{map[string][]string{"some-snap": {"aliasA", "aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, nil, []string{"other-snap"}, true, false},
+	{map[string][]string{"other-snap": {"aliasB", "aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasC"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
+	{map[string][]string{"other-snap": {"aliasC"}}, nil, []string{"other-snap"}, true, true},
+	{map[string][]string{"other-snap": {"aliasC"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, nil, []string{"other-snap", "some-snap"}, true, true},
+	{map[string][]string{"some-snap": {"aliasB"}, "other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap", "some-snap"}, false, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, nil, []string{"some-snap"}, true, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, []string{"other-snap"}, []string{"some-snap"}, false, true},
+	{map[string][]string{"some-snap": {"aliasB"}}, []string{"some-snap"}, nil, true, false},
+	{map[string][]string{"other-snap": {"aliasA"}}, nil, []string{"other-snap"}, true, true},
+	{map[string][]string{"other-snap": {"aliasA"}}, []string{"other-snap"}, []string{"other-snap"}, false, true},
+	{map[string][]string{"other-snap": {"aliasA"}}, []string{"some-snap"}, []string{"other-snap"}, true, false},
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(2)},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		switch info.Name() {
+		case "some-snap":
+			return []string{"aliasA"}, nil
+		case "other-snap":
+			return []string{"aliasB"}, nil
+		}
+		return nil, nil
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	expectedAuto := func(aliases []string) map[string]string {
+		res := make(map[string]string, len(aliases))
+		for _, alias := range aliases {
+			res[alias] = "auto"
+		}
+		return res
+	}
+
+	for _, scenario := range orthogonalAutoAliasesScenarios {
+		aliases := make(map[string]map[string]string)
+		for snapName, autoAliases := range scenario.aliasesBefore {
+			statuses := make(map[string]string)
+			for _, alias := range autoAliases {
+				statuses[alias] = "auto"
+			}
+			aliases[snapName] = statuses
+		}
+		s.state.Set("aliases", aliases)
+
+		updates, tts, err := snapstate.UpdateMany(s.state, scenario.names, s.user.ID)
+		c.Check(err, IsNil)
+
+		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
+		c.Assert(err, IsNil)
+
+		j := 0
+		expectedUpdatesSet := make(map[string]bool)
+		var expectedRetiring map[string]map[string]string
+		var retireTs *state.TaskSet
+		if len(scenario.retire) != 0 {
+			retireTs = tts[0]
+			j++
+			taskAliases := make(map[string]map[string]string)
+			for _, aliasTask := range retireTs.Tasks() {
+				c.Check(aliasTask.Kind(), Equals, "alias")
+				var aliases map[string]string
+				err := aliasTask.Get("aliases", &aliases)
+				c.Assert(err, IsNil)
+				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
+				c.Assert(err, IsNil)
+				taskAliases[snapsup.Name()] = aliases
+			}
+			expectedRetiring = make(map[string]map[string]string)
+			for _, snapName := range scenario.retire {
+				expectedRetiring[snapName] = expectedAuto(retiring[snapName])
+				if snapName == "other-snap" && !scenario.new && !scenario.update {
+					expectedUpdatesSet["other-snap"] = true
+				}
+			}
+			c.Check(taskAliases, DeepEquals, expectedRetiring)
+		}
+		if scenario.update {
+			updateTs := tts[j]
+			j++
+			expectedUpdatesSet["some-snap"] = true
+			first := updateTs.Tasks()[0]
+			c.Check(first.Kind(), Equals, "download-snap")
+			wait := false
+			if expectedRetiring["other-snap"]["aliasA"] != "" {
+				wait = true
+			} else if expectedRetiring["some-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(first.WaitTasks(), DeepEquals, retireTs.Tasks())
+			} else {
+				c.Check(first.WaitTasks(), HasLen, 0)
+			}
+		}
+		if scenario.new {
+			newTs := tts[j]
+			j++
+			expectedUpdatesSet["other-snap"] = true
+			tasks := newTs.Tasks()
+			c.Check(tasks, HasLen, 1)
+			aliasTask := tasks[0]
+			c.Check(aliasTask.Kind(), Equals, "alias")
+			var aliases map[string]string
+			err := aliasTask.Get("aliases", &aliases)
+			c.Assert(err, IsNil)
+			c.Check(aliases, DeepEquals, expectedAuto(new["other-snap"]))
+			wait := false
+			if expectedRetiring["some-snap"]["aliasB"] != "" {
+				wait = true
+			} else if expectedRetiring["other-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(aliasTask.WaitTasks(), DeepEquals, retireTs.Tasks())
+			} else {
+				c.Check(aliasTask.WaitTasks(), HasLen, 0)
+			}
+		}
+		c.Assert(j, Equals, len(tts))
+
+		// check reported updated names
+		c.Check(len(updates) > 0, Equals, true)
+		sort.Strings(updates)
+		expectedUpdates := make([]string, 0, len(expectedUpdatesSet))
+		for x := range expectedUpdatesSet {
+			expectedUpdates = append(expectedUpdates, x)
+		}
+		sort.Strings(expectedUpdates)
+		c.Check(updates, DeepEquals, expectedUpdates)
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(2)},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		switch info.Name() {
+		case "some-snap":
+			return []string{"aliasA"}, nil
+		case "other-snap":
+			return []string{"aliasB"}, nil
+		}
+		return nil, nil
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	expectedAuto := func(aliases []string) map[string]string {
+		res := make(map[string]string, len(aliases))
+		for _, alias := range aliases {
+			res[alias] = "auto"
+		}
+		return res
+	}
+
+	for _, scenario := range orthogonalAutoAliasesScenarios {
+		if len(scenario.names) != 1 {
+			continue
+		}
+
+		aliases := make(map[string]map[string]string)
+		for snapName, autoAliases := range scenario.aliasesBefore {
+			statuses := make(map[string]string)
+			for _, alias := range autoAliases {
+				statuses[alias] = "auto"
+			}
+			aliases[snapName] = statuses
+		}
+		s.state.Set("aliases", aliases)
+
+		ts, err := snapstate.Update(s.state, scenario.names[0], "", snap.R(0), s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		new, retiring, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
+		c.Assert(err, IsNil)
+
+		j := 0
+		tasks := ts.Tasks()
+		var expectedRetiring map[string]map[string]string
+		var retireTasks []*state.Task
+		if len(scenario.retire) != 0 {
+			nretire := len(scenario.retire)
+			retireTasks = tasks[:nretire]
+			j += nretire
+			taskAliases := make(map[string]map[string]string)
+			for _, aliasTask := range retireTasks {
+				c.Check(aliasTask.Kind(), Equals, "alias")
+				var aliases map[string]string
+				err := aliasTask.Get("aliases", &aliases)
+				c.Assert(err, IsNil)
+				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
+				c.Assert(err, IsNil)
+				taskAliases[snapsup.Name()] = aliases
+			}
+			expectedRetiring = make(map[string]map[string]string)
+			for _, snapName := range scenario.retire {
+				expectedRetiring[snapName] = expectedAuto(retiring[snapName])
+			}
+			c.Check(taskAliases, DeepEquals, expectedRetiring)
+		}
+		if scenario.update {
+			first := tasks[j]
+			j += 14
+			c.Check(first.Kind(), Equals, "download-snap")
+			wait := false
+			if expectedRetiring["other-snap"]["aliasA"] != "" {
+				wait = true
+			} else if expectedRetiring["some-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(first.WaitTasks(), DeepEquals, retireTasks)
+			} else {
+				c.Check(first.WaitTasks(), HasLen, 0)
+			}
+		}
+		if scenario.new {
+			aliasTask := tasks[j]
+			j++
+			c.Check(aliasTask.Kind(), Equals, "alias")
+			var aliases map[string]string
+			err := aliasTask.Get("aliases", &aliases)
+			c.Assert(err, IsNil)
+			c.Check(aliases, DeepEquals, expectedAuto(new["other-snap"]))
+			wait := false
+			if expectedRetiring["some-snap"]["aliasB"] != "" {
+				wait = true
+			} else if expectedRetiring["other-snap"] != nil {
+				wait = true
+			}
+			if wait {
+				c.Check(aliasTask.WaitTasks(), DeepEquals, retireTasks)
+			} else {
+				c.Check(aliasTask.WaitTasks(), HasLen, 0)
+			}
+		}
+		c.Assert(j, Equals, len(tasks))
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateLocalSnapFails(c *C) {
@@ -1956,7 +2455,7 @@ version: 1.0`)
 		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision: snap.R(42),
 	}
-	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{})
+	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1989,6 +2488,9 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: someSnap,
 		SideInfo: snapsup.SideInfo,
+		Flags: snapstate.Flags{
+			Required: true,
+		},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
@@ -2001,6 +2503,7 @@ version: 1.0`)
 	c.Assert(snapst.Channel, Equals, "")
 	c.Assert(snapst.Sequence[0], DeepEquals, si)
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
+	c.Assert(snapst.Required, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
@@ -2472,6 +2975,27 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	})
 
 	_, err := snapstate.Remove(s.state, "gadget", snap.R(0))
+
+	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
+	si := snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		Active:   false,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "gadget", snap.R(7))
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -3682,21 +4206,20 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, false), Equals, true)
-	c.Check(snapstate.CanRemove(info, true), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, true), Equals, true)
 }
 
-func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
+func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	info := &snap.Info{
 		Type: snap.TypeGadget,
 	}
 	info.RealName = "foo"
 
-	c.Check(snapstate.CanRemove(info, false), Equals, true)
-	c.Check(snapstate.CanRemove(info, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{}, true), Equals, false)
 }
 
-func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
+func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
 		Type: snap.TypeOS,
 	}
@@ -3706,11 +4229,29 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	}
 	kernel.RealName = "krnl"
 
-	c.Check(snapstate.CanRemove(os, false), Equals, true)
-	c.Check(snapstate.CanRemove(os, true), Equals, false)
+	c.Check(snapstate.CanRemove(os, &snapstate.SnapState{}, true), Equals, false)
 
-	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
-	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
+	c.Check(snapstate.CanRemove(kernel, &snapstate.SnapState{}, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeGadget,
+	}
+	info.RealName = "foo"
+
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true}, false), Equals, true)
+}
+
+func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeApp,
+	}
+	info.RealName = "foo"
+
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true), Equals, false)
+	c.Check(snapstate.CanRemove(info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false), Equals, true)
 }
 
 func revs(seq []*snap.SideInfo) []int {
@@ -3767,6 +4308,12 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		last := tasks[len(tasks)-1]
 		terr := s.state.NewTask("error-trigger", "provoking total undo")
 		terr.WaitFor(last)
+		if len(last.Lanes()) > 0 {
+			lanes := last.Lanes()
+			// sanity
+			c.Assert(lanes, HasLen, 1)
+			terr.JoinLane(lanes[0])
+		}
 		chg.AddTask(terr)
 	}
 	chg.AddAll(ts)

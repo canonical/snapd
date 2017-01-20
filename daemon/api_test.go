@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -288,6 +289,7 @@ version: %s
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
+		snapst.Channel = "beta"
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -342,26 +344,27 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
-			"id":          "foo-id",
-			"name":        "foo",
-			"revision":    snap.R(10),
-			"version":     "v1",
-			"channel":     "stable",
-			"summary":     "summary",
-			"description": "description",
-			"developer":   "bar",
-			"status":      "active",
-			"icon":        "/v2/icons/foo/icon",
-			"type":        string(snap.TypeApp),
-			"resource":    "/v2/snaps/foo",
-			"private":     false,
-			"devmode":     false,
-			"jailmode":    false,
-			"confinement": snap.StrictConfinement,
-			"trymode":     false,
-			"apps":        []appJSON{},
-			"broken":      "",
-			"contact":     "",
+			"id":               "foo-id",
+			"name":             "foo",
+			"revision":         snap.R(10),
+			"version":          "v1",
+			"channel":          "stable",
+			"tracking-channel": "beta",
+			"summary":          "summary",
+			"description":      "description",
+			"developer":        "bar",
+			"status":           "active",
+			"icon":             "/v2/icons/foo/icon",
+			"type":             string(snap.TypeApp),
+			"resource":         "/v2/snaps/foo",
+			"private":          false,
+			"devmode":          false,
+			"jailmode":         false,
+			"confinement":      snap.StrictConfinement,
+			"trymode":          false,
+			"apps":             []appJSON{},
+			"broken":           "",
+			"contact":          "",
 		},
 		Meta: meta,
 	}
@@ -2426,6 +2429,38 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshClassic(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have ubuntu-core
+		return nil, nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		return nil, nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:  "refresh",
+		Classic: true,
+		Snaps:   []string{"some-snap"},
+		userID:  17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{Classic: true})
+}
+
 func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	var calledFlags snapstate.Flags
 	calledUserID := 0
@@ -2896,7 +2931,7 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 func (s *apiSuite) TestInterfaces(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -2955,7 +2990,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3005,8 +3040,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "different"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, differentProducerYaml)
 
@@ -3047,7 +3082,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -3089,7 +3124,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	// there is no producer, no slot defined
@@ -3131,7 +3166,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3185,7 +3220,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
 
@@ -3233,7 +3268,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	// there is no producer, no slot defined
 
@@ -3281,7 +3316,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := s.daemon(c)
 
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 

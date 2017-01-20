@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -66,40 +67,6 @@ const (
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
 )
-
-// UserAgent to send
-// xxx: this should actually be set per client request, and include the client user agent
-var userAgent = "unset"
-
-var isTesting bool
-
-func init() {
-	if osutil.GetenvBool("SNAPPY_TESTING") {
-		isTesting = true
-	}
-}
-
-func SetUserAgentFromVersion(version string, extraProds ...string) {
-	extras := make([]string, 1, 3)
-	extras[0] = "series " + release.Series
-	if release.OnClassic {
-		extras = append(extras, "classic")
-	}
-	if release.ReleaseInfo.ForceDevMode() {
-		extras = append(extras, "devmode")
-	}
-	if isTesting {
-		extras = append(extras, "testing")
-	}
-	extraProdStr := ""
-	if len(extraProds) != 0 {
-		extraProdStr = " " + strings.Join(extraProds, " ")
-	}
-	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
-	// (see rfc 7231 for values of weird)
-	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
-}
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
@@ -188,6 +155,8 @@ type Store struct {
 
 	architecture string
 	series       string
+
+	noCDN bool
 
 	fallbackStoreID string
 
@@ -361,7 +330,7 @@ type sectionResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(snap.ChannelSnapInfo{})
+var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -429,12 +398,13 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		sectionsURI:     sectionsURI,
 		series:          series,
 		architecture:    architecture,
+		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 
-		client: newHTTPClient(&httpClientOpts{
+		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
@@ -779,12 +749,13 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateUser(req, user)
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -938,7 +909,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 	var results struct {
 		Payload struct {
-			SnapDetails []*snapDetails `json:"clickindex:package"`
+			ChannelSnapInfoDetails []*channelSnapInfoDetails `json:"clickindex:package"`
 		} `json:"_embedded"`
 	}
 
@@ -952,7 +923,7 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 	}
 
 	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.SnapDetails {
+	for _, item := range results.Payload.ChannelSnapInfoDetails {
 		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(item.Revision),
 			Confinement: snap.ConfinementType(item.Confinement),
@@ -971,7 +942,6 @@ type SnapSpec struct {
 	Name     string
 	Channel  string
 	Revision snap.Revision
-	Devmode  bool
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
@@ -987,14 +957,6 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	if !snapSpec.Revision.Unset() {
 		query.Set("revision", snapSpec.Revision.String())
 		query.Set("channel", "")
-	}
-
-	// if devmode then don't restrict by confinement as either is fine
-	// XXX: what we really want to do is have the store not specify
-	//      devmode, and have the business logic wrt what to do with
-	//      unwanted devmode further up
-	if !snapSpec.Devmode {
-		query.Set("confinement", string(snap.StrictConfinement))
 	}
 
 	u.RawQuery = query.Encode()
@@ -1095,7 +1057,11 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		q.Set("section", search.Section)
 	}
 
-	q.Set("confinement", "strict")
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
 	u.RawQuery = q.Encode()
 
 	reqOptions := &requestOptions{
@@ -1175,7 +1141,6 @@ type RefreshCandidate struct {
 	SnapID   string
 	Revision snap.Revision
 	Epoch    string
-	DevMode  bool
 	Block    []snap.Revision
 
 	// the desired channel
@@ -1184,16 +1149,11 @@ type RefreshCandidate struct {
 
 // the exact bits that we need to send to the store
 type currentSnapJson struct {
-	SnapID   string `json:"snap_id"`
-	Channel  string `json:"channel"`
-	Revision int    `json:"revision,omitempty"`
-	Epoch    string `json:"epoch"`
-
-	// The store expects a "confinement" value {"strict", "devmode"}.
-	// We map this accordingly from our devmode bool, we do not
-	// use the value of the current snap as we are interested in the
-	// users intention, not the actual value of the snap itself.
-	Confinement snap.ConfinementType `json:"confinement"`
+	SnapID      string `json:"snap_id"`
+	Channel     string `json:"channel"`
+	Revision    int    `json:"revision,omitempty"`
+	Epoch       string `json:"epoch"`
+	Confinement string `json:"confinement"`
 }
 
 type metadataWrapper struct {
@@ -1217,17 +1177,12 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
-		confinement := snap.StrictConfinement
-		if cs.DevMode {
-			confinement = snap.DevModeConfinement
-		}
-
 		currentSnaps = append(currentSnaps, currentSnapJson{
-			SnapID:      cs.SnapID,
-			Channel:     cs.Channel,
-			Confinement: confinement,
-			Epoch:       cs.Epoch,
-			Revision:    revision,
+			SnapID:   cs.SnapID,
+			Channel:  cs.Channel,
+			Epoch:    cs.Epoch,
+			Revision: revision,
+			// confinement purposely left empty
 		})
 		candidateMap[cs.SnapID] = cs
 	}
@@ -1414,7 +1369,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
