@@ -37,13 +37,6 @@ void sc_cleanup_endmntent(FILE ** ptr)
 		endmntent(*ptr);
 }
 
-#ifdef HAVE_SECCOMP
-void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
-{
-	seccomp_release(*ptr);
-}
-#endif				// HAVE_SECCOMP
-
 void sc_cleanup_closedir(DIR ** ptr)
 {
 	if (*ptr != NULL) {

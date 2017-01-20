@@ -757,3 +757,8 @@ void sc_load_seccomp_context(scmp_filter_ctx ctx)
 			die("dropping privs after seccomp_load did not work");
 	}
 }
+
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
+{
+	seccomp_release(*ptr);
+}

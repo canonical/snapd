@@ -61,7 +61,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "dbus")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityDBus)
 }
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {

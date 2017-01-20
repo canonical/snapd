@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -945,6 +946,10 @@ func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
 		c.Assert(os.Remove(deltaPath), IsNil)
 	}
 }
+
+var (
+	userAgent = httputil.UserAgent()
+)
 
 func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
