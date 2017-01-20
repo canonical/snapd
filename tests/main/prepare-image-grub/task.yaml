@@ -10,13 +10,28 @@ environment:
     STORE_ADDR: localhost:11028
     UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
     setup_fake_store $STORE_DIR
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
     teardown_fake_store $STORE_DIR
     rm -rf $ROOT
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo Expose the needed assertions through the fakestore
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts

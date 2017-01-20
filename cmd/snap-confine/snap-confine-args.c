@@ -19,7 +19,7 @@
 
 #include <string.h>
 
-#include "utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 struct sc_args {
 	// The security tag that the application is intended to run with

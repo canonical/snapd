@@ -8,6 +8,11 @@ environment:
     BAD_SNAP: test-snapd-tools
 
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
 
     echo "Given two snaps are installed"
@@ -19,10 +24,20 @@ prepare: |
     setup_fake_store $BLOB_DIR
 
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/store.sh
     init_fake_refreshes $GOOD_SNAP,$BAD_SNAP $BLOB_DIR

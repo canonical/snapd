@@ -28,14 +28,14 @@ import (
 )
 
 type attrMatcher interface {
-	match(context string, v interface{}) error
+	match(apath string, v interface{}) error
 }
 
-func chain(context, k string) string {
-	if context == "" {
+func chain(path, k string) string {
+	if path == "" {
 		return k
 	}
-	return fmt.Sprintf("%s.%s", context, k)
+	return fmt.Sprintf("%s.%s", path, k)
 }
 
 type compileContext struct {
@@ -98,38 +98,38 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(context, k string, matcher1 attrMatcher, v interface{}) error {
-	context = chain(context, k)
+func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}) error {
+	apath = chain(apath, k)
 	if v == nil {
-		return fmt.Errorf("attribute %q has constraints but is unset", context)
+		return fmt.Errorf("attribute %q has constraints but is unset", apath)
 	}
-	if err := matcher1.match(context, v); err != nil {
+	if err := matcher1.match(apath, v); err != nil {
 		return err
 	}
 	return nil
 }
 
-func matchList(context string, matcher attrMatcher, l []interface{}) error {
+func matchList(apath string, matcher attrMatcher, l []interface{}) error {
 	for i, elem := range l {
-		if err := matcher.match(chain(context, strconv.Itoa(i)), elem); err != nil {
+		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (matcher mapAttrMatcher) match(context string, v interface{}) error {
+func (matcher mapAttrMatcher) match(apath string, v interface{}) error {
 	switch x := v.(type) {
 	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
-			if err := matchEntry(context, k, matcher1, x[k]); err != nil {
+			if err := matchEntry(apath, k, matcher1, x[k]); err != nil {
 				return err
 			}
 		}
 	case []interface{}:
-		return matchList(context, matcher, x)
+		return matchList(apath, matcher, x)
 	default:
-		return fmt.Errorf("attribute %q must be a map", context)
+		return fmt.Errorf("attribute %q must be a map", apath)
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) 
 	return regexpAttrMatcher{rx}, nil
 }
 
-func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
+func (matcher regexpAttrMatcher) match(apath string, v interface{}) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -156,12 +156,12 @@ func (matcher regexpAttrMatcher) match(context string, v interface{}) error {
 	case int64:
 		s = strconv.FormatInt(x, 10)
 	case []interface{}:
-		return matchList(context, matcher, x)
+		return matchList(apath, matcher, x)
 	default:
-		return fmt.Errorf("attribute %q must be a scalar or list", context)
+		return fmt.Errorf("attribute %q must be a scalar or list", apath)
 	}
 	if !matcher.Regexp.MatchString(s) {
-		return fmt.Errorf("attribute %q value %q does not match %v", context, s, matcher.Regexp)
+		return fmt.Errorf("attribute %q value %q does not match %v", apath, s, matcher.Regexp)
 	}
 	return nil
 
@@ -184,10 +184,10 @@ func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, err
 
 }
 
-func (matcher altAttrMatcher) match(context string, v interface{}) error {
+func (matcher altAttrMatcher) match(apath string, v interface{}) error {
 	var firstErr error
 	for _, alt := range matcher.alts {
-		err := alt.match(context, v)
+		err := alt.match(apath, v)
 		if err == nil {
 			return nil
 		}
@@ -195,11 +195,11 @@ func (matcher altAttrMatcher) match(context string, v interface{}) error {
 			firstErr = err
 		}
 	}
-	ctxDescr := ""
-	if context != "" {
-		ctxDescr = fmt.Sprintf(" for attribute %q", context)
+	apathDescr := ""
+	if apath != "" {
+		apathDescr = fmt.Sprintf(" for attribute %q", apath)
 	}
-	return fmt.Errorf("no alternative%s matches: %v", ctxDescr, firstErr)
+	return fmt.Errorf("no alternative%s matches: %v", apathDescr, firstErr)
 }
 
 // AttributeConstraints implements a set of constraints on the attributes of a slot or plug.
@@ -221,7 +221,7 @@ type fixedAttrMatcher struct {
 	result error
 }
 
-func (matcher fixedAttrMatcher) match(context string, v interface{}) error {
+func (matcher fixedAttrMatcher) match(apath string, v interface{}) error {
 	return matcher.result
 }
 

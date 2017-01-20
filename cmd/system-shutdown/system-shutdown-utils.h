@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,43 +15,20 @@
  *
  */
 
-#include "cleanup-funcs.h"
+#ifndef SYSTEM_SHUTDOWN_UTILS_H
+#define SYSTEM_SHUTDOWN_UTILS_H
 
-#include <mntent.h>
-#include <unistd.h>
+#include <stdbool.h>
 
-void sc_cleanup_string(char **ptr)
-{
-	free(*ptr);
-}
+// tries to umount all (well, most) things. Returns whether in the last pass it
+// no longer found writable.
+bool umount_all();
 
-void sc_cleanup_file(FILE ** ptr)
-{
-	if (*ptr != NULL)
-		fclose(*ptr);
-}
+bool streq(const char *a, const char *b);
 
-void sc_cleanup_endmntent(FILE ** ptr)
-{
-	if (*ptr != NULL)
-		endmntent(*ptr);
-}
+__attribute__ ((noreturn))
+void die(const char *msg);
+__attribute__ ((format(printf, 1, 2)))
+void kmsg(const char *fmt, ...);
 
-#ifdef HAVE_SECCOMP
-void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
-{
-	seccomp_release(*ptr);
-}
-#endif				// HAVE_SECCOMP
-
-void sc_cleanup_closedir(DIR ** ptr)
-{
-	if (*ptr != NULL) {
-		closedir(*ptr);
-	}
-}
-
-void sc_cleanup_close(int *ptr)
-{
-	close(*ptr);
-}
+#endif

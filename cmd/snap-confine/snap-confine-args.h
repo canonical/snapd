@@ -20,7 +20,7 @@
 
 #include <stdbool.h>
 
-#include "error.h"
+#include "../libsnap-confine-private/error.h"
 
 /**
  * Error domain for errors related to argument parsing.
