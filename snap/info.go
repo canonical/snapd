@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -175,7 +176,7 @@ type ChannelSnapInfo struct {
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
 	Epoch       string          `json:"epoch"`
-	Size        int64           `json:"binary_filesize"`
+	Size        int64           `json:"size"`
 }
 
 // Name returns the blessed name for the snap.
@@ -308,6 +309,30 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+}
+
+// SecurityTags returns security tags associated with a given plug.
+func (plug *PlugInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
+	for _, app := range plug.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range plug.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// SecurityTags returns security tags associated with a given slot.
+func (slot *SlotInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	// NOTE: hooks cannot have slots
+	sort.Strings(tags)
+	return tags
 }
 
 // SlotInfo provides information about a slot.

@@ -104,13 +104,16 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
+# a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 endif
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
+endif
 
 override_dh_systemd_enable:
 	# enable auto-import
@@ -133,6 +136,9 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.service
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snapd.system-shutdown.service
 
 override_dh_systemd_start:
 	# we want to start the auto-update timer
@@ -192,6 +198,7 @@ override_dh_install:
 	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.autoimport.service
