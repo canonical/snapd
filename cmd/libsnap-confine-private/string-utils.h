@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_STRING_UTILS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /**
  * Check if two strings are equal.
@@ -29,5 +30,13 @@ bool sc_streq(const char *a, const char *b);
  * Check if a string has a given suffix.
  **/
 bool sc_endswith(const char *str, const char *suffix);
+
+/**
+ * Safer version of snprintf.
+ *
+ * This version dies on any error condition.
+ **/
+__attribute__ ((format(printf, 3, 4)))
+int must_snprintf(char *str, size_t size, const char *format, ...);
 
 #endif

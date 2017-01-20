@@ -36,6 +36,7 @@
 #include <seccomp.h>
 
 #include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
