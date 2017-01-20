@@ -83,16 +83,17 @@ libsnap_confine_private_a_SOURCES = \
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
-	libsnap-confine-private/classic.c \
-	libsnap-confine-private/classic.h \
+	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
+	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/secure-getenv-test.c \
+	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
-	libsnap-confine-private/verify-executable-name-test.c
 libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 endif
