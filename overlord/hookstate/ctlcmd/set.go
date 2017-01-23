@@ -26,14 +26,17 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type setCommand struct {
 	baseCommand
 
 	Positional struct {
-		ConfValues []string `positional-arg-name:"key=value" required:"1"`
-	} `positional-args:"yes" required:"yes"`
+		PlugOrSlotSpec SnapAndName `positional-args:"true" positional-arg-name:"<snap>:<plug|slot>"`
+		ConfValues     []string    `positional-arg-name:"key=value" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 var shortSetHelp = i18n.G("Changes configuration options")
@@ -60,6 +63,18 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
+	if s.Positional.PlugOrSlotSpec.Snap != "" && s.Positional.PlugOrSlotSpec.Snap != s.context().SnapName() {
+		return fmt.Errorf(i18n.G("cannot set interface attribute of other snap"))
+	}
+	if s.Positional.PlugOrSlotSpec.Name != "" {
+		// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
+		if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
+			strings.HasPrefix(context.HookName(), "prepare-plug-")) {
+			return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))
+		}
+		return s.handleSetInterfaceAttributes(context)
+	}
+
 	context.Lock()
 	transaction := configstate.ContextTransaction(context)
 	context.Unlock()
@@ -80,5 +95,44 @@ func (s *setCommand) Execute(args []string) error {
 		transaction.Set(s.context().SnapName(), key, value)
 	}
 
+	return nil
+}
+
+func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context) error {
+	context.Lock()
+	defer context.Unlock()
+
+	var attributes map[string]map[string]interface{}
+	if err := context.Get("attributes", &attributes); err != nil {
+		if err == state.ErrNoState {
+			return fmt.Errorf(i18n.G("no attributes found"))
+		}
+		return err
+	}
+
+	var attrs map[string]interface{}
+	var ok bool
+	if attrs, ok = attributes[context.SnapName()]; !ok {
+		// this should never happen unless there is an inconsistency in hook task setup.
+		return fmt.Errorf(i18n.G("missing attributes for snap %s"), context.SnapName())
+	}
+
+	for _, attrValue := range s.Positional.ConfValues {
+		parts := strings.SplitN(attrValue, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), attrValue)
+		}
+
+		var value interface{}
+		err := json.Unmarshal([]byte(parts[1]), &value)
+		if err != nil {
+			// Not valid JSON, save the string as-is
+			value = parts[1]
+		}
+		attrs[parts[0]] = value
+	}
+
+	attributes[context.SnapName()] = attrs
+	s.context().Set("attributes", attributes)
 	return nil
 }
