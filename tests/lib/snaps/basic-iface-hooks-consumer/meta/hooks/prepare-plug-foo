@@ -9,7 +9,7 @@ if ! snapctl set :foo target=plugtarget; then
 fi
 
 # Read own (plug's) 'target' attribute
-if ! output=$(snapctl --plug get :foo target); then
+if ! output=$(snapctl get --plug :foo target); then
     echo "Expected snapctl get to be able to read the value of 'target' attribute"
     exit 1
 fi

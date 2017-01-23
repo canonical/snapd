@@ -203,8 +203,8 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 	var attributes map[string]map[string]interface{}
 
 	context.Lock()
+	defer context.Unlock()
 	err = context.Get("attributes", &attributes)
-	context.Unlock()
 
 	if err == state.ErrNoState {
 		return fmt.Errorf(i18n.G("no attributes found"))

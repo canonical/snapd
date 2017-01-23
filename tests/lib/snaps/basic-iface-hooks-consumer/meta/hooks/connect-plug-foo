@@ -1,9 +1,9 @@
 #!/bin/sh
 
-echo "Getting attributes from confirm-plug-foo hook"
+echo "Getting attributes from connect-plug-foo hook"
 
-if ! output=$(snapctl iget read); then
-    echo "Expected snapctl iget to be able to read the value of 'read' attribute"
+if ! output=$(snapctl get :bar read); then
+    echo "Expected connect-plug-foo to be able to read the value of 'read' attribute of the slot"
     exit 1
 fi
 
@@ -15,18 +15,28 @@ PATTERN="read.:\s*\[\s*\n\
 
 echo "$output" | grep -Pzq "$PATTERN"
 
-if ! output=$(snapctl iget target); then
-    echo "Expected snapctl iget to be able to read the value of 'target' attribute"
+if ! output=$(snapctl get :bar target); then
+    echo "Expected connect-plug-foo be able to read the value of the 'target' attribute of the slot"
     exit 1
 fi
-
 expected_output="slottarget"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
-if snapctl iset target=slottarget; then
-    echo "Expected snapctl iset to fail when run from confirm-plug hook"
+if ! output=$(snapctl get --plug :foo target); then
+    echo "Expected connect-plug-foo be able to read the value of own 'target' attribute"
+    exit 1
+fi
+
+expected_output="plugtarget"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+if snapctl set :foo target=slottarget; then
+    echo "Expected snapctl set to fail when run from connect-plug hook"
     exit 1
 fi
