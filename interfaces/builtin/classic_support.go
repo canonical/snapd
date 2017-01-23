@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const classicDimensionPlugAppArmor = `
+const classicSupportPlugAppArmor = `
 # Description: permissions to use classic dimension. This policy is
 # intentionally not restricted. This gives device ownership to
 # connected snaps.
@@ -71,7 +71,7 @@ umount /var/snap/@{SNAP_NAME}/**/,
 /bin/systemctl Uxr,
 `
 
-const classicDimensionPlugSecComp = `
+const classicSupportPlugSecComp = `
 # Description: permissions to use classic dimension. This policy is intentionally
 # not restricted. This gives device ownership to connected snaps.
 # create
@@ -104,10 +104,10 @@ umount
 umount2
 `
 
-func NewClassicDimensionInterface() interfaces.Interface {
+func NewClassicSupportInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "classic-dimension",
-		connectedPlugAppArmor: classicDimensionPlugAppArmor,
-		connectedPlugSecComp:  classicDimensionPlugSecComp,
+		name: "classic-support",
+		connectedPlugAppArmor: classicSupportPlugAppArmor,
+		connectedPlugSecComp:  classicSupportPlugSecComp,
 	}
 }

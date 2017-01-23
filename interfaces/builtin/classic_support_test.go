@@ -28,52 +28,52 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ClassicDimensionInterfaceSuite struct {
+type ClassicSupportInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ClassicDimensionInterfaceSuite{
-	iface: builtin.NewClassicDimensionInterface(),
+var _ = Suite(&ClassicSupportInterfaceSuite{
+	iface: builtin.NewClassicSupportInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "classic-dimension",
-			Interface: "classic-dimension",
+			Name:      "classic-support",
+			Interface: "classic-support",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "classic-dimension",
-			Interface: "classic-dimension",
+			Name:      "classic-support",
+			Interface: "classic-support",
 		},
 	},
 })
 
-func (s *ClassicDimensionInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "classic-dimension")
+func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "classic-support")
 }
 
-func (s *ClassicDimensionInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *ClassicSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 }
 
-func (s *ClassicDimensionInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *ClassicSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *ClassicDimensionInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *ClassicSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "classic-dimension"`)
+		PanicMatches, `slot is not of interface "classic-support"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "classic-dimension"`)
+		PanicMatches, `plug is not of interface "classic-support"`)
 }
 
-func (s *ClassicDimensionInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

@@ -138,7 +138,7 @@ authority-id: canonical
 series: 16
 revision: 0
 plugs:
-  classic-dimension:
+  classic-support:
     allow-installation: false
     deny-auto-connection: true
   docker-support:
@@ -193,7 +193,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  classic-dimension:
+  classic-support:
     allow-installation:
       slot-snap-type:
         - core

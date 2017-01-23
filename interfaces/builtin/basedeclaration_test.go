@@ -175,10 +175,10 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"classic-dimension": true,
-		"content":           true,
-		"home":              true,
-		"lxd-support":       true,
+		"classic-support": true,
+		"content":         true,
+		"home":            true,
+		"lxd-support":     true,
 	}
 
 	for _, iface := range all {
@@ -296,15 +296,15 @@ plugs:
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionClassicDimensionSupportOverride(c *C) {
-	cand := s.connectCand(c, "classic-dimension", "", "")
+func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
+	cand := s.connectCand(c, "classic-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-dimension\"")
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-support\"")
 
 	plugsSlots := `
 plugs:
-  classic-dimension:
+  classic-support:
     allow-auto-connection: true
 `
 
@@ -394,9 +394,9 @@ var (
 		"unity8-download-manager": {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
-		"classic-dimension": nil,
-		"docker":            nil,
-		"lxd":               nil,
+		"classic-support": nil,
+		"docker":          nil,
+		"lxd":             nil,
 	}
 )
 
@@ -470,7 +470,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
-		"classic-dimension":     true,
+		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
@@ -569,7 +569,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
-		"classic-dimension":     true,
+		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
