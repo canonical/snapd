@@ -26,7 +26,6 @@ import (
 const autopilotIntrospectionPlugAppArmor = `
 # Description: Allows Autopilot to introspect an app and get its
 # ui status over dbus
-# Usage: reserved
 
 dbus (send, receive)
     bus=session
@@ -48,8 +47,8 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-
-// NewAutopilotIntrospectionInterface returns a new "autopilot-introspection" interface.
+// NewAutopilotIntrospectionInterface returns a new "autopilot-introspection"
+// interface.
 func NewAutopilotIntrospectionInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "autopilot-introspection",
