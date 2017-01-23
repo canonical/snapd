@@ -22,11 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -64,28 +65,26 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 	return val, currency, nil
 }
 
-func formatPrice(val float64, currency string) string {
-	return fmt.Sprintf("%.2f%s", val, currency)
-}
+type SectionName string
 
-func getPriceString(prices map[string]float64, suggestedCurrency, status string) string {
-	price, currency, err := getPrice(prices, suggestedCurrency)
-
-	// If there are no prices, then the snap is free
+func (s SectionName) Complete(match string) []flags.Completion {
+	cli := Client()
+	sections, err := cli.Sections()
 	if err != nil {
-		return ""
+		return nil
 	}
-
-	// If the snap is priced, but has been purchased
-	if status == "available" {
-		return i18n.G("bought")
+	ret := make([]flags.Completion, 0, len(sections))
+	for _, s := range sections {
+		if strings.HasPrefix(s, match) {
+			ret = append(ret, flags.Completion{Item: s})
+		}
 	}
-
-	return formatPrice(price, currency)
+	return ret
 }
 
 type cmdFind struct {
-	Private    bool `long:"private"`
+	Private    bool        `long:"private"`
+	Section    SectionName `long:"section"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -96,6 +95,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
+		"section": i18n.G("Restrict the search to a given section"),
 	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
@@ -104,12 +104,14 @@ func (x *cmdFind) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	if x.Positional.Query == "" {
-		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
+	// magic! `snap find` returns the featured snaps
+	if x.Positional.Query == "" && x.Section == "" {
+		x.Section = "featured"
 	}
 
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
+		Section: string(x.Section),
 		Query:   x.Positional.Query,
 	})
 }
@@ -123,7 +125,8 @@ func findSnaps(opts *client.FindOptions) error {
 
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
-		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
+		fmt.Fprintf(Stderr, i18n.G("The search %q returned 0 snaps\n"), opts.Query)
+		return nil
 	}
 
 	w := tabWriter()
@@ -132,13 +135,8 @@ func findSnaps(opts *client.FindOptions) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
 
 	for _, snap := range snaps {
-		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.Confinement != client.StrictConfinement,
-			Price:   getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
-		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
 
 	return nil

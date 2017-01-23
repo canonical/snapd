@@ -36,19 +36,15 @@ The buy command buys a snap from the store.
 `)
 
 type cmdBuy struct {
-	Currency string `long:"currency"`
-
 	Positional struct {
-		SnapName string
+		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
 	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
-	}, map[string]string{
-		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
-	}, []argDesc{{
+	}, map[string]string{}, []argDesc{{
 		name: "<snap>",
 		desc: i18n.G("Snap name"),
 	}})
@@ -59,40 +55,38 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(&store.BuyOptions{
-		SnapName: x.Positional.SnapName,
-		Currency: x.Currency,
-	})
+	return buySnap(string(x.Positional.SnapName))
 }
 
-func buySnap(opts *store.BuyOptions) error {
+func buySnap(snapName string) error {
 	cli := Client()
 
-	if !cli.LoggedIn() {
+	user := cli.LoggedInUser()
+	if user == nil {
 		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
 	}
 
-	if strings.ContainsAny(opts.SnapName, ":*") {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
+	if strings.ContainsAny(snapName, ":*") {
+		return fmt.Errorf(i18n.G("cannot buy snap: invalid characters in name"))
 	}
 
-	snap, resultInfo, err := cli.FindOne(opts.SnapName)
+	snap, resultInfo, err := cli.FindOne(snapName)
 	if err != nil {
 		return err
 	}
 
-	opts.SnapID = snap.ID
-	if opts.Currency == "" {
-		opts.Currency = resultInfo.SuggestedCurrency
+	opts := &store.BuyOptions{
+		SnapID:   snap.ID,
+		Currency: resultInfo.SuggestedCurrency,
 	}
 
 	opts.Price, opts.Currency, err = getPrice(snap.Prices, opts.Currency)
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: %v"), opts.SnapName, err)
+		return fmt.Errorf(i18n.G("cannot buy snap: %v"), err)
 	}
 
 	if snap.Status == "available" {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
+		return fmt.Errorf(i18n.G("cannot buy snap: it has already been bought"))
 	}
 
 	err = cli.ReadyToBuy()
@@ -103,7 +97,7 @@ func buySnap(opts *store.BuyOptions) error {
 				return fmt.Errorf(i18n.G(`You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			}
 		}
@@ -115,7 +109,7 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
 
-	err = requestLogin("")
+	err = requestLogin(user.Email)
 	if err != nil {
 		return err
 	}
@@ -134,7 +128,7 @@ payment details at https://my.ubuntu.com/payment/edit and try again.`))
 
 	// TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
 	fmt.Fprintf(Stdout, i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices
-with 'snap install %s'.`), opts.SnapName, opts.SnapName)
+with 'snap install %s'.`), snapName, snapName)
 	fmt.Fprint(Stdout, "\n")
 
 	return nil

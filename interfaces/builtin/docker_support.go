@@ -69,6 +69,7 @@ capability,
 /dev/mapper/docker* rw,
 /dev/loop-control r,
 /dev/loop[0-9]* rw,
+/sys/devices/virtual/block/dm-[0-9]*/** r,
 mount,
 umount,
 
@@ -99,7 +100,7 @@ signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
 
 # Graph (storage) driver bits
-/dev/shm/aufs.xino rw,
+/{dev,run}/shm/aufs.xino rw,
 /proc/fs/aufs/plink_maint w,
 /sys/fs/aufs/** r,
 
@@ -573,10 +574,6 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 		}
 	}
 	return nil
-}
-
-func (iface *DockerSupportInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

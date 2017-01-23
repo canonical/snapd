@@ -1,13 +1,6 @@
 summary: Check remove command errors
 
 execute: |
-    echo "An error is returned when trying to remove an non installed snap"
-    if snap remove test-snapd-tools; then
-        echo "An error is expected when trying to remove a non installed snap"
-        exit 1
-    fi
-    echo "================================"
-
     echo "Given a core snap is installed"
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-tools

@@ -108,22 +108,10 @@ func DeriveSideInfo(snapPath string, db asserts.RODatabase) (*snap.SideInfo, err
 
 	name := snapDecl.SnapName()
 
-	// TODO: once we are fully migrated to assertions this can
-	// be done dynamically later instead of statically here
-	a, err = db.Find(asserts.AccountType, map[string]string{
-		"account-id": snapRev.DeveloperID(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find developer account for snap %q (%q): %s", name, snapPath, snapRev.DeveloperID())
-	}
-	devAcct := a.(*asserts.Account)
-
 	return &snap.SideInfo{
-		RealName:    name,
-		SnapID:      snapID,
-		Revision:    snap.R(snapRev.SnapRevision()),
-		DeveloperID: snapRev.DeveloperID(),
-		Developer:   devAcct.Username(),
+		RealName: name,
+		SnapID:   snapID,
+		Revision: snap.R(snapRev.SnapRevision()),
 	}, nil
 }
 

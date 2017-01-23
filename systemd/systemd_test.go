@@ -195,7 +195,6 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
-
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -381,6 +380,7 @@ Description=Mount unit for foo
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
+Options=ro,allow_other
 
 [Install]
 WantedBy=multi-user.target

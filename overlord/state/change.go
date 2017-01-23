@@ -123,11 +123,18 @@ type Change struct {
 	clean   bool
 	data    customData
 	taskIDs []string
+	lanes   int
 	ready   chan struct{}
 
 	spawnTime time.Time
 	readyTime time.Time
 }
+
+type byReadyTime []*Change
+
+func (a byReadyTime) Len() int           { return len(a) }
+func (a byReadyTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byReadyTime) Less(i, j int) bool { return a[i].readyTime.Before(a[j].readyTime) }
 
 func newChange(state *State, id, kind, summary string) *Change {
 	return &Change{
@@ -150,6 +157,7 @@ type marshalledChange struct {
 	Clean   bool                        `json:"clean,omitempty"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
+	Lanes   int                         `json:"lanes,omitempty"`
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -170,6 +178,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Clean:   c.clean,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
+		Lanes:   c.lanes,
 
 		SpawnTime: c.spawnTime,
 		ReadyTime: readyTime,
@@ -197,6 +206,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	}
 	c.data = custData
 	c.taskIDs = unmarshalled.TaskIDs
+	c.lanes = unmarshalled.Lanes
 	c.ready = make(chan struct{})
 	c.spawnTime = unmarshalled.SpawnTime
 	if unmarshalled.ReadyTime != nil {
@@ -467,21 +477,104 @@ func (c *Change) Tasks() []*Task {
 	return c.state.tasksIn(c.taskIDs)
 }
 
-// Abort flags the change for cancellation, whether in progress or not. Cancellation will proceed at the next ensure pass.
+// Abort flags the change for cancellation, whether in progress or not.
+// Cancellation will proceed at the next ensure pass.
 func (c *Change) Abort() {
 	c.state.writing()
+	tasks := make([]*Task, len(c.taskIDs))
+	for i, tid := range c.taskIDs {
+		tasks[i] = c.state.tasks[tid]
+	}
+	c.abortTasks(tasks, make(map[int]bool))
+}
+
+// AbortLanes aborts all tasks in the provided lanes and any tasks waiting on them,
+// except for tasks that are also in a healthy lane (not aborted, and not waiting
+// on aborted).
+func (c *Change) AbortLanes(lanes []int) {
+	c.state.writing()
+	c.abortLanes(lanes, make(map[int]bool))
+}
+
+func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool) {
+	var hasLive = make(map[int]bool)
+	var hasDead = make(map[int]bool)
+	var laneTasks []*Task
+NextChangeTask:
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
+
+		var live bool
+		switch t.Status() {
+		case DoStatus, DoingStatus, DoneStatus:
+			live = true
+		}
+
+		for _, tlane := range t.Lanes() {
+			for _, lane := range lanes {
+				if tlane == lane {
+					laneTasks = append(laneTasks, t)
+					continue NextChangeTask
+				}
+			}
+
+			// Track opinion about lanes not in the kill list.
+			// If the lane ends up being entirely live, we'll
+			// preserve this task alive too.
+			if live {
+				hasLive[tlane] = true
+			} else {
+				hasDead[tlane] = true
+			}
+		}
+	}
+
+	abortTasks := make([]*Task, 0, len(laneTasks))
+NextLaneTask:
+	for _, t := range laneTasks {
+		for _, tlane := range t.Lanes() {
+			if hasLive[tlane] && !hasDead[tlane] {
+				continue NextLaneTask
+			}
+		}
+		abortTasks = append(abortTasks, t)
+	}
+
+	for _, lane := range lanes {
+		abortedLanes[lane] = true
+	}
+	if len(abortTasks) > 0 {
+		c.abortTasks(abortTasks, abortedLanes)
+	}
+}
+
+func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool) {
+	var lanes []int
+	for i := 0; i < len(tasks); i++ {
+		t := tasks[i]
 		switch t.Status() {
 		case DoStatus:
 			// Still pending so don't even start.
 			t.SetStatus(HoldStatus)
-		case DoneStatus:
-			// Already done so undo it.
-			t.SetStatus(UndoStatus)
 		case DoingStatus:
 			// In progress so stop and undo it.
 			t.SetStatus(AbortStatus)
+		case DoneStatus:
+			// Already done so undo it.
+			t.SetStatus(UndoStatus)
 		}
+
+		for _, lane := range t.Lanes() {
+			if !abortedLanes[lane] {
+				lanes = append(lanes, t.Lanes()...)
+			}
+		}
+
+		for _, halted := range t.HaltTasks() {
+			tasks = append(tasks, halted)
+		}
+	}
+	if len(lanes) > 0 {
+		c.abortLanes(lanes, abortedLanes)
 	}
 }

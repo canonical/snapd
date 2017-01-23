@@ -27,11 +27,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gorilla/websocket"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/notifications"
 )
 
 // ResponseType is the response type
@@ -127,6 +124,10 @@ const (
 	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
+
+	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
+	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
+	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 )
 
 type errorValue interface{}
@@ -222,29 +223,6 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 	}
-}
-
-type eventResponse struct {
-	h *notifications.Hub
-}
-
-// EventResponse returns a response whose ServerHTTP method creates a websocket
-// connection used to communicate operation and logging notifications.
-func EventResponse(hub *notifications.Hub) Response {
-	return &eventResponse{h: hub}
-}
-
-func (e eventResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{}
-
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		w.Write([]byte(fmt.Sprintf("websocket upgrade failed: %v", err)))
-		return
-	}
-
-	s := notifications.NewSubscriber(c, r)
-	e.h.Subscribe(s)
 }
 
 // errorResponder is a callable that produces an error Response.

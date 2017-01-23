@@ -29,7 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backendtest"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -39,11 +39,18 @@ func Test(t *testing.T) {
 }
 
 type backendSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 	modprobeCmd *testutil.MockCmd
 }
 
 var _ = Suite(&backendSuite{})
+
+var testedConfinementOpts = []interfaces.ConfinementOptions{
+	{},
+	{DevMode: true},
+	{JailMode: true},
+	{Classic: true},
+}
 
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &kmod.Backend{}
@@ -57,7 +64,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "kmod")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityKMod)
 }
 
 func (s *backendSuite) TestUniqueLines(c *C) {
@@ -91,9 +98,9 @@ func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
 	c.Assert(osutil.FileExists(path), Equals, false)
 
-	for _, devMode := range []bool{true, false} {
+	for _, opts := range testedConfinementOpts {
 		s.modprobeCmd.ForgetCalls()
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 
 		c.Assert(osutil.FileExists(path), Equals, true)
 		modfile, err := ioutil.ReadFile(path)
@@ -120,8 +127,8 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
 	c.Assert(osutil.FileExists(path), Equals, false)
 
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		c.Assert(osutil.FileExists(path), Equals, true)
 		s.RemoveSnap(c, snapInfo)
 		c.Assert(osutil.FileExists(path), Equals, false)
@@ -136,10 +143,10 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		}
 		return nil, nil
 	}
-	for _, devMode := range []bool{true, false} {
-		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		s.modprobeCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, devMode, s.Repo)
+		err := s.Backend.Setup(snapInfo, opts, s.Repo)
 		c.Assert(err, IsNil)
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)

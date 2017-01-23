@@ -72,6 +72,7 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /etc/mailcap r,
 /usr/share/applications/{,*} r,
 /var/lib/snapd/desktop/applications/{,*} r,
+owner @{PROC}/@{pid}/fd/[0-9]* w,
 
 # Various files in /run/udev/data needed by Chrome Settings. Leaks device
 # information.
@@ -123,11 +124,18 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /run/udev/data/+usb:[0-9]* r,
 
 # experimental
+/run/udev/data/b253:[0-9]* r,
+/run/udev/data/b259:[0-9]* r,
+/run/udev/data/c242:[0-9]* r,
+/run/udev/data/c243:[0-9]* r,
 /run/udev/data/c245:[0-9]* r,
 /run/udev/data/c246:[0-9]* r,
+/run/udev/data/c247:[0-9]* r,
 /run/udev/data/c248:[0-9]* r,
 /run/udev/data/c249:[0-9]* r,
+/run/udev/data/c250:[0-9]* r,
 /run/udev/data/c251:[0-9]* r,
+/run/udev/data/c254:[0-9]* r,
 
 /sys/bus/**/devices/ r,
 
@@ -137,6 +145,7 @@ unix (bind)
      addr="@[0-9A-F]*._service_*",
 
 # Policy needed only when using the chrome/chromium setuid sandbox
+capability sys_ptrace,
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
 
@@ -168,6 +177,9 @@ capability sys_chroot,
 owner @{PROC}/@{pid}/setgroups rw,
 owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
+
+# Webkit uses a particular SHM names # LP: 1578217
+owner /{dev,run}/shm/WK2SharedMemory.* rw,
 `
 
 const browserSupportConnectedPlugSecComp = `
@@ -258,10 +270,6 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
-}
-
-func (iface *BrowserSupportInterface) LegacyAutoConnect() bool {
-	return true
 }
 
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

@@ -28,10 +28,12 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+
+	"golang.org/x/net/context"
 )
 
 // DownloadOptions carries options for downloading snaps plus assertions.
@@ -44,14 +46,14 @@ type DownloadOptions struct {
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
-	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
-	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
+	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
 
 // DownloadSnap downloads the snap with the given name and optionally revision  using the provided store and options. It returns the final full path of the snap inside the opts.TargetDir and a snap.Info for the snap.
-func DownloadSnap(sto Store, name string, revision snap.Revision, opts *DownloadOptions) (targetPath string, info *snap.Info, err error) {
+func DownloadSnap(sto Store, name string, revision snap.Revision, opts *DownloadOptions) (targetFn string, info *snap.Info, err error) {
 	if opts == nil {
 		opts = &DownloadOptions{}
 	}
@@ -65,24 +67,25 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, opts.DevMode, revision, opts.User)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  opts.Channel,
+		Revision: revision,
+	}
+	snap, err := sto.SnapInfo(spec, opts.User)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
-	pb := progress.NewTextProgress()
-	tmpName, err := sto.Download(name, &snap.DownloadInfo, pb, opts.User)
-	if err != nil {
-		return "", nil, err
-	}
-	defer os.Remove(tmpName)
 
 	baseName := filepath.Base(snap.MountFile())
-	targetPath = filepath.Join(targetDir, baseName)
-	if err := osutil.CopyFile(tmpName, targetPath, 0); err != nil {
+	targetFn = filepath.Join(targetDir, baseName)
+
+	pb := progress.NewTextProgress()
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, opts.User); err != nil {
 		return "", nil, err
 	}
 
-	return targetPath, snap, nil
+	return targetFn, snap, nil
 }
 
 // StoreAssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.

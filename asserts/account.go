@@ -89,7 +89,10 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// TODO: username is optional (atm) but if it's there it must be a string
+	_, err = checkOptionalString(assert.headers, "username")
+	if err != nil {
+		return nil, err
+	}
 
 	return &Account{
 		assertionBase: assert,

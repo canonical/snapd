@@ -264,6 +264,7 @@ open
 
 openat
 pause
+personality
 pipe
 pipe2
 poll
@@ -398,6 +399,7 @@ socket
 connect
 
 # needed by snapctl
+getsockopt
 setsockopt
 getsockname
 getpeername

@@ -32,7 +32,6 @@ var (
 
 	SnapMountDir              string
 	SnapBlobDir               string
-	SnapPartialBlobDir        string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
 	SnapAppArmorDir           string
@@ -67,6 +66,8 @@ var (
 	ClassicDir string
 
 	LibExecDir string
+
+	XdgRuntimeDirGlob string
 )
 
 var (
@@ -114,7 +115,6 @@ func SetRootDir(rootdir string) {
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
-	SnapPartialBlobDir = filepath.Join(SnapBlobDir, "partial")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
 
@@ -144,4 +144,6 @@ func SetRootDir(rootdir string) {
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
 	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+
+	XdgRuntimeDirGlob = filepath.Join(rootdir, "/run/user/*/")
 }

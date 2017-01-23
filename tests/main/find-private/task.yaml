@@ -1,7 +1,10 @@
 summary: Check that find works with private snaps.
 
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
+
 details: |
-    These tests rely on the existence of a snap in the production store set to private.
+    These tests rely on the existence of a snap in the remote store set to private.
 
     In order to do the full checks, it also needs the credentials of the owner of that
     snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if

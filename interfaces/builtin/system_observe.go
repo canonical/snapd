@@ -51,14 +51,23 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
+@{PROC}/meminfo r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cmdline r,
+@{PROC}/*/{,task/*/}exe r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/hostname1
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
@@ -74,6 +83,16 @@ const systemObserveConnectedPlugSecComp = `
 # Note: may uncomment once ubuntu-core-launcher understands @deny rules and
 # if/when we conditionally deny this in the future.
 #@deny ptrace
+
+# for connecting to /org/freedesktop/hostname1 over DBus
+connect
+getsockname
+recvfrom
+recvmsg
+send
+sendto
+sendmsg
+socket
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.

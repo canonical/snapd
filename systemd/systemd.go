@@ -441,9 +441,8 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 	if osutil.IsDirectory(what) {
 		extra = "Options=bind\n"
 		fstype = "none"
-	}
-
-	if fstype == "squashfs" && useFuse() {
+	} else if fstype == "squashfs" && useFuse() {
+		extra = "Options=ro,allow_other\n"
 		fstype = "fuse.squashfuse"
 	}
 

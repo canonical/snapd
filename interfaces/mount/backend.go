@@ -44,12 +44,12 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "mount"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityMount
 }
 
 // Setup creates mount mount profile files specific to a given snap.
-func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityMount)
@@ -127,4 +127,8 @@ func addContent(securityTag string, executableSnippets [][]byte, content map[str
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/expect -f
 
-set timeout 2
+set timeout 20
 
 spawn bash
 

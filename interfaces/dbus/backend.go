@@ -42,14 +42,14 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
+func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
 // Setup creates dbus configuration files specific to a given snap.
 //
-// DBus has no concept of a complain mode so devMode is not supported
-func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+// DBus has no concept of a complain mode so confinment type is ignored.
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityDBus)
@@ -130,4 +130,8 @@ func addContent(securityTag string, executableSnippets [][]byte, content map[str
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }
