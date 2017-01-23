@@ -1,0 +1,12 @@
+name: ssh-control-consumer
+version: 1.0
+summary: Basic ssh-control consumer snap
+description: A basic snap declaring a plug on a ssh-control slot
+
+apps:
+  read:
+    command: bin/read
+    plugs: [ssh-control]
+  write:
+    command: bin/write
+    plugs: [ssh-control]
