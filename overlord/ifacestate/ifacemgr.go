@@ -134,10 +134,10 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugName, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotName, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
 		return nil, err
 	}
 
