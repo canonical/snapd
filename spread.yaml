@@ -199,7 +199,8 @@ repack: |
 prepare: |
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+    sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+    trap 'for iff in all lo; do sysctl -w net.ipv6.conf.$iff.disable_ipv6=0; done;' EXIT
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
