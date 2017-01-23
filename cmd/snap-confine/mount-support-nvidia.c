@@ -28,9 +28,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "classic.h"
-#include "cleanup-funcs.h"
-#include "utils.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/utils.h"
 
 #ifdef NVIDIA_ARCH
 

@@ -26,12 +26,14 @@ update_core_snap_for_classic_reexec() {
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # also inject new version of snap-confine and snap-scard-ns
+    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
     cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
     cp /usr/bin/snap squashfs-root/usr/bin/snap
-
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -46,7 +48,7 @@ update_core_snap_for_classic_reexec() {
     mount "$snap" "$core"
 
     # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
         if ! cmp ${p} ${core}${p}; then
             echo "$p in tree and $p in core snap are unexpectedly not the same"
             exit 1
@@ -58,6 +60,7 @@ prepare_each_classic() {
     if [ -z "${SNAP_REEXEC:-}" ]; then
         rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     else
+        mkdir -p /etc/systemd/system/snapd.service.d
         cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
