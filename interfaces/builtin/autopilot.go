@@ -24,8 +24,8 @@ import (
 )
 
 const autopilotIntrospectionPlugAppArmor = `
-# Description: Allows Autopilot to introspect an app and get its
-# ui status over dbus
+# Description: Allows an application to be introspected and export its ui
+# status over dbus
 
 dbus (send, receive)
     bus=session
