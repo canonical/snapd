@@ -1,0 +1,23 @@
+summary: Check that is possible to handle user accounts
+
+details: |
+    This test makes sure that a snap using the accounts-control interface
+    can handle the user accounts properly.
+
+prepare: |
+    echo "Given a snap declaring a plug on accounts-control is installed"
+    . $TESTSLIB/snaps.sh
+    install_local accounts-control-consumer
+
+    echo "And the accounts-control plug is connected"
+    . "$TESTSLIB/names.sh"
+    snap connect accounts-control-consumer:accounts-control ${core_name}
+
+systems: [ubuntu-core-16-64]
+
+execute: |
+    /snap/bin/accounts-control-consumer.useradd --extrausers alice
+    echo alice:password |/snap/bin/accounts-control-consumer.chpasswd
+
+    # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
+    # /snap/bin/accounts-control-consumer.userdel --extrausers alice

@@ -56,6 +56,7 @@ var allInterfaces = []interfaces.Interface{
 	&UbuntuDownloadManagerInterface{},
 	&UpowerObserveInterface{},
 	&UhidInterface{},
+	NewAccountsControlInterface(),
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
