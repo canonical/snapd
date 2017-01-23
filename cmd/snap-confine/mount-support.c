@@ -31,12 +31,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "classic.h"
-#include "cleanup-funcs.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
 #include "quirks.h"
-#include "snap.h"
-#include "utils.h"
 
 #define MAX_BUF 1000
 

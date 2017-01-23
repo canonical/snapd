@@ -55,8 +55,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "apparmor"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityAppArmor
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.
@@ -156,7 +156,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 		switch {
 		case bytes.Equal(placeholder, placeholderVar):
-			return templateVariables(snapInfo)
+			return templateVariables(snapInfo, securityTag)
 		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
 		case bytes.Equal(placeholder, placeholderSnippets):
@@ -204,4 +204,8 @@ func unloadProfiles(profiles []string) error {
 		}
 	}
 	return nil
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

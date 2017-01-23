@@ -52,7 +52,7 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
+func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
 }
 
@@ -149,4 +149,8 @@ func uniqueLines(lines []string) (deduplicated []string) {
 		}
 	}
 	return deduplicated
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }
