@@ -62,7 +62,8 @@ quiet apt-get purge -y snapd snap-confine ubuntu-core-launcher
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"
-quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git
+quiet apt-get install -y build-essential curl devscripts expect gdebi-core jq rng-tools git \
+      $(test "$(uname -m)" = "x86_64" && echo golang-race-detector-runtime)
 
 # in 16.04: apt build-dep -y ./
 quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
@@ -96,7 +97,7 @@ unset owner
 
 echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 chown test.test -R ..
-quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys race' dpkg-buildpackage -tc -b -Zgzip" test
 # put our debs to a safe place
 cp ../*.deb $GOPATH
 
