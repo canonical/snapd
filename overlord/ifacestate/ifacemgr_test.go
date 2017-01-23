@@ -173,11 +173,11 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 	// verify initial attributes are present in connect task
-	var attrs map[string]interface{}
+	var attrs map[string]map[string]interface{}
 	err = task.Get("attributes", &attrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs["attr1"], Equals, "value1")
-	c.Assert(attrs["attr2"], Equals, "value2")
+	c.Assert(attrs["consumer"]["attr1"], Equals, "value1")
+	c.Assert(attrs["producer"]["attr2"], Equals, "value2")
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")

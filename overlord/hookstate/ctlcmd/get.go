@@ -63,12 +63,13 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 type getCommand struct {
 	baseCommand
 
+	// these two options are mutually exclusive
 	ForceSlotSide bool `long:"slot" description:"request attribute of the slot"`
 	ForcePlugSide bool `long:"plug" description:"request attribute of the plug"`
 
 	Positional struct {
-		PlugOrSlotSpec SnapAndName `positional-args:"true" positional-arg-name:"<snap>:<plug|slot>"`
-		Keys           []string    `positional-arg-name:"<keys>" description:"option keys" required:"yes"`
+		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:"<snap>:<plug|slot>" required:"yes"`
+		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
 	Document bool `short:"d" description:"always return document, even with single key"`
@@ -132,8 +133,21 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
-	if c.Positional.PlugOrSlotSpec.Name != "" {
-		return c.handleGetInterfaceAttributes(context, c.Positional.PlugOrSlotSpec.Snap, c.Positional.PlugOrSlotSpec.Name)
+	var snapAndPlugOrSlot SnapAndName
+	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
+	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
+		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
+		c.Positional.PlugOrSlotSpec = ""
+	} else {
+		snapAndPlugOrSlot.UnmarshalFlag(c.Positional.PlugOrSlotSpec)
+	}
+
+	if snapAndPlugOrSlot.Name != "" {
+		return c.handleGetInterfaceAttributes(context, snapAndPlugOrSlot.Snap, snapAndPlugOrSlot.Name)
+	}
+
+	if c.ForcePlugSide || c.ForceSlotSide {
+		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
 	}
 
 	patch := make(map[string]interface{})
@@ -197,6 +211,10 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 	}
 	if err != nil {
 		return err
+	}
+
+	if c.ForcePlugSide && c.ForceSlotSide {
+		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
 	if snapName == "" {
