@@ -214,6 +214,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 	panic("internal error: snapstate.Configure is unset")
 }
 
+// CheckChangeConflict ensures that for the given snapName no other changes
+// that alters the snap (like remove, install, refresh) is in progress. It
+// also ensures that snapst does not got modified. If a conflict happens
+// an error is returned.
 func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
 	for _, task := range st.Tasks() {
 		k := task.Kind()
