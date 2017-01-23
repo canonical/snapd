@@ -466,6 +466,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  ssh-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   system-observe:
     allow-installation:
       slot-snap-type:
