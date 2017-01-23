@@ -41,6 +41,8 @@ type SerialPortInterfaceSuite struct {
 	badPathSlot1     *interfaces.Slot
 	badPathSlot2     *interfaces.Slot
 	badPathSlot3     *interfaces.Slot
+	badPathSlot4     *interfaces.Slot
+	badPathSlot5     *interfaces.Slot
 	badInterfaceSlot *interfaces.Slot
 
 	// Gadget Snap
@@ -86,6 +88,12 @@ slots:
     bad-path-3:
         interface: serial-port
         path: /dev/usb
+    bad-path-4:
+        interface: serial-port
+        path: /dev/tty2
+    bad-path-5:
+        interface: serial-port
+        path: /dev/ttyUSB
     bad-interface: other-interface
 `, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
@@ -96,6 +104,8 @@ slots:
 	s.badPathSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-1"]}
 	s.badPathSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-2"]}
 	s.badPathSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-3"]}
+	s.badPathSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-4"]}
+	s.badPathSlot5 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-5"]}
 	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-interface"]}
 
 	gadgetSnapInfo := snaptest.MockInfo(c, `
@@ -171,7 +181,7 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	c.Assert(err, ErrorMatches, `serial-port slot must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
-	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3} {
+	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3, s.badPathSlot4, s.badPathSlot5} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
