@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,43 +15,9 @@
  *
  */
 
-#include "cleanup-funcs.h"
+#include "secure-getenv.h"
+#include "secure-getenv.c"
 
-#include <mntent.h>
-#include <unistd.h>
+#include <glib.h>
 
-void sc_cleanup_string(char **ptr)
-{
-	free(*ptr);
-}
-
-void sc_cleanup_file(FILE ** ptr)
-{
-	if (*ptr != NULL)
-		fclose(*ptr);
-}
-
-void sc_cleanup_endmntent(FILE ** ptr)
-{
-	if (*ptr != NULL)
-		endmntent(*ptr);
-}
-
-#ifdef HAVE_SECCOMP
-void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
-{
-	seccomp_release(*ptr);
-}
-#endif				// HAVE_SECCOMP
-
-void sc_cleanup_closedir(DIR ** ptr)
-{
-	if (*ptr != NULL) {
-		closedir(*ptr);
-	}
-}
-
-void sc_cleanup_close(int *ptr)
-{
-	close(*ptr);
-}
+// TODO: write some tests

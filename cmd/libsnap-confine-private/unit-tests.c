@@ -14,22 +14,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-#include "../libsnap-confine-private/utils.h"
-#include "../snap-confine/ns-support.h"
+#include "unit-tests.h"
+#include <glib.h>
 
-int main(int argc, char **argv)
+int sc_run_unit_tests(int *argc, char ***argv)
 {
-	if (argc != 2)
-		die("Usage: %s snap-name", argv[0]);
-	const char *snap_name = argv[1];
-	struct sc_ns_group *group =
-	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
-	if (group != NULL) {
-		sc_lock_ns_mutex(group);
-		sc_discard_preserved_ns_group(group);
-		sc_unlock_ns_mutex(group);
-		sc_close_ns_group(group);
-	}
-	return 0;
+	g_test_init(argc, argv, NULL);
+	g_test_set_nonfatal_assertions();
+	return g_test_run();
 }

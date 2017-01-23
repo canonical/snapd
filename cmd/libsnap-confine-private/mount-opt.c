@@ -21,6 +21,8 @@
 #include <string.h>
 #include <sys/mount.h>
 
+#include "../libsnap-confine-private/utils.h"
+
 const char *sc_mount_opt2str(unsigned long flags)
 {
 	static char buf[1000];
