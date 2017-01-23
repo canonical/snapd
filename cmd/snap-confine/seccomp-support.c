@@ -17,28 +17,26 @@
 #include "config.h"
 #include "seccomp-support.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <search.h>
 #include <ctype.h>
+#include <errno.h>
+#include <linux/can.h>		// needed for search mappings
+#include <sched.h>
+#include <search.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/utsname.h>
-
-// needed for search mappings
-#include <linux/can.h>
+#include <string.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
-#include <sched.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 
 #include <seccomp.h>
 
-#include "utils.h"
-#include "secure-getenv.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
 
