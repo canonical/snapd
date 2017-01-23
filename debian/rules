@@ -50,9 +50,11 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 endif
 
 # check whether we want to build with the race detector
-ifeq ($(GOARCH),"amd64")
+ifneq ($(VERSION_ID),"14.04")
+ifeq ($(GOARCH),amd64)
 ifneq (,$(filter race,$(DEB_BUILD_OPTIONS)))
-TAGS=$(TAGS) -race
+BUILDFLAGS:=-race
+endif
 endif
 endif
 
