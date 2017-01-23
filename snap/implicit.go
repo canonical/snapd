@@ -28,6 +28,7 @@ import (
 )
 
 var implicitSlots = []string{
+	"accounts-control",
 	"alsa",
 	"bluetooth-control",
 	"camera",

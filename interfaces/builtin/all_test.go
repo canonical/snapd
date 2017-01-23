@@ -59,6 +59,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.UbuntuDownloadManagerInterface{})
 	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, Contains, &builtin.UhidInterface{})
+	c.Check(all, DeepContains, builtin.NewAccountsControlInterface())
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
