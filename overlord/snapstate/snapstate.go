@@ -747,7 +747,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 			return nil, err
 		}
 		if !validInfoForFlags(info, snapst, flags) {
-			return nil, snap.NoUpdateAvailableError{name}
+			return nil, snap.NoUpdateAvailableError{Snap: name}
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
