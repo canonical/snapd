@@ -33,7 +33,7 @@ import (
 // SnapAndName holds a snap name and a plug or slot name.
 // TODO move this somewhere else to share the code with main cmd
 type SnapAndName struct {
-	Snap string `positional-arg-name:"<snappp>"`
+	Snap string `positional-arg-name:"<snap>"`
 	Name string
 }
 
@@ -100,7 +100,7 @@ Values of plug or slot attributes may be printed in plug hooks via:
     $ snapctl get :plugname serial-path
 	/dev/ttyS0
 
-	$snapctl get --slot :slotname camera-path
+	$ snapctl get --slot :slotname camera-path
 	/dev/video0
 
 Values of plug or slot attributes may be printed in slot hooks via:
@@ -108,7 +108,7 @@ Values of plug or slot attributes may be printed in slot hooks via:
     $ snapctl get --plug :slotname serial-path
 	/dev/ttyS0
 
-	$snapctl get :slotname camera-path
+	$ snapctl get :slotname camera-path
 	/dev/video0
 `)
 
