@@ -355,4 +355,9 @@
 
     # Allow snap-confine to be killed
     signal (receive) peer=unconfined,
+
+    # Required when using unpatched upstream kernel
+    capability sys_ptrace,
+    # Debian compiles snap-confine without AppArmor, so allow running snaps unconfined
+    /usr/lib/snapd/snap-exec uxr,
 }
