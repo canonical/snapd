@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <regex.h>
 
-#include "utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 bool verify_security_tag(const char *security_tag)
 {
