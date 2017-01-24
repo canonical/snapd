@@ -1614,6 +1614,7 @@ slots:
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "1",
 		"slots": map[string]interface{}{
 			"test": "true",
 		},
