@@ -162,6 +162,10 @@ setup_reflash_magic() {
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
 
+        # holly cow!
+        mkdir -p $UNPACKD/etc/resolvconf/resolv.conf.d
+        echo "nameserver 8.8.8.8" >> $UNPACKD/etc/resolvconf/resolv.conf.d/tail
+
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
         echo "$want_pw" > /tmp/new-shadow
