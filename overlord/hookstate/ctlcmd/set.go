@@ -35,7 +35,7 @@ type setCommand struct {
 	baseCommand
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-arg-name:"<snap>:<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>" required:"yes"`
 		ConfValues     []string `positional-arg-name:"key=value"`
 	} `positional-args:"yes"`
 }
@@ -52,6 +52,14 @@ returns successfully.
 Nested values may be modified via a dotted path:
 
     $ snapctl set author.name=frank
+
+Plug attributes may be set in the prepare- and connect- plug hooks via:
+
+    $ snapctl set :plugname serial-path=/dev/ttyS0
+
+Slot attributes may be set in the prepare- and connect- slot hooks via:
+
+    $ snapctl set :slotname camera-path=/dev/video0
 `)
 
 func init() {

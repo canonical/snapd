@@ -39,7 +39,7 @@ type getCommand struct {
 	ForcePlugSide bool `long:"plug" description:"request attribute of the plug"`
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:"<snap>:<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>" required:"yes"`
 		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
