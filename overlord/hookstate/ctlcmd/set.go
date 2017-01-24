@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type setCommand struct {
@@ -63,7 +64,7 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	var snapAndPlugOrSlot SnapAndName
+	var snapAndPlugOrSlot snap.SnapAndName
 	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
 	// valus such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
 	if strings.Contains(s.Positional.PlugOrSlotSpec, "=") || !strings.Contains(s.Positional.PlugOrSlotSpec, ":") {

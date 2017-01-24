@@ -28,37 +28,8 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
-
-// SnapAndName holds a snap name and a plug or slot name.
-// TODO move this somewhere else to share the code with main cmd
-type SnapAndName struct {
-	Snap string `positional-arg-name:"<snap>"`
-	Name string
-}
-
-// UnmarshalFlag unmarshals snap and plug or slot name.
-// TODO move this somewhere else to share the code with main cmd
-func (sn *SnapAndName) UnmarshalFlag(value string) error {
-	parts := strings.Split(value, ":")
-	sn.Snap = ""
-	sn.Name = ""
-	switch len(parts) {
-	case 1:
-		sn.Snap = parts[0]
-	case 2:
-		sn.Snap = parts[0]
-		sn.Name = parts[1]
-		// Reject "snap:" (that should be spelled as "snap")
-		if sn.Name == "" {
-			sn.Snap = ""
-		}
-	}
-	if sn.Snap == "" && sn.Name == "" {
-		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
-	}
-	return nil
-}
 
 type getCommand struct {
 	baseCommand
@@ -133,7 +104,7 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
-	var snapAndPlugOrSlot SnapAndName
+	var snapAndPlugOrSlot snap.SnapAndName
 	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
 	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
 		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
