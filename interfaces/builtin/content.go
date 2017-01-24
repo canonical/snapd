@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -127,10 +128,14 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	src := resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions []string) mount.Entry {
+	options := []string{"bind"}
+	options = append(options, extraOptions)
+	return mount.Entry{
+		FsName:  resolveSpecialVariable(relSrc, slot.Snap),
+		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Options: options,
+	}
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -169,10 +174,10 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return contentSnippet.Bytes(), nil
 	case interfaces.SecurityMount:
 		for _, r := range iface.path(slot, "read") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, []string{"ro"}).String())
 		}
 		for _, w := range iface.path(slot, "write") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
+			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, nil).String())
 		}
 		return contentSnippet.Bytes(), nil
 	}
@@ -183,6 +188,42 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	return nil, nil
 }
 
+func (iface *ContentInterface) PermanentMountPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return plug.Attrs["content"] == slot.Attrs["content"]
+}
+
+// ConnectedPlugMounts registers mount entries desired when a given plug
+// and slot are connected. The entries will be effective in the snap
+// containing the plug.
+func (iface *ContentInterface) ConnectedPlugMounts(b *mount.BackendCtrl, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, r := range iface.path(slot, "read") {
+		b.AddMountEntry(mountEntry(plug, slot, r, []String{"ro"}))
+	}
+	for _, w := range iface.path(slot, "write") {
+		b.AddMountEntry(mountEntry(plug, slot, w, nil))
+	}
+	return nil
+}
+
+// ConnectedSlotMounts registers mount entries desired when a given plug
+// and slot are connected. The entries will be effective in the snap
+// containing the slot.
+func (iface *ContentInterface) ConnectedSlotMounts(b *mount.BackendCtrl, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return nil
+}
+
+// PermanentPlugMounts registers mount entries desired whenever a given
+// plug exists.
+func (iface *ContentInterface) PermanentPlugMounts(b *mount.BackendCtrl, plug *interfaces.Plug) error {
+	return nil
+}
+
+// PermanentSlotMounts registers mount entries desired whenever a given
+// slot exists.
+func (iface *ContentInterface) PermanentSlotMounts(b *mount.BackendCtrl, slot *interfaces.Slot) error {
+	return nil
 }
