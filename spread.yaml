@@ -172,8 +172,9 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
+    cat /etc/network/interfaces || true
     cat /etc/resolv.conf || true
-    cat /run/systemd/resolve/resolv.conf  || true
+    cat /etc/resolvconf/resolv.conf.d/* || true
     journalctl -u snapd
     dmesg | grep DENIED || true
 
