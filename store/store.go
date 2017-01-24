@@ -596,8 +596,9 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		logRetryAttempt(reqOptions, attempt, startTime)
-
+		if attempt.Count() > 1 {
+			logRetryAttempt(reqOptions, attempt, startTime)
+		}
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
