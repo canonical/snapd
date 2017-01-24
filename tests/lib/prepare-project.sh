@@ -75,10 +75,8 @@ if [ "$(which govendor)" = "" ]; then
 fi
 quiet govendor sync
 
-# increment version so upgrade can work, use "zzz" as version
-# component to ensure that its higher than any "ubuntuN" version
-# that might also be in the archive
-dch -lzzz "testing build"
+# Use fake version to ensure we are always bigger than anything else
+dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
 if ! id test >& /dev/null; then
    # manually setting the UID and GID to 12345 because we need to
