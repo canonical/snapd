@@ -312,9 +312,11 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_rr_get_interval
-# LP: #1446748 - when support syscall arg filtering, enforce pid_t is 0 so the
-# app may only change its own scheduler
-sched_setscheduler
+# enforce pid_t is 0 so the app may only change its own scheduler and affinity.
+# Use process-control interface for controlling other pids.
+sched_setaffinity 0 - -
+sched_setparam 0 -
+sched_setscheduler 0 - -
 
 sched_yield
 
