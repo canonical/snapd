@@ -316,8 +316,8 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
-	if !validInfoForFlags(info, &snapst, flags) {
-		return nil, store.ErrSnapNotFound
+	if err := checkSnapInfo(info, &snapst, flags); err != nil {
+		return nil, err
 	}
 
 	snapsup := &SnapSetup{
@@ -519,9 +519,12 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
-		if !validInfoForFlags(update, snapst, flags) {
-			// XXX: log something
-			continue
+		if err := checkSnapInfo(update, snapst, flags); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
 		}
 
 		snapsup := &SnapSetup{
@@ -718,31 +721,6 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	return flat, nil
 }
 
-func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
-	switch c := info.Confinement; c {
-	case snap.StrictConfinement, "":
-		// strict is always fine
-		return true
-	case snap.DevModeConfinement:
-		// --devmode needs to be specified every time (==> ignore snapst)
-		return flags.DevModeAllowed()
-	case snap.ClassicConfinement:
-		if flags.Classic {
-			return true
-		}
-
-		if snapst != nil && snapst.Flags.Classic {
-			return true
-		}
-
-		return false
-	default:
-		logger.Noticef("unknown confinement %q", c)
-	}
-
-	return false
-}
-
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
@@ -750,8 +728,8 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		if err != nil {
 			return nil, err
 		}
-		if !validInfoForFlags(info, snapst, flags) {
-			return nil, snap.NoUpdateAvailableError{Snap: name}
+		if err := checkSnapInfo(info, snapst, flags); err != nil {
+			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
