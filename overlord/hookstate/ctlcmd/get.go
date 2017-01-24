@@ -217,20 +217,26 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
+	// the typical case, we don't expect snap name to be provided via snapctl get :<plug|slot> ...
+	// if it's provided it should be the current snap, otherwise it's an error.
 	if snapName == "" {
-		// snap name not given, default to the other end of the interface connection unless
-		// --slot or --plug argument is provided.
 		isPlugSide := (strings.HasPrefix(context.HookName(), "prepare-plug-") || strings.HasPrefix(context.HookName(), "connect-plug-"))
 		isSlotSide := (strings.HasPrefix(context.HookName(), "prepare-slot-") || strings.HasPrefix(context.HookName(), "connect-slot-"))
-		if (c.ForcePlugSide && isPlugSide) || (c.ForceSlotSide && isSlotSide) {
-			// get own attributes
-			snapName = context.SnapName()
-		} else {
+		if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
 			// get attributes of the remote end
 			err = context.Get("other-snap", &snapName)
 			if err != nil {
-				return fmt.Errorf(i18n.G("failed to get the other snap name from hook context: %q"), err)
+				// this should never happen unless the context is inconsistent
+				return fmt.Errorf(i18n.G("failed to get the name of the other snap from hook context: %q"), err)
 			}
+		} else {
+			// get own attributes
+			snapName = context.SnapName()
+		}
+	} else {
+		// support the unlikely case where snap name was provided but it's not the current snap.
+		if snapName != context.SnapName() {
+			return fmt.Errorf(i18n.G("snap name other than current snap cannot be used"))
 		}
 	}
 

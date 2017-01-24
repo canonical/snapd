@@ -3,5 +3,5 @@ version: 1.0
 plugs:
     foo:
         interface: content
-        target: import
+        target: initialtarget
         content: x
