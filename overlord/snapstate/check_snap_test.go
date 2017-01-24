@@ -530,7 +530,7 @@ confinement: classic
 
 	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
-	c.Assert(err, ErrorMatches, ".* requires consent to use classic confinement")
+	c.Assert(err, ErrorMatches, ".* requires classic or confinement override")
 }
 
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {

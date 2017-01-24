@@ -192,7 +192,7 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 
 	// if a snap is devmode, you can't install it without --devmode
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap not found`)
+	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 
 	// if a snap is devmode, you *can* install it with --devmode
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
@@ -209,7 +209,7 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 
 	// if a snap is classic, you can't install it without --classic
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap not found`)
+	c.Assert(err, ErrorMatches, `.* requires classic or confinement override`)
 
 	// if a snap is classic, you *can* install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
@@ -800,7 +800,7 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 	// updated snap is devmode, refresh without --devmode, do nothing
 	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 
 	// updated snap is devmode, refresh with --devmode
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
@@ -822,7 +822,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	// updated snap is classic, refresh without --classic, do nothing
 	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, ErrorMatches, `.* requires classic or confinement override`)
 
 	// updated snap is classic, refresh with --classic
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
