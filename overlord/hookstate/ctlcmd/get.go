@@ -94,47 +94,14 @@ func init() {
 		{name: i18n.G("<snap>:<slot>")}})
 }
 
-func (c *getCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot get without a context")
-	}
-
-	if c.Typed && c.Document {
-		return fmt.Errorf("cannot use -d and -t together")
-	}
-
-	var snapAndPlugOrSlot snap.SnapAndName
-	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
-	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
-		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
-		c.Positional.PlugOrSlotSpec = ""
-	} else {
-		snapAndPlugOrSlot.UnmarshalFlag(c.Positional.PlugOrSlotSpec)
-	}
-
-	if snapAndPlugOrSlot.Name != "" {
-		return c.handleGetInterfaceAttributes(context, snapAndPlugOrSlot.Snap, snapAndPlugOrSlot.Name)
-	}
-
-	if c.ForcePlugSide || c.ForceSlotSide {
-		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
-	}
-
+func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error)) error {
 	patch := make(map[string]interface{})
-	context.Lock()
-	transaction := configstate.ContextTransaction(context)
-	context.Unlock()
-
 	for _, key := range c.Positional.Keys {
-		var value interface{}
-		err := transaction.Get(c.context().SnapName(), key, &value)
+		value, output, err := getByKey(key)
 		if err == nil {
-			patch[key] = value
-		} else if configstate.IsNoOption(err) {
-			if !c.Typed {
-				value = ""
-			}
+			if output {
+				patch[key] = value
+			} // else skip this value
 		} else {
 			return err
 		}
@@ -167,6 +134,53 @@ func (c *getCommand) Execute(args []string) error {
 	c.printf("%s\n", string(bytes))
 
 	return nil
+}
+
+func (c *getCommand) Execute(args []string) error {
+	context := c.context()
+	if context == nil {
+		return fmt.Errorf("cannot get without a context")
+	}
+
+	if c.Typed && c.Document {
+		return fmt.Errorf("cannot use -d and -t together")
+	}
+
+	var snapAndPlugOrSlot snap.SnapAndName
+	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
+	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
+		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
+		c.Positional.PlugOrSlotSpec = ""
+	} else {
+		snapAndPlugOrSlot.UnmarshalFlag(c.Positional.PlugOrSlotSpec)
+	}
+
+	if snapAndPlugOrSlot.Name != "" {
+		return c.handleGetInterfaceAttributes(context, snapAndPlugOrSlot.Snap, snapAndPlugOrSlot.Name)
+	}
+
+	if c.ForcePlugSide || c.ForceSlotSide {
+		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
+	}
+
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
+
+	return c.printValues(func(key string) (interface{}, bool, error) {
+		var value interface{}
+		err := transaction.Get(c.context().SnapName(), key, &value)
+		if err == nil {
+			return value, true, nil
+		}
+		if configstate.IsNoOption(err) {
+			if !c.Typed {
+				value = ""
+			}
+			return value, false, nil
+		}
+		return value, false, err
+	})
 }
 
 func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, snapName string, plugOrSlot string) error {
@@ -211,29 +225,10 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 		}
 	}
 
-	attrsToPrint := make(map[string]interface{})
-	for _, key := range c.Positional.Keys {
+	return c.printValues(func(key string) (interface{}, bool, error) {
 		if value, ok := attributes[snapName][key]; ok {
-			attrsToPrint[key] = value
-		} else {
-			return fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			return value, true, nil
 		}
-	}
-
-	if len(attrsToPrint) == 1 {
-		if val, ok := attrsToPrint[c.Positional.Keys[0]].(string); ok {
-			c.printf("%s\n", val)
-			return nil
-		}
-	}
-
-	var bytes []byte
-	bytes, err = json.MarshalIndent(attrsToPrint, "", "\t")
-	if err != nil {
-		return err
-	}
-
-	c.printf("%s\n", string(bytes))
-
-	return nil
+		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+	})
 }
