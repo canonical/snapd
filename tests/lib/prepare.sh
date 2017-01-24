@@ -162,6 +162,11 @@ setup_reflash_magic() {
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
 
+        # some testbeds have very unreliable name servers, we workaround
+        # this here
+        mkdir -p $UNPACKD/etc/resolvconf/resolv.conf.d
+        echo "nameserver 8.8.8.8" >> $UNPACKD/etc/resolvconf/resolv.conf.d/tail
+
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
         echo "$want_pw" > /tmp/new-shadow
@@ -248,7 +253,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d

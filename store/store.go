@@ -596,10 +596,8 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			delta := time.Since(startTime) / time.Millisecond
-			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-		}
+		logRetryAttempt(reqOptions, attempt, startTime)
+
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -1326,6 +1324,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return w.Sync()
 }
 
+func logRetryAttempt(reqOptions *requestOptions, attempt *retry.Attempt, startTime time.Time) {
+	delta := time.Since(startTime) / time.Millisecond
+	logger.Debugf("Retrying %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1334,6 +1337,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
@@ -1369,6 +1373,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		if finalErr != nil {
 			if shouldRetryError(attempt, finalErr) {
+				logRetryAttempt(reqOptions, attempt, startTime)
 				continue
 			}
 			break
@@ -1376,6 +1381,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		if shouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
+			logRetryAttempt(reqOptions, attempt, startTime)
 			continue
 		}
 
