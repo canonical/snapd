@@ -205,7 +205,7 @@ prepare: |
 
     # ensure we have at least one valid nameserver
     mkdir -p /etc/resolvconf/resolv.conf.d
-    echo "nameserver 8.8.8.8" >> /etc/resolvconf/resolv.conf.d/base
+    echo "nameserver 8.8.8.8" >> /etc/resolvconf/resolv.conf.d/tail
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
