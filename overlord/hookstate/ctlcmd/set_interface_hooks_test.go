@@ -43,8 +43,14 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
+	attributes := make(map[string]map[string]interface{})
+	attrs := make(map[string]interface{})
+	attributes["test-snap"] = attrs
+	contextData := map[string]interface{}{"attributes": attributes, "other-snap": "othersnap", "plug-or-slot": "aplug"}
+
 	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-slot-a"}
+	task.Set("hook-context", contextData)
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-a"}
 
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
@@ -52,18 +58,18 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *setAttrSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iset", "foo=bar", `baz=["a", "b"]`})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", ":aplug", "foo=bar", `baz=["a", "b"]`})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
 	s.mockContext.Lock()
 	defer s.mockContext.Unlock()
-	var attrs map[string]interface{}
+	var attrs map[string]map[string]interface{}
 	err = s.mockContext.Get("attributes", &attrs)
 	c.Check(err, IsNil)
-	c.Check(attrs["foo"], Equals, "bar")
-	c.Check(attrs["baz"], DeepEquals, []interface{}{"a", "b"})
+	c.Check(attrs["test-snap"]["foo"], Equals, "bar")
+	c.Check(attrs["test-snap"]["baz"], DeepEquals, []interface{}{"a", "b"})
 }
 
 func (s *setAttrSuite) TestCommandFailsOutsideOfValidContext(c *C) {
@@ -79,9 +85,9 @@ func (s *setAttrSuite) TestCommandFailsOutsideOfValidContext(c *C) {
 	mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"iset", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"})
 	c.Check(err, NotNil)
-	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks`)
+	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of interface hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

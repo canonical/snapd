@@ -43,10 +43,12 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
+	attributes := make(map[string]map[string]interface{})
 	attrs := make(map[string]interface{})
 	attrs["foo"] = "bar"
 	attrs["baz"] = []string{"a", "b"}
-	contextData := map[string]interface{}{"attributes": attrs}
+	attributes["test-snap"] = attrs
+	contextData := map[string]interface{}{"attributes": attributes, "other-snap": "othersnap", "plug-or-slot": "aplug"}
 
 	task := state.NewTask("test-task", "my test task")
 	task.Set("hook-context", contextData)
@@ -58,19 +60,19 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *getAttrSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iget", "foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "foo"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"iget", "baz"})
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "-d", ":aplug", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestUnknownKey(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"iget", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown attribute "x"`)
 	c.Check(string(stdout), Equals, "")
