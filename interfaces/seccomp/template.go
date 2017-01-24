@@ -95,16 +95,14 @@ chmod
 fchmod
 fchmodat
 
-# snappy doesn't currently support per-app UID/GIDs so don't allow chown. To
-# properly support chown, we need to have syscall arg filtering (LP: #1446748)
-# and per-app UID/GIDs.
-#chown
-#chown32
-#fchown
-#fchown32
-#fchownat
-#lchown
-#lchown32
+# snappy doesn't currently support per-app UID/GIDs. All daemons run as 'root'
+# so allow chown to 'root'. DAC will prevent non-root from chowning to root.
+chown - 0 0
+chown32 - 0 0
+fchown - 0 0
+fchown32 - 0 0
+lchown - 0 0
+lchown32 - 0 0
 
 clock_getres
 clock_gettime
