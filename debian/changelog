@@ -1,9 +1,9 @@
-snapd (2.21-2) UNRELEASED; urgency=medium
+snapd (2.21-2) unstable; urgency=medium
 
   * Modify snap-confine's apparmor rules to work on Debian when apparmor is
     enabled on the kernel command line.
 
- -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 25 Jan 2017 09:50:27 +1300
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Wed, 25 Jan 2017 10:26:51 +1300
 
 snapd (2.21-1) unstable; urgency=medium
 
