@@ -184,6 +184,22 @@ func (c *getCommand) Execute(args []string) error {
 }
 
 func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, snapName string, plugOrSlot string) error {
+	// Make sure get :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
+	var isPreparePlugHook, isPrepareSlotHook, isConnectPlugHook, isConnectSlotHook bool
+
+	if strings.HasPrefix(context.HookName(), "prepare-plug-") {
+		isPreparePlugHook = true
+	} else if strings.HasPrefix(context.HookName(), "connect-plug-") {
+		isConnectPlugHook = true
+	} else if strings.HasPrefix(context.HookName(), "prepare-slot-") {
+		isPrepareSlotHook = true
+	} else if strings.HasPrefix(context.HookName(), "connect-slot-") {
+		isConnectSlotHook = true
+	}
+	if !(isPreparePlugHook || isPrepareSlotHook || isConnectPlugHook || isConnectSlotHook) {
+		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
+	}
+
 	var err error
 	var attributes map[string]map[string]interface{}
 
@@ -192,7 +208,7 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 	err = context.Get("attributes", &attributes)
 
 	if err == state.ErrNoState {
-		return fmt.Errorf(i18n.G("no attributes found"))
+		return fmt.Errorf(i18n.G("attributes not found"))
 	}
 	if err != nil {
 		return err
@@ -205,8 +221,8 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 	// the typical case, we don't expect snap name to be provided via snapctl get :<plug|slot> ...
 	// if it's provided it should be the current snap, otherwise it's an error.
 	if snapName == "" {
-		isPlugSide := (strings.HasPrefix(context.HookName(), "prepare-plug-") || strings.HasPrefix(context.HookName(), "connect-plug-"))
-		isSlotSide := (strings.HasPrefix(context.HookName(), "prepare-slot-") || strings.HasPrefix(context.HookName(), "connect-slot-"))
+		isPlugSide := (isPreparePlugHook || isConnectPlugHook)
+		isSlotSide := (isPrepareSlotHook || isConnectSlotHook)
 		if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
 			// get attributes of the remote end
 			err = context.Get("other-snap", &snapName)

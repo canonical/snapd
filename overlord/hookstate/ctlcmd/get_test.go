@@ -27,8 +27,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 
-	. "gopkg.in/check.v1"
 	"strings"
+
+	. "gopkg.in/check.v1"
 )
 
 type getSuite struct {
@@ -63,6 +64,9 @@ var getTests = []struct {
 }{{
 	args:  "get --foo",
 	error: ".*unknown flag.*foo.*",
+}, {
+	args:  "get :foo bar",
+	error: ".*interface attributes can only be read during the execution of interface hooks.*",
 }, {
 	args:   "get test-key1",
 	stdout: "test-value1\n",

@@ -108,11 +108,19 @@ func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, pl
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
 		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
-		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of interface hooks"))
 	}
 
 	context.Lock()
 	defer context.Unlock()
+
+	var attributes map[string]map[string]interface{}
+	if err := context.Get("attributes", &attributes); err != nil {
+		if err == state.ErrNoState {
+			return fmt.Errorf(i18n.G("attributes not found"))
+		}
+		return err
+	}
 
 	// check if the requested plug or slot is correct for this hook.
 	var val string
@@ -121,14 +129,6 @@ func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, pl
 			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
 		}
 	} else {
-		return err
-	}
-
-	var attributes map[string]map[string]interface{}
-	if err := context.Get("attributes", &attributes); err != nil {
-		if err == state.ErrNoState {
-			return fmt.Errorf(i18n.G("no attributes found"))
-		}
 		return err
 	}
 
