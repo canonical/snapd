@@ -151,6 +151,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
 	initialContext["other-snap"] = slotSnap
+	initialContext["plug-or-slot"] = plugName
 	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
@@ -160,6 +161,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
 	initialContext["other-snap"] = plugSnap
+	initialContext["plug-or-slot"] = slotName
 	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
 
@@ -178,6 +180,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
 	initialContext["other-snap"] = plugSnap
+	initialContext["plug-or-slot"] = slotName
 	connectSlotConnection := hookstate.HookTask(s, summary, connectSlotHookSetup, initialContext)
 	connectSlotConnection.WaitFor(connectInterface)
 
@@ -188,6 +191,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	}
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 	initialContext["other-snap"] = slotSnap
+	initialContext["plug-or-slot"] = plugName
 	connectPlugConnection := hookstate.HookTask(s, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
 

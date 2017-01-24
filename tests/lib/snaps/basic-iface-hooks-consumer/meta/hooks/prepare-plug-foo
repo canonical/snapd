@@ -7,7 +7,6 @@ if ! output=$(snapctl get :foo target); then
     echo "Expected snapctl get to be able to read the value of own 'target' attribute"
     exit 1
 fi
-
 expected_output="initialtarget"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
@@ -32,6 +31,6 @@ if [ "$output" != "$expected_output" ]; then
 fi
 
 # Create (set) a completely new attribute
-if ! snapctl set :bar newplugattribute=foo; then
+if ! snapctl set :foo newplugattribute=foo; then
     echo "Expected prepare-plug-foo hook to be able to create a new attribte"
 fi

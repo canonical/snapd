@@ -225,6 +225,16 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 		}
 	}
 
+	// check if the requested plug or slot is correct for this hook.
+	var val string
+	if err := context.Get("plug-or-slot", &val); err == nil {
+		if val != plugOrSlot {
+			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
+		}
+	} else {
+		return err
+	}
+
 	return c.printValues(func(key string) (interface{}, bool, error) {
 		if value, ok := attributes[snapName][key]; ok {
 			return value, true, nil

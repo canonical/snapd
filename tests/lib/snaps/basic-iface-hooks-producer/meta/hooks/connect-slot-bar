@@ -3,7 +3,7 @@
 echo "Getting attributes from connect-slot-bar hook"
 
 # Read 'newplugattribute' attribute of the plug
-if ! output=$(snapctl get --plug :foo newplugattribute); then
+if ! output=$(snapctl get --plug :bar newplugattribute); then
     echo "Expected connect-plug-foo be able to read the value of the 'newplugattribute' attribute of the plug"
     exit 1
 fi

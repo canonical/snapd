@@ -66,7 +66,7 @@ func (s *setCommand) Execute(args []string) error {
 
 	var snapAndPlugOrSlot snap.SnapAndName
 	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
-	// valus such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
+	// values such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
 	if strings.Contains(s.Positional.PlugOrSlotSpec, "=") || !strings.Contains(s.Positional.PlugOrSlotSpec, ":") {
 		s.Positional.ConfValues = append([]string{s.Positional.PlugOrSlotSpec}, s.Positional.ConfValues[0:]...)
 		s.Positional.PlugOrSlotSpec = ""
@@ -78,12 +78,7 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot set interface attribute of other snap: %q"), snapAndPlugOrSlot.Snap)
 	}
 	if snapAndPlugOrSlot.Name != "" {
-		// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
-		if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
-			strings.HasPrefix(context.HookName(), "prepare-plug-")) {
-			return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))
-		}
-		return s.handleSetInterfaceAttributes(context)
+		return s.handleSetInterfaceAttributes(context, snapAndPlugOrSlot.Name)
 	}
 
 	context.Lock()
@@ -109,9 +104,25 @@ func (s *setCommand) Execute(args []string) error {
 	return nil
 }
 
-func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context) error {
+func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, plugOrSlot string) error {
+	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
+	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
+		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare-plug- and prepare-slot- hooks"))
+	}
+
 	context.Lock()
 	defer context.Unlock()
+
+	// check if the requested plug or slot is correct for this hook.
+	var val string
+	if err := context.Get("plug-or-slot", &val); err == nil {
+		if val != plugOrSlot {
+			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
+		}
+	} else {
+		return err
+	}
 
 	var attributes map[string]map[string]interface{}
 	if err := context.Get("attributes", &attributes); err != nil {
