@@ -162,7 +162,8 @@ setup_reflash_magic() {
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
 
-        # holly cow!
+        # some testbeds have very unreliable name servers, we workaround
+        # this here
         mkdir -p $UNPACKD/etc/resolvconf/resolv.conf.d
         echo "nameserver 8.8.8.8" >> $UNPACKD/etc/resolvconf/resolv.conf.d/tail
 

@@ -172,9 +172,7 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
-    cat /etc/network/interfaces || true
-    cat /etc/resolv.conf || true
-    cat /etc/resolvconf/resolv.conf.d/* || true
+    cat /etc/resolv.conf
     journalctl -u snapd
     dmesg | grep DENIED || true
 
@@ -202,7 +200,7 @@ repack: |
 prepare: |
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    trap "sysctl -w net.ipv6.conf.default.disable_ipv6=0" EXIT
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
     # ensure we have at least one valid nameserver
     mkdir -p /etc/resolvconf/resolv.conf.d

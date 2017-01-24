@@ -6,10 +6,10 @@ environment:
     TEXT/pythonServer: XKCD rocks!
     LOCALHOST/pythonServer: localhost
     SNAP_NAME/goServer: test-snapd-go-webserver
-    IP_VERSION/goServer: 4
+    IP_VERSION/goServer: 6
     PORT/goServer: 8081
     TEXT/goServer: Hello World
-    LOCALHOST/goServer: localhost
+    LOCALHOST/goServer: ip6-localhost
 
 warn-timeout: 3m
 
