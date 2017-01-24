@@ -596,9 +596,8 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			logRetryAttempt(reqOptions, attempt, startTime)
-		}
+		logRetryAttempt(reqOptions, attempt, startTime)
+
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -1382,6 +1381,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 
 		if shouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
+			logRetryAttempt(reqOptions, attempt, startTime)
 			continue
 		}
 
