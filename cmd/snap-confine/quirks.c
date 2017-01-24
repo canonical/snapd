@@ -25,10 +25,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "utils.h"
-#include "cleanup-funcs.h"
-#include "classic.h"
-#include "mount-opt.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-confine-private/utils.h"
 // XXX: for smaller patch, this should be in utils.h later
 #include "user-support.h"
 
