@@ -48,6 +48,12 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
+# Failure on unknown plug
+if snapctl get :unknown target; then
+    echo "Expected snapctl get to fail on unknown plug"
+    exit 1
+fi
+
 # Attributes cannot be set in connect- hooks
 if snapctl set :foo target=slottarget; then
     echo "Expected snapctl set to fail when run from connect-plug hook"

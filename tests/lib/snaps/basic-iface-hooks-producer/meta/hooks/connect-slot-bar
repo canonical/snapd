@@ -35,6 +35,12 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
+# Failure on unknown slot
+if snapctl get :unknown target; then
+    echo "Expected snapctl get to fail on unknown slot"
+    exit 1
+fi
+
 # Attributes cannot be set in connect- hooks
 if snapctl set :bar target=slottarget; then
     echo "Expected snapctl set to fail when run from connect-slot hook"
