@@ -113,6 +113,7 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 
 func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
 	apath = chain(apath, k)
+	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
 		return fmt.Errorf("attribute %q has constraints but is unset", apath)
 	}
@@ -157,7 +158,7 @@ func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMat
 }
 
 type evalAttrMatcher struct {
-	// first iteration supports just $SLOT|PLUG(argument1)
+	// first iteration supports just $(SLOT|PLUG)(arg)
 	op  string
 	arg string
 }
@@ -171,7 +172,6 @@ func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
 	if len(ops) == 0 {
 		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid $SLOT()/$PLUG() constraint", cc, s)
 	}
-	// XXX: prohibit $SLOT() in slot-attributes and vice versa?
 	return evalAttrMatcher{
 		op:  ops[1],
 		arg: ops[2],
