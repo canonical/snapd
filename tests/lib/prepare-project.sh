@@ -38,15 +38,14 @@ fi
 quiet apt-get update
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-    if [ ! -d debian-ubuntu-14.04 ]; then
-        echo "no debian-ubuntu-14.04/ directory "
+    if [ ! -d packaging/ubuntu-14.04 ]; then
+        echo "no packaging/ubuntu-14.04/ directory "
         echo "broken test setup"
         exit 1
     fi
 
     # 14.04 has its own packaging
-    rm -rf debian
-    mv debian-ubuntu-14.04 debian
+    ./generate-packaging-dir
 
     quiet apt-get install -y software-properties-common
 

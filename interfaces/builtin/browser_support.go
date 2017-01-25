@@ -202,6 +202,8 @@ setpriority
 const browserSupportConnectedPlugSecCompWithSandbox = `
 # Policy needed only when using the chrome/chromium setuid sandbox
 chroot
+sched_setscheduler
+
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setuid
