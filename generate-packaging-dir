@@ -3,6 +3,7 @@ set -eu
 
 . /etc/os-release
 
-# FIXME: adjust once we have spec files here
-cp -ar packaging/${ID}-${VERSION_ID}/ debian
+# update symlink
+rm -f debian
+ln -s packaging/${ID}-${VERSION_ID}/* debian
 
