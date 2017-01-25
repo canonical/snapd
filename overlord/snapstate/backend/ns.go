@@ -49,3 +49,19 @@ func (b Backend) DiscardSnapNamespace(snapName string) error {
 	}
 	return nil
 }
+
+// Update the mount namespace of a given snap.
+func (b Backend) UpdateSnapNamespace(snapName string) error {
+	mntFile := mountNsPath(snapName)
+	// If there's a .mnt file that was created by snap-confine we should ask
+	// snap-confine to update it appropriately.
+	if osutil.FileExists(mntFile) {
+		snapUpdateNs := filepath.Join(dirs.LibExecDir, "snap-update-ns")
+		cmd := exec.Command(snapUpdateNs, snapName)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("cannot update preserved namespaces of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		}
+	}
+	return nil
+}
