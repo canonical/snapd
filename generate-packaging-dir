@@ -1,32 +1,8 @@
 #!/bin/sh
 set -eu
 
-fetch1404() (
-    set -u
-    git fetch --quiet "https://github.com/$TRAVIS_PULL_REQUEST_SLUG" "$TRAVIS_PULL_REQUEST_BRANCH-14.04"
-)
+. /etc/os-release
 
-if [ ! -d .git ]; then
-    echo "not running in a git checkout, skipping"
-    exit 0
-fi
+# FIXME: adjust once we have spec files here
+cp -ar packaging/${ID}-${VERSION_ID}/ debian
 
-ID="$1"
-VERSION_ID="$2"
-
-DST="debian-$ID-$VERSION_ID"
-rm -rf "$DST"
-mkdir -p "$DST"
-
-if ! fetch1404 2>/dev/null; then
-    git fetch --quiet https://github.com/snapcore/snapd "$ID/$VERSION_ID"
-fi
-
-git ls-tree -r FETCH_HEAD debian/ | while read _ type hash file; do
-    if [ "$type" != "blob" ]; then
-        continue
-    fi
-    file="$DST/${file#debian/}"
-    mkdir -p "$(dirname "$file")"
-    git cat-file -p "$hash" > "$file"
-done
