@@ -114,7 +114,9 @@ func (e ErrSnapNeedsClassicSystem) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", string(e))
 }
 
-func checkSnapInfoFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
+// determine whether the flags (and system overrides thereof) are
+// compatible with the given *snap.Info
+func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
 	switch c := info.Confinement; c {
 	case snap.StrictConfinement, "":
 		// strict is always fine
@@ -129,6 +131,10 @@ func checkSnapInfoFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
 			Snap: info.Name(),
 		}
 	case snap.ClassicConfinement:
+		if !release.OnClassic {
+			return ErrSnapNeedsClassicSystem(info.Name())
+		}
+
 		if flags.Classic {
 			return nil
 		}
@@ -146,8 +152,11 @@ func checkSnapInfoFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
 	}
 }
 
-func checkSnapInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
-	if err := checkSnapInfoFlags(info, snapst, flags); err != nil {
+// do a reasonably lightweight check that a snap described by Info,
+// with the given SnapState and the user-specified Flags should be
+// installable on the current system.
+func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
+	if err := validateFlagsForInfo(info, snapst, flags); err != nil {
 		return err
 	}
 
@@ -175,7 +184,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 		return err
 	}
 
-	if err := checkSnapInfo(s, nil, flags); err != nil {
+	if err := validateInfoAndFlags(s, nil, flags); err != nil {
 		return err
 	}
 
