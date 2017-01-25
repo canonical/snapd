@@ -1328,7 +1328,7 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-func infoForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
+func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
@@ -1361,7 +1361,7 @@ func infoForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 }
 
 func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
-	res, err := infoForTypes(st, snapType)
+	res, err := infosForTypes(st, snapType)
 	if err != nil {
 		return nil, err
 	}
@@ -1387,25 +1387,22 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 // from ubuntu-core to core we can simplify this again
 // and make it the same as the above "KernelInfo".
 func CoreInfo(st *state.State) (*snap.Info, error) {
-	res, err := infoForTypes(st, snap.TypeOS)
+	res, err := infosForTypes(st, snap.TypeOS)
 	if err != nil {
 		return nil, err
 	}
 
-	var find = func(needle string) *snap.Info {
-		for _, si := range res {
-			if si.Name() == needle {
-				return si
-			}
+	var oldCore *snap.Info
+	for _, si := range res {
+		switch si.Name() {
+		case "core":
+			return si, nil
+		case "ubuntu-core":
+			oldCore = si
 		}
-		return nil
 	}
-
-	if si := find("core"); si != nil {
-		return si, nil
-	}
-	if si := find("ubuntu-core"); si != nil {
-		return si, nil
+	if oldCore != nil {
+		return oldCore, nil
 	}
 
 	unexpectedNames := make([]string, len(res))
