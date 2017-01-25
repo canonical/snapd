@@ -1382,6 +1382,10 @@ func KernelInfo(st *state.State) (*snap.Info, error) {
 // "core" and "ubuntu-core" is installed then "core"
 // is preferred. Different core names are not supported
 // currently and will result in an error.
+//
+// Once enough time has passed and everyone transitioned
+// from ubuntu-core to core we can simplify this again
+// and make it the same as the above "KernelInfo".
 func CoreInfo(st *state.State) (*snap.Info, error) {
 	res, err := infoForTypes(st, snap.TypeOS)
 	if err != nil {
@@ -1404,5 +1408,9 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 		return si, nil
 	}
 
-	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %v", res)
+	unexpectedNames := make([]string, len(res))
+	for i, si := range res {
+		unexpectedNames[i] = si.Name()
+	}
+	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %v", unexpectedNames)
 }
