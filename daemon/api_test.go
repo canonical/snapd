@@ -177,7 +177,6 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	// TODO: do something mockable
 	snapstateCoreInfo = nil
 	snapstateInstall = nil
 	snapstateInstallPath = nil
