@@ -288,6 +288,24 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+func getTaskHookAttributes(task *state.Task) (map[string]interface{}, error) {
+	var attrs map[string]interface{}
+	err := task.Get("attributes", &attrs)
+	if err == nil || err == state.ErrNoState {
+		return attrs, nil
+	}
+	return nil, err
+}
+
+func addAttributes(targetAttrs map[string]interface{}, attrs map[string]interface{}) {
+	for k, v := range attrs {
+		// make sure existing attributes are not overwritten
+		if _, ok := targetAttrs[k]; !ok {
+			targetAttrs[k] = v
+		}
+	}
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -367,6 +385,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var slotSnapst snapstate.SnapState
 	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
+		return err
+	}
+
+	// get attributes set by interface hooks (if present) and add them to the plug/slot attributes
+	if attributes, err := getTaskHookAttributes(task); err == nil {
+		if plugAttrs, ok := attributes[connRef.PlugRef.Snap].(map[string]interface{}); ok {
+			addAttributes(plug.Attrs, plugAttrs)
+		}
+		if slotAttrs, ok := attributes[connRef.SlotRef.Snap].(map[string]interface{}); ok {
+			addAttributes(slot.Attrs, slotAttrs)
+		}
+	} else {
 		return err
 	}
 
