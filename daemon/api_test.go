@@ -177,46 +177,40 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	assertstateRefreshSnapDeclarations = nil
 	snapstateCoreInfo = nil
 	snapstateInstall = nil
+	snapstateInstallMany = nil
 	snapstateInstallPath = nil
 	snapstateRefreshCandidates = nil
-	snapstateTryPath = nil
-	snapstateUpdate = nil
-	snapstateUpdateMany = nil
-	snapstateInstallMany = nil
 	snapstateRemoveMany = nil
 	snapstateRevert = nil
 	snapstateRevertToRevision = nil
-	assertstateRefreshSnapDeclarations = nil
+	snapstateTryPath = nil
+	snapstateUpdate = nil
+	snapstateUpdateMany = nil
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.trustedRestorer()
 	s.d = nil
 	s.restoreBackends()
-	snapstateInstall = snapstate.Install
-	snapstateCoreInfo = snapstate.CoreInfo
-	snapstateInstallPath = snapstate.InstallPath
-	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 
-	// TODO: do something mockable
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstall = snapstate.Install
+	snapstateInstallMany = snapstate.InstallMany
 	snapstateInstallPath = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
-	snapstateTryPath = snapstate.TryPath
-	snapstateUpdate = snapstate.Update
-	snapstateUpdateMany = snapstate.UpdateMany
-	snapstateInstallMany = snapstate.InstallMany
 	snapstateRemoveMany = snapstate.RemoveMany
 	snapstateRevert = snapstate.Revert
 	snapstateRevertToRevision = snapstate.RevertToRevision
-
-	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
+	snapstateTryPath = snapstate.TryPath
+	snapstateUpdate = snapstate.Update
+	snapstateUpdateMany = snapstate.UpdateMany
 }
 
 func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
