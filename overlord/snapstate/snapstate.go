@@ -1184,7 +1184,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 
 	// then transition the interface connections over
-	transIf := st.NewTask("transition-connections-core-migration", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
+	transIf := st.NewTask("transition-ubuntu-core", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
 	transIf.Set("old-name", oldName)
 	transIf.Set("new-name", newName)
 	if len(all) > 0 {

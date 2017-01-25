@@ -72,7 +72,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
 	// helper for ubuntu-core -> core
-	runner.AddHandler("transition-connections-core-migration", m.doTransitionConnectionsCoreMigration, m.undoTransitionConnectionsCoreMigration)
+	runner.AddHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 
 	return m, nil
 }

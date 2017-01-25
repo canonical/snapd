@@ -4926,7 +4926,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
 
 func verifyTransitionConnectionsTasks(c *C, ts *state.TaskSet) {
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"transition-connections-core-migration",
+		"transition-ubuntu-core",
 	})
 
 	transIf := ts.Tasks()[0]
@@ -5084,7 +5084,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "/snap/core/11",
 		},
 		{
-			op:   "transition-connections-core-migration:Doing",
+			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
 		},
 		{
@@ -5175,7 +5175,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "transition-connections-core-migration:Doing",
+			op:   "transition-ubuntu-core:Doing",
 			name: "ubuntu-core",
 		},
 		{

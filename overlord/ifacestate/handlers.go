@@ -481,7 +481,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	return nil
 }
 
-func (m *InterfaceManager) doTransitionConnectionsCoreMigration(t *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -497,7 +497,7 @@ func (m *InterfaceManager) doTransitionConnectionsCoreMigration(t *state.Task, _
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) undoTransitionConnectionsCoreMigration(t *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
