@@ -212,14 +212,14 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		return NULL;
 	}
 	int nscanned;
-	int offset_delta, input_offset = 0;
+	int offset_delta, input_offset = 0, output_offset = 0;
 	nscanned = sscanf(line, "%d %d %u:%u %n",
 			  &entry->mount_id, &entry->parent_id,
 			  &entry->dev_major, &entry->dev_minor, &offset_delta);
 	if (nscanned != 4)
 		goto fail;
 	input_offset += offset_delta;
-	int output_offset = 0;
+	output_offset += offset_delta;
 	char *parse_next_string_field() {
 		char *field = &entry->line_buf[0] + output_offset;
 		int nscanned =
