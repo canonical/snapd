@@ -58,7 +58,6 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get update
 quiet apt-get purge -y snapd snap-confine ubuntu-core-launcher
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
