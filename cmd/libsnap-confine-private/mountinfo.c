@@ -227,7 +227,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		if (nscanned != 1)
 			return NULL;
 		input_offset += offset_delta;
-		output_offset += offset_delta + 1;
+		output_offset += offset_delta;
 		return field;
 	}
 	if ((entry->root = parse_next_string_field()) == NULL)
@@ -236,29 +236,21 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		goto fail;
 	if ((entry->mount_opts = parse_next_string_field()) == NULL)
 		goto fail;
-	entry->optional_fields = &entry->line_buf[0] + output_offset++;
+	entry->optional_fields = &entry->line_buf[0] + output_offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
 	char *to = entry->optional_fields;
-	for (;;) {
+	for (int field_num = 0;; ++field_num) {
 		char *opt_field = parse_next_string_field();
 		if (opt_field == NULL)
 			goto fail;
 		if (strcmp(opt_field, "-") == 0) {
+			opt_field[0] = 0;
 			break;
 		}
-		if (*entry->optional_fields) {
-			to = stpcpy(to, " ");
+		if (field_num > 0) {
+			opt_field[-1] = ' ';
 		}
-		// NOTE: instead of doing `to = stpcpy(to, opt_field);` which is based
-		// on memcpy we are using memmove manually. This is because the to
-		// pointer is sharing the array with the opt_field and they
-		// essnentially overlap.  The operation is correct but we cannot use
-		// memcpy, we must use memmove.
-		size_t opt_field_len = strlen(opt_field);
-		memmove(to, opt_field, opt_field_len);
-		to[opt_field_len] = 0;
-		to += opt_field_len;
 	}
 	if ((entry->fs_type = parse_next_string_field()) == NULL)
 		goto fail;
