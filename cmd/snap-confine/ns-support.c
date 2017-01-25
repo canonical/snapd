@@ -285,9 +285,9 @@ void sc_close_ns_group(struct sc_ns_group *group)
 {
 	debug("releasing resources associated with namespace group %s",
 	      group->name);
-	close(group->dir_fd);
-	close(group->lock_fd);
-	close(group->event_fd);
+	sc_cleanup_close(&group->dir_fd);
+	sc_cleanup_close(&group->lock_fd);
+	sc_cleanup_close(&group->event_fd);
 	free(group->name);
 	free(group);
 }
