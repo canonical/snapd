@@ -34,6 +34,7 @@ func mountNsPath(snapName string) string {
 	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
 }
 
+// Discard the mount namespace of a given snap.
 func (b Backend) DiscardSnapNamespace(snapName string) error {
 	mntFile := mountNsPath(snapName)
 	// If there's a .mnt file that was created by snap-confine we should ask
