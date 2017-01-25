@@ -88,6 +88,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/unit-tests-main.c \
@@ -96,6 +97,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/utils-test.c
 libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
+libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 endif
 
 ##
