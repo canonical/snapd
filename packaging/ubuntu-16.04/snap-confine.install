@@ -3,8 +3,7 @@ lib/udev/rules.d/80-snappy-assign.rules
 lib/udev/snappy-app-dev
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-discard-ns
+usr/lib/snapd/snap-alter-ns
 usr/share/man/man5/snap-confine.5
+usr/share/man/man5/snap-alter-ns.5
 usr/share/man/man5/snap-discard-ns.5
-# for compatibiliy with ancient snap installs that wrote the shell based
-# wrapper scripts instead of the modern symlinks
-usr/bin/ubuntu-core-launcher
