@@ -45,8 +45,7 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     fi
 
     # 14.04 has its own packaging
-    rm -rf debian
-    mv debian-ubuntu-14.04 debian
+    ./generate-packaging-dir
 
     quiet apt-get install -y software-properties-common
 
