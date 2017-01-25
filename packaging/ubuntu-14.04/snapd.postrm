@@ -39,6 +39,9 @@ if [ "$1" = "purge" ]; then
         rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
+            # aliases
+            find /snap/bin -lname "$snap"|xargs rm -f
+            find /snap/bin -lname "$snap.*"|xargs rm -f
             # generated binaries
             rm -f "/snap/bin/$snap"
             rm -f "/snap/bin/$snap".*
