@@ -907,9 +907,6 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
-	// FIXME: alternatively, pass state into canRemove() and check
-	//        if "core" and "ubuntu-core" are both installed.
-	//
 	// Allow "ubuntu-core" removals here because we might have two
 	// core snaps installed (ubuntu-core and core). Note that
 	// ideally we would only allow the removal of "ubuntu-core" if
@@ -917,7 +914,10 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	// the "ubuntu-core->core" transition. But this transition
 	// starts automatically on startup so the window of a user
 	// triggering this manually is very small.
-	if si.Name() == "ubuntu-core" {
+	//
+	// Once the ubuntu-core -> core transition has landed for some
+	// time we can remove the two lines below.
+	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
 		return true
 	}
 
