@@ -99,13 +99,16 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
+# a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 endif
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
+endif
 
 override_dh_install:
 	# we do not need this in the package, its just needed during build
@@ -121,9 +124,7 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
-	# install snapd's systemd units, done here instead of
-	# debian/snapd.install because the ubuntu/14.04 release
-	# branch adds/changes bits here
+	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
@@ -132,6 +133,7 @@ override_dh_install:
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	# and now the normal install rules
+	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	dh_install
 
