@@ -196,27 +196,13 @@ slots:
         - app
         - gadget
     allow-connection:
-      -
-        plug-attributes:
-          content: $SLOT(content)
-      -
-        plug-attributes:
-          content: $MISSING
-        slot-attributes:
-          content: $MISSING
+      plug-attributes:
+        content: $SLOT(content)
     allow-auto-connection:
-      -
-        plug-publisher-id:
-          - $SLOT_PUBLISHER_ID
-        plug-attributes:
-          content: $SLOT(content)
-      -
-        plug-publisher-id:
-          - $SLOT_PUBLISHER_ID
-        plug-attributes:
-          content: $MISSING
-        slot-attributes:
-          content: $MISSING
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
   cups-control:
     allow-installation:
       slot-snap-type:
