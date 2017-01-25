@@ -204,7 +204,7 @@ bool sc_args_is_classic_confinement(struct sc_args * args)
 	return args->is_classic_confinement;
 }
 
-char *sc_args_security_tag(struct sc_args *args)
+const char *sc_args_security_tag(struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain security tag from NULL argument parser");
@@ -212,7 +212,7 @@ char *sc_args_security_tag(struct sc_args *args)
 	return args->security_tag;
 }
 
-char *sc_args_executable(struct sc_args *args)
+const char *sc_args_executable(struct sc_args *args)
 {
 	if (args == NULL) {
 		die("cannot obtain executable from NULL argument parser");
