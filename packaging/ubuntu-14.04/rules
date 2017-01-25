@@ -14,20 +14,15 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
-SYSTEMD_UNITS_DESTDIR=
-ifeq (${VERSION_ID},"14.04") 
-	# We are relying on a deputy systemd setup for trusty,
-	# in which systemd does not run as PID 1. To solve the
-	# problem of services shipping systemd units and upstart jobs
-	# being started twice, we altered systemd on trusty to ignore
-	# /lib/systemd/system and instead consider only selected units from
-	# /lib/systemd/upstart.
-	SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
-	# make sure that trusty's golang-1.6 is picked up correctly.
-	export PATH:=/usr/lib/go-1.6/bin:${PATH}
-else
-	SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
-endif
+# We are relying on a deputy systemd setup for trusty,
+# in which systemd does not run as PID 1. To solve the
+# problem of services shipping systemd units and upstart jobs
+# being started twice, we altered systemd on trusty to ignore
+# /lib/systemd/system and instead consider only selected units from
+# /lib/systemd/upstart.
+SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
+# make sure that trusty's golang-1.6 is picked up correctly.
+export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -124,30 +119,11 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
-	# install dev package files
-	mkdir -p debian/golang-github-snapcore-snapd-dev/usr/share
-	rm -rf debian/tmp/usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-confine
-	cp -R debian/tmp/usr/share/gocode debian/golang-github-snapcore-snapd-dev/usr/share
-	# install udev stuff, must be installed before 80-udisks
-	install debian/snapd.autoimport.udev -D debian/snapd/lib/udev/rules.d/66-snapd-autoimport.rules
-
-	# install bash completion files
-	install --mode=0644 data/completion/snap -D debian/snapd/usr/share/bash-completion/completions/snap
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
-	if [ -f data/info ]; then \
-                mkdir -p debian/snapd/usr/lib/snapd; \
-		install --mode=0644 data/info debian/snapd/usr/lib/snapd; \
-	fi
-	# etc/profile.d contains the PATH extension for snap packages
-	mkdir -p debian/snapd/etc
-	cp -R etc/profile.d debian/snapd/etc
-	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
-	mkdir -p debian/snapd/etc
-	cp -R etc/X11 debian/snapd/etc
 	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
@@ -156,6 +132,7 @@ override_dh_install:
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	# and now the normal install rules
 	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	dh_install
