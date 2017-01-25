@@ -146,7 +146,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
-		"unity8-download-manager": true,
+		"ubuntu-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
 	}
@@ -372,7 +372,7 @@ var (
 		"uhid":                    {"core"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
-		"unity8-download-manager": {"app"},
+		"ubuntu-download-manager": {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
 		"docker": nil,
@@ -484,7 +484,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
-		"unity8-download-manager": true,
+		"ubuntu-download-manager": true,
 	}
 
 	for _, iface := range all {

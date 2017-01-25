@@ -97,8 +97,8 @@ network sna,
 network netlink dgram,
 
 # ip, et al
-/etc/iproute2/ r,
-/etc/iproute2/* r,
+/etc/iproute2/{,*} r,
+/etc/iproute2/rt_{protos,realms,scopes,tables} w,
 
 # ping - child profile would be nice but seccomp causes problems with that
 /{,usr/}{,s}bin/ping ixr,
@@ -110,6 +110,16 @@ network inet6 raw,
 capability setuid,
 @{PROC}/@{pid}/loginuid r,
 @{PROC}/@{pid}/mounts r,
+
+# resolvconf
+/sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 # route
 /etc/networks r,
