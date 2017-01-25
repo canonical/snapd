@@ -120,78 +120,28 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.media-hub.app"),`)
 }
 
-// The label glob when all apps are bound to the media-hub plug
-func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+func (s *MediaHubInterfaceSuite) TestAppArmorUsedSecuritySystem(c *C) {
+	system := interfaces.SecurityAppArmor
+
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.media-hub.*"),`)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the media-hub plug
-func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	app3 := &snap.AppInfo{Name: "app3"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
-			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.media-hub.{app1,app2}"),`)
-}
+func (s *MediaHubInterfaceSuite) TestSecCompUsedSecuritySystem(c *C) {
+	system := interfaces.SecuritySecComp
 
-// The label uses short form when exactly one app is bound to the media-hub plug
-func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "media-hub",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "media-hub",
-			Interface: "media-hub",
-			Apps:      map[string]*snap.AppInfo{"app": app},
-		},
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.media-hub.app"),`)
-}
-
-func (s *MediaHubInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }

@@ -35,25 +35,11 @@ var mediaHubPermanentSlotAppArmor = []byte(`
 #include <abstractions/dbus-strict>
 
 dbus (send)
-    bus=system
-    path=/org/freedesktop/DBus
-    interface=org.freedesktop.DBus
-    member="{Request,Release}Name"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
-
-dbus (send)
     bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="{Request,Release}Name"
     peer=(name=org.freedesktop.DBus, label=unconfined),
-
-dbus (send)
-    bus=system
-    path=/org/freedesktop/DBus
-    interface=org.freedesktop.DBus
-    member="GetConnectionUnix{ProcessID,User}"
-    peer=(label=unconfined),
 
 # Allow binding the service to the requested connection name
 dbus (bind)
@@ -81,9 +67,7 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
-`)
 
-var mediaHubConnectedSlotAppArmor = []byte(`
 # Allow connected clients to interact with the service
 
 # Allow connected clients to interact with the player
@@ -213,13 +197,6 @@ func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 }
 
 func (iface *MediaHubInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(mediaHubConnectedSlotAppArmor, old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
