@@ -40,8 +40,8 @@ if [ "$1" = "purge" ]; then
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # aliases
-            find /snap/bin -lname "$snap"|xargs rm -f
-            find /snap/bin -lname "$snap.*"|xargs rm -f
+            find /snap/bin -maxdepth 1 -lname "$snap" -delete
+            find /snap/bin -maxdepth 1 -lname "$snap.*" -delete
             # generated binaries
             rm -f "/snap/bin/$snap"
             rm -f "/snap/bin/$snap".*
