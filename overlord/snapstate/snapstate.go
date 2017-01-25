@@ -47,7 +47,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		}
 	}
 
-	if err := checkChangeConflict(st, snapsup.Name(), snapst); err != nil {
+	if err := CheckChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
 	}
 
@@ -214,7 +214,11 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 	panic("internal error: snapstate.Configure is unset")
 }
 
-func checkChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
+// CheckChangeConflict ensures that for the given snapName no other
+// changes that alters the snap (like remove, install, refresh) are in
+// progress. It also ensures that snapst (if not nil) did not get
+// modified. If a conflict is detected an error is returned.
+func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
@@ -747,7 +751,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 			return nil, err
 		}
 		if !validInfoForFlags(info, snapst, flags) {
-			return nil, snap.NoUpdateAvailableError{name}
+			return nil, snap.NoUpdateAvailableError{Snap: name}
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
@@ -788,7 +792,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -837,7 +841,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -921,7 +925,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 

@@ -1,0 +1,12 @@
+Tests: integrationtests
+Restrictions: allow-stderr, isolation-container, rw-build-tree, needs-root, breaks-testbed
+Depends: @builddeps@,
+         bzr,
+         ca-certificates,
+         git,
+         golang-golang-x-net-dev,
+         openssh-server,
+         snapd,
+         unity,
+         x11-utils,
+         xvfb

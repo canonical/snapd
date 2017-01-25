@@ -569,6 +569,9 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
+		if err == store.ErrSnapNotFound {
+			return NotFound(err.Error())
+		}
 		return InternalError("%v", err)
 	}
 

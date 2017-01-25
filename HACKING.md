@@ -84,6 +84,10 @@ working directory). Alternatively:
 
 to have it available in `$GOPATH/bin`
 
+Similarly, to build the `snapd` REST API daemon, you can run
+
+    go build -o /tmp/snapd github.com/snapcore/snapd/cmd/snapd
+
 ### Contributing
 
 Contributions are always welcome! Please make sure that you sign the
@@ -138,6 +142,7 @@ Then setup the environment via:
     # For trusty
     $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
     $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+
 
 And you can run the tests via:
 
