@@ -208,21 +208,21 @@ sendmsg
 socket
 `)
 
-type Unity8DownloadManagerInterface struct{}
+type UbuntuDownloadManagerInterface struct{}
 
-func (iface *Unity8DownloadManagerInterface) Name() string {
-	return "unity8-download-manager"
+func (iface *UbuntuDownloadManagerInterface) Name() string {
+	return "ubuntu-download-manager"
 }
 
-func (iface *Unity8DownloadManagerInterface) String() string {
+func (iface *UbuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *Unity8DownloadManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *Unity8DownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -235,7 +235,7 @@ func (iface *Unity8DownloadManagerInterface) ConnectedPlugSnippet(plug *interfac
 	return nil, nil
 }
 
-func (iface *Unity8DownloadManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return downloadPermanentSlotAppArmor, nil
@@ -245,7 +245,7 @@ func (iface *Unity8DownloadManagerInterface) PermanentSlotSnippet(slot *interfac
 	return nil, nil
 }
 
-func (iface *Unity8DownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -259,21 +259,21 @@ func (iface *Unity8DownloadManagerInterface) ConnectedSlotSnippet(plug *interfac
 	return nil, nil
 }
 
-func (iface *Unity8DownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *UbuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *Unity8DownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *UbuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *Unity8DownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *UbuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

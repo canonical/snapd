@@ -523,7 +523,7 @@ slots:
         - app
     deny-auto-connection: true
     deny-connection: true
-  unity8-download-manager:
+  ubuntu-download-manager:
     allow-installation:
       slot-snap-type:
         - app
