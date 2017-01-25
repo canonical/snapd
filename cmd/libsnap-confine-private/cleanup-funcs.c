@@ -46,5 +46,7 @@ void sc_cleanup_closedir(DIR ** ptr)
 
 void sc_cleanup_close(int *ptr)
 {
-	close(*ptr);
+	if (*ptr != -1) {
+		close(*ptr);
+	}
 }
