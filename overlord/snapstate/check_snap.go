@@ -108,10 +108,12 @@ func (e *ErrSnapNeedsMode) Error() string {
 	return fmt.Sprintf("snap %q requires %s or confinement override", e.Snap, e.Mode)
 }
 
-type ErrSnapNeedsClassicSystem string
+type ErrSnapNeedsClassicSystem struct {
+	Snap string
+}
 
-func (e ErrSnapNeedsClassicSystem) Error() string {
-	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", string(e))
+func (e *ErrSnapNeedsClassicSystem) Error() string {
+	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
 }
 
 // determine whether the flags (and system overrides thereof) are
@@ -132,7 +134,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return ErrSnapNeedsClassicSystem(info.Name())
+			return &ErrSnapNeedsClassicSystem{Snap: info.Name()}
 		}
 
 		if flags.Classic {

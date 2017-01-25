@@ -1033,7 +1033,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	case *snapstate.ErrSnapNeedsMode:
 		result.Kind = errorKindSnapNeedsMode
 		result.Value = err.Mode
-	case snapstate.ErrSnapNeedsClassicSystem:
+	case *snapstate.ErrSnapNeedsClassicSystem:
 		result.Kind = errorKindSnapNeedsClassicSystem
 	default:
 		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
