@@ -3989,7 +3989,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 	defer st.Unlock()
 
 	sideInfoUbuntuCore := &snap.SideInfo{
-		RealName: "ubuntuc-core",
+		RealName: "ubuntu-core",
 		Revision: snap.R(1),
 	}
 	sideInfoCore := &snap.SideInfo{
@@ -4022,6 +4022,37 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 
 		c.Assert(info.Name(), Equals, "core")
 		c.Assert(info.Revision, Equals, sideInfoCore.Revision)
+		c.Assert(info.Version, Equals, "1")
+		c.Assert(info.Type, Equals, snap.TypeOS)
+	}
+}
+
+func (s *snapmgrQuerySuite) TestTypeInfoUbuntuCoreOnly(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfoUbuntuCore := &snap.SideInfo{
+		RealName: "ubuntu-core",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1\n", "", sideInfoUbuntuCore)
+	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoUbuntuCore},
+		Current:  sideInfoUbuntuCore.Revision,
+	})
+
+	// in the old code the result was random (map order) when both
+	// core and ubuntu-core are intalled. this is why we test
+	// multiple times to ensure its not accidentally correct.
+	for i := 0; i < 20; i++ {
+		info, err := snapstate.CoreInfo(st)
+		c.Assert(err, IsNil)
+
+		c.Assert(info.Name(), Equals, "ubuntu-core")
+		c.Assert(info.Revision, Equals, sideInfoUbuntuCore.Revision)
 		c.Assert(info.Version, Equals, "1")
 		c.Assert(info.Type, Equals, snap.TypeOS)
 	}
