@@ -316,7 +316,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
-	if err := checkSnapInfo(info, &snapst, flags); err != nil {
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
 		return nil, err
 	}
 
@@ -519,7 +519,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
-		if err := checkSnapInfo(update, snapst, flags); err != nil {
+		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.Name(), err)
 				continue
@@ -728,7 +728,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		if err != nil {
 			return nil, err
 		}
-		if err := checkSnapInfo(info, snapst, flags); err != nil {
+		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
