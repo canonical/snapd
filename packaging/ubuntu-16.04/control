@@ -111,5 +111,5 @@ Architecture: any
 Depends: snap-confine (= ${binary:Version}), ${misc:Depends}
 Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: transitional dummy package
+Description: Transitional package for snap-confine
  This is a transitional dummy package. It can safely be removed.
