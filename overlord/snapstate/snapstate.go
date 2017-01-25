@@ -1158,8 +1158,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
 	}
 
-	// FIXME: what user ID to use for an automatic transition?
-	userID := 0
+	var userID int
 	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
 	if err != nil {
 		return nil, err
