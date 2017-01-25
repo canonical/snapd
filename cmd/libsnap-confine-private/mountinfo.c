@@ -222,7 +222,8 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	int total_used = 0;
 	char *parse_next_string_field() {
 		char *field = &entry->line_buf[0] + total_used;
-		nscanned = sscanf(line + total_offset, "%s %n", field, &offset);
+		int nscanned =
+		    sscanf(line + total_offset, "%s %n", field, &offset);
 		if (nscanned != 1)
 			return NULL;
 		total_offset += offset;
