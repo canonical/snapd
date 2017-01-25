@@ -1786,7 +1786,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 		},
 	})
 
-	task := s.state.NewTask("transition-connections-core-migration", "...")
+	task := s.state.NewTask("transition-ubuntu-core", "...")
 	task.Set("old-name", "ubuntu-core")
 	task.Set("new-name", "core")
 	change := s.state.NewChange("test-migrate", "")
@@ -1825,7 +1825,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("transition-connections-core-migration", "...")
+	t := s.state.NewTask("transition-ubuntu-core", "...")
 	t.Set("old-name", "ubuntu-core")
 	t.Set("new-name", "core")
 	change := s.state.NewChange("test-migrate", "")
