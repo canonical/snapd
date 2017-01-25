@@ -1392,22 +1392,22 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 		return nil, err
 	}
 
-	var oldCore *snap.Info
-	for _, si := range res {
-		switch si.Name() {
-		case "core":
-			return si, nil
-		case "ubuntu-core":
-			oldCore = si
-		}
-	}
-	if oldCore != nil {
-		return oldCore, nil
+	// a single core: just return it
+	if len(res) == 1 {
+		return res[0], nil
 	}
 
-	unexpectedNames := make([]string, len(res))
-	for i, si := range res {
-		unexpectedNames[i] = si.Name()
+	// some systems have two cores: ubuntu-core/core
+	// we always return "core" in this case
+	if len(res) == 2 {
+		if res[0].Name() == "core" && res[1].Name() == "ubuntu-core" {
+			return res[0], nil
+		}
+		if res[0].Name() == "ubuntu-core" && res[1].Name() == "core" {
+			return res[1], nil
+		}
+		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
 	}
-	return nil, fmt.Errorf("cannot find 'core' or 'ubuntu-core' snap, found %v", unexpectedNames)
+
+	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }

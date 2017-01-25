@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -3988,105 +3989,58 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	sideInfoUbuntuCore := &snap.SideInfo{
-		RealName: "ubuntu-core",
-		Revision: snap.R(1),
-	}
-	sideInfoCore := &snap.SideInfo{
-		RealName: "core",
-		Revision: snap.R(1),
-	}
+	for testNr, t := range []struct {
+		expectedSnap string
+		snapNames    []string
+		errMatcher   string
+	}{
+		// nothing
+		{"", []string{}, state.ErrNoState.Error()},
+		// single
+		{"core", []string{"core"}, ""},
+		{"ubuntu-core", []string{"ubuntu-core"}, ""},
+		{"hard-core", []string{"hard-core"}, ""},
+		// unrolled loop to ensure we don't pass because
+		// the order is randomly right
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		// unknown combination
+		{"", []string{"duo-core", "single-core"}, `unexpected cores.*`},
+		// multi-core is not supported
+		{"", []string{"core", "ubuntu-core", "multi-core"}, `unexpected number of cores, got 3`},
+	} {
+		// clear snapstate
+		st.Set("snaps", map[string]*json.RawMessage{})
 
-	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1\n", "", sideInfoUbuntuCore)
-	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1\n", "", sideInfoCore)
+		for _, snapName := range t.snapNames {
+			sideInfo := &snap.SideInfo{
+				RealName: snapName,
+				Revision: snap.R(1),
+			}
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snapstate.Set(st, snapName, &snapstate.SnapState{
+				SnapType: string(snap.TypeOS),
+				Active:   true,
+				Sequence: []*snap.SideInfo{sideInfo},
+				Current:  sideInfo.Revision,
+			})
+		}
 
-	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoUbuntuCore},
-		Current:  sideInfoUbuntuCore.Revision,
-	})
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoCore},
-		Current:  sideInfoCore.Revision,
-	})
-
-	// in the old code the result was random (map order) when both
-	// core and ubuntu-core are intalled. this is why we test
-	// multiple times to ensure its not accidentally correct.
-	for i := 0; i < 20; i++ {
 		info, err := snapstate.CoreInfo(st)
-		c.Assert(err, IsNil)
-
-		c.Assert(info.Name(), Equals, "core")
-		c.Assert(info.Revision, Equals, sideInfoCore.Revision)
-		c.Assert(info.Version, Equals, "1")
-		c.Assert(info.Type, Equals, snap.TypeOS)
+		if t.errMatcher != "" {
+			c.Assert(err, ErrorMatches, t.errMatcher)
+		} else {
+			c.Assert(info, NotNil)
+			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.Type, Equals, snap.TypeOS)
+		}
 	}
-}
-
-func (s *snapmgrQuerySuite) TestTypeInfoUbuntuCoreOnly(c *C) {
-	st := s.st
-	st.Lock()
-	defer st.Unlock()
-
-	sideInfoUbuntuCore := &snap.SideInfo{
-		RealName: "ubuntu-core",
-		Revision: snap.R(1),
-	}
-	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1\n", "", sideInfoUbuntuCore)
-	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoUbuntuCore},
-		Current:  sideInfoUbuntuCore.Revision,
-	})
-
-	// in the old code the result was random (map order) when both
-	// core and ubuntu-core are intalled. this is why we test
-	// multiple times to ensure its not accidentally correct.
-	for i := 0; i < 20; i++ {
-		info, err := snapstate.CoreInfo(st)
-		c.Assert(err, IsNil)
-
-		c.Assert(info.Name(), Equals, "ubuntu-core")
-		c.Assert(info.Revision, Equals, sideInfoUbuntuCore.Revision)
-		c.Assert(info.Version, Equals, "1")
-		c.Assert(info.Type, Equals, snap.TypeOS)
-	}
-}
-
-func (s *snapmgrQuerySuite) TestTypeInfoCoreUnexpectedName(c *C) {
-	st := s.st
-	st.Lock()
-	defer st.Unlock()
-
-	sideInfoHardCore := &snap.SideInfo{
-		RealName: "hard-core",
-		Revision: snap.R(1),
-	}
-
-	snaptest.MockSnap(c, "name: hard-core\ntype: os\nversion: 1\n", "", sideInfoHardCore)
-	snapstate.Set(st, "hard-core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoHardCore},
-		Current:  sideInfoHardCore.Revision,
-	})
-
-	_, err := snapstate.CoreInfo(st)
-	c.Assert(err, ErrorMatches, `cannot find 'core' or 'ubuntu-core' snap, found \[hard-core\]`)
-}
-
-func (s *snapmgrQuerySuite) TestTypeInfoCoreMissing(c *C) {
-	st := s.st
-	st.Lock()
-	defer st.Unlock()
-
-	_, err := snapstate.CoreInfo(st)
-	c.Assert(err, Equals, state.ErrNoState)
 }
 
 func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
