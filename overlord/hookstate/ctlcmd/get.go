@@ -72,7 +72,7 @@ Values of plug or slot attributes may be printed in plug hooks via:
     $ snapctl get :plugname serial-path
 	/dev/ttyS0
 
-	$ snapctl get --slot :slotname camera-path
+    $ snapctl get --slot :slotname camera-path
 	/dev/video0
 
 Values of plug or slot attributes may be printed in slot hooks via:
@@ -80,7 +80,7 @@ Values of plug or slot attributes may be printed in slot hooks via:
     $ snapctl get --plug :slotname serial-path
 	/dev/ttyS0
 
-	$ snapctl get :slotname camera-path
+    $ snapctl get :slotname camera-path
 	/dev/video0
 `)
 
