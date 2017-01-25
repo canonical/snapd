@@ -173,22 +173,6 @@ sendto
 recvfrom
 `)
 
-var mediaHubPermanentSlotDBus = []byte(`
-<policy user="root">
-    <allow own="core.ubuntu.media.Service"/>
-    <allow send_destination="core.ubuntu.media.Service"/>
-    <allow send_interface="core.ubuntu.media.Service"/>
-</policy>
-`)
-
-var mediaHubConnectedPlugDBus = []byte(`
-<policy context="default">
-    <deny own="core.ubuntu.media.Service"/>
-    <allow send_destination="core.ubuntu.media.Service"/>
-    <allow send_interface="core.ubuntu.media.Service"/>
-</policy>
-`)
-
 type MediaHubInterface struct{}
 
 func (iface *MediaHubInterface) Name() string {
@@ -212,8 +196,6 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 		}
 		snippet := bytes.Replace(mediaHubConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus:
-		return mediaHubConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
 		return mediaHubConnectedPlugSecComp, nil
 	}
@@ -224,8 +206,6 @@ func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return mediaHubPermanentSlotAppArmor, nil
-	case interfaces.SecurityDBus:
-		return mediaHubPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return mediaHubPermanentSlotSecComp, nil
 	}

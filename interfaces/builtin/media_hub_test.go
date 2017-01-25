@@ -182,7 +182,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) 
 
 func (s *MediaHubInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus}
+		interfaces.SecuritySecComp}
 	for _, system := range systems {
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
@@ -194,4 +194,15 @@ func (s *MediaHubInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+}
+
+func (s *MediaHubInterfaceSuite) TestDBusUsedSecuritySystem(c *C) {
+	system := interfaces.SecurityDBus
+
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
