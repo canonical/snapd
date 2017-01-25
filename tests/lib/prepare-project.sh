@@ -38,8 +38,8 @@ fi
 quiet apt-get update
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-    if [ ! -d debian-ubuntu-14.04 ]; then
-        echo "no debian-ubuntu-14.04/ directory "
+    if [ ! -d packaging/ubuntu-14.04 ]; then
+        echo "no packaging/ubuntu-14.04/ directory "
         echo "broken test setup"
         exit 1
     fi
