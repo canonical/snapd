@@ -226,14 +226,13 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	memset(entry->line_buf, 1, strlen(line));
 #endif				// MOUNTINFO_DEBUG
 	int nscanned;
-	int offset_delta, input_offset = 0, output_offset = 0;
+	int offset_delta, offset = 0;
 	nscanned = sscanf(line, "%d %d %u:%u %n",
 			  &entry->mount_id, &entry->parent_id,
 			  &entry->dev_major, &entry->dev_minor, &offset_delta);
 	if (nscanned != 4)
 		goto fail;
-	input_offset += offset_delta;
-	output_offset += offset_delta;
+	offset += offset_delta;
 
 	void show_buffers() {
 #ifdef MOUNTINFO_DEBUG
@@ -241,7 +240,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		fprintf(stderr, "Output buffer (second)\n");
 
 		fputc(' ', stderr);
-		for (int i = 0; i < input_offset - 1; ++i)
+		for (int i = 0; i < offset - 1; ++i)
 			fputc('-', stderr);
 		fputc('v', stderr);
 		fputc('\n', stderr);
@@ -267,13 +266,12 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	show_buffers();
 
 	char *parse_next_string_field() {
-		char *field = &entry->line_buf[0] + output_offset;
+		char *field = &entry->line_buf[0] + offset;
 		int nscanned =
-		    sscanf(line + input_offset, "%s %n", field, &offset_delta);
+		    sscanf(line + offset, "%s %n", field, &offset_delta);
 		if (nscanned != 1)
 			return NULL;
-		input_offset += offset_delta;
-		output_offset += offset_delta;
+		offset += offset_delta;
 		show_buffers();
 		return field;
 	}
@@ -283,7 +281,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		goto fail;
 	if ((entry->mount_opts = parse_next_string_field()) == NULL)
 		goto fail;
-	entry->optional_fields = &entry->line_buf[0] + output_offset;
+	entry->optional_fields = &entry->line_buf[0] + offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
 	char *to = entry->optional_fields;
