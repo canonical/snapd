@@ -37,6 +37,15 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
 
+# check whether we want to build with the race detector
+ifneq ($(VERSION_ID),"14.04")
+ifeq ($(GOARCH),amd64)
+ifneq (,$(filter race,$(DEB_BUILD_OPTIONS)))
+BUILDFLAGS:=-race
+endif
+endif
+endif
+
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 # DPKG_EXPORT_BUILDFLAGS = 1
 # include /usr/share/dpkg/buildflags.mk
