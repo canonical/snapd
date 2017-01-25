@@ -238,17 +238,9 @@ endif
 ## ubuntu-core-launcher
 ##
 
-dist_man_MANS += ubuntu-core-launcher/ubuntu-core-launcher.1
-CLEANFILES += ubuntu-core-launcher/ubuntu-core-launcher.1
-EXTRA_DIST += ubuntu-core-launcher/ubuntu-core-launcher.rst
-
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
-
-ubuntu-core-launcher/%.1: ubuntu-core-launcher/%.rst
-	mkdir -p ubuntu-core-launcher
-	$(HAVE_RST2MAN) $^ > $@
 
 ##
 ## snappy-app-dev

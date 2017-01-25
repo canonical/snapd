@@ -59,7 +59,6 @@ Depends: adduser,
          snap-confine (= ${binary:Version}),
          squashfs-tools,
          systemd,
-         ubuntu-core-launcher (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
@@ -109,7 +108,8 @@ Description: Support executable to apply confinement for snappy apps
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: snap-confine (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
+Depends: snap-confine (= ${binary:Version}), ${misc:Depends}
+Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Launcher for ubuntu-core (snappy) apps
- This package contains the launcher for launching snappy applications
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
