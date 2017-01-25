@@ -206,11 +206,25 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	// this extra memory to hold data parsed from the original line. In the
 	// end, the result is similar to using strtok except that the source and
 	// destination buffers are separate.
+	//
+	// At the end of the parsing process, the input buffer (line) and the
+	// output buffer (entry->line_buf) are the same except for where spaces
+	// were converted into NUL bytes (string terminators) and except for the
+	// leading part of the buffer that contains mount_id, parent_id, dev_major
+	// and dev_minor integer fields that are parsed separately.
+	//
+	// If MOUNTINFO_DEBUG is defined then extra debugging is printed to stderr
+	// and this allows for visual analysis of what is going on.
 	struct mountinfo_entry *entry =
 	    calloc(1, sizeof *entry + strlen(line) + 1);
 	if (entry == NULL) {
 		return NULL;
 	}
+#ifdef MOUNTINFO_DEBUG
+	// Poison the buffer with '\1' bytes that are printed as '#' characters
+	// by show_buffers() below. This is "unaltered" memory.
+	memset(entry->line_buf, 1, strlen(line));
+#endif				// MOUNTINFO_DEBUG
 	int nscanned;
 	int offset_delta, input_offset = 0, output_offset = 0;
 	nscanned = sscanf(line, "%d %d %u:%u %n",
@@ -220,6 +234,38 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		goto fail;
 	input_offset += offset_delta;
 	output_offset += offset_delta;
+
+	void show_buffers() {
+#ifdef MOUNTINFO_DEBUG
+		fprintf(stderr, "Input buffer (first), with offset arrow\n");
+		fprintf(stderr, "Output buffer (second)\n");
+
+		fputc(' ', stderr);
+		for (int i = 0; i < input_offset - 1; ++i)
+			fputc('-', stderr);
+		fputc('v', stderr);
+		fputc('\n', stderr);
+
+		fprintf(stderr, ">%s<\n", line);
+
+		fputc('>', stderr);
+		for (int i = 0; i < strlen(line); ++i) {
+			int c = entry->line_buf[i];
+			fputc(c == 0 ? '@' : c == 1 ? '#' : c, stderr);
+		}
+		fputc('<', stderr);
+		fputc('\n', stderr);
+
+		fputc('>', stderr);
+		for (int i = 0; i < strlen(line); ++i)
+			fputc('=', stderr);
+		fputc('<', stderr);
+		fputc('\n', stderr);
+#endif				// MOUNTINFO_DEBUG
+	}
+
+	show_buffers();
+
 	char *parse_next_string_field() {
 		char *field = &entry->line_buf[0] + output_offset;
 		int nscanned =
@@ -228,6 +274,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 			return NULL;
 		input_offset += offset_delta;
 		output_offset += offset_delta;
+		show_buffers();
 		return field;
 	}
 	if ((entry->root = parse_next_string_field()) == NULL)
@@ -258,6 +305,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		goto fail;
 	if ((entry->super_opts = parse_next_string_field()) == NULL)
 		goto fail;
+	show_buffers();
 	return entry;
  fail:
 	free(entry);
