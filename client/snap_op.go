@@ -27,7 +27,6 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 type SnapOptions struct {
