@@ -41,7 +41,7 @@ type SnapOptions struct {
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	for _, o := range []struct {
+	fields := []struct {
 		f string
 		b bool
 	}{
@@ -49,11 +49,12 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 		{"classic", opts.Classic},
 		{"jailmode", opts.JailMode},
 		{"dangerous", opts.Dangerous},
-	} {
+	}
+	for _, o := range fields {
 		if !o.b {
 			continue
 		}
-		err := mw.WriteField(o.f, strconv.FormatBool(o.b))
+		err := mw.WriteField(o.f, "true")
 		if err != nil {
 			return err
 		}
@@ -213,7 +214,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
 	}
-	for _, s := range []struct {
+	fields := []struct {
 		name  string
 		value string
 	}{
@@ -221,7 +222,8 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		{"name", action.Name},
 		{"snap-path", action.SnapPath},
 		{"channel", action.Channel},
-	} {
+	}
+	for _, s := range fields {
 		if s.value == "" {
 			continue
 		}
