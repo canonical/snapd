@@ -224,6 +224,78 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1`, `name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// same publisher, different content
+	tests := []struct {
+		slotContent string
+		plugContent string
+	}{
+		{"mk1", "mk2"},
+		{"mk1", ""},
+		{"", "mk1"},
+	}
+	for _, t := range tests {
+		slotSnippet := ""
+		if t.slotContent != "" {
+			slotSnippet = "content: " + t.slotContent
+		}
+		plugSnippet := ""
+		if t.plugContent != "" {
+			plugSnippet = "content: " + t.plugContent
+		}
+		cand := s.connectCand(c, "stuff", fmt.Sprintf(`name: slot-snap
+slots:
+  stuff:
+    interface: content
+    %s`, slotSnippet), fmt.Sprintf(`name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    %s`, plugSnippet))
+		cand.SlotSnapDeclaration = slotDecl1
+		cand.PlugSnapDeclaration = plugDecl1
+		err = cand.CheckAutoConnect()
+		c.Check(err, NotNil)
+	}
+
+	// same publisher, no content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content`, `name: plug-snap
+plugs:
+  stuff:
+    interface: content`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
@@ -568,4 +640,84 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 			}
 		}
 	}
+}
+
+func (s *baseDeclSuite) TestConnectionContent(c *C) {
+	// we let connect explicitly as long as content matches (or is absent on both sides)
+
+	cand := s.connectCand(c, "content", "", "")
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1`, `name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// same publisher, different content
+	tests := []struct {
+		slotContent string
+		plugContent string
+	}{
+		{"mk1", "mk2"},
+		{"mk1", ""},
+		{"", "mk1"},
+	}
+	for _, t := range tests {
+		slotSnippet := ""
+		if t.slotContent != "" {
+			slotSnippet = "content: " + t.slotContent
+		}
+		plugSnippet := ""
+		if t.plugContent != "" {
+			plugSnippet = "content: " + t.plugContent
+		}
+		cand := s.connectCand(c, "stuff", fmt.Sprintf(`name: slot-snap
+slots:
+  stuff:
+    interface: content
+    %s`, slotSnippet), fmt.Sprintf(`name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    %s`, plugSnippet))
+		cand.SlotSnapDeclaration = slotDecl1
+		cand.PlugSnapDeclaration = plugDecl1
+		err = cand.Check()
+		c.Check(err, NotNil)
+	}
+
+	// same publisher, no content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content`, `name: plug-snap
+plugs:
+  stuff:
+    interface: content`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
 }
