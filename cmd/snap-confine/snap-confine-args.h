@@ -100,7 +100,7 @@ bool sc_args_is_classic_confinement(struct sc_args *args);
  * The return value doesn't need to be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
-char *sc_args_security_tag(struct sc_args *args);
+const char *sc_args_security_tag(struct sc_args *args);
 
 /**
  * Get the executable name passed to snap-confine.
@@ -111,6 +111,6 @@ char *sc_args_security_tag(struct sc_args *args);
  * The return value doesn't need to be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
-char *sc_args_executable(struct sc_args *args);
+const char *sc_args_executable(struct sc_args *args);
 
 #endif
