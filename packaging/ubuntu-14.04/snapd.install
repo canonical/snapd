@@ -1,0 +1,16 @@
+usr/bin/snap
+usr/bin/snapctl
+usr/lib/snapd/system-shutdown
+usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snapd /usr/lib/snapd/
+
+# etc/profile.d contains the PATH extension for snap packages
+etc/profile.d
+# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
+etc/X11
+# bash completion
+data/completion/snap /usr/share/bash-completion/completions
+# udev, must be installed before 80-udisks
+data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
+data/info /usr/lib/snapd/
+
