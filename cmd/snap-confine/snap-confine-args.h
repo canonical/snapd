@@ -97,7 +97,7 @@ bool sc_args_is_classic_confinement(struct sc_args *args);
  * The return value may be NULL if snap-confine was invoked with --version. It
  * is never NULL otherwise.
  *
- * The return value doesn't need to be freed(). It is bound to the lifetime of
+ * The return value must not be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
 const char *sc_args_security_tag(struct sc_args *args);
@@ -108,7 +108,7 @@ const char *sc_args_security_tag(struct sc_args *args);
  * The return value may be NULL if snap-confine was invoked with --version. It
  * is never NULL otherwise.
  *
- * The return value doesn't need to be freed(). It is bound to the lifetime of
+ * The return value must not be freed(). It is bound to the lifetime of
  * the argument parser.
  **/
 const char *sc_args_executable(struct sc_args *args);
