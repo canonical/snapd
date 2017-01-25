@@ -1246,6 +1246,21 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	c.Check(m["revision"], check.Equals, "42")
 }
 
+func (s *apiSuite) TestFindOneNotFound(c *check.C) {
+	s.daemon(c)
+
+	s.err = store.ErrSnapNotFound
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
 	c.Assert(err, check.IsNil)
