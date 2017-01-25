@@ -4027,6 +4027,37 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 	}
 }
 
+func (s *snapmgrQuerySuite) TestTypeInfoCoreUnexpectedName(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfoHardCore := &snap.SideInfo{
+		RealName: "hard-core",
+		Revision: snap.R(1),
+	}
+
+	snaptest.MockSnap(c, "name: hard-core\ntype: os\nversion: 1\n", "", sideInfoHardCore)
+	snapstate.Set(st, "hard-core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoHardCore},
+		Current:  sideInfoHardCore.Revision,
+	})
+
+	_, err := snapstate.CoreInfo(st)
+	c.Assert(err, ErrorMatches, `cannot find 'core' or 'ubuntu-core' snap, found \[hard-core\]`)
+}
+
+func (s *snapmgrQuerySuite) TestTypeInfoCoreMissing(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.CoreInfo(st)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
 func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	st := s.st
 	st.Lock()
