@@ -530,7 +530,31 @@ confinement: classic
 
 	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{})
 
-	c.Assert(err, ErrorMatches, ".* requires consent to use classic confinement")
+	c.Assert(err, ErrorMatches, ".* requires classic or confinement override")
+}
+
+func (s *checkSnapSuite) TestCheckSnapErrorClassicOnCoreDisallowed(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: classic
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, snapstate.Flags{Classic: true})
+
+	c.Assert(err, ErrorMatches, ".* requires classic confinement which is only available on classic systems")
 }
 
 func (s *checkSnapSuite) TestCheckSnapKernelUpdate(c *C) {

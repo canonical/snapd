@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -385,10 +386,52 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// to the new "core" snap
+func (m *SnapManager) ensureUbuntuCoreTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var snapst SnapState
+	err := Get(m.state, "ubuntu-core", &snapst)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the core transition is safe
+	for _, chg := range m.state.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return nil
+		}
+	}
+
+	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
+	if err != nil {
+		return err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	chg := m.state.NewChange("transition-ubuntu-core", msg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	// do not exit right away on error
+	err := m.ensureUbuntuCoreTransition()
+
 	m.runner.Ensure()
-	return nil
+
+	return err
 }
 
 // Wait implements StateManager.Wait.

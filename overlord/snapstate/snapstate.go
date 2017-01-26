@@ -219,6 +219,15 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
 func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		if chg.Kind() == "transition-ubuntu-core" {
+			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+		}
+	}
+
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
@@ -316,8 +325,8 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, err
 	}
 
-	if !validInfoForFlags(info, &snapst, flags) {
-		return nil, store.ErrSnapNotFound
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, err
 	}
 
 	snapsup := &SnapSetup{
@@ -519,9 +528,12 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
-		if !validInfoForFlags(update, snapst, flags) {
-			// XXX: log something
-			continue
+		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
 		}
 
 		snapsup := &SnapSetup{
@@ -718,31 +730,6 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	return flat, nil
 }
 
-func validInfoForFlags(info *snap.Info, snapst *SnapState, flags Flags) bool {
-	switch c := info.Confinement; c {
-	case snap.StrictConfinement, "":
-		// strict is always fine
-		return true
-	case snap.DevModeConfinement:
-		// --devmode needs to be specified every time (==> ignore snapst)
-		return flags.DevModeAllowed()
-	case snap.ClassicConfinement:
-		if flags.Classic {
-			return true
-		}
-
-		if snapst != nil && snapst.Flags.Classic {
-			return true
-		}
-
-		return false
-	default:
-		logger.Noticef("unknown confinement %q", c)
-	}
-
-	return false
-}
-
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
@@ -750,8 +737,8 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		if err != nil {
 			return nil, err
 		}
-		if !validInfoForFlags(info, snapst, flags) {
-			return nil, snap.NoUpdateAvailableError{name}
+		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
+			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
 			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
@@ -867,9 +854,9 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 }
 
 // canDisable verifies that a snap can be deactivated.
-func canDisable(st *snap.Info) bool {
+func canDisable(si *snap.Info) bool {
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == st.Type {
+		if importantSnapType == si.Type {
 			return false
 		}
 	}
@@ -890,6 +877,7 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 	}
 
 	// TODO: use Required for these too
+
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Do not remove their last
 	// revision left.
@@ -897,11 +885,26 @@ func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
 		return false
 	}
 
-	// You never want to remove a kernel or OS Do not remove their
+	// Allow "ubuntu-core" removals here because we might have two
+	// core snaps installed (ubuntu-core and core). Note that
+	// ideally we would only allow the removal of "ubuntu-core" if
+	// we know that "core" is installed too and if we are part of
+	// the "ubuntu-core->core" transition. But this transition
+	// starts automatically on startup so the window of a user
+	// triggering this manually is very small.
+	//
+	// Once the ubuntu-core -> core transition has landed for some
+	// time we can remove the two lines below.
+	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
+		return true
+	}
+
+	// You never want to remove a kernel or OS. Do not remove their
 	// last revision left.
 	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
 		return false
 	}
+
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
@@ -1114,6 +1117,78 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	return doInstall(st, &snapst, snapsup)
 }
 
+// TransitionCore transitions from an old core snap name to a new core
+// snap name. It is used for the ubuntu-core -> core transition (that
+// is not just a rename because the two snaps have different snapIDs)
+//
+// Note that this function makes some assumptions like:
+// - no aliases setup for both snaps
+// - no data needs to be copied
+// - all interfaces are absolutely identical on both new and old
+// Do not use this as a general way to transition from snap A to snap B.
+func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
+	var oldSnapst, newSnapst SnapState
+	err := Get(st, oldName, &oldSnapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !oldSnapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
+	}
+
+	var userID int
+	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var all []*state.TaskSet
+	// install new core (if not already installed)
+	err = Get(st, newName, &newSnapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !newSnapst.HasCurrent() {
+		// start by instaling the new snap
+		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+			Channel:      oldSnapst.Channel,
+			DownloadInfo: &newInfo.DownloadInfo,
+			SideInfo:     &newInfo.SideInfo,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, tsInst)
+	}
+
+	// then transition the interface connections over
+	transIf := st.NewTask("transition-ubuntu-core", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
+	transIf.Set("old-name", oldName)
+	transIf.Set("new-name", newName)
+	if len(all) > 0 {
+		transIf.WaitAll(all[0])
+	}
+	tsTrans := state.NewTaskSet(transIf)
+	all = append(all, tsTrans)
+
+	// FIXME: this is just here for the tests
+	transIf.Set("snap-setup", &SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: oldName,
+		},
+	})
+
+	// then remove the old snap
+	tsRm, err := Remove(st, oldName, snap.R(0))
+	if err != nil {
+		return nil, err
+	}
+	tsRm.WaitFor(transIf)
+	all = append(all, tsRm)
+
+	return all, nil
+}
+
 // State/info accessors
 
 // Info returns the information about the snap with given name and revision.
@@ -1230,11 +1305,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
+
+	var res []*snap.Info
 	for _, snapst := range stateMap {
 		if !snapst.HasCurrent() {
 			continue
@@ -1246,10 +1323,26 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 		if typ != snapType {
 			continue
 		}
-		return snapst.CurrentInfo()
+		si, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, si)
 	}
 
-	return nil, state.ErrNoState
+	if len(res) == 0 {
+		return nil, state.ErrNoState
+	}
+
+	return res, nil
+}
+
+func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+	res, err := infosForTypes(st, snapType)
+	if err != nil {
+		return nil, err
+	}
+	return res[0], nil
 }
 
 // GadgetInfo finds the current gadget snap's info.
@@ -1257,12 +1350,41 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeGadget)
 }
 
-// CoreInfo finds the current OS snap's info.
-func CoreInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeOS)
-}
-
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
+}
+
+// CoreInfo finds the current OS snap's info. If both
+// "core" and "ubuntu-core" is installed then "core"
+// is preferred. Different core names are not supported
+// currently and will result in an error.
+//
+// Once enough time has passed and everyone transitioned
+// from ubuntu-core to core we can simplify this again
+// and make it the same as the above "KernelInfo".
+func CoreInfo(st *state.State) (*snap.Info, error) {
+	res, err := infosForTypes(st, snap.TypeOS)
+	if err != nil {
+		return nil, err
+	}
+
+	// a single core: just return it
+	if len(res) == 1 {
+		return res[0], nil
+	}
+
+	// some systems have two cores: ubuntu-core/core
+	// we always return "core" in this case
+	if len(res) == 2 {
+		if res[0].Name() == "core" && res[1].Name() == "ubuntu-core" {
+			return res[0], nil
+		}
+		if res[0].Name() == "ubuntu-core" && res[1].Name() == "core" {
+			return res[1], nil
+		}
+		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
+	}
+
+	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
