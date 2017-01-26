@@ -741,6 +741,10 @@ type snapInstruction struct {
 	userID int
 }
 
+func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
+	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
 var (
 	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
@@ -751,6 +755,8 @@ var (
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
 	snapstateRemoveMany        = snapstate.RemoveMany
+	snapstateRevert            = snapstate.Revert
+	snapstateRevertToRevision  = snapstate.RevertToRevision
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -874,7 +880,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -899,7 +905,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -958,15 +964,15 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
 	} else {
-		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
 		return "", nil, err
