@@ -57,10 +57,10 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_each_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
         rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     else
-        mkdir -p /etc/systemd/system/snapd.service.d
         cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
