@@ -250,8 +250,8 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	}
 	removed := make(map[string]connState)
 	for id := range conns {
-		var connRef interfaces.ConnRef
-		if err := connRef.ParseID(id); err != nil {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
 			return err
 		}
 		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
