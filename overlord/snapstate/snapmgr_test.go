@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -175,6 +176,19 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	)
 
 	c.Assert(kinds, DeepEquals, expected)
+}
+
+func verifyRemoveTasks(c *C, ts *state.TaskSet) {
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+		"clear-aliases",
+		"discard-conns",
+	})
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -1020,16 +1034,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"stop-snap-services",
-		"remove-aliases",
-		"unlink-snap",
-		"remove-profiles",
-		"clear-snap",
-		"discard-snap",
-		"clear-aliases",
-		"discard-conns",
-	})
+	verifyRemoveTasks(c, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -4008,6 +4013,65 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 	}
 }
 
+func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	for testNr, t := range []struct {
+		expectedSnap string
+		snapNames    []string
+		errMatcher   string
+	}{
+		// nothing
+		{"", []string{}, state.ErrNoState.Error()},
+		// single
+		{"core", []string{"core"}, ""},
+		{"ubuntu-core", []string{"ubuntu-core"}, ""},
+		{"hard-core", []string{"hard-core"}, ""},
+		// unrolled loop to ensure we don't pass because
+		// the order is randomly right
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		// unknown combination
+		{"", []string{"duo-core", "single-core"}, `unexpected cores.*`},
+		// multi-core is not supported
+		{"", []string{"core", "ubuntu-core", "multi-core"}, `unexpected number of cores, got 3`},
+	} {
+		// clear snapstate
+		st.Set("snaps", map[string]*json.RawMessage{})
+
+		for _, snapName := range t.snapNames {
+			sideInfo := &snap.SideInfo{
+				RealName: snapName,
+				Revision: snap.R(1),
+			}
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snapstate.Set(st, snapName, &snapstate.SnapState{
+				SnapType: string(snap.TypeOS),
+				Active:   true,
+				Sequence: []*snap.SideInfo{sideInfo},
+				Current:  sideInfo.Revision,
+			})
+		}
+
+		info, err := snapstate.CoreInfo(st)
+		if t.errMatcher != "" {
+			c.Assert(err, ErrorMatches, t.errMatcher)
+		} else {
+			c.Assert(info, NotNil)
+			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.Type, Equals, snap.TypeOS)
+		}
+	}
+}
+
 func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	st := s.st
 	st.Lock()
@@ -4917,6 +4981,381 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	c.Assert(runHook.Kind(), Equals, "run-hook")
 	err = runHook.Get("hook-context", &m)
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	_, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, ErrorMatches, `cannot transition snap "ubuntu-core": not installed`)
+}
+
+func verifyTransitionConnectionsTasks(c *C, ts *state.TaskSet) {
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"transition-ubuntu-core",
+	})
+
+	transIf := ts.Tasks()[0]
+	var oldName, newName string
+	err := transIf.Get("old-name", &oldName)
+	c.Assert(err, IsNil)
+	c.Check(oldName, Equals, "ubuntu-core")
+
+	err = transIf.Get("new-name", &newName)
+	c.Assert(err, IsNil)
+	c.Check(newName, Equals, "core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 3)
+	// 1. install core
+	verifyInstallUpdateTasks(c, 0, 0, tsl[0], s.state)
+	// 2 transition-connections
+	verifyTransitionConnectionsTasks(c, tsl[1])
+	// 3 remove-ubuntu-core
+	verifyRemoveTasks(c, tsl[2])
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 2)
+	// 1. transition connections
+	verifyTransitionConnectionsTasks(c, tsl[0])
+	// 2. remove ubuntu-core
+	verifyRemoveTasks(c, tsl[1])
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+	for _, ts := range tsl {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		name: "core",
+		// the transition has no user associcated with it
+		macaroon: "",
+	}})
+	expected := fakeOps{
+		{
+			op:    "storesvc-snap",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "core",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: "/var/lib/snapd/snaps/core_11.snap",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "/var/lib/snapd/snaps/core_11.snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data",
+			name: "/snap/core/11",
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/core/11",
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:   "start-snap-services",
+			name: "/snap/core/11",
+		},
+		{
+			op:   "transition-ubuntu-core:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "stop-snap-services",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-common-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-snap-files",
+			name:  "/snap/ubuntu-core/1",
+			stype: "os",
+		},
+		{
+			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "discard-conns:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "core",
+			revno: snap.R(11),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+	for _, ts := range tsl {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, HasLen, 0)
+	expected := fakeOps{
+		{
+			op:    "storesvc-snap",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:   "transition-ubuntu-core:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "stop-snap-services",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-common-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-snap-files",
+			name:  "/snap/ubuntu-core/1",
+			stype: "os",
+		},
+		{
+			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "discard-conns:Doing",
+			name: "ubuntu-core",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	chg := s.state.NewChange("unrelated-change", "unfinished change blocks core transition")
+	chg.SetStatus(state.DoStatus)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "unrelated-change")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if we have a ubuntu-core -> core transition
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// other tasks block until the transition is done
+	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, "ubuntu-core to core transition in progress, no other changes allowed until this is done")
+
+	// and when the transition is done, other tasks run
+	chg.SetStatus(state.DoneStatus)
+	ts, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+	c.Check(ts, NotNil)
 }
 
 type canDisableSuite struct{}

@@ -104,6 +104,7 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces)
+		mgr.AddForeignTaskHandlers()
 		c.Assert(err, IsNil)
 		s.privateMgr = mgr
 	}
@@ -1751,4 +1752,106 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+var ubuntuCoreYaml = `name: ubuntu-core
+version: 1
+type: os
+`
+
+var coreYaml = `name: ubuntu-core
+version: 1
+type: os
+`
+
+var httpdSnapYaml = `name: httpd
+version: 1
+plugs:
+ network:
+  interface: network
+`
+
+func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
+	s.mockSnap(c, ubuntuCoreYaml)
+	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, httpdSnapYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("conns", map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	task := s.state.NewTask("transition-ubuntu-core", "...")
+	task.Set("old-name", "ubuntu-core")
+	task.Set("new-name", "core")
+	change := s.state.NewChange("test-migrate", "")
+	change.AddTask(task)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+	s.state.Lock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// ensure the connection went from "ubuntu-core" to "core"
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"httpd:network core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
+	s.mockSnap(c, ubuntuCoreYaml)
+	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, httpdSnapYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("conns", map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	t := s.state.NewTask("transition-ubuntu-core", "...")
+	t.Set("old-name", "ubuntu-core")
+	t.Set("new-name", "core")
+	change := s.state.NewChange("test-migrate", "")
+	change.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	change.AddTask(terr)
+
+	s.state.Unlock()
+	for i := 0; i < 10; i++ {
+		mgr.Ensure()
+		mgr.Wait()
+	}
+	mgr.Stop()
+	s.state.Lock()
+
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// ensure the connection have not changed (still ubuntu-core)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
 }
