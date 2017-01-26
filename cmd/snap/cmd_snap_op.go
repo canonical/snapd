@@ -364,7 +364,13 @@ func (mx modeMixin) validateMode() error {
 }
 
 func (mx modeMixin) asksForMode() bool {
-	return mx.DevMode || mx.JailMode
+	return mx.DevMode || mx.JailMode || mx.Classic
+}
+
+func (mx modeMixin) setModes(opts *client.SnapOptions) {
+	opts.DevMode = mx.DevMode
+	opts.JailMode = mx.JailMode
+	opts.Classic = mx.Classic
 }
 
 type cmdInstall struct {
@@ -495,12 +501,10 @@ func (x *cmdInstall) Execute([]string) error {
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
 		Channel:   x.Channel,
-		DevMode:   x.DevMode,
-		JailMode:  x.JailMode,
-		Classic:   x.Classic,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
+	x.setModes(opts)
 
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
@@ -622,12 +626,10 @@ func (x *cmdRefresh) Execute([]string) error {
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
-			DevMode:          x.DevMode,
-			Classic:          x.Classic,
-			JailMode:         x.JailMode,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
 		}
+		x.setModes(opts)
 		return refreshOne(names[0], opts)
 	}
 
@@ -655,10 +657,8 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	cli := Client()
 	name := x.Positional.SnapDir
-	opts := &client.SnapOptions{
-		DevMode:  x.DevMode,
-		JailMode: x.JailMode,
-	}
+	opts := &client.SnapOptions{}
+	x.setModes(opts)
 
 	if name == "" {
 		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
@@ -789,7 +789,8 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := string(x.Positional.Snap)
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
+	opts := &client.SnapOptions{Revision: x.Revision}
+	x.setModes(opts)
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err

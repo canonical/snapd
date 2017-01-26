@@ -164,7 +164,9 @@ type Store struct {
 	suggestedCurrency string
 }
 
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 	retry.Exponential{
 		Initial: 100 * time.Millisecond,
 		Factor:  2.5,
