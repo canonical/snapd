@@ -45,6 +45,8 @@ const processControlConnectedPlugSecComp = `
 
 setpriority
 sched_setaffinity
+sched_setparam
+sched_setscheduler
 `
 
 // NewProcessControlInterface returns a new "process-control" interface.

@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -217,6 +218,15 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(cur.RealName, cur)
 }
 
+func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
+	for _, si := range snapst.Sequence {
+		if si.Revision == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	if userID == 0 {
 		return nil, nil
@@ -224,7 +234,33 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
+type cachedStoreKey struct{}
+
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache(cachedStoreKey{}, store)
+}
+
+func cachedStore(st *state.State) StoreService {
+	ubuntuStore := st.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
+}
+
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.Store)(nil)
+
+// Store returns the store service used by the snapstate package.
+func Store(st *state.State) StoreService {
+	if cachedStore := cachedStore(st); cachedStore != nil {
+		return cachedStore
+	}
+	panic("internal error: needing the store before managers have initialized it")
+}
+
+func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -240,9 +276,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel: channel,
-		DevMode: flags.DevModeAllowed(),
-
+		Channel:  channel,
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
 		Epoch:    curInfo.Epoch,
@@ -256,19 +290,25 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
 	}
 	if len(res) == 0 {
-		return nil, &snap.NoUpdateAvailableError{curInfo.Name()}
+		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
 	}
+
 	return res[0], nil
 }
 
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  channel,
+		Revision: revision,
+	}
+	snap, err := theStore.SnapInfo(spec, user)
 	st.Lock()
 	return snap, err
 }
@@ -310,8 +350,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 
 	// alias related
 	runner.AddHandler("alias", m.doAlias, m.undoAlias)
-	//TODO: unalias
 	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
 	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 
@@ -346,39 +386,100 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-type cachedStoreKey struct{}
+// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// to the new "core" snap
+func (m *SnapManager) ensureUbuntuCoreTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
 
-// ReplaceStore replaces the store used by the manager.
-func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStoreKey{}, store)
-}
-
-func cachedStore(st *state.State) StoreService {
-	ubuntuStore := st.Cached(cachedStoreKey{})
-	if ubuntuStore == nil {
+	var snapst SnapState
+	err := Get(m.state, "ubuntu-core", &snapst)
+	if err == state.ErrNoState {
 		return nil
 	}
-	return ubuntuStore.(StoreService)
-}
-
-// the store implementation has the interface consumed here
-var _ StoreService = (*store.Store)(nil)
-
-// Store returns the store service used by the snapstate package.
-func Store(st *state.State) StoreService {
-	if cachedStore := cachedStore(st); cachedStore != nil {
-		return cachedStore
+	if err != nil && err != state.ErrNoState {
+		return err
 	}
-	panic("internal error: needing the store before managers have initialized it")
-}
 
-func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
-	for _, si := range snapst.Sequence {
-		if si.Revision == needle {
-			return true
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the core transition is safe
+	for _, chg := range m.state.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return nil
 		}
 	}
-	return false
+
+	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
+	if err != nil {
+		return err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	chg := m.state.NewChange("transition-ubuntu-core", msg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *SnapManager) Ensure() error {
+	// do not exit right away on error
+	err := m.ensureUbuntuCoreTransition()
+
+	m.runner.Ensure()
+
+	return err
+}
+
+// Wait implements StateManager.Wait.
+func (m *SnapManager) Wait() {
+	m.runner.Wait()
+}
+
+// Stop implements StateManager.Stop.
+func (m *SnapManager) Stop() {
+	m.runner.Stop()
+}
+
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
+func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
+	var snapsup SnapSetup
+
+	err := t.Get("snap-setup", &snapsup)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if err == nil {
+		return &snapsup, nil
+	}
+
+	var id string
+	err = t.Get("snap-setup-task", &id)
+	if err != nil {
+		return nil, err
+	}
+
+	ts := t.State().Task(id)
+	if err := ts.Get("snap-setup", &snapsup); err != nil {
+		return nil, err
+	}
+	return &snapsup, nil
+}
+
+func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	var snapst SnapState
+	err = Get(t.State(), snapsup.Name(), &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -440,7 +541,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		spec := store.SnapSpec{
+			Name:     snapsup.Name(),
+			Channel:  snapsup.Channel,
+			Revision: snapsup.Revision(),
+		}
+		storeInfo, err = theStore.SnapInfo(spec, user)
 		if err != nil {
 			return err
 		}
@@ -581,60 +687,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	st.Unlock()
 	return nil
-}
-
-// Ensure implements StateManager.Ensure.
-func (m *SnapManager) Ensure() error {
-	m.runner.Ensure()
-	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *SnapManager) Wait() {
-	m.runner.Wait()
-}
-
-// Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() {
-	m.runner.Stop()
-}
-
-// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
-func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
-	var snapsup SnapSetup
-
-	err := t.Get("snap-setup", &snapsup)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	if err == nil {
-		return &snapsup, nil
-	}
-
-	var id string
-	err = t.Get("snap-setup-task", &id)
-	if err != nil {
-		return nil, err
-	}
-
-	ts := t.State().Task(id)
-	if err := ts.Get("snap-setup", &snapsup); err != nil {
-		return nil, err
-	}
-	return &snapsup, nil
-}
-
-func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return nil, nil, err
-	}
-	var snapst SnapState
-	err = Get(t.State(), snapsup.Name(), &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, err
-	}
-	return snapsup, &snapst, nil
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -848,6 +900,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = snapsup.JailMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
+	if snapsup.Required { // set only on install and left alone on refresh
+		snapst.Required = true
+	}
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
