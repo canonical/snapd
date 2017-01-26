@@ -50,7 +50,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	// Collect all the mount snipptes
+	// Record all changes to the mount system for this snap.
 	snapName := snapInfo.Name()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -83,15 +83,15 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
-	// No snippets? Nothing to do!
-	if len(spec.Snippets) == 0 {
+	// No entries? Nothing to do!
+	if len(spec.MountEntries) == 0 {
 		return nil
 	}
 	// Compute the contents of the fstab file. It should contain all the mount
 	// rules collected by the backend controller.
 	var buffer bytes.Buffer
-	for _, snippet := range spec.Snippets {
-		fmt.Fprintf(&buffer, "%s\n", snippet)
+	for _, entry := range spec.MountEntries {
+		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
 	content := make(map[string]*osutil.FileState)
