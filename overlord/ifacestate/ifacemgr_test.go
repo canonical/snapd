@@ -242,6 +242,66 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
+func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
+	var called bool
+	s.mockIface(c, &ifacetest.TestInterface{
+		PermanentSlotSnippetCallback: func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			called = true
+			return []byte("<policy/>"), nil
+		},
+		PlugSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			called = true
+			return []byte(`x`), nil
+		},
+		SlotSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			called = true
+			return []byte(`x`), nil
+		},
+		InterfaceName: "test",
+	})
+	s.mockIface(c, &ifacetest.TestInterface{
+		InterfaceName: "test2",
+		PlugSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			called = true
+			return []byte(`x`), nil
+		},
+		SlotSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			called = true
+			return []byte(`x`), nil
+		},
+	})
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	c.Check(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	defer s.state.Unlock()
+
+	// Ensure that the backend was used to setup security of both snaps
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(called, Equals, true)
+}
+
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
