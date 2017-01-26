@@ -21,11 +21,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct mountinfo {
-	struct mountinfo_entry *first;
+#include "cleanup-funcs.h"
+
+struct sc_mountinfo {
+	struct sc_mountinfo_entry *first;
 };
 
-struct mountinfo_entry {
+struct sc_mountinfo_entry {
 	int mount_id;
 	int parent_id;
 	unsigned dev_major, dev_minor;
@@ -37,7 +39,7 @@ struct mountinfo_entry {
 	char *mount_source;
 	char *super_opts;
 
-	struct mountinfo_entry *next;
+	struct sc_mountinfo_entry *next;
 	// Buffer holding all of the text data above.
 	//
 	// The buffer must be the last element of the structure. It is allocated
@@ -66,93 +68,93 @@ struct mountinfo_entry {
  * (10) mount source:  filesystem specific information or "none"
  * (11) super options:  per super block options
  **/
-static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
+static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
     __attribute__ ((nonnull(1)));
 
 /**
- * Free a mountinfo structure and all its entries.
+ * Free a sc_mountinfo structure and all its entries.
  **/
-static void free_mountinfo(struct mountinfo *info)
+static void sc_free_mountinfo(struct sc_mountinfo *info)
     __attribute__ ((nonnull(1)));
 
 /**
- * Free a mountinfo entry.
+ * Free a sc_mountinfo entry.
  **/
-static void free_mountinfo_entry(struct mountinfo_entry *entry)
+static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
     __attribute__ ((nonnull(1)));
 
 static void cleanup_fclose(FILE ** ptr);
 static void cleanup_free(char **ptr);
 
-struct mountinfo_entry *first_mountinfo_entry(struct mountinfo *info)
+struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
 {
 	return info->first;
 }
 
-struct mountinfo_entry *next_mountinfo_entry(struct mountinfo_entry
-					     *entry)
+struct sc_mountinfo_entry *sc_next_mountinfo_entry(struct sc_mountinfo_entry
+						   *entry)
 {
 	return entry->next;
 }
 
-int mountinfo_entry_mount_id(struct mountinfo_entry *entry)
+int sc_mountinfo_entry_mount_id(struct sc_mountinfo_entry *entry)
 {
 	return entry->mount_id;
 }
 
-int mountinfo_entry_parent_id(struct mountinfo_entry *entry)
+int sc_mountinfo_entry_parent_id(struct sc_mountinfo_entry *entry)
 {
 	return entry->parent_id;
 }
 
-unsigned mountinfo_entry_dev_major(struct mountinfo_entry *entry)
+unsigned sc_mountinfo_entry_dev_major(struct sc_mountinfo_entry *entry)
 {
 	return entry->dev_major;
 }
 
-unsigned mountinfo_entry_dev_minor(struct mountinfo_entry *entry)
+unsigned sc_mountinfo_entry_dev_minor(struct sc_mountinfo_entry *entry)
 {
 	return entry->dev_minor;
 }
 
-const char *mountinfo_entry_root(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_root(struct sc_mountinfo_entry *entry)
 {
 	return entry->root;
 }
 
-const char *mountinfo_entry_mount_dir(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_mount_dir(struct sc_mountinfo_entry *entry)
 {
 	return entry->mount_dir;
 }
 
-const char *mountinfo_entry_mount_opts(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_mount_opts(struct sc_mountinfo_entry *entry)
 {
 	return entry->mount_opts;
 }
 
-const char *mountinfo_entry_optional_fields(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_optional_fields(struct sc_mountinfo_entry *entry)
 {
 	return entry->optional_fields;
 }
 
-const char *mountinfo_entry_fs_type(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_fs_type(struct sc_mountinfo_entry *entry)
 {
 	return entry->fs_type;
 }
 
-const char *mountinfo_entry_mount_source(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_mount_source(struct sc_mountinfo_entry *entry)
 {
 	return entry->mount_source;
 }
 
-const char *mountinfo_entry_super_opts(struct mountinfo_entry *entry)
+const char *sc_mountinfo_entry_super_opts(struct sc_mountinfo_entry *entry)
 {
 	return entry->super_opts;
 }
 
-struct mountinfo *parse_mountinfo(const char *fname)
+struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
 {
-	struct mountinfo *info = calloc(1, sizeof *info);
+	struct sc_mountinfo *info = calloc(1, sizeof *info);
 	if (info == NULL) {
 		return NULL;
 	}
@@ -166,19 +168,19 @@ struct mountinfo *parse_mountinfo(const char *fname)
 	}
 	char *line __attribute__ ((cleanup(cleanup_free))) = NULL;
 	size_t line_size = 0;
-	struct mountinfo_entry *entry, *last = NULL;
+	struct sc_mountinfo_entry *entry, *last = NULL;
 	for (;;) {
 		errno = 0;
 		if (getline(&line, &line_size, f) == -1) {
 			if (errno != 0) {
-				free_mountinfo(info);
+				sc_free_mountinfo(info);
 				return NULL;
 			}
 			break;
 		};
-		entry = parse_mountinfo_entry(line);
+		entry = sc_parse_mountinfo_entry(line);
 		if (entry == NULL) {
-			free_mountinfo(info);
+			sc_free_mountinfo(info);
 			return NULL;
 		}
 		if (last != NULL) {
@@ -191,9 +193,9 @@ struct mountinfo *parse_mountinfo(const char *fname)
 	return info;
 }
 
-static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
+static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 {
-	// NOTE: the mountinfo structure is allocated along with enough extra
+	// NOTE: the sc_mountinfo structure is allocated along with enough extra
 	// storage to hold the whole line we are parsing. This is used as backing
 	// store for all text fields.
 	//
@@ -206,7 +208,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	// this extra memory to hold data parsed from the original line. In the
 	// end, the result is similar to using strtok except that the source and
 	// destination buffers are separate.
-	struct mountinfo_entry *entry =
+	struct sc_mountinfo_entry *entry =
 	    calloc(1, sizeof *entry + strlen(line) + 1);
 	if (entry == NULL) {
 		return NULL;
@@ -263,25 +265,25 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	return NULL;
 }
 
-void cleanup_mountinfo(struct mountinfo **ptr)
+void sc_cleanup_mountinfo(struct sc_mountinfo **ptr)
 {
 	if (*ptr != NULL) {
-		free_mountinfo(*ptr);
+		sc_free_mountinfo(*ptr);
 		*ptr = NULL;
 	}
 }
 
-static void free_mountinfo(struct mountinfo *info)
+static void sc_free_mountinfo(struct sc_mountinfo *info)
 {
-	struct mountinfo_entry *entry, *next;
+	struct sc_mountinfo_entry *entry, *next;
 	for (entry = info->first; entry != NULL; entry = next) {
 		next = entry->next;
-		free_mountinfo_entry(entry);
+		sc_free_mountinfo_entry(entry);
 	}
 	free(info);
 }
 
-static void free_mountinfo_entry(struct mountinfo_entry *entry)
+static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
 {
 	free(entry);
 }
