@@ -354,6 +354,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
+	// get attributes set by interface hooks (if present) and add them to the plug/slot attributes
+	if attributes, err := getTaskHookAttributes(task); err == nil {
+		if plugAttrs, ok := attributes[connRef.PlugRef.Snap].(map[string]interface{}); ok {
+			addAttributes(plug.Attrs, plugAttrs)
+		}
+		if slotAttrs, ok := attributes[connRef.SlotRef.Snap].(map[string]interface{}); ok {
+			addAttributes(slot.Attrs, slotAttrs)
+		}
+	} else {
+		return err
+	}
+
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
 		Plug:                plug.PlugInfo,
@@ -385,18 +397,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var slotSnapst snapstate.SnapState
 	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
-		return err
-	}
-
-	// get attributes set by interface hooks (if present) and add them to the plug/slot attributes
-	if attributes, err := getTaskHookAttributes(task); err == nil {
-		if plugAttrs, ok := attributes[connRef.PlugRef.Snap].(map[string]interface{}); ok {
-			addAttributes(plug.Attrs, plugAttrs)
-		}
-		if slotAttrs, ok := attributes[connRef.SlotRef.Snap].(map[string]interface{}); ok {
-			addAttributes(slot.Attrs, slotAttrs)
-		}
-	} else {
 		return err
 	}
 

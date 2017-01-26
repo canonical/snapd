@@ -244,34 +244,8 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 
 // FIXME
 func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
-	var called bool
-	s.mockIface(c, &ifacetest.TestInterface{
-		InterfaceName: "test",
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			spec.AddSnippet("connection-specific plug snippet")
-			called = true
-			return nil
-		},
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			spec.AddSnippet("connection-specific slot snippet")
-			called = true
-			return nil
-		},
-	})
-	s.mockIface(c, &ifacetest.TestInterface{
-		InterfaceName: "test2",
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			spec.AddSnippet("connection-specific plug snippet")
-			called = true
-			return nil
-		},
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			spec.AddSnippet("connection-specific slot snippet")
-			called = true
-			return nil
-		},
-	})
-
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -282,11 +256,19 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
-	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
+	task := ts.Tasks()[2]
+	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
 	})
+	// inject some extra attributes not present in the yamls (that would normally be set via snapctl)
+	var attrs map[string]map[string]interface{}
+	err = task.Get("attributes", &attrs)
+	c.Assert(err, IsNil)
+	attrs["consumer"]["attr3"] = "value3"
+	attrs["producer"]["attr4"] = "value4"
+	task.Set("attributes", attrs)
 	change.AddAll(ts)
 	s.state.Unlock()
 
@@ -297,15 +279,16 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 	defer s.state.Unlock()
 
-	repo := s.manager(c).Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 1)
-	c.Assert(slot.Connections, HasLen, 1)
-
-	// Ensure that the backend was used to setup security of both snaps
+	// Ensure that the backend received extra attributes
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
-	//c.Assert(called, Equals, true)
+	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
+	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"], NotNil)
+	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"].Attrs, HasLen, 2)
+	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"].Attrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
+	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
+	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"], NotNil)
+	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"].Attrs, HasLen, 2)
+	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"].Attrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
