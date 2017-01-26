@@ -83,9 +83,6 @@ static void sc_free_mountinfo(struct sc_mountinfo *info)
 static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
     __attribute__ ((nonnull(1)));
 
-static void cleanup_fclose(FILE ** ptr);
-static void cleanup_free(char **ptr);
-
 struct sc_mountinfo_entry *sc_first_mountinfo_entry(struct sc_mountinfo *info)
 {
 	return info->first;
@@ -161,12 +158,13 @@ struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
 	if (fname == NULL) {
 		fname = "/proc/self/mountinfo";
 	}
-	FILE *f __attribute__ ((cleanup(cleanup_fclose))) = fopen(fname, "rt");
+	FILE *f __attribute__ ((cleanup(sc_cleanup_file))) = NULL;
+	f = fopen(fname, "rt");
 	if (f == NULL) {
 		free(info);
 		return NULL;
 	}
-	char *line __attribute__ ((cleanup(cleanup_free))) = NULL;
+	char *line __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
 	size_t line_size = 0;
 	struct sc_mountinfo_entry *entry, *last = NULL;
 	for (;;) {
@@ -286,14 +284,4 @@ static void sc_free_mountinfo(struct sc_mountinfo *info)
 static void sc_free_mountinfo_entry(struct sc_mountinfo_entry *entry)
 {
 	free(entry);
-}
-
-static void cleanup_fclose(FILE ** ptr)
-{
-	fclose(*ptr);
-}
-
-static void cleanup_free(char **ptr)
-{
-	free(*ptr);
 }
