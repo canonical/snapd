@@ -87,8 +87,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		return err
 	}
 	for id := range conns {
-		var connRef interfaces.ConnRef
-		if err := connRef.ParseID(id); err != nil {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
 			return err
 		}
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {

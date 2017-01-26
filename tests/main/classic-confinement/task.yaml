@@ -1,33 +1,47 @@
 summary: Ensure that classic confinement works
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+environment:
+    CLASSIC_SNAP: test-snapd-classic-confinement
 
 prepare: |
     . $TESTSLIB/snaps.sh
-    snapbuild "$TESTSLIB/snaps/test-snapd-classic-confinement/" .
+    snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
 
 execute: |
     echo "Check that classic snaps work only with --classic"
-    if snap install --dangerous test-snapd-classic-confinement_1.0_all.snap; then
-        echo "snap install needs --classic to install snaps with classic confinment"
+    if snap install --dangerous ${CLASSIC_SNAP}_1.0_all.snap; then
+        echo "snap install needs --classic to install local snaps with classic confinment"
         exit 1
     fi
 
+    if snap install $CLASSIC_SNAP; then
+        echo "snap install needs --classic to install remote snaps with classic confinment"
+        exit 1
+    fi
+
+    if [[ "$SPREAD_SYSTEM" =~ core ]]; then
+        echo "Check that the classic snap is not installable even with --classic"
+        ( snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap 2>&1 && exit 1 || true ) | MATCH "cannot install snap file: classic confinement is only supported on classic systems"
+        echo "Not from the store either"
+        ( snap install --classic $CLASSIC_SNAP 2>&1 && exit 1 || true ) | MATCH "requires classic confinement"
+
+        exit 0
+    fi
     echo "Check that the classic snap works (it skips the entire sandbox)"
-    snap install --dangerous --classic test-snapd-classic-confinement_1.0_all.snap
+    snap install --dangerous --classic ${CLASSIC_SNAP}_1.0_all.snap
     touch /tmp/lala
-    test-snapd-classic-confinement | MATCH lala
-    snap remove test-snapd-classic-confinement
+    $CLASSIC_SNAP | MATCH lala
+    snap remove $CLASSIC_SNAP
 
     echo "Check that we can install classic confinement snaps from the store"
-    snap install --classic test-snapd-classic-confinement
-    snap list | MATCH "test-snapd-classic-confinement .*1.0 .*classic"
-    snap info  test-snapd-classic-confinement|MATCH "installed:.* 1.0 .*classic"
-    test-snapd-classic-confinement | MATCH lala
+    snap install --classic $CLASSIC_SNAP
+    snap list | MATCH "$CLASSIC_SNAP .*1.0 .*classic"
+    snap info  $CLASSIC_SNAP|MATCH "installed:.* 1.0 .*classic"
+    $CLASSIC_SNAP | MATCH lala
 
     echo "Snap refresh from the store also works (2.0 is in beta, 1.0 in stable)"
-    snap refresh --beta test-snapd-classic-confinement
-    snap list | MATCH "test-snapd-classic-confinement .*2.0 .*classic"
-    snap info  test-snapd-classic-confinement|MATCH "installed:.* 2.0 .*classic"
-    test-snapd-classic-confinement | MATCH lala
+    snap refresh --beta $CLASSIC_SNAP
+    snap list | MATCH "$CLASSIC_SNAP .*2.0 .*classic"
+    snap info  $CLASSIC_SNAP|MATCH "installed:.* 2.0 .*classic"
+    $CLASSIC_SNAP | MATCH lala
 

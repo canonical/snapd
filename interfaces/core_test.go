@@ -158,19 +158,18 @@ func (s *CoreSuite) TestConnRefID(c *C) {
 	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
 }
 
-// ConnRef.ParseID works as expected
-func (s *CoreSuite) TestConnRefParseID(c *C) {
-	var ref ConnRef
-	err := ref.ParseID("consumer:plug producer:slot")
+// ParseConnRef works as expected
+func (s *CoreSuite) TestParseConnRef(c *C) {
+	ref, err := ParseConnRef("consumer:plug producer:slot")
 	c.Assert(err, IsNil)
 	c.Check(ref, DeepEquals, ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
 	})
-	err = ref.ParseID("garbage")
+	_, err = ParseConnRef("garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: "garbage"`)
-	err = ref.ParseID("snap:plug:garbage snap:slot")
+	_, err = ParseConnRef("snap:plug:garbage snap:slot")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
-	err = ref.ParseID("snap:plug snap:slot:garbage")
+	_, err = ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 }
