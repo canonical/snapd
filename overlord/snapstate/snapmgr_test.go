@@ -592,6 +592,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
+		"setup-profiles",
 		"link-snap",
 		"setup-aliases",
 		"start-snap-services",
@@ -3670,6 +3671,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := fakeOps{
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
 		{
 			op:    "candidate",
 			sinfo: si,
