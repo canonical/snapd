@@ -136,10 +136,14 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	src := resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions []string) mount.Entry {
+	options := []string{"bind"}
+	options = append(options, extraOptions...)
+	return mount.Entry{
+		Name:    resolveSpecialVariable(relSrc, slot.Snap),
+		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Options: options,
+	}
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -193,10 +197,16 @@ func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfac
 
 func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	for _, r := range iface.path(slot, "read") {
-		spec.AddSnippet(mountEntry(plug, slot, r, ",ro"))
+		err := spec.AddMountEntry(mountEntry(plug, slot, r, []string{"ro"}))
+		if err != nil {
+			return err
+		}
 	}
 	for _, w := range iface.path(slot, "write") {
-		spec.AddSnippet(mountEntry(plug, slot, w, ""))
+		err := spec.AddMountEntry(mountEntry(plug, slot, w, nil))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
