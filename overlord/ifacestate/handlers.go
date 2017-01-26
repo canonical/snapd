@@ -441,3 +441,75 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	setConns(st, conns)
 	return nil
 }
+
+// transitionConnectionsCoreMigration will transition all connections
+// from oldName to newName. Note that this is only useful when you
+// know that newName supports everything that oldName supports,
+// otherwise you will be in a world of pain.
+func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	// transition over, ubuntu-core has only slots
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for id := range conns {
+		connRef := interfaces.ConnRef{}
+		if err := connRef.ParseID(id); err != nil {
+			return err
+		}
+		if connRef.SlotRef.Snap == oldName {
+			connRef.SlotRef.Snap = newName
+			conns[connRef.ID()] = conns[id]
+			delete(conns, id)
+		}
+	}
+	setConns(st, conns)
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewriten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the slot-name encoded.
+	if err := m.reloadConnections(oldName); err != nil {
+		return err
+	}
+	if err := m.reloadConnections(newName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *InterfaceManager) doTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}
+
+func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// symmetrical to the "do" method, just reverse them again
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, newName, oldName)
+}
