@@ -25,26 +25,35 @@ import (
 
 const autopilotIntrospectionPlugAppArmor = `
 # Description: Allows an application to be introspected and export its ui
-# status over dbus
+# status over DBus
 
-dbus (send, receive)
+#include <abstractions/dbus-session-strict>
+
+dbus (receive)
     bus=session
     path=/com/canonical/Autopilot/**
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
-dbus (send)
+dbus (receive)
     bus=session
     path=/com/canonical/Autopilot/Introspection
     interface=com.canonical.Autopilot.Introspection
     member=GetVersion
     peer=(label=unconfined),
-dbus (send)
+dbus (receive)
     bus=session
     path=/com/canonical/Autopilot/Introspection
     interface=com.canonical.Autopilot.Introspection
     member=GetState
     peer=(label=unconfined),
+`
+const autopilotIntrospectionPlugSecComp = `
+# Description: Allows an application to be introspected and export its ui
+# status over DBus.
+recvmsg
+sendmsg
+sendto
 `
 
 // NewAutopilotIntrospectionInterface returns a new "autopilot-introspection"
@@ -53,6 +62,7 @@ func NewAutopilotIntrospectionInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "autopilot-introspection",
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
-		reservedForOS:         false,
+		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
+		reservedForOS:         true,
 	}
 }
