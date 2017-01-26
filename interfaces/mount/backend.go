@@ -58,7 +58,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
-	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
@@ -73,7 +73,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
@@ -95,6 +95,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
 	content := make(map[string]*osutil.FileState)
+	// Add the new per-snap fstab file. This file will be read by snap-confine.
+	content[fmt.Sprintf("snap.%s.fstab", snapInfo.Name())] = fstate
 	// Add legacy per-app/per-hook fstab files. Those are identical but
 	// snap-confine doesn't yet load it from a per-snap location. This can be
 	// safely removed once snap-confine is updated.
