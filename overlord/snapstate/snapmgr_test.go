@@ -618,6 +618,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-snap",
+		"remove-profiles",
 	})
 }
 
@@ -3737,6 +3738,11 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 	}
 	// start with an easier-to-read error if this fails:

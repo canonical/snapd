@@ -850,7 +850,11 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
 	unlinkSnap.WaitFor(removeAliases)
 
-	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap), nil
+	removeProfiles := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profiles of snap %q"), snapsup.Name()))
+	removeProfiles.Set("snap-setup-task", stopSnapServices.ID())
+	removeProfiles.WaitFor(unlinkSnap)
+
+	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap, removeProfiles), nil
 }
 
 // canDisable verifies that a snap can be deactivated.
