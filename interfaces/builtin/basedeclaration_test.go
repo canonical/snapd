@@ -129,6 +129,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// own separate tests
 	snowflakes := map[string]bool{
 		"content":       true,
+		"core-support":  true,
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
@@ -136,18 +137,19 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
-		"browser-support":        true,
-		"gsettings":              true,
-		"mir":                    true,
-		"network":                true,
-		"network-bind":           true,
-		"opengl":                 true,
-		"optical-drive":          true,
-		"pulseaudio":             true,
-		"screen-inhibit-control": true,
-		"unity7":                 true,
-		"upower-observe":         true,
-		"x11":                    true,
+		"browser-support":         true,
+		"gsettings":               true,
+		"mir":                     true,
+		"network":                 true,
+		"network-bind":            true,
+		"opengl":                  true,
+		"optical-drive":           true,
+		"pulseaudio":              true,
+		"screen-inhibit-control":  true,
+		"unity7":                  true,
+		"ubuntu-download-manager": true,
+		"upower-observe":          true,
+		"x11":                     true,
 	}
 
 	for _, iface := range all {
@@ -155,7 +157,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 			continue
 		}
 		expected := autoconnect[iface.Name()]
-		comm := Commentf("%s: %v", iface.Name(), expected)
+		comm := Commentf(iface.Name())
 
 		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
@@ -345,32 +347,49 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
-		"bluez":            {"app"},
-		"bool-file":        {"core", "gadget"},
-		"boot-config":      {"gadget"},
-		"browser-support":  {"core"},
-		"content":          {"app", "gadget"},
-		"docker-support":   {"core"},
-		"fwupd":            {"app"},
-		"gpio":             {"core", "gadget"},
-		"hidraw":           {"core", "gadget"},
-		"i2c":              {"core", "gadget"},
-		"iio":              {"core", "gadget"},
-		"location-control": {"app"},
-		"location-observe": {"app"},
-		"lxd-support":      {"core"},
-		"mir":              {"app"},
-		"modem-manager":    {"app", "core"},
-		"mpris":            {"app"},
-		"network-manager":  {"app", "core"},
-		"ofono":            {"app", "core"},
-		"ppp":              {"core"},
-		"pulseaudio":       {"app", "core"},
-		"serial-port":      {"core", "gadget"},
-		"udisks2":          {"app"},
+		"bluez":                   {"app"},
+		"bool-file":               {"core", "gadget"},
+		"browser-support":         {"core"},
+		"content":                 {"app", "gadget"},
+		"core-support":            {"core"},
+		"dbus":                    {"app"},
+		"docker-support":          {"core"},
+		"fwupd":                   {"app"},
+		"gpio":                    {"core", "gadget"},
+		"hidraw":                  {"core", "gadget"},
+		"i2c":                     {"core", "gadget"},
+		"iio":                     {"core", "gadget"},
+		"location-control":        {"app"},
+		"location-observe":        {"app"},
+		"lxd-support":             {"core"},
+		"mir":                     {"app"},
+		"modem-manager":           {"app", "core"},
+		"mpris":                   {"app"},
+		"network-manager":         {"app", "core"},
+		"ofono":                   {"app", "core"},
+		"ppp":                     {"core"},
+		"pulseaudio":              {"app", "core"},
+		"serial-port":             {"core", "gadget"},
+		"udisks2":                 {"app"},
+		"uhid":                    {"core"},
+		"unity8-calendar":         {"app"},
+		"unity8-contacts":         {"app"},
+		"ubuntu-download-manager": {"app"},
+		"upower-observe":          {"app", "core"},
 		// snowflakes
 		"docker": nil,
 		"lxd":    nil,
+	}
+
+	restrictedPlugInstallation = map[string][]string{
+		"core-support": {"core"},
+	}
+
+	snapTypeMap = map[string]snap.Type{
+		"core":   snap.TypeOS,
+		"app":    snap.TypeApp,
+		"kernel": snap.TypeKernel,
+		"gadget": snap.TypeGadget,
 	}
 )
 
@@ -384,13 +403,6 @@ func contains(l []string, s string) bool {
 }
 
 func (s *baseDeclSuite) TestSlotInstallation(c *C) {
-	typMap := map[string]snap.Type{
-		"core":   snap.TypeOS,
-		"app":    snap.TypeApp,
-		"kernel": snap.TypeKernel,
-		"gadget": snap.TypeGadget,
-	}
-
 	all := builtin.Interfaces()
 
 	for _, iface := range all {
@@ -405,7 +417,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			// snowflake needs to be tested specially
 			continue
 		}
-		for name, snapType := range typMap {
+		for name, snapType := range snapTypeMap {
 			ok := contains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
 			slotInfo := ic.Snap.Slots[iface.Name()]
@@ -451,13 +463,31 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	}
 
 	for _, iface := range all {
-		ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
-		err := ic.Check()
-		comm := Commentf("%s", iface.Name())
-		if restricted[iface.Name()] {
-			c.Check(err, NotNil, comm)
+		types, ok := restrictedPlugInstallation[iface.Name()]
+		// If plug installation is restricted to specific snap types we
+		// need to make sure this is really the case here. If that is not
+		// the case we continue as normal.
+		if ok {
+			for name, snapType := range snapTypeMap {
+				ok := contains(types, name)
+				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
+				err := ic.Check()
+				comm := Commentf("%s by %s snap", iface.Name(), name)
+				if ok {
+					c.Check(err, IsNil, comm)
+				} else {
+					c.Check(err, NotNil, comm)
+				}
+			}
 		} else {
-			c.Check(err, IsNil, comm)
+			ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
+			err := ic.Check()
+			comm := Commentf("%s", iface.Name())
+			if restricted[iface.Name()] {
+				c.Check(err, NotNil, comm)
+			} else {
+				c.Check(err, IsNil, comm)
+			}
 		}
 	}
 }
@@ -468,15 +498,17 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":            true,
-		"boot-config":      true,
-		"docker":           true,
-		"fwupd":            true,
-		"location-control": true,
-		"location-observe": true,
-		"lxd":              true,
-		"mir":              true,
-		"udisks2":          true,
+		"bluez":                   true,
+		"docker":                  true,
+		"fwupd":                   true,
+		"location-control":        true,
+		"location-observe":        true,
+		"lxd":                     true,
+		"mir":                     true,
+		"udisks2":                 true,
+		"unity8-calendar":         true,
+		"unity8-contacts":         true,
+		"ubuntu-download-manager": true,
 	}
 
 	for _, iface := range all {
@@ -508,6 +540,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
+		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {
@@ -539,6 +572,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"core-support":          true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,

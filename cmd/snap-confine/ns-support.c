@@ -37,10 +37,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "utils.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
-#include "mountinfo.h"
-#include "cleanup-funcs.h"
 
 /**
  * Flag indicating that a sanity timeout has expired.

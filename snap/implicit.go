@@ -31,12 +31,13 @@ var implicitSlots = []string{
 	"alsa",
 	"bluetooth-control",
 	"camera",
+	"core-support",
 	"dcdbas-control",
 	"docker-support",
 	"firewall-control",
-	"fuse-support",
 	"hardware-observe",
 	"home",
+	"io-ports-control",
 	"kernel-module-control",
 	"locale-control",
 	"log-observe",
@@ -49,6 +50,8 @@ var implicitSlots = []string{
 	"network-setup-observe",
 	"opengl",
 	"openvswitch-support",
+	"physical-memory-control",
+	"physical-memory-observe",
 	"ppp",
 	"process-control",
 	"raw-usb",
@@ -61,6 +64,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
+	"uhid",
 }
 
 var implicitClassicSlots = []string{
@@ -95,6 +99,12 @@ func AddImplicitSlots(snapInfo *Info) {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
 			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
 		}
+	}
+	// fuse-support is disabled on trusty due to usage of fuse requiring access to mount.
+	// we do not want to widen the apparmor profile defined in fuse-support to support trusty
+	// right now.
+	if !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04") {
+		snapInfo.Slots["fuse-support"] = makeImplicitSlot(snapInfo, "fuse-support")
 	}
 	if !release.OnClassic {
 		return

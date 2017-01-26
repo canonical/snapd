@@ -47,6 +47,10 @@ var modemManagerPermanentSlotAppArmor = []byte(`
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
 
+# For {mbim,qmi}-proxy
+unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
+/sys/devices/**/usb**/descriptors r,
+
 include <abstractions/nameservice>
 
 # DBus accesses

@@ -211,9 +211,10 @@ var (
 	}
 
 	aliasesCmd = &Command{
-		Path: "/v2/aliases",
-		// TODO: GET:    getAliases,
-		POST: changeAliases,
+		Path:   "/v2/aliases",
+		UserOK: true,
+		GET:    getAliases,
+		POST:   changeAliases,
 	}
 )
 
@@ -413,7 +414,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
+	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find %q snap", name)
@@ -432,7 +433,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
-	result := webify(mapLocal(localSnap, active), url.String())
+	result := webify(mapLocal(about), url.String())
 
 	return SyncResponse(result, nil)
 }
@@ -561,8 +562,16 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  "",
+		Revision: snap.R(0),
+	}
+	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
+		if err == store.ErrSnapNotFound {
+			return NotFound(err.Error())
+		}
 		return InternalError("%v", err)
 	}
 
@@ -679,7 +688,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
@@ -732,6 +741,10 @@ type snapInstruction struct {
 	userID int
 }
 
+func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
+	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
 var (
 	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
@@ -742,6 +755,8 @@ var (
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
 	snapstateRemoveMany        = snapstate.RemoveMany
+	snapstateRevert            = snapstate.Revert
+	snapstateRevertToRevision  = snapstate.RevertToRevision
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -865,7 +880,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -890,7 +905,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -949,15 +964,15 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
 	} else {
-		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
 		return "", nil, err
@@ -1012,37 +1027,29 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	if _, ok := err.(*snap.AlreadyInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapAlreadyInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
+	result := &errorResult{Message: err.Error()}
+
+	switch err := err.(type) {
+	case *snap.AlreadyInstalledError:
+		result.Kind = errorKindSnapAlreadyInstalled
+	case *snap.NotInstalledError:
+		result.Kind = errorKindSnapNotInstalled
+	case *snap.NoUpdateAvailableError:
+		result.Kind = errorKindSnapNoUpdateAvailable
+	case *snapstate.ErrSnapNeedsMode:
+		result.Kind = errorKindSnapNeedsMode
+		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsClassicSystem:
+		result.Kind = errorKindSnapNeedsClassicSystem
+	default:
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
-	if _, ok := err.(*snap.NotInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNotInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNoUpdateAvailable,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: result,
+		Status: http.StatusBadRequest,
+	}, nil)
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1379,7 +1386,7 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	info, _, err := localSnapInfo(st, name)
+	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find snap %q", name)
@@ -1387,7 +1394,7 @@ func iconGet(st *state.State, name string) Response {
 		return InternalError("%v", err)
 	}
 
-	path := filepath.Clean(snapIcon(info))
+	path := filepath.Clean(snapIcon(about.info))
 	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
@@ -1532,8 +1539,13 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch a.Action {
 	case "connect":
-		summary = fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		taskset, err = ifacestate.Connect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		var connRef interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
+		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			taskset, err = ifacestate.Connect(state, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		}
 	case "disconnect":
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
@@ -2212,6 +2224,12 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "alias":
 		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
 		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+	case "unalias":
+		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
+	case "reset":
+		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
@@ -2224,4 +2242,59 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+type aliasStatus struct {
+	App    string `json:"app,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// getAliases produces a response with a map snap -> alias -> aliasStatus
+func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	res := make(map[string]map[string]aliasStatus)
+
+	allStates, err := snapstate.All(state)
+	if err != nil {
+		return InternalError("cannot list local snaps: %v", err)
+	}
+
+	allAliases, err := snapstate.Aliases(state)
+	if err != nil {
+		return InternalError("cannot list aliases: %v", err)
+	}
+
+	for snapName, snapst := range allStates {
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
+		}
+		if len(info.Aliases) != 0 {
+			snapAliases := make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+			for alias, aliasApp := range info.Aliases {
+				snapAliases[alias] = aliasStatus{
+					App: filepath.Base(aliasApp.WrapperPath()),
+				}
+			}
+		}
+	}
+
+	for snapName, aliasStatuses := range allAliases {
+		snapAliases := res[snapName]
+		if snapAliases == nil {
+			snapAliases = make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+		}
+		for alias, status := range aliasStatuses {
+			entry := snapAliases[alias]
+			entry.Status = status
+			snapAliases[alias] = entry
+		}
+	}
+
+	return SyncResponse(res, nil)
 }

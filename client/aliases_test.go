@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestClientAliasCallsEndpoint(c *check.C) {
@@ -49,5 +51,94 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 		"action":  "alias",
 		"snap":    "alias-snap",
 		"aliases": []interface{}{"alias1", "alias2"},
+	})
+}
+
+func (cs *clientSuite) TestClientUnaliasCallsEndpoint(c *check.C) {
+	cs.cli.Unalias("alias-snap", []string{"alias1", "alias2"})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientUnalias(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.Unalias("alias-snap", []string{"alias1", "alias2"})
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action":  "unalias",
+		"snap":    "alias-snap",
+		"aliases": []interface{}{"alias1", "alias2"},
+	})
+}
+
+func (cs *clientSuite) TestClientRestAliasesCallsEndpoint(c *check.C) {
+	cs.cli.ResetAliases("alias-snap", []string{"alias1", "alias2"})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientResetAliases(c *check.C) {
+	cs.rsp = `{
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "chgid"
+	}`
+	id, err := cs.cli.ResetAliases("alias-snap", []string{"alias1", "alias2"})
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "chgid")
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action":  "reset",
+		"snap":    "alias-snap",
+		"aliases": []interface{}{"alias1", "alias2"},
+	})
+}
+
+func (cs *clientSuite) TestClientAliasesCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.Aliases()
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientAliases(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+                    "foo": {
+                        "foo0": {"app": "foo", "status": "auto"},
+                        "foo_reset": {"app": "foo.reset"}
+                    },
+                    "bar": {
+                        "bar_dump": {"app": "bar.dump", "status": "enabled"},
+                        "bar_dump.1": {"status": "disabled"}
+                    }
+
+		}
+	}`
+	allStatuses, err := cs.cli.Aliases()
+	c.Assert(err, check.IsNil)
+	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
+		"foo": {
+			"foo0":      {App: "foo", Status: "auto"},
+			"foo_reset": {App: "foo.reset", Status: ""},
+		},
+		"bar": {
+			"bar_dump":   {App: "bar.dump", Status: "enabled"},
+			"bar_dump.1": {App: "", Status: "disabled"},
+		},
 	})
 }

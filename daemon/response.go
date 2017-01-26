@@ -128,6 +128,9 @@ const (
 	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
+
+	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
+	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 )
 
 type errorValue interface{}

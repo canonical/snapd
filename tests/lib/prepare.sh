@@ -4,9 +4,17 @@ set -eux
 
 . $TESTSLIB/apt.sh
 
-update_core_snap_with_snap_exec_snapctl() {
-    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
-    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+update_core_snap_for_classic_reexec() {
+    # it is possible to disable this to test that snapd (the deb) works
+    # fine with whatever is in the core snap
+    if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" != "1" ]; then
+        echo "Not modifying the core snap as requested via MODIFY_CORE_SNAP_FOR_REEXEC"
+        return
+    fi
+
+    # We want to use the in-tree snap/snapd/snap-exec/snapctl, because
+    # we re-exec by default.
+    # To accomplish that, we'll just unpack the core we just grabbed,
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
@@ -14,45 +22,89 @@ update_core_snap_with_snap_exec_snapctl() {
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount --verbose "$core"
 
-    # Now unpack the core, inject the new snap-exec and snapctl into it, and
-    # repack it.
+    # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # also inject new version of snap-confine and snap-scard-ns
+    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    # also add snap/snapd because we re-exec by default and want to test
+    # this version
+    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    mksquashfs squashfs-root "$snap" -comp xz
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # trusty does not support  -Xcompression-level 1
+        mksquashfs squashfs-root "$snap" -comp gzip
+    else
+        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
+    fi
     rm -rf squashfs-root
 
     # Now mount the new core snap
     mount "$snap" "$core"
 
-    # Make sure we're running with the correct snap-exec
-    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
-        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
-        exit 1
+    # Make sure we're running with the correct copied bits
+    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+        if ! cmp ${p} ${core}${p}; then
+            echo "$p in tree and $p in core snap are unexpectedly not the same"
+            exit 1
+        fi
+    done
+}
+
+prepare_each_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
+    if [ -z "${SNAP_REEXEC:-}" ]; then
+        rm -f /etc/systemd/system/snapd.service.d/reexec.conf
+    else
+        cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
+[Service]
+Environment=SNAP_REEXEC=$SNAP_REEXEC
+EOF
     fi
 
-    # Make sure we're running with the correct snapctl
-    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
-        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
-        exit 1
-    fi
 }
 
 prepare_classic() {
-    apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+    apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
+    apt_install_local ${GOPATH}/snapd_*.deb
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+        snap --version
+        apt-cache policy snapd
         exit 1
     fi
     if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
+        /usr/lib/snapd/snap-confine --version
+        apt-cache policy snap-confine
         exit 1
     fi
+
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+EOF
 
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
+        if [ "$REMOTE_STORE" = staging ]; then
+            . $TESTSLIB/store.sh
+            setup_staging_store
+        fi
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
@@ -69,7 +121,7 @@ prepare_classic() {
 
         systemctl stop snapd.service snapd.socket
 
-        update_core_snap_with_snap_exec_snapctl
+        update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
@@ -89,7 +141,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${SPREAD_PATH}/../snapd_*.deb ${SPREAD_PATH}/../snap-confine_*.deb ${SPREAD_PATH}/../ubuntu-core-launcher_*.deb
+        apt_install_local ${GOPATH}/snapd_*.deb ${GOPATH}/snap-confine_*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
@@ -156,29 +208,7 @@ EOF
         snapbuild $UNPACKD $IMAGE_HOME
 
         # FIXME: fetch directly once its in the assertion service
-        cat > $IMAGE_HOME/pc.model <<EOF
-type: model
-authority-id: canonical
-series: 16
-brand-id: canonical
-model: pc
-architecture: amd64
-gadget: pc
-kernel: pc-kernel
-timestamp: 2016-08-31T00:00:00.0Z
-sign-key-sha3-384: 9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
-
-AcLBXAQAAQoABgUCV8lRDQAKCRDgT5vottzAEg9GEACsSb+qXB34mwESsd7ns6VpM9BfAOOSstwB
-KJlWOlcJ39M7is/fO+dxRH4XsI7Td6BI1WEf5188sJuld8APUsTPn8tPYN3JB5CJ8Edkr6p78YUW
-f3Wo26USAE32ewjq9kHo6uBqIr4VixjTXfGUeDXc7tvKcduIMokSKjDLRHJRur1NC8LjkBn2ZPi8
-9d0BpJzr5y8wK0yFEyAhaS8H8LvL7VMjKG7/BkZcQ0a3jv69qh9jdmxnKDN2zcd1btRR1Giew3gw
-VJ8lNtfxQSWi+nYNEuzDqwKdffo9sVyCzBC+vEH3xYYk8NpRx2QgCSzDCPMoxaJgLwhAeWz6mHQp
-8EaGOsMZm7c85BXUcdJGEhZ5MpNGSzCb/ifgOKBB6zYzekiQh4TVLgi9Uk/acsLH75vNrI8Kwyl+
-r4Pahf///LbeWNwcEonaSV48S5fg3QqxEQeb42xcp6wPfRr7LN1LvQ9kRQTt42GDAlIva5HKlo0T
-cUb5A4zz3IlBn/KQ4BS/2sBcixrH97tHInef4oA8IrBiBDGnIv/s4qyZ+gB5fX8Ohnn/a5bUgU5u
-GmwRQ12Ix54YGJrzZocu1AiQINij4s6ZSoJAEJobI9VBK8WnV8PRmra6UJonV+qrJOiSKTJVCkAF
-+RFartQL+pjF/H29FsyBkIEcPwhTslxWKUWajHsExw==
-EOF
+        cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" $IMAGE_HOME/pc.model
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         IMAGE=all-snap-amd64.img
@@ -218,7 +248,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d

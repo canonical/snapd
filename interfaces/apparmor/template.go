@@ -119,6 +119,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/expr ixr,
   /{,usr/}bin/false ixr,
   /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
@@ -127,6 +128,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/hostname ixr,
   /{,usr/}bin/id ixr,
   /{,usr/}bin/igawk ixr,
+  /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{,usr/}bin/less{,file,pipe} ixr,
@@ -206,6 +208,10 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
+  # but on 14.04 it is an actual file so it doens't fall under other rules.
+  /etc/os-release r,
+
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
@@ -237,6 +243,10 @@ var defaultTemplate = []byte(`
   # LP: #1546825 for details)
   owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/@{pid}/comm r,
+
+  # Per man(5) proc, the kernel enforces that a thread may only modify its comm
+  # value or those in its thread group.
+  owner @{PROC}/@{pid}/task/@{tid}/comm rw,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
@@ -297,6 +307,10 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
+  # Read-only install directory for other revisions to help with bugs like
+  # LP: #1616650 and LP: #1655992
+  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
+
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
@@ -322,6 +336,8 @@ var defaultTemplate = []byte(`
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
+  # Also allow app-specific access for sem_open()
+  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,

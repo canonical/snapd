@@ -170,6 +170,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 
 func (sds *snapDeclSuite) TestDecodePlugsAndSlots(c *C) {
 	encoded := `type: snap-declaration
+format: 1
 authority-id: canonical
 series: 16
 snap-id: snap-id-1
@@ -307,6 +308,30 @@ AXNpZw==`
 	c.Assert(slotRule4.AllowInstallation, HasLen, 1)
 	c.Check(slotRule4.AllowInstallation[0].SlotAttributes.Check(nil), ErrorMatches, `attribute "e1".*`)
 	c.Check(slotRule4.AllowInstallation[0].SlotSnapTypes, DeepEquals, []string{"app"})
+}
+
+func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.SnapDeclarationType, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+
+	headers := map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface1": "true",
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
+
+	headers = map[string]interface{}{
+		"slots": map[string]interface{}{
+			"interface2": "true",
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
@@ -563,7 +588,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
-	c.Assert(err, ErrorMatches, "snap-build assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `snap-build assertion timestamp outside of signing key validity \(key valid since.*\)`)
 }
 
 type snapRevSuite struct {
@@ -701,7 +726,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
-	c.Assert(err, ErrorMatches, "snap-revision assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, `snap-revision assertion timestamp outside of signing key validity \(key valid since.*\)`)
 }
 
 func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {

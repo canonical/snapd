@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,36 +17,32 @@
 #include "config.h"
 #include "seccomp-support.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <search.h>
 #include <ctype.h>
+#include <errno.h>
+#include <linux/can.h>		// needed for search mappings
+#include <sched.h>
+#include <search.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/utsname.h>
-
-// needed for search mappings
-#include <linux/can.h>
+#include <string.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 
 #include <seccomp.h>
 
-#include "utils.h"
-#include "secure-getenv.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h
 #define SC_ARGS_MAXLENGTH	6
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
-
-char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
-struct hsearch_data sc_map_htab;
 
 enum parse_ret {
 	PARSE_INVALID_SYSCALL = -2,
@@ -82,7 +78,9 @@ struct sc_map_list {
 	int count;
 };
 
-struct sc_map_list *sc_map_entries = NULL;
+static char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
+static struct hsearch_data sc_map_htab;
+static struct sc_map_list sc_map_entries;
 
 /*
  * Setup an hsearch map to map strings in the policy (eg, AF_UNIX) to
@@ -143,26 +141,23 @@ static void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	node->ep = NULL;
 	node->next = NULL;
 
-	if (sc_map_entries->list == NULL) {
-		sc_map_entries->count = 1;
-		sc_map_entries->list = node;
+	if (sc_map_entries.list == NULL) {
+		sc_map_entries.count = 1;
+		sc_map_entries.list = node;
 	} else {
-		struct sc_map_entry *p = sc_map_entries->list;
+		struct sc_map_entry *p = sc_map_entries.list;
 		while (p->next != NULL)
 			p = p->next;
 		p->next = node;
-		sc_map_entries->count++;
+		sc_map_entries.count++;
 	}
 }
 
 static void sc_map_init()
 {
 	// initialize the map linked list
-	sc_map_entries = malloc(sizeof(*sc_map_entries));
-	if (sc_map_entries == NULL)
-		die("Out of memory creating sc_map_entries");
-	sc_map_entries->list = NULL;
-	sc_map_entries->count = 0;
+	sc_map_entries.list = NULL;
+	sc_map_entries.count = 0;
 
 	// build up the map linked list
 
@@ -278,13 +273,21 @@ static void sc_map_init()
 	sc_map_add(PRIO_PGRP);
 	sc_map_add(PRIO_USER);
 
+	// man 2 setns
+	sc_map_add(CLONE_NEWIPC);
+	sc_map_add(CLONE_NEWNET);
+	sc_map_add(CLONE_NEWNS);
+	sc_map_add(CLONE_NEWPID);
+	sc_map_add(CLONE_NEWUSER);
+	sc_map_add(CLONE_NEWUTS);
+
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
-	if (hcreate_r(sc_map_entries->count, &sc_map_htab) == 0)
+	if (hcreate_r(sc_map_entries.count, &sc_map_htab) == 0)
 		die("could not create map");
 
 	// add elements from linked list to map
-	struct sc_map_entry *p = sc_map_entries->list;
+	struct sc_map_entry *p = sc_map_entries.list;
 	while (p != NULL) {
 		errno = 0;
 		if (hsearch_r(*p->e, ENTER, &p->ep, &sc_map_htab) == 0)
@@ -302,7 +305,7 @@ static void sc_map_destroy()
 	// this frees all of the nodes' ep so we don't have to below
 	hdestroy_r(&sc_map_htab);
 
-	struct sc_map_entry *next = sc_map_entries->list;
+	struct sc_map_entry *next = sc_map_entries.list;
 	struct sc_map_entry *p = NULL;
 	while (next != NULL) {
 		p = next;
@@ -312,7 +315,6 @@ static void sc_map_destroy()
 		free(p->e);
 		free(p);
 	}
-	free(sc_map_entries);
 }
 
 /* Caller must check if errno != 0 */
@@ -509,16 +511,26 @@ static uint32_t uts_machine_to_seccomp_arch(const char *uts_machine)
 		return SCMP_ARCH_X86_64;
 	else if (strncmp(uts_machine, "armv7", 5) == 0)
 		return SCMP_ARCH_ARM;
+#if defined (SCMP_ARCH_AARCH64)
 	else if (strncmp(uts_machine, "aarch64", 7) == 0)
 		return SCMP_ARCH_AARCH64;
+#endif
+#if defined (SCMP_ARCH_PPC64LE)
 	else if (strncmp(uts_machine, "ppc64le", 7) == 0)
 		return SCMP_ARCH_PPC64LE;
+#endif
+#if defined (SCMP_ARCH_PPC64)
 	else if (strncmp(uts_machine, "ppc64", 5) == 0)
 		return SCMP_ARCH_PPC64;
+#endif
+#if defined (SCMP_ARCH_PPC)
 	else if (strncmp(uts_machine, "ppc", 3) == 0)
 		return SCMP_ARCH_PPC;
+#endif
+#if defined (SCMP_ARCH_S390X)
 	else if (strncmp(uts_machine, "s390x", 5) == 0)
 		return SCMP_ARCH_S390X;
+#endif
 	return 0;
 }
 
@@ -550,15 +562,21 @@ static void sc_add_seccomp_archs(scmp_filter_ctx * ctx)
 	// 32bit userspace).
 	if (host_arch == native_arch) {
 		switch (host_arch) {
+#if defined (SCMP_ARCH_X86_64)
 		case SCMP_ARCH_X86_64:
 			compat_arch = SCMP_ARCH_X86;
 			break;
+#endif
+#if defined(SCMP_ARCH_AARCH64)
 		case SCMP_ARCH_AARCH64:
 			compat_arch = SCMP_ARCH_ARM;
 			break;
+#endif
+#if defined (SCMP_ARCH_PPC64)
 		case SCMP_ARCH_PPC64:
 			compat_arch = SCMP_ARCH_PPC;
 			break;
+#endif
 		default:
 			break;
 		}
@@ -736,4 +754,9 @@ void sc_load_seccomp_context(scmp_filter_ctx ctx)
 		if (real_uid != 0 && geteuid() == 0)
 			die("dropping privs after seccomp_load did not work");
 	}
+}
+
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
+{
+	seccomp_release(*ptr);
 }

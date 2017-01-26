@@ -36,6 +36,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -70,6 +72,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
+		httputil.SetUserAgentFromVersion("unknown", "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{
@@ -230,15 +233,16 @@ type searchReplyJSON struct {
 }
 
 type detailsReplyJSON struct {
-	SnapID          string `json:"snap_id"`
-	PackageName     string `json:"package_name"`
-	Developer       string `json:"origin"`
-	DeveloperID     string `json:"developer_id"`
-	AnonDownloadURL string `json:"anon_download_url"`
-	DownloadURL     string `json:"download_url"`
-	Version         string `json:"version"`
-	Revision        int    `json:"revision"`
-	DownloadDigest  string `json:"download_sha3_384"`
+	Architectures   []string `json:"architecture"`
+	SnapID          string   `json:"snap_id"`
+	PackageName     string   `json:"package_name"`
+	Developer       string   `json:"origin"`
+	DeveloperID     string   `json:"developer_id"`
+	AnonDownloadURL string   `json:"anon_download_url"`
+	DownloadURL     string   `json:"download_url"`
+	Version         string   `json:"version"`
+	Revision        int      `json:"revision"`
+	DownloadDigest  string   `json:"download_sha3_384"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -278,6 +282,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	details := detailsReplyJSON{
+		Architectures:   []string{"all"},
 		SnapID:          essInfo.SnapID,
 		PackageName:     essInfo.Name,
 		Developer:       essInfo.DevelName,
@@ -339,14 +344,22 @@ type bulkReplyJSON struct {
 	Payload payload `json:"_embedded"`
 }
 
-var someSnapIDtoName = map[string]string{
-	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
-	"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
-	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
-	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
-	"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
-	"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
-	"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+var someSnapIDtoName = map[string]map[string]string{
+	"production": {
+		"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+		"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
+		"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
+		"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+		"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
+		"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
+		"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+	},
+	"staging": {
+		"xMNMpEm0COPZy7jq9YRwWVLCD9q5peow": "core",
+		"02AHdOomTzby7gTaiLX3M3SGMmXDfLJp": "test-snapd-tools",
+		"uHjTANBWSXSiYzNOUXZNDnOSH3POSqWS": "test-snapd-python-webserver",
+		"edmdK5G9fP1q1bGyrjnaDXS4RkdjiTGV": "test-snapd-go-webserver",
+	},
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -365,7 +378,13 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName)
+	var remoteStore string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		remoteStore = "staging"
+	} else {
+		remoteStore = "production"
+	}
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
 	if err != nil {
 		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
 		return
@@ -396,6 +415,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			}
 
 			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
+				Architectures:   []string{"all"},
 				SnapID:          essInfo.SnapID,
 				PackageName:     essInfo.Name,
 				Developer:       essInfo.DevelName,

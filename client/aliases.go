@@ -48,3 +48,34 @@ func (client *Client) Alias(snapName string, aliases []string) (changeID string,
 		Aliases: aliases,
 	})
 }
+
+// Unalias disables explicitly the provided aliases for the snap with snapName.
+func (client *Client) Unalias(snapName string, aliases []string) (changeID string, err error) {
+	return client.performAliasAction(&aliasAction{
+		Action:  "unalias",
+		Snap:    snapName,
+		Aliases: aliases,
+	})
+}
+
+// ResetAliases resets the provided aliases for the snap with snapName
+// to their default state, enabled for auto-aliases, disabled otherwise.
+func (client *Client) ResetAliases(snapName string, aliases []string) (changeID string, err error) {
+	return client.performAliasAction(&aliasAction{
+		Action:  "reset",
+		Snap:    snapName,
+		Aliases: aliases,
+	})
+}
+
+// AliasStatus represents the status of an alias.
+type AliasStatus struct {
+	App    string `json:"app,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.
+func (client *Client) Aliases() (allStatuses map[string]map[string]AliasStatus, err error) {
+	_, err = client.doSync("GET", "/v2/aliases", nil, nil, nil, &allStatuses)
+	return
+}

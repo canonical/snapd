@@ -38,6 +38,7 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidiactl rw,
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
+  unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
   # eglfs
   /dev/vchiq rw,

@@ -67,6 +67,17 @@ func norm(path string) string {
 	return path
 }
 
+func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo) {
+	if resInfo == nil {
+		return
+	}
+	price, currency, err := getPrice(snap.Prices, resInfo.SuggestedCurrency)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "price:\t%s\n", formatPrice(price, currency))
+}
+
 func maybePrintType(w io.Writer, t string) {
 	// XXX: using literals here until we reshuffle snap & client properly
 	// (and os->core rename happens, etc)
@@ -146,6 +157,39 @@ func formatDescr(descr string, max int) string {
 	return strings.TrimSuffix(out.String(), "\n")
 }
 
+func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
+	if len(allApps) == 0 {
+		return
+	}
+
+	commands := make([]string, 0, len(allApps))
+	for _, app := range allApps {
+		if app.Daemon != "" {
+			continue
+		}
+
+		// TODO: helper for this?
+		cmdStr := app.Name
+		if cmdStr != snapName {
+			cmdStr = fmt.Sprintf("%s.%s", snapName, cmdStr)
+		}
+
+		if len(app.Aliases) != 0 {
+			cmdStr = fmt.Sprintf("%s (%s)", cmdStr, strings.Join(app.Aliases, ","))
+		}
+
+		commands = append(commands, cmdStr)
+	}
+	if len(commands) == 0 {
+		return
+	}
+
+	fmt.Fprintf(w, "commands:\n")
+	for _, cmd := range commands {
+		fmt.Fprintf(w, "  - %s\n", cmd)
+	}
+}
+
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
@@ -162,7 +206,7 @@ func (x *infoCmd) Execute([]string) error {
 			noneOK = false
 			continue
 		}
-		remote, _, _ := cli.FindOne(snapName)
+		remote, resInfo, _ := cli.FindOne(snapName)
 		local, _, _ := cli.Snap(snapName)
 
 		both := coalesce(local, remote)
@@ -178,10 +222,13 @@ func (x *infoCmd) Execute([]string) error {
 		// TODO: have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		maybePrintPrice(w, remote, resInfo)
 		// FIXME: find out for real
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
+		maybePrintCommands(w, snapName, both.Apps, termWidth)
+
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", both.Private)
@@ -205,7 +252,7 @@ func (x *infoCmd) Execute([]string) error {
 				notes = NotesFromLocal(local)
 			}
 
-			fmt.Fprintf(w, "tracking:\t%s\n", local.Channel)
+			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
