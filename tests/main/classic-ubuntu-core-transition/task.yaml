@@ -1,0 +1,57 @@
+summary: Ensure that the ubuntu-core -> core transition works
+
+systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm32,-ubuntu-core-16-arm64]
+
+warn-timeout: 1m
+kill-timeout: 5m
+execute: |
+    wait_for_service() {
+        local service_name="$1"
+        local state="${2:-active}"
+        while ! systemctl show -p ActiveState $service_name | grep -q "ActiveState=$state"; do systemctl status $service_name || true; sleep 1; done
+    }
+    curl() {
+        local url="$1"
+        # sadly systemd active means not that its really ready so we wait
+        # here for the socket to be available
+        while ! netstat -t -l -n|grep :80; do
+            netstat -l -l -n
+            sleep 1
+        done
+        python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
+    }
+
+    . "$TESTSLIB/apt.sh"
+    echo "Ensure core is gone and we have ubuntu-core instead"
+    dpkg --purge snapd
+    apt_install_local ${GOPATH}/snapd_*.deb
+    snap install ubuntu-core
+    snap install xkcd-webserver
+    snap interfaces |MATCH ":network.*xkcd-webserver"
+
+    echo "Ensure the webserver is working"
+    wait_for_service snap.xkcd-webserver.xkcd-webserver
+    curl http://localhost | MATCH "XKCD rocks"
+
+    echo "Start/stop snapd so that the transition is triggered"
+    systemctl stop snapd.service snapd.socket
+    systemctl start snapd.service snapd.socket
+
+    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
+        snap changes
+        sleep 1
+    done
+
+    if snap list|grep ubuntu-core; then
+        echo "ubuntu-core still installed, transition failed"
+        exit 1
+    fi
+    snap interfaces |MATCH ":network.*xkcd-webserver"
+    echo "Ensure the webserver is still working"
+    wait_for_service snap.xkcd-webserver.xkcd-webserver
+    curl http://localhost | MATCH "XKCD rocks"
+
+    systemctl restart snap.xkcd-webserver.xkcd-webserver
+    wait_for_service snap.xkcd-webserver.xkcd-webserver
+    echo "Ensure the webserver is working after a snap restart"
+    curl http://localhost | MATCH "XKCD rocks"
