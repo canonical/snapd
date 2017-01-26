@@ -1027,37 +1027,29 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	if _, ok := err.(*snap.AlreadyInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapAlreadyInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
+	result := &errorResult{Message: err.Error()}
+
+	switch err := err.(type) {
+	case *snap.AlreadyInstalledError:
+		result.Kind = errorKindSnapAlreadyInstalled
+	case *snap.NotInstalledError:
+		result.Kind = errorKindSnapNotInstalled
+	case *snap.NoUpdateAvailableError:
+		result.Kind = errorKindSnapNoUpdateAvailable
+	case *snapstate.ErrSnapNeedsMode:
+		result.Kind = errorKindSnapNeedsMode
+		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsClassicSystem:
+		result.Kind = errorKindSnapNeedsClassicSystem
+	default:
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
-	if _, ok := err.(*snap.NotInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNotInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNoUpdateAvailable,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: result,
+		Status: http.StatusBadRequest,
+	}, nil)
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
