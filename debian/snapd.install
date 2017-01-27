@@ -1,6 +1,0 @@
-usr/bin/snap
-usr/bin/snapctl
-usr/lib/snapd/system-shutdown
-usr/bin/snap-exec /usr/lib/snapd/
-usr/bin/snapd /usr/lib/snapd/
-data/info /usr/lib/snapd/

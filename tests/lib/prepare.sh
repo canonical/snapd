@@ -57,10 +57,10 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_each_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
         rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     else
-        mkdir -p /etc/systemd/system/snapd.service.d
         cat <<EOF > /etc/systemd/system/snapd.service.d/reexec.conf
 [Service]
 Environment=SNAP_REEXEC=$SNAP_REEXEC
@@ -248,7 +248,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecPreStart=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
