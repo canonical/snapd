@@ -77,7 +77,7 @@ func basicEnv(info *snap.Info) map[string]string {
 		"SNAP_VERSION":      info.Version,
 		"SNAP_REVISION":     info.Revision.String(),
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
 }
