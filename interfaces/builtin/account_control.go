@@ -78,9 +78,9 @@ fsetid
 `
 
 // Interface which allows to handle the user accounts.
-func NewAccountsControlInterface() interfaces.Interface {
+func NewAccountControlInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "accounts-control",
+		name: "account-control",
 		connectedPlugAppArmor: accountsControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  accountsControlConnectedPlugSecComp,
 		reservedForOS:         true,

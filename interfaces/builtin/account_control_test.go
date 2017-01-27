@@ -28,58 +28,58 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type AccountsControlSuite struct {
+type AccountControlSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AccountsControlSuite{
-	iface: builtin.NewAccountsControlInterface(),
+var _ = Suite(&AccountControlSuite{
+	iface: builtin.NewAccountControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "accounts-control",
-			Interface: "accounts-control",
+			Name:      "account-control",
+			Interface: "account-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "accounts-control",
-			Interface: "accounts-control",
+			Name:      "account-control",
+			Interface: "account-control",
 		},
 	},
 })
 
-func (s *AccountsControlSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "accounts-control")
+func (s *AccountControlSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "account-control")
 }
 
-func (s *AccountsControlSuite) TestSanitizeSlot(c *C) {
+func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "accounts-control",
-		Interface: "accounts-control",
+		Name:      "account-control",
+		Interface: "account-control",
 	}})
-	c.Assert(err, ErrorMatches, "accounts-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "account-control slots are reserved for the operating system snap")
 }
 
-func (s *AccountsControlSuite) TestSanitizePlug(c *C) {
+func (s *AccountControlSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *AccountsControlSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *AccountControlSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "accounts-control"`)
+		PanicMatches, `slot is not of interface "account-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "accounts-control"`)
+		PanicMatches, `plug is not of interface "account-control"`)
 }
 
-func (s *AccountsControlSuite) TestUsedSecuritySystems(c *C) {
+func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
