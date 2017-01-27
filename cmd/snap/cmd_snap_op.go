@@ -415,7 +415,7 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		changeID, err = cli.Install(name, opts)
 	}
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, e.Message+"\n")
+		fmt.Fprintf(Stderr, i18n.G("snap %q is already installed, see \"snap refresh --help\"\n"), name)
 		return nil
 	}
 	if err != nil {
