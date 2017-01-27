@@ -27,6 +27,7 @@ prepare: |
     cp ./basic_1.0_all.snap $SEED_DIR/snaps/basic.snap
 restore: |
     rm -r $SEED_DIR
+    rm -f *.snap
     mv /etc/os-release.save /etc/os-release
     systemctl start snapd.socket snapd.service
 execute: |
