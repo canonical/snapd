@@ -239,6 +239,10 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(data, NotNil)
+		c.Assert(string(data), Equals, `{"discharge_macaroon":"soft-expired-serialized-discharge-macaroon"}`)
 		w.WriteHeader(http.StatusInternalServerError)
 		n++
 	}))
