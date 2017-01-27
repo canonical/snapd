@@ -42,13 +42,18 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 ))
 
 func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
-	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
-		logger.Debugf("Retyring %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
+	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPPY_TESTING") {
+		return
 	}
 
+	logger.Debugf("Retyring %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
 }
 
-func logRetryTime(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
+func maybeLogRetrySummary(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
+	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPPY_TESTING") {
+		return
+	}
+
 	var status string
 	if err != nil {
 		status = err.Error()
