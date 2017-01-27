@@ -99,6 +99,82 @@ func checkVersion(version string) bool {
 	return true
 }
 
+type ErrSnapNeedsMode struct {
+	Mode snap.ConfinementType
+	Snap string
+}
+
+func (e *ErrSnapNeedsMode) Error() string {
+	return fmt.Sprintf("snap %q requires %s or confinement override", e.Snap, e.Mode)
+}
+
+type ErrSnapNeedsClassicSystem struct {
+	Snap string
+}
+
+func (e *ErrSnapNeedsClassicSystem) Error() string {
+	return fmt.Sprintf("snap %q requires classic confinement which is only available on classic systems", e.Snap)
+}
+
+// determine whether the flags (and system overrides thereof) are
+// compatible with the given *snap.Info
+func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
+	switch c := info.Confinement; c {
+	case snap.StrictConfinement, "":
+		// strict is always fine
+		return nil
+	case snap.DevModeConfinement:
+		// --devmode needs to be specified every time (==> ignore snapst)
+		if flags.DevModeAllowed() {
+			return nil
+		}
+		return &ErrSnapNeedsMode{
+			Mode: c,
+			Snap: info.Name(),
+		}
+	case snap.ClassicConfinement:
+		if !release.OnClassic {
+			return &ErrSnapNeedsClassicSystem{Snap: info.Name()}
+		}
+
+		if flags.Classic {
+			return nil
+		}
+
+		if snapst != nil && snapst.Flags.Classic {
+			return nil
+		}
+
+		return &ErrSnapNeedsMode{
+			Mode: c,
+			Snap: info.Name(),
+		}
+	default:
+		return fmt.Errorf("unknown confinement %q", c)
+	}
+}
+
+// do a reasonably lightweight check that a snap described by Info,
+// with the given SnapState and the user-specified Flags should be
+// installable on the current system.
+func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error {
+	if err := validateFlagsForInfo(info, snapst, flags); err != nil {
+		return err
+	}
+
+	// verify we have a valid architecture
+	if !arch.IsSupportedArchitecture(info.Architectures) {
+		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.Name(), strings.Join(info.Architectures, ", "), arch.UbuntuArchitecture())
+	}
+
+	// check assumes
+	if err := checkAssumes(info); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
@@ -110,26 +186,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 		return err
 	}
 
-	if s.NeedsDevMode() && !flags.DevModeAllowed() {
-		return fmt.Errorf("snap %q requires devmode or confinement override", s.Name())
-	}
-	if s.NeedsClassic() {
-		if !release.OnClassic {
-			return fmt.Errorf("snap %q requires classic confinement which is only available on classic systems", s.Name())
-		}
-		if !flags.Classic {
-			return fmt.Errorf("snap %q requires consent to use classic confinement", s.Name())
-		}
-	}
-
-	// verify we have a valid architecture
-	if !arch.IsSupportedArchitecture(s.Architectures) {
-		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", s.Name(), strings.Join(s.Architectures, ", "), arch.UbuntuArchitecture())
-	}
-
-	// check assumes
-	err = checkAssumes(s)
-	if err != nil {
+	if err := validateInfoAndFlags(s, nil, flags); err != nil {
 		return err
 	}
 
@@ -181,6 +238,18 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 		return err
 	}
 
+	// Allow installing "core" even if "ubuntu-core" is already
+	// installed. Ideally we should only allow this if we know
+	// this install is part of the ubuntu-core->core transition
+	// (e.g. via a flag) because if this happens outside of this
+	// transition we will end up with not connected interface
+	// connections in the "core" snap. But the transition will
+	// kick in automatically quickly so an extra flag is overkill.
+	if snapInfo.Name() == "core" && core.Name() == "ubuntu-core" {
+		return nil
+	}
+
+	// but generally do not allow to have two cores installed
 	if core.Name() != snapInfo.Name() {
 		return fmt.Errorf("cannot install core snap %q when core snap %q is already present", snapInfo.Name(), core.Name())
 	}

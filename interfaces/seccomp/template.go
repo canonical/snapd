@@ -95,16 +95,14 @@ chmod
 fchmod
 fchmodat
 
-# snappy doesn't currently support per-app UID/GIDs so don't allow chown. To
-# properly support chown, we need to have syscall arg filtering (LP: #1446748)
-# and per-app UID/GIDs.
-#chown
-#chown32
-#fchown
-#fchown32
-#fchownat
-#lchown
-#lchown32
+# snappy doesn't currently support per-app UID/GIDs. All daemons run as 'root'
+# so allow chown to 'root'. DAC will prevent non-root from chowning to root.
+chown - 0 0
+chown32 - 0 0
+fchown - 0 0
+fchown32 - 0 0
+lchown - 0 0
+lchown32 - 0 0
 
 clock_getres
 clock_gettime
@@ -314,9 +312,11 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_rr_get_interval
-# LP: #1446748 - when support syscall arg filtering, enforce pid_t is 0 so the
-# app may only change its own scheduler
-sched_setscheduler
+# enforce pid_t is 0 so the app may only change its own scheduler and affinity.
+# Use process-control interface for controlling other pids.
+sched_setaffinity 0 - -
+sched_setparam 0 -
+sched_setscheduler 0 - -
 
 sched_yield
 
