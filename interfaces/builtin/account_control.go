@@ -24,29 +24,9 @@ import (
 )
 
 const accountControlConnectedPlugAppArmor = `
-# Allow creating, modifying and deleting non-system users and account details.
-/{,usr/}bin/passwd ixr,
-/{,usr/}bin/gpasswd ixr,
-/{,usr/}bin/chage ixr,
-/{,usr/}bin/chfn ixr,
-/{,usr/}bin/chsh ixr,
-/{,usr/}bin/expiry ixr,
-/{,usr/}sbin/unix_chkpwd ixr,
-
-# Also allow the batch-mode variants
+# Allow creating, modifying and deleting non-system users and account password.
 /{,usr/}sbin/chpasswd ixr,
-/{,usr/}sbin/chgpasswd ixr,
-/{,usr/}sbin/newusers ixr,
-
-# Allow checking integrity of files
-/{,usr/}sbin/pwck ixr,
-/{,usr/}sbin/grpck ixr,
-
-# Allow adding, removing and modifying users and groups
-/{,usr/}sbin/{add,del}user ixr,
-/{,usr/}sbin/user{add,mod,del} ixr,
-/{,usr/}sbin/{add,del}group ixr,
-/{,usr/}sbin/group{add,mod,del} ixr,
+/{,usr/}sbin/user{add,del} ixr,
 
 # Only allow modifying the non-system extrausers database
 /var/lib/extrausers/ r,
