@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const accountsControlConnectedPlugAppArmor = `
+const accountControlConnectedPlugAppArmor = `
 # Allow creating, modifying and deleting non-system users and account details.
 /{,usr/}bin/passwd ixr,
 /{,usr/}bin/gpasswd ixr,
@@ -70,7 +70,7 @@ capability chown,
 `
 
 // Needed because useradd uses a netlink socket
-const accountsControlConnectedPlugSecComp = `
+const accountControlConnectedPlugSecComp = `
 sendto
 recvfrom
 fchown
@@ -81,8 +81,8 @@ fsetid
 func NewAccountControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "account-control",
-		connectedPlugAppArmor: accountsControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  accountsControlConnectedPlugSecComp,
+		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
