@@ -84,7 +84,7 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	c.Assert(string(snippet), testutil.Contains, "/{,usr/}bin/passwd")
+	c.Assert(string(snippet), testutil.Contains, "/{,usr/}sbin/chpasswd")
 
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
