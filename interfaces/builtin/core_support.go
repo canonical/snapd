@@ -34,6 +34,8 @@ const coreSupportConnectedPlugAppArmor = `
 const coreSupportConnectedPlugSecComp = `
 sendmsg
 recvmsg
+sendto
+recvfrom
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
