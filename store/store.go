@@ -601,6 +601,19 @@ func maybeLogRetryAttempt(reqOptions *requestOptions, attempt *retry.Attempt, st
 
 }
 
+func maybeLogRetrySummary(reqOptions *requestOptions, attempt *retry.Attempt, resp *http.Response, err error, startTime time.Time) {
+	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
+		var status string
+		delta := time.Since(startTime) / time.Millisecond
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
+	}
+}
+
 // retryRequest calls doRequest and decodes the response in a retry loop.
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
@@ -642,17 +655,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		var status string
-		delta := time.Since(startTime) / time.Millisecond
-		if err != nil {
-			status = err.Error()
-		} else if resp != nil {
-			status = fmt.Sprintf("%d", resp.StatusCode)
-		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
-	}
+	maybeLogRetrySummary(reqOptions, attempt, resp, err, startTime)
 
 	return resp, err
 }
