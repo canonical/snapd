@@ -1,3 +1,10 @@
+snapd (2.22~14.04) UNRELEASED; urgency=medium
+
+  * New upstream release, LP: #xxxx:
+    - 
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 26 Jan 2017 08:47:48 +0100
+
 snapd (2.21~14.04.2) trusty; urgency=medium
 
   * New upstream release, LP: #1656382:
