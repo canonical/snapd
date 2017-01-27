@@ -164,15 +164,6 @@ type Store struct {
 	suggestedCurrency string
 }
 
-// the LimitTime should be slightly more than 3 times of our http.Client
-// Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
-	retry.Exponential{
-		Initial: 100 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
-
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
@@ -619,7 +610,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(reqOptions, attempt, startTime)
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -1350,7 +1341,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			Method: "GET",
 			URL:    storeURL,
 		}
-		maybeLogRetryAttempt(reqOptions, attempt, startTime)
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
