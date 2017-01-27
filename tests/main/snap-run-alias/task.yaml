@@ -12,6 +12,8 @@ prepare: |
 restore:
     rm -f /snap/bin/test_echo
     rm -f /snap/bin/test_cat
+    rm -f orig.txt
+    rm -f new.txt
 
 environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo
