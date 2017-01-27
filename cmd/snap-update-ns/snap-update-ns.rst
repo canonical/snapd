@@ -1,9 +1,9 @@
-===============
- snap-alter-ns
-===============
+================
+ snap-update-ns
+================
 
 -----------------------------------------------------------------------
-internal tool for altering preserved namespaces of snappy applications
+internal tool for updating preserved namespaces of snappy applications
 -----------------------------------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
@@ -16,23 +16,23 @@ internal tool for altering preserved namespaces of snappy applications
 SYNOPSIS
 ========
 
-	snap-alter-ns SNAP_NAME
+	snap-update-ns SNAP_NAME
 
 DESCRIPTION
 ===========
 
-The `snap-alter-ns` is a program used internally by `snapd` to alter a preserved
-mount namespace of a particular snap.
+The `snap-update-ns` is a program used internally by `snapd` to update a
+preserved mount namespace of a particular snap.
 
 OPTIONS
 =======
 
-The `snap-alter-ns` program does not support any options.
+The `snap-update-ns` program does not support any options.
 
 ENVIRONMENT
 ===========
 
-`snap-alter-ns` responds to the following environment variables
+`snap-update-ns` responds to the following environment variables
 
 `SNAP_CONFINE_DEBUG`:
 	When defined the program will print additional diagnostic information about
@@ -41,11 +41,11 @@ ENVIRONMENT
 FILES
 =====
 
-`snap-alter-ns` uses the following files:
+`snap-update-ns` uses the following files:
 
 `/run/snapd/ns/$SNAP_NAME.mnt`:
 
-    The preserved mount namespace that is altered by `snap-alter-ns`.
+    The preserved mount namespace that is upadted by `snap-update-ns`.
 
 `/proc/self/mountinfo`:
 
