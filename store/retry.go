@@ -43,7 +43,7 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 
 func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
 	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
-		logger.Debugf("Retyring %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
+		logger.Debugf("Retrying %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
 	}
 }
 
