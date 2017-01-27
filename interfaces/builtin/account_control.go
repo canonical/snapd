@@ -46,17 +46,20 @@ capability audit_write,
 capability chown,
 capability fsetid,
 
-# useradd write the result in the log
-/var/log/lastlog rw,
-/var/log/faillog rw,
+# useradd writes the result in the log
+#include <abstractions/wutmp>
+/var/log/faillog rwk,
 `
 
 // Needed because useradd uses a netlink socket
 const accountControlConnectedPlugSecComp = `
 sendto
 recvfrom
-fchown
-fchown32
+
+# useradd requires chowning to 'shadow'
+# TODO: dynamically determine the shadow gid to support alternate cores
+fchown - 0 42
+fchown32 - 0 42
 `
 
 // Interface which allows to handle the user accounts.
