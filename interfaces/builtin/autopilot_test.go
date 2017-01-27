@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type AutopilotInterfaceSuite struct {
@@ -76,4 +77,17 @@ func (s *AutopilotInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `slot is not of interface "autopilot-introspection"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, `plug is not of interface "autopilot-introspection"`)
+}
+
+func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "path=/com/canonical/Autopilot/Introspection\n")
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
