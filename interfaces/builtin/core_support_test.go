@@ -25,60 +25,61 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type Unity8DownloadManagerInterfaceSuite struct {
+type CoreSupportInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&Unity8DownloadManagerInterfaceSuite{
-	iface: &builtin.Unity8DownloadManagerInterface{},
+var _ = Suite(&CoreSupportInterfaceSuite{
+	iface: builtin.NewCoreSupportInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "unity8-download-manager",
-			Interface: "unity8-download-manager",
+			Name:      "core-support",
+			Interface: "core-support",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "unity8-download-manager",
-			Interface: "unity8-download-manager",
+			Name:      "core-support",
+			Interface: "core-support",
 		},
 	},
 })
 
-func (s *Unity8DownloadManagerInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "unity8-download-manager")
+func (s *CoreSupportInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "core-support")
 }
 
-func (s *Unity8DownloadManagerInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
-	c.Assert(err, IsNil)
-}
-
-func (s *Unity8DownloadManagerInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *CoreSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "unity8-download-manager",
-		Interface: "unity8-download-manager",
+		Name:      "core-support",
+		Interface: "core-support",
 	}})
+	c.Assert(err, ErrorMatches, "core-support slots are reserved for the operating system snap")
+}
+
+func (s *CoreSupportInterfaceSuite) TestSanitizePlug(c *C) {
+	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *Unity8DownloadManagerInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *CoreSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "unity8-download-manager"`)
+		PanicMatches, `slot is not of interface "core-support"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "unity8-download-manager"`)
+		PanicMatches, `plug is not of interface "core-support"`)
 }
 
-func (s *Unity8DownloadManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *CoreSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -87,4 +88,14 @@ func (s *Unity8DownloadManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+}
+
+func (s *CoreSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `org.freedesktop.systemd1.Unit`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `recvfrom`)
 }
