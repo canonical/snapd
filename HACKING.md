@@ -84,6 +84,10 @@ working directory). Alternatively:
 
 to have it available in `$GOPATH/bin`
 
+Similarly, to build the `snapd` REST API daemon, you can run
+
+    go build -o /tmp/snapd github.com/snapcore/snapd/cmd/snapd
+
 ### Contributing
 
 Contributions are always welcome! Please make sure that you sign the

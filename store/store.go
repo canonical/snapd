@@ -164,7 +164,9 @@ type Store struct {
 	suggestedCurrency string
 }
 
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 	retry.Exponential{
 		Initial: 100 * time.Millisecond,
 		Factor:  2.5,
@@ -591,15 +593,20 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client,
 	})
 }
 
+func maybeLogRetryAttempt(reqOptions *requestOptions, attempt *retry.Attempt, startTime time.Time) {
+	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
+		delta := time.Since(startTime) / time.Millisecond
+		logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
+	}
+
+}
+
 // retryRequest calls doRequest and decodes the response in a retry loop.
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			delta := time.Since(startTime) / time.Millisecond
-			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-		}
+		maybeLogRetryAttempt(reqOptions, attempt, startTime)
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -1334,11 +1341,14 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    storeURL,
 		}
+		maybeLogRetryAttempt(reqOptions, attempt, startTime)
+
 		h := crypto.SHA3_384.New()
 
 		if resume > 0 {
