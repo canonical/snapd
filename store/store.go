@@ -610,7 +610,7 @@ func maybeLogRetrySummary(reqOptions *requestOptions, attempt *retry.Attempt, re
 		} else if resp != nil {
 			status = fmt.Sprintf("%d", resp.StatusCode)
 		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
+		logger.Debugf("The retry loop for %s finished after %d retries, elapsed time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
 	}
 }
 
