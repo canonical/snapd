@@ -242,7 +242,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd snap-confine
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -260,7 +260,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd snap-confine
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -273,7 +273,7 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            apt-get purge -y snapd snap-confine
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"

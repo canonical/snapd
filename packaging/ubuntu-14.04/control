@@ -63,7 +63,6 @@ Depends: adduser,
 # only needed on trusty to pull in the right version.
          sudo (>= 1.8.9p5-1ubuntu1.3),
          systemd (>= 204-5ubuntu20.20),
-         ubuntu-core-launcher (= ${binary:Version}),
 # only needed on trusty to pull in the right version.
          util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},
@@ -104,8 +103,8 @@ Description: transitional dummy package
 
 Package: snap-confine
 Architecture: any
-Breaks: ubuntu-core-launcher (<< 1.0.32)
-Replaces: ubuntu-core-launcher (<< 1.0.32)
+Breaks: ubuntu-core-launcher (<< 2.22~14.04)
+Replaces: ubuntu-core-launcher (<< 2.22~14.04)
 Depends: apparmor (>= 2.10.95-0ubuntu2.2), ${misc:Depends}, ${shlibs:Depends}
 Description: Support executable to apply confinement for snappy apps
  This package contains an internal tool for applying confinement to snappy app.
@@ -115,7 +114,8 @@ Description: Support executable to apply confinement for snappy apps
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: snap-confine (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
+Depends: snap-confine (= ${binary:Version}), ${misc:Depends}
+Section: oldlibs 
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Launcher for ubuntu-core (snappy) apps
- This package contains the launcher for launching snappy applications
+Description: Transitional package for snap-confine
+ This is a transitional dummy package. It can safely be removed.
