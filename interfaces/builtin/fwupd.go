@@ -91,6 +91,9 @@ var fwupdConnectedPlugAppArmor = []byte(`
 # privileged access to the fwupd service.
 # Usage: reserved
 
+  # Allow fwupdmgr refresh
+  capability net_admin,
+
   #Can access the network
   #include <abstractions/nameservice>
   #include <abstractions/ssl_certs>
@@ -182,6 +185,8 @@ getsockopt
 recvfrom
 recvmsg
 sendmsg
+# Allow fwupdmgr refresh
+sendmmsg
 sendto
 setsockopt
 `)
