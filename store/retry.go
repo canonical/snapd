@@ -42,7 +42,7 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 ))
 
 func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
-	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPPY_TESTING") {
+	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPD_DEBUG") {
 		return
 	}
 
@@ -50,7 +50,7 @@ func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Tim
 }
 
 func maybeLogRetrySummary(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
-	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPPY_TESTING") {
+	if attempts.Count() <= 1 && !!osutil.GetenvBool("SNAPD_DEBUG") {
 		return
 	}
 
