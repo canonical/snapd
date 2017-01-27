@@ -223,9 +223,7 @@ restore: |
         systemctl enable --now snapd.refresh.timer
     fi
 
-    if [ -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
-        rm $SPREAD_PATH/snapd-state.tar.gz
-    fi
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
 
 suites:
     tests/main/:
