@@ -36,4 +36,4 @@ execute: |
 
 restore: |
     rm -f pi3.model
-    rm -f pi3.model.json
+    rm -f pi3-model.json
