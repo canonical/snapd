@@ -82,9 +82,9 @@ func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 	return caveatID, nil
 }
 
-// retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func retryRequestDecodeJSON(endpoint string, headers map[string]string, reader io.Reader, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return retryRequest(endpoint, headers, reader, func(ok bool, resp *http.Response) error {
+// retryPostRequestDecodeJSON calls retryPostRequest and decodes the response into either success or failure.
+func retryPostRequestDecodeJSON(endpoint string, headers map[string]string, data []byte, success interface{}, failure interface{}) (resp *http.Response, err error) {
+	return retryPostRequest(endpoint, headers, data, func(ok bool, resp *http.Response) error {
 		result := success
 		if !ok {
 			result = failure
@@ -96,14 +96,19 @@ func retryRequestDecodeJSON(endpoint string, headers map[string]string, reader i
 	})
 }
 
-// retryRequest calls doRequest and decodes the response in a retry loop.
-func retryRequest(endpoint string, headers map[string]string, reader io.Reader, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
+// retryPostRequest calls doRequest and decodes the response in a retry loop.
+func retryPostRequest(endpoint string, headers map[string]string, data []byte, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
+		var body io.Reader
+		if data != nil {
+			body = bytes.NewBuffer(data)
+		}
+
 		maybeLogRetryAttempt(endpoint, attempt, startTime)
 
-		req, err := http.NewRequest("POST", endpoint, reader)
+		req, err := http.NewRequest("POST", endpoint, body)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +178,7 @@ func requestStoreMacaroon() (string, error) {
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
-	resp, err := retryRequestDecodeJSON(MyAppsMacaroonACLAPI, headers, bytes.NewReader(macaroonJSONData), &responseData, nil)
+	resp, err := retryPostRequestDecodeJSON(MyAppsMacaroonACLAPI, headers, macaroonJSONData, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -208,7 +213,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
-	resp, err := retryRequestDecodeJSON(endpoint, headers, bytes.NewReader(dischargeJSONData), &responseData, &msg)
+	resp, err := retryPostRequestDecodeJSON(endpoint, headers, dischargeJSONData, &responseData, &msg)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -234,9 +239,6 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		return "", fmt.Errorf(errorPrefix+"server returned status %d", resp.StatusCode)
 	}
 
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
 	if responseData.Macaroon == "" {
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
@@ -278,10 +280,7 @@ func requestStoreDeviceNonce() (string, error) {
 		"User-Agent": httputil.UserAgent(),
 		"Accept":     "application/json",
 	}
-	resp, err := retryRequestDecodeJSON(MyAppsDeviceNonceAPI, headers, nil, &responseData, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
+	resp, err := retryPostRequestDecodeJSON(MyAppsDeviceNonceAPI, headers, nil, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -324,7 +323,7 @@ func requestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
 	}
 
-	_, err = retryRequest(MyAppsDeviceSessionAPI, headers, bytes.NewReader(deviceJSONData), func(ok bool, resp *http.Response) error {
+	_, err = retryPostRequest(MyAppsDeviceSessionAPI, headers, deviceJSONData, func(ok bool, resp *http.Response) error {
 		if ok {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
