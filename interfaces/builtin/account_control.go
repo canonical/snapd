@@ -49,7 +49,8 @@ const accountControlConnectedPlugAppArmor = `
 /{,usr/}sbin/group{add,mod,del} ixr,
 
 # Only allow modifying the non-system extrausers database
-/var/lib/extrausers/{,**} rwkl,
+/var/lib/extrausers/ r,
+/var/lib/extrausers/** rwkl,
 
 # Needed by useradd
 /etc/login.defs r,
@@ -63,6 +64,7 @@ network netlink raw,
 # Capabilities needed by useradd
 capability audit_write,
 capability chown,
+capability fsetid,
 
 # useradd write the result in the log
 /var/log/lastlog rw,
@@ -74,7 +76,7 @@ const accountControlConnectedPlugSecComp = `
 sendto
 recvfrom
 fchown
-fsetid
+fchown32
 `
 
 // Interface which allows to handle the user accounts.
