@@ -34,9 +34,5 @@ restore: |
 debug: |
     # Show the test suite failure log if there's one
     cat $SPREAD_PATH/cmd/autogarbage/test-suite.log || true
-    # Show any autogabare that may need cleaning
-    cd $SPREAD_PATH/cmd/
-    find . > after
-    diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
-    # Show kernel log as it may contain useful stuff
-    tail /var/log/kern.log
+    # Show seccomp audit messages
+    tail /var/log/kern.log | grep -F type=1326
