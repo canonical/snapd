@@ -101,14 +101,9 @@ func retryPostRequest(endpoint string, headers map[string]string, data []byte, d
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		var body io.Reader
-		if data != nil {
-			body = bytes.NewBuffer(data)
-		}
-
 		maybeLogRetryAttempt(endpoint, attempt, startTime)
 
-		req, err := http.NewRequest("POST", endpoint, body)
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
 		if err != nil {
 			return nil, err
 		}
