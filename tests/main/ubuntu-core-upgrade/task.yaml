@@ -6,6 +6,7 @@ systems:
     - ubuntu-core-16-arm-32
 
 debug: |
+    snap list
     . $TESTSLIB/boot.sh
     bootenv
     cat /proc/cmdline
