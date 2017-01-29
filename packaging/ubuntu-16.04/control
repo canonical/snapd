@@ -59,6 +59,7 @@ Depends: adduser,
          snap-confine (= ${binary:Version}),
          squashfs-tools,
          systemd,
+         xdelta3,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
