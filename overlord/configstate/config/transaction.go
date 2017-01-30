@@ -17,7 +17,7 @@
  *
  */
 
-package configstate
+package config
 
 import (
 	"encoding/json"
