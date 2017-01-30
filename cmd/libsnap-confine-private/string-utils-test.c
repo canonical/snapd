@@ -74,6 +74,242 @@ static void test_sc_must_snprintf__fail()
 	g_test_trap_assert_stderr("cannot format string: 1234\n");
 }
 
+// Check that appending to a buffer works OK.
+static void test_sc_must_stpcpy()
+{
+	union {
+		char bigbuf[6];
+		struct {
+			char canary1;
+			char buf[4];
+			char canary2;
+		};
+	} data = {
+		.buf = {
+	'f', '\0', 0xFF, 0xFF},.canary1 = ~0,.canary2 = ~0,};
+
+	// Sanity check, ensure that the layout of structures is as spelled above.
+	// (first canary1, then buf and finally canary2.
+	g_assert_cmpint(((char *)&data.buf[0]) - ((char *)&data.canary1), ==,
+			1);
+	g_assert_cmpint(((char *)&data.buf[4]) - ((char *)&data.canary2), ==,
+			0);
+
+	char *to = &data.buf[1];
+	to = sc_must_stpcpy(data.buf, sizeof data.buf, to, "oo");
+
+	// Check that we didn't corrupt either canary.
+	g_assert_cmpint(data.canary1, ==, ~0);
+	g_assert_cmpint(data.canary2, ==, ~0);
+
+	// Check that we got the result that was expected
+	// and that the return value is good.
+	g_assert_cmpstr(data.buf, ==, "foo");
+	g_assert(to == &data.buf[sizeof data.buf]);
+}
+
+// Check that appending an empty string to a full buffer is valid.
+static void test_sc_must_stpcpy__empty_to_full()
+{
+	union {
+		char bigbuf[6];
+		struct {
+			char canary1;
+			char buf[4];
+			char canary2;
+		};
+	} data = {
+		.buf = {
+	'f', 'o', 'o', '\0'},.canary1 = ~0,.canary2 = ~0,};
+
+	// Sanity check, ensure that the layout of structures is as spelled above.
+	// (first canary1, then buf and finally canary2.
+	g_assert_cmpint(((char *)&data.buf[0]) - ((char *)&data.canary1), ==,
+			1);
+	g_assert_cmpint(((char *)&data.buf[4]) - ((char *)&data.canary2), ==,
+			0);
+
+	// NOTE: The -1 is so that we have enough space for the string terminator.
+	char *to = &data.buf[sizeof data.buf - 1];
+	to = sc_must_stpcpy(data.buf, sizeof data.buf, to, "");
+
+	// Check that we didn't corrupt either canary.
+	g_assert_cmpint(data.canary1, ==, ~0);
+	g_assert_cmpint(data.canary2, ==, ~0);
+
+	// Check that we got the result that was expected
+	// and that the return value is good.
+	g_assert_cmpstr(data.buf, ==, "foo");
+	g_assert(to == &data.buf[sizeof data.buf]);
+}
+
+// Check that the overflow detection works.
+static void test_sc_must_stpcpy__overflow()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[0];
+		// Try to append a string that's one character too long.
+		sc_must_stpcpy(buf, sizeof buf, to, "1234");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: buffer overflow of 1 byte(s)\n");
+}
+
+// Check that `to' cannot point to memory before the start of the buffer.
+static void test_sc_must_stpcpy__before_start()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[-1];
+		sc_must_stpcpy(buf, sizeof buf, to, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: destination points 1 byte(s) in front of the buffer\n");
+}
+
+// Check that `to' cannot point to the end of the buffer.
+static void test_sc_must_stpcpy__at_end()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf];
+		sc_must_stpcpy(buf, sizeof buf, to, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: destination points to the end of the buffer\n");
+}
+
+// Check that `to' cannot point byeond the end of the buffer.
+static void test_sc_must_stpcpy__after_end()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf + 1];
+		sc_must_stpcpy(buf, sizeof buf, to, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: destination points 1 byte(s) beyond the buffer\n");
+}
+
+// Check that `buf' cannot be NULL.
+static void test_sc_must_stpcpy__NULL_buf()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf];
+		sc_must_stpcpy(NULL, sizeof buf, to, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("cannot append string: buffer is NULL\n");
+}
+
+// Check that `dest' cannot be NULL.
+static void test_sc_must_stpcpy__NULL_dest()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf];
+		sc_must_stpcpy(buf, sizeof buf, NULL, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: destination is NULL\n");
+}
+
+// Check that `src' cannot be NULL.
+static void test_sc_must_stpcpy__NULL_src()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf];
+		sc_must_stpcpy(buf, sizeof buf, to, NULL);
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("cannot append string: source is NULL\n");
+}
+
+// Check that `buf_size' cannot be very large.
+static void test_sc_must_stpcpy__huge_buf_size()
+{
+	if (g_test_subprocess()) {
+		char buf[4];
+		char canary;
+		char *to;
+
+		to = &buf[sizeof buf];
+		sc_must_stpcpy(buf, -1, to, "foo");
+
+		g_test_message("expected sc_must_stpcpy not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot append string: buffer size (18446744073709551615) exceeds internal limit\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
@@ -82,4 +318,24 @@ static void __attribute__ ((constructor)) init()
 			test_sc_must_snprintf);
 	g_test_add_func("/string-utils/sc_must_snprintf/fail",
 			test_sc_must_snprintf__fail);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy",
+			test_sc_must_stpcpy);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/empty_to_full",
+			test_sc_must_stpcpy__empty_to_full);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/overflow",
+			test_sc_must_stpcpy__overflow);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/before_start",
+			test_sc_must_stpcpy__before_start);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/at_end",
+			test_sc_must_stpcpy__at_end);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/after_end",
+			test_sc_must_stpcpy__after_end);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/NULL_buf",
+			test_sc_must_stpcpy__NULL_buf);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/NULL_dest",
+			test_sc_must_stpcpy__NULL_dest);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/NULL_src",
+			test_sc_must_stpcpy__NULL_src);
+	g_test_add_func("/string-utils/test_sc_must_stpcpy/huge_buf_size",
+			test_sc_must_stpcpy__huge_buf_size);
 }
