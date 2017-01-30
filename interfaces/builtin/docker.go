@@ -39,7 +39,6 @@ const dockerConnectedPlugSecComp = `
 # access to the system via Docker's socket API.
 # Usage: reserved
 
-setsockopt
 bind
 `
 

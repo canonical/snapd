@@ -46,13 +46,10 @@ const gsettingsConnectedPlugSecComp = `
 # gsettings and allows adjusting settings of other applications.
 
 # dbus
-connect
-getsockname
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewGsettingsInterface returns a new "gsettings" interface.

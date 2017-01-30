@@ -139,7 +139,6 @@ const ofonoPermanentSlotSecComp = `
 accept
 accept4
 bind
-getsockopt
 listen
 recv
 recvfrom

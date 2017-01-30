@@ -31,7 +31,6 @@ const cupsControlConnectedPlugAppArmor = `
 const cupsControlConnectedPlugSecComp = `
 recvfrom
 sendto
-setsockopt
 `
 
 // NewCupsControlInterface returns a new "cups" interface.

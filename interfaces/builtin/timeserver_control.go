@@ -70,14 +70,11 @@ dbus (receive)
 `
 const timeserverControlConnectedPlugSecComp = `
 # dbus
-connect
-getsockname
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `
 
 // NewTimeserverControlInterface returns a new "timeserver-control" interface.

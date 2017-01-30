@@ -203,10 +203,6 @@ var networkManagerPermanentSlotSecComp = []byte(`
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -216,11 +212,8 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 sethostname
 shutdown
-socketpair
-socket
 # Needed for keyfile settings plugin to allow adding settings
 # for different users. This is currently at runtime only used
 # to make new created network settings files only editable by
@@ -245,15 +238,12 @@ var networkManagerConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 # Can communicate with DBus system service
-connect
-getsockname
 recv
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `)
 
 var networkManagerPermanentSlotDBus = []byte(`

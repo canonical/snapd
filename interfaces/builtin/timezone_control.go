@@ -71,14 +71,11 @@ dbus (receive)
 
 const timezoneControlConnectedPlugSecComp = `
 # dbus
-connect
-getsockname
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `
 
 // NewTimezoneControlInterface returns a new "timezone-control" interface.

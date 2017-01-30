@@ -109,6 +109,10 @@ clock_gettime
 clock_nanosleep
 clone
 close
+
+# needed by ls -l
+connect
+
 creat
 dup
 dup2
@@ -394,9 +398,10 @@ sigsuspend
 sigtimedwait
 sigwaitinfo
 
-# needed by ls -l
+# AppArmor mediates AF_UNIX/AF_LOCAL via 'unix' rules and all other AF_*
+# domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so 
+# we can allow 'socket' for any domain and let AppArmor handle the rest.
 socket
-connect
 
 # needed by snapctl
 getsockopt
