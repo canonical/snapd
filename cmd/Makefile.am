@@ -163,6 +163,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/ns-support.h \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
+	snap-confine/snap-confine-args.c \
+	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
@@ -204,7 +206,8 @@ snap_confine_snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
-	snap-confine/quirks.h
+	snap-confine/quirks.h \
+	snap-confine/snap-confine-args-test.c
 snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
