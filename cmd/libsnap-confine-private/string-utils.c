@@ -55,7 +55,7 @@ bool sc_endswith(const char *str, const char *suffix)
 	return strncmp(str - xlen + slen, suffix, xlen) == 0;
 }
 
-int must_snprintf(char *str, size_t size, const char *format, ...)
+int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 {
 	int n;
 

@@ -53,19 +53,19 @@ static void test_sc_endswith()
 	g_assert_false(sc_endswith("ba", "bar"));
 }
 
-static void test_must_snprintf()
+static void test_sc_must_snprintf()
 {
 	char buf[5];
-	must_snprintf(buf, sizeof buf, "1234");
+	sc_must_snprintf(buf, sizeof buf, "1234");
 	g_assert_cmpstr(buf, ==, "1234");
 }
 
-static void test_must_snprintf__fail()
+static void test_sc_must_snprintf__fail()
 {
 	if (g_test_subprocess()) {
 		char buf[5];
-		must_snprintf(buf, sizeof buf, "12345");
-		g_test_message("expected must_snprintf not to return");
+		sc_must_snprintf(buf, sizeof buf, "12345");
+		g_test_message("expected sc_must_snprintf not to return");
 		g_test_fail();
 		return;
 	}
@@ -78,7 +78,8 @@ static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
-	g_test_add_func("/string-utils/must_snprintf", test_must_snprintf);
-	g_test_add_func("/string-utils/must_snprintf/fail",
-			test_must_snprintf__fail);
+	g_test_add_func("/string-utils/sc_must_snprintf",
+			test_sc_must_snprintf);
+	g_test_add_func("/string-utils/sc_must_snprintf/fail",
+			test_sc_must_snprintf__fail);
 }
