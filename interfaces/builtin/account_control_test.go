@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,73 +28,65 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type CoreSupportInterfaceSuite struct {
+type AccountControlSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&CoreSupportInterfaceSuite{
-	iface: builtin.NewCoreSupportInterface(),
+var _ = Suite(&AccountControlSuite{
+	iface: builtin.NewAccountControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "core-support",
-			Interface: "core-support",
+			Name:      "account-control",
+			Interface: "account-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "core-support",
-			Interface: "core-support",
+			Name:      "account-control",
+			Interface: "account-control",
 		},
 	},
 })
 
-func (s *CoreSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "core-support")
+func (s *AccountControlSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "account-control")
 }
 
-func (s *CoreSupportInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *AccountControlSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "core-support",
-		Interface: "core-support",
+		Name:      "account-control",
+		Interface: "account-control",
 	}})
-	c.Assert(err, ErrorMatches, "core-support slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "account-control slots are reserved for the operating system snap")
 }
 
-func (s *CoreSupportInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *AccountControlSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *CoreSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *AccountControlSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "core-support"`)
+		PanicMatches, `slot is not of interface "account-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "core-support"`)
+		PanicMatches, `plug is not of interface "account-control"`)
 }
 
-func (s *CoreSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
+	c.Assert(string(snippet), testutil.Contains, "/{,usr/}sbin/chpasswd")
 
-func (s *CoreSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `/bin/systemctl Uxr,`)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `sendmsg`)
+	c.Check(string(snippet), testutil.Contains, "\nsendto\nrecvfrom\n")
 }
