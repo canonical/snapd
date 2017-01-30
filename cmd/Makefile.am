@@ -77,6 +77,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
+	libsnap-confine-private/string-utils.c \
+	libsnap-confine-private/string-utils.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
 
@@ -91,6 +93,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
+	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
