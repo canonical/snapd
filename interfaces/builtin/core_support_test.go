@@ -93,9 +93,8 @@ func (s *CoreSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 func (s *CoreSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `org.freedesktop.systemd1.Unit`)
-
+	c.Assert(string(snippet), testutil.Contains, `/bin/systemctl Uxr,`)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `recvfrom`)
+	c.Assert(string(snippet), testutil.Contains, `sendmsg`)
 }
