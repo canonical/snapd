@@ -307,7 +307,7 @@ static void test_sc_must_stpcpy__huge_buf_size()
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("cannot append string: buffer size (18446744073709551615) exceeds internal limit\n");
+	    ("cannot append string: buffer size (-1) exceeds internal limit\n");
 }
 
 static void __attribute__ ((constructor)) init()

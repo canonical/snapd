@@ -87,7 +87,10 @@ char *sc_must_stpcpy(char *buf, size_t buf_size, char *dest, const char *src)
 	// Sanity check, the code doesn't need buffers larger than a few KBs so
 	// prevent corrupted or otherwise huge buffers from seeming "valid".
 	if (buf_size >= 0xFFFF) {
-		die("cannot append string: buffer size (%zu) exceeds internal limit", buf_size);
+		// NOTE: using %zd to format size_t as ssize_t which is more useful for
+		// -1 and similar huge values and also is better to test as it is
+		// independent of machine word size.
+		die("cannot append string: buffer size (%zd) exceeds internal limit", (ssize_t) buf_size);
 
 	}
 	size_t src_len = strlen(src);
