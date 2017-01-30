@@ -231,11 +231,14 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
 
 	// same publisher, same content
-	cand = s.connectCand(c, "stuff", `name: slot-snap
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
 slots:
   stuff:
     interface: content
-    content: mk1`, `name: plug-snap
+    content: mk1
+`, `
+name: plug-snap
 plugs:
   stuff:
     interface: content
@@ -257,7 +260,9 @@ plugs:
 slots:
   stuff:
     interface: content
-    content: mk1`, `name: plug-snap
+    content: mk1
+`, `
+name: plug-snap
 plugs:
   stuff:
     interface: content
@@ -655,7 +660,9 @@ func (s *baseDeclSuite) TestConnectionContent(c *C) {
 slots:
   stuff:
     interface: content
-    content: mk1`, `name: plug-snap
+    content: mk1
+`, `
+name: plug-snap
 plugs:
   stuff:
     interface: content
@@ -673,11 +680,14 @@ plugs:
 	c.Check(err, IsNil)
 
 	// same publisher, different content
-	cand = s.connectCand(c, "stuff", `name: slot-snap
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
 slots:
   stuff:
     interface: content
-    content: mk1`, `name: plug-snap
+    content: mk1
+`, `
+name: plug-snap
 plugs:
   stuff:
     interface: content
