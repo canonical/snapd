@@ -206,27 +206,73 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	// this extra memory to hold data parsed from the original line. In the
 	// end, the result is similar to using strtok except that the source and
 	// destination buffers are separate.
+	//
+	// At the end of the parsing process, the input buffer (line) and the
+	// output buffer (entry->line_buf) are the same except for where spaces
+	// were converted into NUL bytes (string terminators) and except for the
+	// leading part of the buffer that contains mount_id, parent_id, dev_major
+	// and dev_minor integer fields that are parsed separately.
+	//
+	// If MOUNTINFO_DEBUG is defined then extra debugging is printed to stderr
+	// and this allows for visual analysis of what is going on.
 	struct sc_mountinfo_entry *entry =
 	    calloc(1, sizeof *entry + strlen(line) + 1);
 	if (entry == NULL) {
 		return NULL;
 	}
+#ifdef MOUNTINFO_DEBUG
+	// Poison the buffer with '\1' bytes that are printed as '#' characters
+	// by show_buffers() below. This is "unaltered" memory.
+	memset(entry->line_buf, 1, strlen(line));
+#endif				// MOUNTINFO_DEBUG
 	int nscanned;
-	int offset, total_offset = 0;
+	int offset_delta, offset = 0;
 	nscanned = sscanf(line, "%d %d %u:%u %n",
 			  &entry->mount_id, &entry->parent_id,
-			  &entry->dev_major, &entry->dev_minor, &offset);
+			  &entry->dev_major, &entry->dev_minor, &offset_delta);
 	if (nscanned != 4)
 		goto fail;
-	total_offset += offset;
-	int total_used = 0;
+	offset += offset_delta;
+
+	void show_buffers() {
+#ifdef MOUNTINFO_DEBUG
+		fprintf(stderr, "Input buffer (first), with offset arrow\n");
+		fprintf(stderr, "Output buffer (second)\n");
+
+		fputc(' ', stderr);
+		for (int i = 0; i < offset - 1; ++i)
+			fputc('-', stderr);
+		fputc('v', stderr);
+		fputc('\n', stderr);
+
+		fprintf(stderr, ">%s<\n", line);
+
+		fputc('>', stderr);
+		for (int i = 0; i < strlen(line); ++i) {
+			int c = entry->line_buf[i];
+			fputc(c == 0 ? '@' : c == 1 ? '#' : c, stderr);
+		}
+		fputc('<', stderr);
+		fputc('\n', stderr);
+
+		fputc('>', stderr);
+		for (int i = 0; i < strlen(line); ++i)
+			fputc('=', stderr);
+		fputc('<', stderr);
+		fputc('\n', stderr);
+#endif				// MOUNTINFO_DEBUG
+	}
+
+	show_buffers();
+
 	char *parse_next_string_field() {
-		char *field = &entry->line_buf[0] + total_used;
-		nscanned = sscanf(line + total_offset, "%s %n", field, &offset);
+		char *field = &entry->line_buf[0] + offset;
+		int nscanned =
+		    sscanf(line + offset, "%s %n", field, &offset_delta);
 		if (nscanned != 1)
 			return NULL;
-		total_offset += offset;
-		total_used += offset + 1;
+		offset += offset_delta;
+		show_buffers();
 		return field;
 	}
 	if ((entry->root = parse_next_string_field()) == NULL)
@@ -235,21 +281,21 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 		goto fail;
 	if ((entry->mount_opts = parse_next_string_field()) == NULL)
 		goto fail;
-	entry->optional_fields = &entry->line_buf[0] + total_used++;
+	entry->optional_fields = &entry->line_buf[0] + offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
-	strcpy(entry->optional_fields, "");
-	for (;;) {
+	char *to = entry->optional_fields;
+	for (int field_num = 0;; ++field_num) {
 		char *opt_field = parse_next_string_field();
 		if (opt_field == NULL)
 			goto fail;
 		if (strcmp(opt_field, "-") == 0) {
+			opt_field[0] = 0;
 			break;
 		}
-		if (*entry->optional_fields) {
-			strcat(entry->optional_fields, " ");
+		if (field_num > 0) {
+			opt_field[-1] = ' ';
 		}
-		strcat(entry->optional_fields, opt_field);
 	}
 	if ((entry->fs_type = parse_next_string_field()) == NULL)
 		goto fail;
@@ -257,6 +303,7 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 		goto fail;
 	if ((entry->super_opts = parse_next_string_field()) == NULL)
 		goto fail;
+	show_buffers();
 	return entry;
  fail:
 	free(entry);

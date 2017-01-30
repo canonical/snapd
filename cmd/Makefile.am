@@ -36,9 +36,9 @@ endif
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests
-	./snap-confine/snap-confine-unit-tests
-	./system-shutdown/system-shutdown-unit-tests
-	./libsnap-confine-private/unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
+	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
