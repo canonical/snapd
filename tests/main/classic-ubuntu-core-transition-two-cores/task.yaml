@@ -8,10 +8,10 @@ execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure we have two cores"
     apt install -y jq
-    
+
     echo "install a snap"
-    snap install xkcd-webserver
-    snap interfaces |MATCH ":network.*xkcd-webserver"
+    snap install test-snapd-python-webserver
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
 
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
@@ -41,4 +41,4 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*xkcd-webserver"
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"

@@ -20,11 +20,43 @@
 package store
 
 import (
-	"gopkg.in/retry.v1"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"time"
+
+	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
+
+// the LimitTime should be slightly more than 3 times of our http.Client
+// Timeout value
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+	retry.Exponential{
+		Initial: 100 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
+func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
+	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
+		logger.Debugf("Retyring %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
+	}
+
+}
+
+func logRetryTime(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
+	var status string
+	if err != nil {
+		status = err.Error()
+	} else if resp != nil {
+		status = fmt.Sprintf("%d", resp.StatusCode)
+	}
+	logger.Debugf("The retry loop for %s finished after %d retries, elapsed time=%v, status: %s", url, attempt.Count(), time.Since(startTime), status)
+}
 
 func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
