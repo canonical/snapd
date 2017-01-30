@@ -1,6 +1,6 @@
 summary: Ensure that the ubuntu-core -> core transition works
 
-systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm32,-ubuntu-core-16-arm64]
+systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm-32,-ubuntu-core-16-arm-64]
 
 warn-timeout: 1m
 kill-timeout: 5m
