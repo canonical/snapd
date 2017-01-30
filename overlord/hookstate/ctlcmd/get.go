@@ -38,7 +38,7 @@ type getCommand struct {
 	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
 		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
@@ -129,6 +129,10 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 }
 
 func (c *getCommand) Execute(args []string) error {
+	if c.Positional.PlugOrSlotSpec == "" && len(c.Positional.Keys) == 0 {
+		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+	}
+
 	context := c.context()
 	if context == nil {
 		return fmt.Errorf("cannot get without a context")

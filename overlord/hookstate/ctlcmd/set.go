@@ -34,7 +34,7 @@ type setCommand struct {
 	baseCommand
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>"`
 		ConfValues     []string `positional-arg-name:"key=value"`
 	} `positional-args:"yes"`
 }
@@ -63,6 +63,10 @@ func init() {
 }
 
 func (s *setCommand) Execute(args []string) error {
+	if s.Positional.PlugOrSlotSpec == "" && len(s.Positional.ConfValues) == 0 {
+		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+	}
+
 	context := s.context()
 	if context == nil {
 		return fmt.Errorf("cannot set without a context")

@@ -53,7 +53,9 @@ func (s *setSuite) SetUpTest(c *C) {
 }
 
 func (s *setSuite) TestInvalidArguments(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"})
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set"})
+	c.Check(err, ErrorMatches, "need option name or plug/slot and attribute name arguments")
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"})
 	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"})
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of interface hooks.*")
