@@ -266,8 +266,8 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
 		die("cannot open directory for namespace group %s", group_name);
 	}
 	char lock_fname[PATH_MAX];
-	must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
-		      SC_NS_LOCK_FILE);
+	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
+			 SC_NS_LOCK_FILE);
 	debug("opening lock file for namespace group %s", group_name);
 	group->lock_fd =
 	    openat(group->dir_fd, lock_fname,
@@ -325,8 +325,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX];
-	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-		      SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
+			 SC_NS_MNT_FILE);
 	int mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
@@ -457,9 +457,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		     (int)parent, group->name);
 		char src[PATH_MAX];
 		char dst[PATH_MAX];
-		must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
-		must_snprintf(dst, sizeof dst, "%s%s", group->name,
-			      SC_NS_MNT_FILE);
+		sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt",
+				 (int)parent);
+		sc_must_snprintf(dst, sizeof dst, "%s%s", group->name,
+				 SC_NS_MNT_FILE);
 		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 			die("cannot bind-mount the mount namespace file %s -> %s", src, dst);
 		}
@@ -526,8 +527,8 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 	}
 	// Unmount ${group_name}.mnt which holds the preserved namespace
 	char mnt_fname[PATH_MAX];
-	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-		      SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
+			 SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);
 	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
 		switch (errno) {

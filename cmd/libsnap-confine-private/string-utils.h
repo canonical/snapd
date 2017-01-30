@@ -37,6 +37,6 @@ bool sc_endswith(const char *str, const char *suffix);
  * This version dies on any error condition.
  **/
 __attribute__ ((format(printf, 3, 4)))
-int must_snprintf(char *str, size_t size, const char *format, ...);
+int sc_must_snprintf(char *str, size_t size, const char *format, ...);
 
 #endif
