@@ -28,15 +28,14 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type getCommand struct {
 	baseCommand
 
 	// these two options are mutually exclusive
-	ForceSlotSide bool `long:"slot" description:"request attribute of the slot"`
-	ForcePlugSide bool `long:"plug" description:"request attribute of the plug"`
+	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
+	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>" required:"yes"`
@@ -47,7 +46,7 @@ type getCommand struct {
 	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("Prints configuration options or attribute values of plug/slot")
+var shortGetHelp = i18n.G("The get command prints configuration and interface connection settings.")
 var longGetHelp = i18n.G(`
 The get command prints configuration options for the current snap.
 
@@ -67,31 +66,24 @@ Nested values may be retrieved via a dotted path:
     $ snapctl get author.name
     frank
 
-Values of plug or slot attributes may be printed in plug hooks via:
+Values of interface connection settings may be printed with:
 
-    $ snapctl get :plugname serial-path
-	/dev/ttyS0
+    $ snapctl get :myplug usb-vendor
+    $ snapctl get :myslot path
 
-    $ snapctl get --slot :slotname camera-path
-	/dev/video0
+This will return the named setting from the local interface endpoint, whether a plug
+or a slot. Returning the setting from the connected snap's endpoint is also possible
+by explicitly requesting that via the --plug and --slot command line options:
 
-Values of plug or slot attributes may be printed in slot hooks via:
+    $ snapctl get :myplug --slot usb-vendor
 
-    $ snapctl get --plug :slotname serial-path
-	/dev/ttyS0
-
-    $ snapctl get :slotname camera-path
-	/dev/video0
+This requests the "usb-vendor" setting from the slot that is connected to "myplug".
 `)
 
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() command {
 		return &getCommand{}
-	}, map[string]string{
-		"slot": i18n.G("Access the slot side of the connection"),
-		"plug": i18n.G("Access the plug side of the connection"),
-	}, []argDesc{
-		{name: i18n.G("<snap>:<slot>")}})
+	})
 }
 
 func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error)) error {
@@ -146,19 +138,27 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
-	var snapAndPlugOrSlot snap.SnapAndName
-	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
-	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
-		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
-		c.Positional.PlugOrSlotSpec = ""
-	} else {
-		snapAndPlugOrSlot.UnmarshalFlag(c.Positional.PlugOrSlotSpec)
+	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
+		parts := strings.SplitN(c.Positional.PlugOrSlotSpec, ":", 2)
+		snap, name := parts[0], parts[1]
+		if name == "" {
+			return fmt.Errorf("plug or slot name not provided")
+		}
+		if snap != "" {
+			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
+		}
+
+		return c.getInterfaceSetting(context, name)
 	}
 
-	if snapAndPlugOrSlot.Name != "" {
-		return c.handleGetInterfaceAttributes(context, snapAndPlugOrSlot.Snap, snapAndPlugOrSlot.Name)
-	}
+	// PlugOrSlotSpec is actually a configuration key.
+	c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
+	c.Positional.PlugOrSlotSpec = ""
 
+	return c.getConfigSetting(context)
+}
+
+func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
 	}
@@ -183,7 +183,7 @@ func (c *getCommand) Execute(args []string) error {
 	})
 }
 
-func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, snapName string, plugOrSlot string) error {
+func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure get :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	var isPreparePlugHook, isPrepareSlotHook, isConnectPlugHook, isConnectSlotHook bool
 
@@ -218,27 +218,19 @@ func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, sn
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	// the typical case, we don't expect snap name to be provided via snapctl get :<plug|slot> ...
-	// if it's provided it should be the current snap, otherwise it's an error.
-	if snapName == "" {
-		isPlugSide := (isPreparePlugHook || isConnectPlugHook)
-		isSlotSide := (isPrepareSlotHook || isConnectSlotHook)
-		if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
-			// get attributes of the remote end
-			err = context.Get("other-snap", &snapName)
-			if err != nil {
-				// this should never happen unless the context is inconsistent
-				return fmt.Errorf(i18n.G("failed to get the name of the other snap from hook context: %q"), err)
-			}
-		} else {
-			// get own attributes
-			snapName = context.SnapName()
+	var snapName string
+	isPlugSide := (isPreparePlugHook || isConnectPlugHook)
+	isSlotSide := (isPrepareSlotHook || isConnectSlotHook)
+	if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
+		// get attributes of the remote end
+		err = context.Get("other-snap", &snapName)
+		if err != nil {
+			// this should never happen unless the context is inconsistent
+			return fmt.Errorf(i18n.G("failed to get the name of the other snap from hook context: %q"), err)
 		}
 	} else {
-		// support the unlikely case where snap name was provided but it's not the current snap.
-		if snapName != context.SnapName() {
-			return fmt.Errorf(i18n.G("snap name other than current snap cannot be used"))
-		}
+		// get own attributes
+		snapName = context.SnapName()
 	}
 
 	// check if the requested plug or slot is correct for this hook.

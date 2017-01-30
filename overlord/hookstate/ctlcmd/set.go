@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type setCommand struct {
@@ -53,17 +52,14 @@ Nested values may be modified via a dotted path:
 
     $ snapctl set author.name=frank
 
-Plug attributes may be set in the prepare- and connect- plug hooks via:
+Plug and slot attributes may be set in the respective prepare and connect hooks by
+naming the respective plug or slot:
 
-    $ snapctl set :plugname serial-path=/dev/ttyS0
-
-Slot attributes may be set in the prepare- and connect- slot hooks via:
-
-    $ snapctl set :slotname camera-path=/dev/video0
+    $ snapctl set :myplug path=/dev/ttyS0
 `)
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} }, nil, nil)
+	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
 }
 
 func (s *setCommand) Execute(args []string) error {
@@ -72,23 +68,26 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	var snapAndPlugOrSlot snap.SnapAndName
 	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
 	// values such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
 	if strings.Contains(s.Positional.PlugOrSlotSpec, "=") || !strings.Contains(s.Positional.PlugOrSlotSpec, ":") {
 		s.Positional.ConfValues = append([]string{s.Positional.PlugOrSlotSpec}, s.Positional.ConfValues[0:]...)
 		s.Positional.PlugOrSlotSpec = ""
-	} else {
-		snapAndPlugOrSlot.UnmarshalFlag(s.Positional.PlugOrSlotSpec)
+		return s.setConfigSetting(context)
 	}
 
-	if snapAndPlugOrSlot.Snap != "" && snapAndPlugOrSlot.Snap != s.context().SnapName() {
-		return fmt.Errorf(i18n.G("cannot set interface attribute of other snap: %q"), snapAndPlugOrSlot.Snap)
+	parts := strings.SplitN(s.Positional.PlugOrSlotSpec, ":", 2)
+	snap, name := parts[0], parts[1]
+	if name == "" {
+		return fmt.Errorf("plug or slot name not provided")
 	}
-	if snapAndPlugOrSlot.Name != "" {
-		return s.handleSetInterfaceAttributes(context, snapAndPlugOrSlot.Name)
+	if snap != "" {
+		return fmt.Errorf(`"snapctl set %s" not supported, use "snapctl set :%s" instead`, s.Positional.PlugOrSlotSpec, parts[1])
 	}
+	return s.setInterfaceSetting(context, name)
+}
 
+func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	context.Lock()
 	transaction := configstate.ContextTransaction(context)
 	context.Unlock()
@@ -112,7 +111,7 @@ func (s *setCommand) Execute(args []string) error {
 	return nil
 }
 
-func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, plugOrSlot string) error {
+func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
 		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
