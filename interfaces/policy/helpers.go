@@ -161,6 +161,7 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 }
 
 func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+	// TODO: allow evaluated attr constraints here too?
 	if err := cstrs.SlotAttributes.Check(slot.Attrs, nil); err != nil {
 		return err
 	}
@@ -189,6 +190,7 @@ func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.Slot
 }
 
 func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
+	// TODO: allow evaluated attr constraints here too?
 	if err := cstrs.PlugAttributes.Check(plug.Attrs, nil); err != nil {
 		return err
 	}

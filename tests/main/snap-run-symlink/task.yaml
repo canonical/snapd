@@ -26,3 +26,7 @@ execute: |
     $APP $SNAP/bin/cat > new.txt 2>&1
 
     diff -u orig.txt new.txt
+
+restore: |
+    rm -f orig.txt
+    rm -f new.txt
