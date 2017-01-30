@@ -117,6 +117,15 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	}
 }
 
+func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+	_, plugsOk := headers["plugs"]
+	_, slotsOk := headers["slots"]
+	if plugsOk || slotsOk {
+		return 1, nil
+	}
+	return 0, nil
+}
+
 var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {

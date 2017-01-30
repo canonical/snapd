@@ -522,7 +522,11 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 	if tstamped, ok := assert.(timestamped); ok {
 		checkTime := tstamped.Timestamp()
 		if !signingKey.isKeyValidAt(checkTime) {
-			return fmt.Errorf("%s assertion timestamp outside of signing key validity", assert.Type().Name)
+			until := ""
+			if !signingKey.Until().IsZero() {
+				until = fmt.Sprintf(" until %q", signingKey.Until())
+			}
+			return fmt.Errorf("%s assertion timestamp outside of signing key validity (key valid since %q%s)", assert.Type().Name, signingKey.Since(), until)
 		}
 	}
 	return nil
