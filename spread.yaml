@@ -223,6 +223,8 @@ restore: |
         systemctl enable --now snapd.refresh.timer
     fi
 
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
