@@ -167,7 +167,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
 		// and empty lines are avoided as those can be discarded in the future.
-		"deny init_module\n",
+		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"open\n",
 		"getuid\n",
 	} {
