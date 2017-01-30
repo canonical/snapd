@@ -52,10 +52,6 @@ var defaultTemplate = []byte(`
 # sandbox
 #@deny ptrace
 
-# Explicitly deny capability mknod so apps can't create devices
-#@deny mknod
-#@deny mknodat
-
 # Explicitly deny (u)mount so apps can't change mounts in their namespace
 #@deny mount
 #@deny umount
@@ -229,6 +225,16 @@ mlock2
 mlockall
 mmap
 mmap2
+
+# Allow mknod for regular files, pipes and sockets (and not block or char
+# devices)
+mknod - |S_IFREG -
+mknodat - - |S_IFREG -
+mknod - |S_IFIFO -
+mknodat - - |S_IFIFO -
+mknod - |S_IFSOCK -
+mknodat - - |S_IFSOCK -
+
 modify_ldt
 mprotect
 

@@ -120,6 +120,7 @@ decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
 all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args \
     snap-confine/tests/test_bad_seccomp_filter_args_clone \
+    snap-confine/tests/test_bad_seccomp_filter_args_mknod \
     snap-confine/tests/test_bad_seccomp_filter_args_null \
     snap-confine/tests/test_bad_seccomp_filter_args_prctl \
     snap-confine/tests/test_bad_seccomp_filter_args_prio \
@@ -133,6 +134,7 @@ all_tests = \
     snap-confine/tests/test_restrictions_working \
     snap-confine/tests/test_restrictions_working_args \
     snap-confine/tests/test_restrictions_working_args_clone \
+    snap-confine/tests/test_restrictions_working_args_mknod \
     snap-confine/tests/test_restrictions_working_args_prctl \
     snap-confine/tests/test_restrictions_working_args_prio \
     snap-confine/tests/test_restrictions_working_args_socket \
