@@ -32,10 +32,6 @@ void debug(const char *fmt, ...);
 
 void write_string_to_file(const char *filepath, const char *buf);
 
-// snprintf version that dies on any error condition
-__attribute__ ((format(printf, 3, 4)))
-int must_snprintf(char *str, size_t size, const char *format, ...);
-
 /**
  * Safely create a given directory.
  *
