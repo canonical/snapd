@@ -130,6 +130,9 @@ const (
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
 	errorKindNoSnapDir = errorKind("snap-no-snap-dir")
+
+	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
+	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 )
 
 type errorValue interface{}

@@ -611,6 +611,19 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	}
 }
 
+// Backends returns all the security backends.
+func (r *Repository) Backends() []SecurityBackend {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	result := make([]SecurityBackend, 0, len(r.backends))
+	for _, backend := range r.backends {
+		result = append(result, backend)
+	}
+	sort.Sort(byBackendName(result))
+	return result
+}
+
 // Interfaces returns object holding a lists of all the plugs and slots and their connections.
 func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
