@@ -80,9 +80,9 @@ static void test_sc_must_stpcpy()
 	union {
 		char bigbuf[6];
 		struct {
-			char canary1;
+			signed char canary1;
 			char buf[4];
-			char canary2;
+			signed char canary2;
 		};
 	} data = {
 		.buf = {
@@ -114,9 +114,9 @@ static void test_sc_must_stpcpy__empty_to_full()
 	union {
 		char bigbuf[6];
 		struct {
-			char canary1;
+			signed char canary1;
 			char buf[4];
-			char canary2;
+			signed char canary2;
 		};
 	} data = {
 		.buf = {
