@@ -204,9 +204,14 @@ slots:
       slot-snap-type:
         - app
         - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
   core-support:
     allow-installation:
       slot-snap-type:
