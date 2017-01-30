@@ -21,8 +21,8 @@ prepare: |
 
 restore: |
     rm -f upower.error
-    apt-get remove -y upower
-    apt-get autoremove -y
+    apt-get remove --purge -y upower
+    apt-get autoremove --purge -y
 
 execute: |
     . "$TESTSLIB/names.sh"
