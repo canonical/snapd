@@ -34,16 +34,23 @@ static void test_sc_streq()
 
 static void test_sc_endswith()
 {
+	// NULL doesn't end with anything, nothing ends with NULL
 	g_assert_false(sc_endswith("", NULL));
 	g_assert_false(sc_endswith(NULL, ""));
 	g_assert_false(sc_endswith(NULL, NULL));
+	// Empty string ends with an empty string
 	g_assert_true(sc_endswith("", ""));
+	// Ends-with (matches)
 	g_assert_true(sc_endswith("foobar", "bar"));
 	g_assert_true(sc_endswith("foobar", "ar"));
 	g_assert_true(sc_endswith("foobar", "r"));
 	g_assert_true(sc_endswith("foobar", ""));
+	g_assert_true(sc_endswith("bar", "bar"));
+	// Ends-with (non-matches)
 	g_assert_false(sc_endswith("foobar", "quux"));
 	g_assert_false(sc_endswith("", "bar"));
+	g_assert_false(sc_endswith("b", "bar"));
+	g_assert_false(sc_endswith("ba", "bar"));
 }
 
 static void test_must_snprintf()
