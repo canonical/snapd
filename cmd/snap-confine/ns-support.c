@@ -148,24 +148,24 @@ static const char *sc_ns_dir = SC_NS_DIR;
  **/
 static bool sc_is_ns_group_dir_private()
 {
-	struct mountinfo *info
-	    __attribute__ ((cleanup(cleanup_mountinfo))) = NULL;
-	info = parse_mountinfo(NULL);
+	struct sc_mountinfo *info
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	info = sc_parse_mountinfo(NULL);
 	if (info == NULL) {
 		die("cannot parse /proc/self/mountinfo");
 	}
-	struct mountinfo_entry *entry = first_mountinfo_entry(info);
+	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
 	while (entry != NULL) {
-		const char *mount_dir = mountinfo_entry_mount_dir(entry);
+		const char *mount_dir = sc_mountinfo_entry_mount_dir(entry);
 		const char *optional_fields =
-		    mountinfo_entry_optional_fields(entry);
+		    sc_mountinfo_entry_optional_fields(entry);
 		if (strcmp(mount_dir, sc_ns_dir) == 0
 		    && strcmp(optional_fields, "") == 0) {
 			// If /run/snapd/ns has no optional fields, we know it is mounted
 			// private and there is nothing else to do.
 			return true;
 		}
-		entry = next_mountinfo_entry(entry);
+		entry = sc_next_mountinfo_entry(entry);
 	}
 	return false;
 }

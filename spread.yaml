@@ -25,12 +25,11 @@ environment:
     TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
-    # slight abuse
-    GENERATE_14_04: "$(HOST: while [ `pwd` != / ] && [ ! -f spread.yaml ]; do cd ..; done && ./generate-packaging-dir ubuntu 14.04)"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
+    SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
 
 backends:
     linode:
@@ -225,6 +224,8 @@ restore: |
         systemctl enable --now snapd.refresh.timer
     fi
 
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
@@ -244,7 +245,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd snap-confine
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -262,7 +263,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd snap-confine
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -275,7 +276,7 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            apt-get purge -y snapd snap-confine
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
