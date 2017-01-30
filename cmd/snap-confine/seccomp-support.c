@@ -27,10 +27,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/quota.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <xfs/xqm.h>
 #include <unistd.h>
 
 #include <seccomp.h>
@@ -281,6 +283,22 @@ static void sc_map_init()
 	sc_map_add(CLONE_NEWPID);
 	sc_map_add(CLONE_NEWUSER);
 	sc_map_add(CLONE_NEWUTS);
+
+	// man 2 quotactl (with what Linux supports)
+	sc_map_add(Q_SYNC);
+	sc_map_add(Q_QUOTAON);
+	sc_map_add(Q_QUOTAOFF);
+	sc_map_add(Q_GETFMT);
+	sc_map_add(Q_GETINFO);
+	sc_map_add(Q_SETINFO);
+	sc_map_add(Q_GETQUOTA);
+	sc_map_add(Q_SETQUOTA);
+	sc_map_add(Q_XQUOTAON);
+	sc_map_add(Q_XQUOTAOFF);
+	sc_map_add(Q_XGETQUOTA);
+	sc_map_add(Q_XSETQLIM);
+	sc_map_add(Q_XGETQSTAT);
+	sc_map_add(Q_XQUOTARM);
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));

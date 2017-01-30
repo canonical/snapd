@@ -27,7 +27,8 @@ Build-Depends: autoconf,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
-               udev
+               udev,
+               xfslibs-dev
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
