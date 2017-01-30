@@ -35,6 +35,18 @@ setuid
 setuid32
 
 set_thread_area
+
+# for mknod
+set_tid_address
+set_robust_list
+rt_sigaction
+rt_sigprocmask
+getrlimit
+ugetrlimit
+statfs
+statfs64
+umask
+chmod
 EOF
 }
 
