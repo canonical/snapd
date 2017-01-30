@@ -164,15 +164,6 @@ type Store struct {
 	suggestedCurrency string
 }
 
-// the LimitTime should be slightly more than 3 times of our http.Client
-// Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
-	retry.Exponential{
-		Initial: 100 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
-
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
@@ -593,20 +584,12 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, client *http.Client,
 	})
 }
 
-func maybeLogRetryAttempt(reqOptions *requestOptions, attempt *retry.Attempt, startTime time.Time) {
-	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
-		delta := time.Since(startTime) / time.Millisecond
-		logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-	}
-
-}
-
 // retryRequest calls doRequest and decodes the response in a retry loop.
 func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState, decode func(ok bool, resp *http.Response) error) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		maybeLogRetryAttempt(reqOptions, attempt, startTime)
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -644,14 +627,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	}
 
 	if attempt.Count() > 1 {
-		var status string
-		delta := time.Since(startTime) / time.Millisecond
-		if err != nil {
-			status = err.Error()
-		} else if resp != nil {
-			status = fmt.Sprintf("%d", resp.StatusCode)
-		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
+		logRetryTime(startTime, reqOptions.URL.String(), attempt, resp, err)
 	}
 
 	return resp, err
@@ -1347,7 +1323,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			Method: "GET",
 			URL:    storeURL,
 		}
-		maybeLogRetryAttempt(reqOptions, attempt, startTime)
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
 		h := crypto.SHA3_384.New()
 
