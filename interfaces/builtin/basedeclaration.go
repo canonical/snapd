@@ -155,6 +155,11 @@ plugs:
     allow-installation: false
     deny-auto-connection: true
 slots:
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   alsa:
     allow-installation:
       slot-snap-type:
