@@ -47,16 +47,12 @@ var mirPermanentSlotSecComp = []byte(`
 # Needed for server launch
 bind
 listen
-setsockopt
-getsockname
 # Needed by server upon client connect
 send
 sendto
 sendmsg
 accept
 shmctl
-open
-getsockopt
 recv
 recvmsg
 recvfrom

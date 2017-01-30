@@ -142,10 +142,6 @@ var modemManagerPermanentSlotSecComp = []byte(`
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -155,10 +151,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-socketpair
-socket
 `)
 
 var modemManagerConnectedPlugSecComp = []byte(`
@@ -167,15 +160,12 @@ var modemManagerConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 # Can communicate with DBus system service
-connect
-getsockname
 recv
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `)
 
 var modemManagerPermanentSlotDBus = []byte(`

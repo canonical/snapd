@@ -62,14 +62,11 @@ dbus (send)
 const screenInhibitControlConnectedPlugSecComp = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
 # dbus
-connect
-getsockname
 recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewScreenInhibitControlInterface returns a new "screen-inhibit-control" interface.

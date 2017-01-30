@@ -37,10 +37,6 @@ const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 # Usage: common
 bind
-connect
-getpeername
-getsockname
-getsockopt
 recv
 recvfrom
 recvmmsg
@@ -49,17 +45,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-
-# LP: #1446748 - limit this to AF_UNIX/AF_LOCAL and perhaps AF_NETLINK
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
 `
 
 // NewNetworkInterface returns a new "network" interface.

@@ -66,10 +66,6 @@ const networkBindConnectedPlugSecComp = `
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -79,17 +75,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-
-# LP: #1446748 - limit this to AF_INET/AF_INET6
-socket
-
-# This is an older interface and single entry point that can be used instead
-# of socket(), bind(), connect(), etc individually. While we could allow it,
-# we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
-# when LP: #1446748 is implemented.
-socketcall
 `
 
 // NewNetworkBindInterface returns a new "network-bind" interface.

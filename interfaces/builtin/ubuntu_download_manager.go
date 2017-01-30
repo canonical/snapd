@@ -188,24 +188,20 @@ var downloadConnectedPlugSecComp = []byte(`
 # Description: Can access download manager.
 
 # dbus
-connect
 recvmsg
 send
 sendto
 sendmsg
-socket
 `)
 
 var downloadPermanentSlotSecComp = []byte(`
 # Description: Can act as a download manager.
 
 # dbus
-connect
 recvmsg
 send
 sendto
 sendmsg
-socket
 `)
 
 type UbuntuDownloadManagerInterface struct{}
