@@ -19,7 +19,6 @@ for i in S_IFREG S_IFCHR S_IFBLK S_IFIFO S_IFSOCK ; do
     if $L snap.name.app /bin/true ; then
         PASS
     else
-        dmesg|tail -n1
         FAIL
     fi
 done
