@@ -99,7 +99,7 @@ char *sc_must_stpcpy(char *buf, size_t buf_size, char *dest, const char *src)
 		die("cannot append string: destination points"
 		    " to the end of the buffer");
 	}
-	if (dest > &buf[buf_size] && src_len > 0) {
+	if (dest > &buf[buf_size]) {
 		die("cannot append string: destination points"
 		    " %td byte(s) beyond the buffer", dest - &buf[buf_size]);
 	}
