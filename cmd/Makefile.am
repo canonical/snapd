@@ -6,7 +6,7 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-update-ns
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -36,9 +36,9 @@ endif
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
 check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests
-	./snap-confine/snap-confine-unit-tests
-	./system-shutdown/system-shutdown-unit-tests
-	./libsnap-confine-private/unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
+	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
@@ -77,6 +77,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap.c \
 	libsnap-confine-private/snap.h \
+	libsnap-confine-private/string-utils.c \
+	libsnap-confine-private/string-utils.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
 
@@ -91,6 +93,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
+	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
@@ -160,6 +163,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/ns-support.h \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
+	snap-confine/snap-confine-args.c \
+	snap-confine/snap-confine-args.h \
 	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
@@ -201,7 +206,8 @@ snap_confine_snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/quirks.c \
-	snap-confine/quirks.h
+	snap-confine/quirks.h \
+	snap-confine/snap-confine-args-test.c
 snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
@@ -240,17 +246,9 @@ endif
 ## ubuntu-core-launcher
 ##
 
-dist_man_MANS += ubuntu-core-launcher/ubuntu-core-launcher.1
-CLEANFILES += ubuntu-core-launcher/ubuntu-core-launcher.1
-EXTRA_DIST += ubuntu-core-launcher/ubuntu-core-launcher.rst
-
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
-
-ubuntu-core-launcher/%.1: ubuntu-core-launcher/%.rst
-	mkdir -p ubuntu-core-launcher
-	$(HAVE_RST2MAN) $^ > $@
 
 ##
 ## snappy-app-dev
@@ -325,3 +323,18 @@ system_shutdown_system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snap-update-ns
+##
+
+libexec_PROGRAMS += snap-update-ns/snap-update-ns
+dist_man_MANS += snap-update-ns/snap-update-ns.5
+CLEANFILES += snap-update-ns/snap-update-ns.5
+EXTRA_DIST += snap-update-ns/snap-update-ns.rst
+
+snap_update_ns_snap_update_ns_LDADD = libsnap-confine-private.a
+
+snap-update-ns/%.5: snap-update-ns/%.rst
+	mkdir -p snap-update-ns
+	$(HAVE_RST2MAN) $^ > $@

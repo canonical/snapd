@@ -25,7 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 type getCommand struct {
@@ -84,7 +84,7 @@ func (c *getCommand) Execute(args []string) error {
 		err := tr.Get(c.context().SnapName(), key, &value)
 		if err == nil {
 			patch[key] = value
-		} else if transaction.IsNoOption(err) {
+		} else if config.IsNoOption(err) {
 			if !c.Typed {
 				value = ""
 			}

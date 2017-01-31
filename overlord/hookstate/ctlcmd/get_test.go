@@ -20,7 +20,7 @@
 package ctlcmd_test
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -53,7 +53,7 @@ func (s *getSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// Initialize configuration
-	tr := transaction.NewTransaction(state)
+	tr := config.NewTransaction(state)
 	tr.Set("test-snap", "initial-key", "initial-value")
 	tr.Commit()
 }
@@ -106,7 +106,7 @@ func (s *getSuite) TestGetTests(c *C) {
 		c.Check(err, IsNil)
 
 		// Initialize configuration
-		tr := transaction.NewTransaction(state)
+		tr := config.NewTransaction(state)
 		tr.Set("test-snap", "test-key1", "test-value1")
 		tr.Set("test-snap", "test-key2", 2)
 		tr.Commit()

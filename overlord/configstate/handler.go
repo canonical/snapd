@@ -20,7 +20,7 @@
 package configstate
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -35,15 +35,15 @@ type cachedTransaction struct{}
 
 // ContextTransaction retrieves the transaction cached within the context (and
 // creates one if it hasn't already been cached).
-func ContextTransaction(context *hookstate.Context) *transaction.Transaction {
+func ContextTransaction(context *hookstate.Context) *config.Transaction {
 	// Check for one already cached
-	tr, ok := context.Cached(cachedTransaction{}).(*transaction.Transaction)
+	tr, ok := context.Cached(cachedTransaction{}).(*config.Transaction)
 	if ok {
 		return tr
 	}
 
 	// It wasn't already cached, so create and cache a new one
-	tr = transaction.NewTransaction(context.State())
+	tr = config.NewTransaction(context.State())
 
 	context.OnDone(func() error {
 		tr.Commit()
@@ -63,14 +63,14 @@ func (h *configureHandler) Before() error {
 	h.context.Lock()
 	defer h.context.Unlock()
 
-	transaction := ContextTransaction(h.context)
+	tr := ContextTransaction(h.context)
 
 	// Initialize the transaction if there's a patch provided in the
 	// context.
 	var patch map[string]interface{}
 	if err := h.context.Get("patch", &patch); err == nil {
 		for key, value := range patch {
-			transaction.Set(h.context.SnapName(), key, value)
+			tr.Set(h.context.SnapName(), key, value)
 		}
 	}
 

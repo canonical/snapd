@@ -45,7 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -624,7 +624,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	}
 	gadgetName := gadgetInfo.Name()
 
-	tr := transaction.NewTransaction(t.State())
+	tr := config.NewTransaction(t.State())
 	var svcURL string
 	err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
 	if err != nil {

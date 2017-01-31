@@ -20,7 +20,7 @@
 package ctlcmd_test
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -65,7 +65,7 @@ func (s *setSuite) TestCommand(c *C) {
 
 	// Verify that the previous set doesn't modify the global state
 	s.mockContext.State().Lock()
-	tr := transaction.NewTransaction(s.mockContext.State())
+	tr := config.NewTransaction(s.mockContext.State())
 	s.mockContext.State().Unlock()
 	var value string
 	c.Check(tr.Get("test-snap", "foo", &value), ErrorMatches, ".*snap.*has no.*configuration.*")
@@ -77,7 +77,7 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	tr = transaction.NewTransaction(s.mockContext.State())
+	tr = config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
 	c.Check(tr.Get("test-snap", "baz", &value), IsNil)
@@ -87,7 +87,7 @@ func (s *setSuite) TestCommand(c *C) {
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	// Setup an initial configuration
 	s.mockContext.State().Lock()
-	tr := transaction.NewTransaction(s.mockContext.State())
+	tr := config.NewTransaction(s.mockContext.State())
 	tr.Set("test-snap", "test-key1", "test-value1")
 	tr.Set("test-snap", "test-key2", "test-value2")
 	tr.Commit()
@@ -104,7 +104,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated, but only test-key2
-	tr = transaction.NewTransaction(s.mockContext.State())
+	tr = config.NewTransaction(s.mockContext.State())
 	var value string
 	c.Check(tr.Get("test-snap", "test-key1", &value), IsNil)
 	c.Check(value, Equals, "test-value1")

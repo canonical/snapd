@@ -119,6 +119,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/expr ixr,
   /{,usr/}bin/false ixr,
   /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,

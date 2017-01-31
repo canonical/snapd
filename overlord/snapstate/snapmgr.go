@@ -492,15 +492,51 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	return nil
+}
+
+// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// to the new "core" snap
+func (m *SnapManager) ensureUbuntuCoreTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var snapst SnapState
+	err := Get(m.state, "ubuntu-core", &snapst)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the core transition is safe
+	for _, chg := range m.state.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return nil
+		}
+	}
+
+	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
+	if err != nil {
+		return err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	chg := m.state.NewChange("transition-ubuntu-core", msg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
 
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
-	// this may generate changes so it needs to run before "Ensure"
-	// but we want to be sure that ensure runs
-	err := m.ensureRefreshes()
+	// do not exit right away on error
+	err := m.ensureUbuntuCoreTransition()
 
 	m.runner.Ensure()
 

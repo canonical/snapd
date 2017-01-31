@@ -44,6 +44,10 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+	content, ok := slot.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content slot must have a content attribute set")
+	}
 
 	// check that we have either a read or write path
 	rpath := iface.path(slot, "read")
@@ -67,6 +71,10 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	content, ok := plug.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content plug must have a content attribute set")
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
@@ -184,5 +192,6 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 }
 
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	return plug.Attrs["content"] == slot.Attrs["content"]
+	// allow what declarations allowed
+	return true
 }
