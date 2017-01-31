@@ -75,11 +75,6 @@ type command interface {
 	Execute(args []string) error
 }
 
-type argDesc struct {
-	name string
-	desc string
-}
-
 type commandInfo struct {
 	shortHelp string
 	longHelp  string
