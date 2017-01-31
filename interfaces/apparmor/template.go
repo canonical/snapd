@@ -140,6 +140,8 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,
   /{,usr/}bin/mkdir ixr,
+  /{,usr/}bin/mkfifo ixr,
+  /{,usr/}bin/mknod ixr,
   /{,usr/}bin/mktemp ixr,
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
