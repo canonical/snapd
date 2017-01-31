@@ -13,8 +13,8 @@ execute: |
     jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     
-    echo "Modify the next-auto-refresh-time"
-    jq ".data[\"next-auto-refresh-time\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    echo "Modify the refresh.last"
+    jq ".data[\"refresh.last\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.{service,socket}
 
@@ -29,5 +29,5 @@ execute: |
     echo "Ensure our snap got updated"
     snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
     
-    echo "Ensure next-auto-refresh-time is set"
-    jq .data[\"next-auto-refresh-time\"] /var/lib/snapd/state.json | MATCH $(date +%Y)
+    echo "Ensure refresh.last is set"
+    jq .data[\"refresh.last\"] /var/lib/snapd/state.json | MATCH $(date +%Y)

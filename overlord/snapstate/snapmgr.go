@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -64,11 +64,7 @@ import (
 // $ snap set core refresh.schedule=<time spec>
 // and we need to validate the time-spec, ideally internally by
 // intercepting the set call
-//
-// FIXME2: think we should invert the logic of "next", and have
-// instead refresh.last (also in config)
 var (
-	// minimum time between refreshes
 	minRefreshInterval = 4 * time.Hour
 
 	// random interval on top of the minmum time between refreshes
@@ -429,19 +425,25 @@ func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	// init so that empty state gets refreshed right away
-	nextRefresh := time.Now()
-	tr := transaction.NewTransaction(m.state)
-	err := tr.Get("core", "next-auto-refresh-time", &nextRefresh)
-	if err != nil && !transaction.IsNoOption(err) {
-		return err
-	}
-
 	// see if it even makes sense to try to refresh
 	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
 		return nil
 	}
 
+	var lastRefresh time.Time
+	tr := config.NewTransaction(m.state)
+	err := tr.Get("core", "refresh.last", &lastRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	var refreshRand time.Duration
+	err = tr.Get("core", "refresh.rand", &refreshRand)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(refreshRand)
 	if time.Now().Before(nextRefresh) {
 		return nil
 	}
@@ -454,10 +456,10 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
-	// For scheduleNextRefresh() we have two options here:
-	//  1. schedule the next refresh only if no error happened
+	// For setLastRefresh() we have two options here:
+	//  1. setLastRefresh only if no error happened
 	//     below in the "AutoRefresh()" call
-	//  2. always schedule the next refresh regardless of errors
+	//  2. always set the last refresh regardless of errors
 	//     in "AutoRefresh()"
 	//
 	// This currently implements (2) because if there are e.g. store
@@ -466,7 +468,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	//
 	// However (1) is better for e.g. network errors on the client
 	// side (not yet connected etc)
-	nextRefresh = scheduleNextRefresh(m.state)
+	setLastRefresh(m.state)
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
@@ -476,7 +478,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	switch len(updated) {
 	case 0:
 		// check in after some hours
-		logger.Noticef("No snaps to auto-refresh found, will check again at %v", nextRefresh)
+		logger.Noticef("No snaps to auto-refresh found")
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
@@ -536,11 +538,17 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
-	err := m.ensureUbuntuCoreTransition()
+	err1 := m.ensureUbuntuCoreTransition()
+
+	err2 := m.ensureRefreshes()
 
 	m.runner.Ensure()
 
-	return err
+	//FIXME: use firstErr helper
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
 
 // Wait implements StateManager.Wait.
@@ -1181,15 +1189,13 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func scheduleNextRefresh(st *state.State) time.Time {
-	randomness := rand.Int63n(int64(refreshRandomness))
-	nextRefreshTime := time.Now().Add(minRefreshInterval).Add(time.Duration(randomness))
+func setLastRefresh(st *state.State) {
+	randomness := time.Duration(rand.Int63n(int64(refreshRandomness)))
 
-	tr := transaction.NewTransaction(st)
-	tr.Set("core", "next-auto-refresh-time", nextRefreshTime)
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.last", time.Now())
+	tr.Set("core", "refresh.rand", randomness)
 	tr.Commit()
-
-	return nextRefreshTime
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
