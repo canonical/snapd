@@ -132,7 +132,7 @@ func (s *MediaHubInterfaceSuite) TestAppArmorUsedSecuritySystem(c *C) {
 
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *MediaHubInterfaceSuite) TestSecCompUsedSecuritySystem(c *C) {

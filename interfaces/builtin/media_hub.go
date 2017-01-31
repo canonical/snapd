@@ -26,13 +26,11 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var mediaHubPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the the media-hub service. Reserved because
-# this gives privileged access to the system.
-# Usage: reserved
+const mediaHubPermanentSlotAppArmor = `
+# Description: Allow operating as the the media-hub service.
 
 # DBus accesses
-#include <abstractions/dbus-strict>
+#include <abstractions/dbus-session-strict>
 
 dbus (send)
     bus=session
@@ -54,7 +52,7 @@ dbus (bind)
 dbus (receive, send)
 	bus=session
 	path=/com/ubuntu/media/Service{,/**}
-	interface=org.freedesktop.DBus**
+	interface=org.freedesktop.DBus{,.*}
 	peer=(label=unconfined),
 
 # We can always connect to ourselves
@@ -67,7 +65,9 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
+`
 
+const mediaHubConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service
 
 # Allow connected clients to interact with the player
@@ -116,20 +116,12 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var mediaHubConnectedSlotAppArmorClassic = []byte(`
-# Allow unconfined clients to interact with the player on classic
-dbus (receive)
-    bus=session
-    path=/core/ubuntu/media/Service
-    peer=(label=unconfined),
-`)
-
-var mediaHubConnectedPlugAppArmor = []byte(`
+const mediaHubConnectedPlugAppArmor = `
 # Description: Allow using media-hub service.
 
-#include <abstractions/dbus-strict>
+#include <abstractions/dbus-session-strict>
 
 dbus (receive, send)
     bus=session
@@ -141,21 +133,21 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
-`)
+`
 
-var mediaHubPermanentSlotSecComp = []byte(`
+const mediaHubPermanentSlotSecComp = `
 recvmsg
 sendmsg
 sendto
 recvfrom
-`)
+`
 
-var mediaHubConnectedPlugSecComp = []byte(`
+const mediaHubConnectedPlugSecComp = `
 recvmsg
 sendmsg
 sendto
 recvfrom
-`)
+`
 
 type MediaHubInterface struct{}
 
@@ -178,10 +170,10 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 		} else {
 			new = slotAppLabelExpr(slot)
 		}
-		snippet := bytes.Replace(mediaHubConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mediaHubConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return mediaHubConnectedPlugSecComp, nil
+		return []byte(mediaHubConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -189,14 +181,27 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return mediaHubPermanentSlotAppArmor, nil
+		return []byte(mediaHubPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return mediaHubPermanentSlotSecComp, nil
+		return []byte(mediaHubPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
 
 func (iface *MediaHubInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := []byte("")
+		if release.OnClassic {
+			// On classic MediaHub will run unconfined
+			new = []byte("unconfined")
+		} else {
+			new = plugAppLabelExpr(plug)
+		}
+		snippet := bytes.Replace([]byte(mediaHubConnectedSlotAppArmor), old, new, -1)
+		return snippet, nil
+	}
 	return nil, nil
 }
 
@@ -206,10 +211,6 @@ func (iface *MediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *MediaHubInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
-}
-
-func (iface *MediaHubInterface) LegacyAutoConnect() bool {
-	return false
 }
 
 func (iface *MediaHubInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
