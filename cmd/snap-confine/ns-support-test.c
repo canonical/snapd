@@ -18,7 +18,7 @@
 #include "ns-support.h"
 #include "ns-support.c"
 
-#include "cleanup-funcs.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
 
 #include <errno.h>
 #include <linux/magic.h>	// for NSFS_MAGIC

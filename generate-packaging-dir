@@ -1,30 +1,16 @@
 #!/bin/sh
+set -eu
 
-set -e
+. /etc/os-release
 
-if [ ! -d .git ]; then
-    echo "not running in a git checkout, skipping"
-    exit 0
-fi
+# FIXME:
+# once we support something other than ubuntu this needs to become
+# smarter:
+# - debian-sid does not have VERSION_ID, probably best to grep
+#   /etc/apt/sources.list there
+# - rpm systems do not need the debian dir :)
 
-ID="$1"
-VERSION_ID="$2"
+# update symlink
+rm -f debian
+ln -s packaging/${ID}-${VERSION_ID} debian
 
-DST="debian-$ID-$VERSION_ID"
-rm -rf $DST
-mkdir -p "$DST"
-
-if ! git remote | grep upstream; then
-    git remote add upstream https://github.com/snapcore/snapd
-fi
-git fetch upstream
-
-git ls-tree upstream/"$ID"/"$VERSION_ID" debian/ | while read line ; do
-    file=$(basename $(echo $line | cut -d " " -f4))
-    hash=$(echo $line | cut -d " " -f3)
-    type=$(echo $line | cut -d " " -f2)
-    # FIXME: deal with subdirs
-    if [ "$type" = "blob" ]; then
-        git cat-file -p $hash > "$DST/$file"
-    fi
-done

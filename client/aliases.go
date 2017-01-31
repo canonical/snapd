@@ -67,3 +67,15 @@ func (client *Client) ResetAliases(snapName string, aliases []string) (changeID 
 		Aliases: aliases,
 	})
 }
+
+// AliasStatus represents the status of an alias.
+type AliasStatus struct {
+	App    string `json:"app,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.
+func (client *Client) Aliases() (allStatuses map[string]map[string]AliasStatus, err error) {
+	_, err = client.doSync("GET", "/v2/aliases", nil, nil, nil, &allStatuses)
+	return
+}

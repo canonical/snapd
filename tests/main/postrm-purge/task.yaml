@@ -7,6 +7,7 @@ execute: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
     snap install test-snapd-control-consumer
+    snap install test-snapd-auto-aliases
 
     echo "And snapd is purged"
     # only available on trusty
