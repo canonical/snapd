@@ -258,7 +258,7 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 }
 
 func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
-	// Make sure get :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
+	// Make sure get :<plug|slot> is only supported during the execution of interface hooks
 	hookType, err := interfaceHookType(context.HookName())
 	if err != nil {
 		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
@@ -276,8 +276,6 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
 	isSlotSide := (hookType == prepareSlotHook || hookType == connectSlotHook)
-
-	// check if the requested plug or slot is correct for this hook.
 	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}

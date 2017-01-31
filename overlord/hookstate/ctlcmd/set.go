@@ -118,7 +118,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
 	if hookType != preparePlugHook && hookType != prepareSlotHook {
-		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of interface hooks"))
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare- hooks"))
 	}
 
 	attrsTask, err := attributesTask(context)
