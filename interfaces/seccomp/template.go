@@ -26,7 +26,7 @@ var defaultTemplate = []byte(`
 #
 # The default seccomp policy is default deny with a whitelist of allowed
 # syscalls. The default policy is intended to be safe for any application to
-# use and should be evaluated in conjuction with other security backends (eg
+# use and should be evaluated in conjunction with other security backends (eg
 # AppArmor). For example, a few particularly problematic syscalls that are left
 # out of the default policy are (non-exhaustive):
 # - kexec_load
