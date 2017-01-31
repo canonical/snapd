@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -179,18 +180,23 @@ func (s *deviceMgrSuite) settle() {
 }
 
 func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
+	expectedUserAgent := httputil.UserAgent()
+
 	var mu sync.Mutex
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/identity/api/v1/request-id":
 			w.WriteHeader(http.StatusOK)
+			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
 
 		case "/identity/api/v1/serial":
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
 		case "/identity/api/v1/devices":
+			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
+
 			mu.Lock()
 			serialNum := 9999 + count
 			count++

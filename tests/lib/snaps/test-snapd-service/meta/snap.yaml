@@ -1,0 +1,8 @@
+name: test-snapd-service
+version: 1.0
+apps:
+ test-snapd-service:
+  command: bin/start
+  daemon: simple
+  reload-command: bin/reload
+

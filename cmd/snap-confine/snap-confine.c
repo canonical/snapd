@@ -23,20 +23,20 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "classic.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/utils.h"
+#include "apparmor-support.h"
 #include "mount-support.h"
-#include "snap.h"
-#include "utils.h"
+#include "ns-support.h"
+#include "quirks.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
-#include "cleanup-funcs.h"
 #include "user-support.h"
-#include "ns-support.h"
-#include "quirks.h"
-#include "secure-getenv.h"
-#include "apparmor-support.h"
 
 int main(int argc, char **argv)
 {
@@ -90,6 +90,18 @@ int main(int argc, char **argv)
 #endif
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
+	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
+	    && getuid() != 0 && geteuid() == 0) {
+		// Refuse to run when this process is running unconfined on a system
+		// that supports AppArmor when the effective uid is root and the real
+		// id is non-root.  This protects against, for example, unprivileged
+		// users trying to leverage the snap-confine in the core snap to
+		// escalate privileges.
+		die("snap-confine has elevated permissions and is not confined"
+		    " but should be. Refusing to continue to avoid"
+		    " permission escalation attacks");
+	}
+	// TODO: check for similar situation and linux capabilities.
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;

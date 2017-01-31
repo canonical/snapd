@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -66,44 +67,6 @@ const (
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
 )
-
-// UserAgent to send
-// xxx: this should actually be set per client request, and include the client user agent
-var userAgent = "unset"
-
-var isTesting bool
-
-func init() {
-	if osutil.GetenvBool("SNAPPY_TESTING") {
-		isTesting = true
-	}
-}
-
-func SetUserAgentFromVersion(version string, extraProds ...string) {
-	extras := make([]string, 1, 3)
-	extras[0] = "series " + release.Series
-	if release.OnClassic {
-		extras = append(extras, "classic")
-	}
-	if release.ReleaseInfo.ForceDevMode() {
-		extras = append(extras, "devmode")
-	}
-	if isTesting {
-		extras = append(extras, "testing")
-	}
-	extraProdStr := ""
-	if len(extraProds) != 0 {
-		extraProdStr = " " + strings.Join(extraProds, " ")
-	}
-	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
-	// (see rfc 7231 for values of weird)
-	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s)", version, strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID, release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()))
-}
-
-func UserAgent() string {
-	return userAgent
-}
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
@@ -200,13 +163,6 @@ type Store struct {
 	mu                sync.Mutex
 	suggestedCurrency string
 }
-
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
-	retry.Exponential{
-		Initial: 100 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
 
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
@@ -434,7 +390,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
 
-		client: newHTTPClient(&httpClientOpts{
+		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
@@ -633,10 +589,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			delta := time.Since(startTime) / time.Millisecond
-			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-		}
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -674,14 +627,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	}
 
 	if attempt.Count() > 1 {
-		var status string
-		delta := time.Since(startTime) / time.Millisecond
-		if err != nil {
-			status = err.Error()
-		} else if resp != nil {
-			status = fmt.Sprintf("%d", resp.StatusCode)
-		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
+		logRetryTime(startTime, reqOptions.URL.String(), attempt, resp, err)
 	}
 
 	return resp, err
@@ -779,7 +725,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateUser(req, user)
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", httputil.UserAgent())
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
@@ -1371,11 +1317,14 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    storeURL,
 		}
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
+
 		h := crypto.SHA3_384.New()
 
 		if resume > 0 {
@@ -1399,7 +1348,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, newHTTPClient(nil), reqOptions, user)
+		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(nil), reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())

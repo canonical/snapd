@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -310,6 +311,30 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
+// SecurityTags returns security tags associated with a given plug.
+func (plug *PlugInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
+	for _, app := range plug.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range plug.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// SecurityTags returns security tags associated with a given slot.
+func (slot *SlotInfo) SecurityTags() []string {
+	tags := make([]string, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	// NOTE: hooks cannot have slots
+	sort.Strings(tags)
+	return tags
+}
+
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
@@ -332,6 +357,7 @@ type AppInfo struct {
 	Daemon          string
 	StopTimeout     timeout.Timeout
 	StopCommand     string
+	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
 
@@ -399,6 +425,11 @@ func (app *AppInfo) LauncherCommand() string {
 // LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
 	return app.launcherCommand("--command=stop")
+}
+
+// LauncherReloadCommand returns the launcher command line to use when invoking the app stop command binary.
+func (app *AppInfo) LauncherReloadCommand() string {
+	return app.launcherCommand("--command=reload")
 }
 
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.

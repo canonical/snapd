@@ -17,28 +17,27 @@
 #include "config.h"
 #include "seccomp-support.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <search.h>
 #include <ctype.h>
+#include <errno.h>
+#include <linux/can.h>		// needed for search mappings
+#include <sched.h>
+#include <search.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <sys/utsname.h>
-
-// needed for search mappings
-#include <linux/can.h>
+#include <string.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
-#include <sched.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 
 #include <seccomp.h>
 
-#include "utils.h"
-#include "secure-getenv.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
 
@@ -642,8 +641,8 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
 	char profile_path[512];	// arbitrary path name limit
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
-		      filter_profile_dir, filter_profile);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
+			 filter_profile_dir, filter_profile);
 
 	f = fopen(profile_path, "r");
 	if (f == NULL) {
@@ -756,4 +755,9 @@ void sc_load_seccomp_context(scmp_filter_ctx ctx)
 		if (real_uid != 0 && geteuid() == 0)
 			die("dropping privs after seccomp_load did not work");
 	}
+}
+
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
+{
+	seccomp_release(*ptr);
 }
