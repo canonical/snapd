@@ -46,6 +46,7 @@ version: 1.0
 slots:
  content-slot:
   interface: content
+  content: mycont
   read:
    - shared/read
 `
@@ -55,12 +56,28 @@ slots:
 	c.Assert(err, IsNil)
 }
 
+func (s *ContentSuite) TestSanitizeSlotNoContentLabel(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
+	err := s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, `content slot must have a content attribute set`)
+}
+
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
  content-slot:
   interface: content
+  content: mycont
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
@@ -74,6 +91,7 @@ version: 1.0
 slots:
  content-slot:
   interface: content
+  content: mycont
   read: []
   write: []
 `
@@ -83,12 +101,13 @@ slots:
 	c.Assert(err, ErrorMatches, "read or write path must be set")
 }
 
-func (s *ContentSuite) TestSanitizeSlotHasRealtivePath(c *C) {
+func (s *ContentSuite) TestSanitizeSlotHasRelativePath(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
  content-slot:
   interface: content
+  content: mycont
 `
 	for _, rw := range []string{"read: [../foo]", "write: [../bar]"} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
@@ -104,6 +123,7 @@ version: 1.0
 plugs:
  content-plug:
   interface: content
+  content: mycont
   target: import
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -112,12 +132,27 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
+func (s *ContentSuite) TestSanitizePlugNoContentLabel(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
+	err := s.iface.SanitizePlug(plug)
+	c.Assert(err, ErrorMatches, `content plug must have a content attribute set`)
+}
+
 func (s *ContentSuite) TestSanitizePlugSimpleNoTarget(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 plugs:
  content-plug:
   interface: content
+  content: mycont
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
@@ -131,6 +166,7 @@ version: 1.0
 plugs:
  content-plug:
   interface: content
+  content: mycont
   target: ../foo
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)

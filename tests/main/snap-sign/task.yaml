@@ -33,3 +33,7 @@ execute: |
 
     echo "Verify that the resulting model assertion is signed"
     grep "sign-key-sha3-384: $key" pi3.model
+
+restore: |
+    rm -f pi3.model
+    rm -f pi3-model.json

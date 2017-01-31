@@ -66,10 +66,10 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 	c.Check(s.handler.Before(), IsNil)
 
 	s.context.Lock()
-	transaction := configstate.ContextTransaction(s.context)
+	tr := configstate.ContextTransaction(s.context)
 	s.context.Unlock()
 
 	var value string
-	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
 }

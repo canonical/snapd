@@ -50,7 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -570,6 +570,9 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
+		if err == store.ErrSnapNotFound {
+			return NotFound(err.Error())
+		}
 		return InternalError("%v", err)
 	}
 
@@ -739,6 +742,10 @@ type snapInstruction struct {
 	userID int
 }
 
+func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
+	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+}
+
 var (
 	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
@@ -749,6 +756,8 @@ var (
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
 	snapstateRemoveMany        = snapstate.RemoveMany
+	snapstateRevert            = snapstate.Revert
+	snapstateRevertToRevision  = snapstate.RevertToRevision
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -872,7 +881,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -897,7 +906,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -956,15 +965,15 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
 	} else {
-		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
 		return "", nil, err
@@ -1019,37 +1028,29 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	if _, ok := err.(*snap.AlreadyInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapAlreadyInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
+	result := &errorResult{Message: err.Error()}
+
+	switch err := err.(type) {
+	case *snap.AlreadyInstalledError:
+		result.Kind = errorKindSnapAlreadyInstalled
+	case *snap.NotInstalledError:
+		result.Kind = errorKindSnapNotInstalled
+	case *snap.NoUpdateAvailableError:
+		result.Kind = errorKindSnapNoUpdateAvailable
+	case *snapstate.ErrSnapNeedsMode:
+		result.Kind = errorKindSnapNeedsMode
+		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsClassicSystem:
+		result.Kind = errorKindSnapNeedsClassicSystem
+	default:
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
-	if _, ok := err.(*snap.NotInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNotInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNoUpdateAvailable,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: result,
+		Status: http.StatusBadRequest,
+	}, nil)
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1421,7 +1422,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	tr := transaction.NewTransaction(s)
+	tr := config.NewTransaction(s)
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})

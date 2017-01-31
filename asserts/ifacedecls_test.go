@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package asserts_test
 
 import (
 	"fmt"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -71,20 +72,20 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 		"foo": "FOO",
 		"bar": "BAR",
 		"baz": "BAZ",
-	})
+	}, nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAZ",
 		"baz": "BAZ",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
 }
 
@@ -98,27 +99,27 @@ func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 
 	err = cstrs.Check(map[string]interface{}{
 		"bar": "BAR",
-	})
+	}, nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
 		"bar": "BARR",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"bar": "BBAZ",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"bar": "BABAZ",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"bar": "BARAZ",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
@@ -140,14 +141,14 @@ bar:
   bar2: BAR2
   bar3: BAR3
 baz: BAZ
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(attrs(`
 foo: FOO
 bar: BAZ
 baz: BAZ
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `attribute "bar" must be a map`)
 
 	err = cstrs.Check(attrs(`
@@ -157,7 +158,7 @@ bar:
   bar2: BAR22
   bar3: BAR3
 baz: BAZ
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
 
 	err = cstrs.Check(attrs(`
@@ -168,7 +169,7 @@ bar:
     bar22: true
   bar3: BAR3
 baz: BAZ
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `attribute "bar\.bar2" must be a scalar or list`)
 }
 
@@ -189,21 +190,21 @@ func (s *attrConstraintsSuite) TestAlternative(c *C) {
 		"foo": "FOO",
 		"bar": "BAR",
 		"baz": "BAZ",
-	})
+	}, nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAZ",
 		"baz": "BAZ",
-	})
+	}, nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BARR",
 		"baz": "BAR",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
 }
 
@@ -225,7 +226,7 @@ foo: FOO
 bar:
   bar1: BAR1
   bar2: BAR2
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -233,7 +234,7 @@ foo: FOO
 bar:
   bar1: BAR1
   bar2: BAR22
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -241,7 +242,7 @@ foo: FOO
 bar:
   bar1: BAR1
   bar2: BAR3
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
 }
 
@@ -257,13 +258,13 @@ func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
 	err = cstrs.Check(attrs(`
 foo: 1
 bar: true
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": int64(1),
 		"bar": true,
-	})
+	}, nil)
 	c.Check(err, IsNil)
 }
 
@@ -288,6 +289,21 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 
 	_, err = asserts.CompileAttributeConstraints([]interface{}{"FOO"})
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
+
+	wrongDollarConstraints := []string{
+		"$",
+		"$FOO(a)",
+		"$SLOT",
+		"$SLOT()",
+	}
+
+	for _, wrong := range wrongDollarConstraints {
+		_, err := asserts.CompileAttributeConstraints(map[string]interface{}{
+			"foo": wrong,
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\) constraint`, regexp.QuoteMeta(wrong)))
+
+	}
 }
 
 func (s *attrConstraintsSuite) TestMatchingListsSimple(c *C) {
@@ -300,13 +316,103 @@ func (s *attrConstraintsSuite) TestMatchingListsSimple(c *C) {
 
 	err = cstrs.Check(attrs(`
 foo: ["/foo/x", "/foo/y"]
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(attrs(`
 foo: ["/foo/x", "/foo"]
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
+}
+
+func (s *attrConstraintsSuite) TestMissingCheck(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  foo: $MISSING`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrs.Check(attrs(`
+bar: baz
+`), nil)
+	c.Check(err, IsNil)
+
+	err = cstrs.Check(attrs(`
+foo: ["x"]
+`), nil)
+	c.Check(err, ErrorMatches, `attribute "foo" is constrained to be missing but is set`)
+}
+
+type testEvalAttr struct {
+	comp func(side string, arg string) (interface{}, error)
+}
+
+func (ca testEvalAttr) SlotAttr(arg string) (interface{}, error) {
+	return ca.comp("slot", arg)
+}
+
+func (ca testEvalAttr) PlugAttr(arg string) (interface{}, error) {
+	return ca.comp("plug", arg)
+}
+
+func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  foo: $SLOT(foo)
+  bar: $PLUG(bar.baz)`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrs.Check(attrs(`
+foo: foo
+bar: bar
+`), nil)
+	c.Check(err, ErrorMatches, `attribute "(foo|bar)" cannot be matched without context`)
+
+	calls := make(map[[2]string]bool)
+	comp1 := func(op string, arg string) (interface{}, error) {
+		calls[[2]string{op, arg}] = true
+		return arg, nil
+	}
+
+	err = cstrs.Check(attrs(`
+foo: foo
+bar: bar.baz
+`), testEvalAttr{comp1})
+	c.Check(err, IsNil)
+
+	c.Check(calls, DeepEquals, map[[2]string]bool{
+		{"slot", "foo"}:     true,
+		{"plug", "bar.baz"}: true,
+	})
+
+	comp2 := func(op string, arg string) (interface{}, error) {
+		if op == "plug" {
+			return nil, fmt.Errorf("boom")
+		}
+		return arg, nil
+	}
+
+	err = cstrs.Check(attrs(`
+foo: foo
+bar: bar.baz
+`), testEvalAttr{comp2})
+	c.Check(err, ErrorMatches, `attribute "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
+
+	comp3 := func(op string, arg string) (interface{}, error) {
+		if op == "slot" {
+			return "other-value", nil
+		}
+		return arg, nil
+	}
+
+	err = cstrs.Check(attrs(`
+foo: foo
+bar: bar.baz
+`), testEvalAttr{comp3})
+	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT\(foo\): foo != other-value`)
 }
 
 func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
@@ -320,21 +426,21 @@ func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
 
 	err = cstrs.Check(attrs(`
 foo: [{p: "/foo/x"}, {p: "/foo/y"}]
-`))
+`), nil)
 	c.Check(err, IsNil)
 
 	err = cstrs.Check(attrs(`
 foo: [{p: "zzz"}, {p: "/foo/y"}]
-`))
+`), nil)
 	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestAlwaysMatchAttributeConstraints(c *C) {
-	c.Check(asserts.AlwaysMatchAttributes.Check(nil), IsNil)
+	c.Check(asserts.AlwaysMatchAttributes.Check(nil, nil), IsNil)
 }
 
 func (s *attrConstraintsSuite) TestNeverMatchAttributeConstraints(c *C) {
-	c.Check(asserts.NeverMatchAttributes.Check(nil), NotNil)
+	c.Check(asserts.NeverMatchAttributes.Check(nil, nil), NotNil)
 }
 
 type plugSlotRulesSuite struct{}
@@ -342,10 +448,10 @@ type plugSlotRulesSuite struct{}
 func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness, expected string) {
 	c.Check(attrs.Check(map[string]interface{}{
 		witness: "XYZ",
-	}), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
+	}, nil), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
 	c.Check(attrs.Check(map[string]interface{}{
 		witness: expected,
-	}), IsNil)
+	}, nil), IsNil)
 }
 
 func checkBoolPlugConnConstraints(c *C, cstrs []*asserts.PlugConnectionConstraints, always bool) {
