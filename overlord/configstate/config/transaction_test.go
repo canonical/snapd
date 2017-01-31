@@ -17,7 +17,7 @@
  *
  */
 
-package configstate_test
+package config_test
 
 import (
 	"encoding/json"
@@ -26,16 +26,16 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"strings"
 )
 
-func TestConfigState(t *testing.T) { TestingT(t) }
+func TestT(t *testing.T) { TestingT(t) }
 
 type transactionSuite struct {
 	state       *state.State
-	transaction *configstate.Transaction
+	transaction *config.Transaction
 }
 
 var _ = Suite(&transactionSuite{})
@@ -44,7 +44,7 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.transaction = configstate.NewTransaction(s.state)
+	s.transaction = config.NewTransaction(s.state)
 }
 
 type setGetOp string
@@ -163,7 +163,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 	for _, test := range setGetTests {
 		c.Logf("-----")
 		s.state.Set("config", map[string]interface{}{})
-		t := configstate.NewTransaction(s.state)
+		t := config.NewTransaction(s.state)
 		snap := "core"
 		for _, op := range test {
 			c.Logf("%s", op)
@@ -190,7 +190,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						continue
 					}
 					if expected == "-" {
-						if !configstate.IsNoOption(err) {
+						if !config.IsNoOption(err) {
 							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)
 						}
 						c.Assert(err, ErrorMatches, fmt.Sprintf("snap %q has no %q configuration option", snap, k))
@@ -269,16 +269,16 @@ func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	c.Check(s.transaction.Set("test-snap", "foo", "good"), IsNil)
 	s.transaction.Commit()
 
-	transaction := configstate.NewTransaction(s.state)
-	c.Check(transaction.Set("test-snap", "foo", "break"), IsNil)
+	tr := config.NewTransaction(s.state)
+	c.Check(tr.Set("test-snap", "foo", "break"), IsNil)
 
 	// Pristine state is good, value in the transaction breaks.
 	broken := brokenType{`"break"`}
-	err := transaction.Get("test-snap", "foo", &broken)
+	err := tr.Get("test-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 
 	// Pristine state breaks, nothing in the transaction.
-	transaction.Commit()
-	err = transaction.Get("test-snap", "foo", &broken)
+	tr.Commit()
+	err = tr.Get("test-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }
