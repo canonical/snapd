@@ -93,7 +93,6 @@ char *sc_must_stpcpy(char *buf, size_t buf_size, char *dest, const char *src)
 		die("cannot append string: buffer size (%zd) exceeds internal limit", (ssize_t) buf_size);
 
 	}
-	size_t src_len = strlen(src);
 	// Sanity check, dest points to the inside of the buffer.
 	if (dest == &buf[buf_size]) {
 		die("cannot append string: destination points"
@@ -108,6 +107,7 @@ char *sc_must_stpcpy(char *buf, size_t buf_size, char *dest, const char *src)
 		    " %td byte(s) in front of the buffer", buf - dest);
 	}
 	// Sanity check the new content fits the buffer.
+	size_t src_len = strlen(src);
 	if (&dest[src_len] >= &buf[buf_size]) {
 		die("cannot append string: buffer overflow of %td byte(s)",
 		    &dest[src_len] - &buf[buf_size] + 1);
