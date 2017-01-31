@@ -492,6 +492,17 @@ func (safs *signAddFindSuite) TestSignUnsupportedFormat(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
+	headers := map[string]interface{}{
+		"authority-id":     "canonical",
+		"primary-key":      "a",
+		"format-1-feature": "true",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `cannot sign "test-only" assertion with format set to 0 lower than min format 1 covering included features`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",

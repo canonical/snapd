@@ -130,6 +130,12 @@ type Change struct {
 	readyTime time.Time
 }
 
+type byReadyTime []*Change
+
+func (a byReadyTime) Len() int           { return len(a) }
+func (a byReadyTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byReadyTime) Less(i, j int) bool { return a[i].readyTime.Before(a[j].readyTime) }
+
 func newChange(state *State, id, kind, summary string) *Change {
 	return &Change{
 		state:   state,

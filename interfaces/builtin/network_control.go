@@ -97,8 +97,8 @@ network sna,
 network netlink dgram,
 
 # ip, et al
-/etc/iproute2/ r,
-/etc/iproute2/* r,
+/etc/iproute2/{,*} r,
+/etc/iproute2/rt_{protos,realms,scopes,tables} w,
 
 # ping - child profile would be nice but seccomp causes problems with that
 /{,usr/}{,s}bin/ping ixr,
@@ -111,11 +111,24 @@ capability setuid,
 @{PROC}/@{pid}/loginuid r,
 @{PROC}/@{pid}/mounts r,
 
+# resolvconf
+/sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
+
 # route
 /etc/networks r,
 
 # TUN/TAP
 /dev/net/tun rw,
+# These are dynamically created via ioctl() on /dev/net/tun
+/dev/tun[0-9]{,[0-9]*} rw,
+/dev/tap[0-9]{,[0-9]*} rw,
 
 # Network namespaces via 'ip netns'. In order to create network namespaces
 # that persist outside of the process and be entered (eg, via

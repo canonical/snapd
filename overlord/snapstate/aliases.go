@@ -86,7 +86,7 @@ func Alias(st *state.State, snapName string, aliases []string) (*state.TaskSet, 
 	if !snapst.Active {
 		return nil, fmt.Errorf("enabling aliases for disabled snap %q not supported", snapName)
 	}
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet
 	if !snapst.Active {
 		return nil, fmt.Errorf("disabling aliases for disabled snap %q not supported", snapName)
 	}
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -147,10 +147,8 @@ func ResetAliases(st *state.State, snapName string, aliases []string) (*state.Ta
 	if err != nil {
 		return nil, err
 	}
-	if !snapst.Active { // TODO: we might want to support this
-		return nil, fmt.Errorf("resetting aliases to their default state for disabled snap %q not supported", snapName)
-	}
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +210,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 	var add []*backend.Alias
 	var remove []*backend.Alias
 	for alias, newStatus := range changes {
-		if aliasStatuses[alias] == newStatus {
+		if newStatus != "auto" && aliasStatuses[alias] == newStatus {
 			// nothing to do
 			continue
 		}
@@ -262,11 +260,13 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 			delete(aliasStatuses, alias)
 		}
 	}
-	st.Unlock()
-	err = m.backend.UpdateAliases(add, remove)
-	st.Lock()
-	if err != nil {
-		return err
+	if snapst.Active {
+		st.Unlock()
+		err = m.backend.UpdateAliases(add, remove)
+		st.Lock()
+		if err != nil {
+			return err
+		}
 	}
 	setAliases(st, snapName, aliasStatuses)
 	return nil
@@ -303,7 +303,7 @@ func (m *SnapManager) undoAlias(t *state.Task, _ *tomb.Tomb) error {
 	var remove []*backend.Alias
 Next:
 	for alias, newStatus := range changes {
-		if oldStatuses[alias] == newStatus {
+		if newStatus != "auto" && oldStatuses[alias] == newStatus {
 			// nothing to undo
 			continue
 		}
@@ -349,23 +349,25 @@ Next:
 			}
 		}
 	}
-	st.Unlock()
-	remove, err = m.backend.MatchingAliases(remove)
-	st.Lock()
-	if err != nil {
-		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
-	}
-	st.Unlock()
-	add, err = m.backend.MissingAliases(add)
-	st.Lock()
-	if err != nil {
-		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
-	}
-	st.Unlock()
-	err = m.backend.UpdateAliases(add, remove)
-	st.Lock()
-	if err != nil {
-		return err
+	if snapst.Active {
+		st.Unlock()
+		remove, err = m.backend.MatchingAliases(remove)
+		st.Lock()
+		if err != nil {
+			return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
+		}
+		st.Unlock()
+		add, err = m.backend.MissingAliases(add)
+		st.Lock()
+		if err != nil {
+			return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
+		}
+		st.Unlock()
+		err = m.backend.UpdateAliases(add, remove)
+		st.Lock()
+		if err != nil {
+			return err
+		}
 	}
 	setAliases(st, snapName, oldStatuses)
 	return nil

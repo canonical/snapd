@@ -7,15 +7,11 @@ prepare: |
     dpkg --get-selections > pkg-list
     apt-get install --yes $EXTRA_PKGS
     # Remove any autogarbage from sent by developer
-    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
-    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     make -C $SPREAD_PATH/cmd distclean || true
 execute: |
     # Refresh autotools build system
     cd $SPREAD_PATH/cmd/
-    touch before
-    touch after
-    find . > before
     autoreconf --install --force
     # Do an out-of-tree build in the autogarbage directory
     mkdir -p $SPREAD_PATH/cmd/autogarbage
@@ -23,17 +19,17 @@ execute: |
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
     # Build and run unit tests
-    make -C snap-confine check-unit-tests
+    make check
 restore: |
     # Remove autogarbage leftover from testing
-    find $SPREAD_PATH/cmd/ \( -name Makefile.in -o -name Makefile \) -exec rm -vf {} \;
-    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4}
+    rm -rf $SPREAD_PATH/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
     # Remove the build tree
     rm -rf $SPREAD_PATH/cmd/autogarbage/
     # Remove any installed packages
     dpkg --set-selections < pkg-list
     rm -f pkg-list
 debug: |
-    cd $SPREAD_PATH/cmd/
-    find . > after
-    diff -u $SPREAD_PATH/cmd/before $SPREAD_PATH/cmd/after
+    # Show the test suite failure log if there's one
+    cat $SPREAD_PATH/cmd/autogarbage/test-suite.log || true
+    # Show seccomp audit messages
+    tail /var/log/kern.log | grep -F type=1326
