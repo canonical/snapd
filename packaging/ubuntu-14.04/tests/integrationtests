@@ -20,7 +20,7 @@ systemctl daemon-reload
 # ensure we can do a connect to localhost
 echo ubuntu:ubuntu|chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
-systemctl reload sshd.service
+service ssh restart
 
 # and now run spread against localhost
 . /etc/os-release
