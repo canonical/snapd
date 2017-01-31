@@ -4,6 +4,12 @@ set -eux
 
 . $TESTSLIB/apt.sh
 
+disable_kernel_rate_limiting() {
+    # kernel rate limiting hinders debugging security policy so turn it off
+    echo "Turning off kernel rate-limiting"
+    sysctl -w kernel.printk_ratelimit=0
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -136,6 +142,8 @@ EOF
         done
         systemctl start snapd.socket
     fi
+
+    disable_kernel_rate_limiting
 }
 
 setup_reflash_magic() {
@@ -344,4 +352,6 @@ prepare_all_snap() {
         tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd $BOOT
         systemctl start snapd.socket
     fi
+
+    disable_kernel_rate_limiting
 }
