@@ -74,7 +74,7 @@ FAIL() {
         tailcmd="tail -10 /var/log/kern.log"
     fi
     printf "Seccomp:\n"
-    $tailcmd | grep -F type=1326
+    $tailcmd | grep type=1326
     printf "Time: "
     date
     exit 1
