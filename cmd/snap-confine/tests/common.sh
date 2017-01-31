@@ -50,6 +50,7 @@ set_tid_address
 statfs
 statfs64
 umask
+uname
 EOF
 }
 
