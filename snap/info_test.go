@@ -501,3 +501,13 @@ func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	c.Check(info.CommonDataHomeDir(), Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 }
+
+func (s *infoSuite) TestAppMethods(c *C) {
+	dirs.SetRootDir("")
+	info := &snap.Info{SuggestedName: "snap-name"}
+	app := &snap.AppInfo{Snap: info, Name: "app-name"}
+	c.Check(app.ServiceFile(), Equals, "/etc/systemd/system/snap.snap-name.app-name.service")
+
+	app.UserService = true
+	c.Check(app.ServiceFile(), Equals, "/etc/systemd/user/snap.snap-name.app-name.service")
+}
