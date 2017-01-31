@@ -61,7 +61,7 @@ func NewMountObserveInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "mount-observe",
 		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
-		connectedPlugSecComp: mountObserveConnectedPlugSecComp,
+		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
