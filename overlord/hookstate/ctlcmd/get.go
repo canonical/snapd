@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 type getCommand struct {
@@ -75,15 +76,15 @@ func (c *getCommand) Execute(args []string) error {
 
 	patch := make(map[string]interface{})
 	context.Lock()
-	transaction := configstate.ContextTransaction(context)
+	tr := configstate.ContextTransaction(context)
 	context.Unlock()
 
 	for _, key := range c.Positional.Keys {
 		var value interface{}
-		err := transaction.Get(c.context().SnapName(), key, &value)
+		err := tr.Get(c.context().SnapName(), key, &value)
 		if err == nil {
 			patch[key] = value
-		} else if configstate.IsNoOption(err) {
+		} else if config.IsNoOption(err) {
 			if !c.Typed {
 				value = ""
 			}
