@@ -41,6 +41,7 @@ set_thread_area
 
 # for mknod
 chmod
+futex
 getrlimit
 ugetrlimit
 rt_sigaction
