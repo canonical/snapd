@@ -7,6 +7,9 @@ get_common_syscalls() {
 open
 close
 
+# for writing to stderr
+write
+
 mmap
 mmap2
 munmap
@@ -37,16 +40,16 @@ setuid32
 set_thread_area
 
 # for mknod
-set_tid_address
-set_robust_list
-rt_sigaction
-rt_sigprocmask
+chmod
 getrlimit
 ugetrlimit
+rt_sigaction
+rt_sigprocmask
+set_robust_list
+set_tid_address
 statfs
 statfs64
 umask
-chmod
 EOF
 }
 
