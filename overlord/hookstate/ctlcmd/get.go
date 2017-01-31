@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -187,68 +188,118 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 	})
 }
 
+type ifaceHookType int
+
+const (
+	preparePlugHook ifaceHookType = iota
+	prepareSlotHook
+	connectPlugHook
+	connectSlotHook
+	unknownHook
+)
+
+func interfaceHookType(hookName string) (ifaceHookType, error) {
+	if strings.HasPrefix(hookName, "prepare-plug-") {
+		return preparePlugHook, nil
+	} else if strings.HasPrefix(hookName, "connect-plug-") {
+		return connectPlugHook, nil
+	} else if strings.HasPrefix(hookName, "prepare-slot-") {
+		return prepareSlotHook, nil
+	} else if strings.HasPrefix(hookName, "connect-slot-") {
+		return connectSlotHook, nil
+	}
+	return unknownHook, fmt.Errorf("unknown hook type")
+}
+
+func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string) error {
+	// check if the requested plug or slot is correct for given hook.
+	attrsTask.State().Lock()
+	defer attrsTask.State().Unlock()
+
+	var name string
+	var err error
+	if plugSide {
+		var plugRef interfaces.PlugRef
+		if err = attrsTask.Get("plug", &plugRef); err == nil {
+			name = plugRef.Name
+		}
+	} else {
+		var slotRef interfaces.SlotRef
+		if err = attrsTask.Get("slot", &slotRef); err == nil {
+			name = slotRef.Name
+		}
+	}
+	if err != nil {
+		return fmt.Errorf(i18n.G("failed to find plug/slot data in the attrs task"))
+	}
+	if name != plugOrSlot {
+		return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
+	}
+	return nil
+}
+
+func attributesTask(context *hookstate.Context) (*state.Task, error) {
+	var attrsTaskID string
+	context.Lock()
+	defer context.Unlock()
+
+	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
+		return nil, err
+	}
+
+	st := context.State()
+
+	attrsTask := st.Task(attrsTaskID)
+	if attrsTask == nil {
+		return nil, fmt.Errorf(i18n.G("failed to find attrs task"))
+	}
+
+	return attrsTask, nil
+}
+
 func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure get :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
-	var isPreparePlugHook, isPrepareSlotHook, isConnectPlugHook, isConnectSlotHook bool
-
-	if strings.HasPrefix(context.HookName(), "prepare-plug-") {
-		isPreparePlugHook = true
-	} else if strings.HasPrefix(context.HookName(), "connect-plug-") {
-		isConnectPlugHook = true
-	} else if strings.HasPrefix(context.HookName(), "prepare-slot-") {
-		isPrepareSlotHook = true
-	} else if strings.HasPrefix(context.HookName(), "connect-slot-") {
-		isConnectSlotHook = true
-	}
-	if !(isPreparePlugHook || isPrepareSlotHook || isConnectPlugHook || isConnectSlotHook) {
+	hookType, err := interfaceHookType(context.HookName())
+	if err != nil {
 		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
 	}
 
-	var err error
-	var attributes map[string]map[string]interface{}
-
-	context.Lock()
-	defer context.Unlock()
-	err = context.Get("attributes", &attributes)
-
-	if err == state.ErrNoState {
-		return fmt.Errorf(i18n.G("attributes not found"))
-	}
+	var attrsTask *state.Task
+	attrsTask, err = attributesTask(context)
 	if err != nil {
-		return err
+		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
 	}
 
 	if c.ForcePlugSide && c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	var snapName string
-	isPlugSide := (isPreparePlugHook || isConnectPlugHook)
-	isSlotSide := (isPrepareSlotHook || isConnectSlotHook)
-	if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
-		// get attributes of the remote end
-		err = context.Get("other-snap", &snapName)
-		if err != nil {
-			// this should never happen unless the context is inconsistent
-			return fmt.Errorf(i18n.G("failed to get the name of the other snap from hook context: %q"), err)
-		}
-	} else {
-		// get own attributes
-		snapName = context.SnapName()
-	}
+	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
+	isSlotSide := (hookType == prepareSlotHook || hookType == connectSlotHook)
 
 	// check if the requested plug or slot is correct for this hook.
-	var val string
-	if err := context.Get("plug-or-slot", &val); err == nil {
-		if val != plugOrSlot {
-			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
-		}
-	} else {
+	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
 
+	var which string
+	if (isPlugSide && !c.ForceSlotSide) || (isSlotSide && c.ForcePlugSide) {
+		which = "plug-attrs"
+	} else {
+		which = "slot-attrs"
+	}
+
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	attributes := make(map[string]interface{})
+	if err = attrsTask.Get(which, &attributes); err != nil {
+		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
+	}
+
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		if value, ok := attributes[snapName][key]; ok {
+		if value, ok := attributes[key]; ok {
 			return value, true, nil
 		}
 		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)

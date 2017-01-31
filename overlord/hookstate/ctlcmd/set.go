@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 type setCommand struct {
@@ -117,37 +116,35 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 
 func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
-	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
-		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
+	hookType, _ := interfaceHookType(context.HookName())
+	if hookType != preparePlugHook && hookType != prepareSlotHook {
 		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of interface hooks"))
 	}
 
-	context.Lock()
-	defer context.Unlock()
-
-	var attributes map[string]map[string]interface{}
-	if err := context.Get("attributes", &attributes); err != nil {
-		if err == state.ErrNoState {
-			return fmt.Errorf(i18n.G("attributes not found"))
-		}
-		return err
+	attrsTask, err := attributesTask(context)
+	if err != nil {
+		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
 	}
 
 	// check if the requested plug or slot is correct for this hook.
-	var val string
-	if err := context.Get("plug-or-slot", &val); err == nil {
-		if val != plugOrSlot {
-			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
-		}
-	} else {
+	if err := validatePlugOrSlot(attrsTask, hookType == preparePlugHook, plugOrSlot); err != nil {
 		return err
 	}
 
-	var attrs map[string]interface{}
-	var ok bool
-	if attrs, ok = attributes[context.SnapName()]; !ok {
-		// this should never happen unless there is an inconsistency in hook task setup.
-		return fmt.Errorf(i18n.G("missing attributes for snap %s"), context.SnapName())
+	var which string
+	if hookType == preparePlugHook {
+		which = "plug-attrs"
+	} else {
+		which = "slot-attrs"
+	}
+
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	attributes := make(map[string]interface{})
+	if err := attrsTask.Get(which, &attributes); err != nil {
+		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -162,10 +159,9 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attrs[parts[0]] = value
+		attributes[parts[0]] = value
 	}
 
-	attributes[context.SnapName()] = attrs
-	s.context().Set("attributes", attributes)
+	attrsTask.Set(which, attributes)
 	return nil
 }
