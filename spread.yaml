@@ -172,7 +172,10 @@ prepare-each: |
 
 debug-each: |
     journalctl -u snapd
+    # apparmor
     dmesg | grep DENIED || true
+    # seccomp
+    dmesg | grep type=1326 || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
