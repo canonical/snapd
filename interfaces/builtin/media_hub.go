@@ -130,12 +130,6 @@ dbus (receive, send)
     bus=session
     path=/core/ubuntu/media/Service{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (receive)
-    bus=system
-    path=/
-    interface=org.freedesktop.DBus.ObjectManager
-    peer=(label=unconfined),
 `
 
 const mediaHubPermanentSlotSecComp = `
