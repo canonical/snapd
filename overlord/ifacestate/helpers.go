@@ -134,9 +134,9 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	return nil
 }
 
-func removeSnapSecurity(task *state.Task, snapName string, repo *interfaces.Repository) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
 	st := task.State()
-	for _, backend := range repo.Backends() {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()
