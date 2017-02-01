@@ -1,7 +1,7 @@
 # -*- sh -*-
 _complete() {
     local cur prev words cword
-    _init_completion || return
+    _init_completion -n : || return
 
     local command
     if [[ ${#words[@]} -gt 2 ]]; then
@@ -32,7 +32,13 @@ _complete() {
         try)
             _filedir -d
             ;;
+        connect)
+            if [ -n "$COMPREPLY" -a -z "${COMPREPLY%%*:}" ]; then
+                compopt -o nospace
+            fi
     esac
+
+    __ltrim_colon_completions "$cur"
 
     return 0
 }
