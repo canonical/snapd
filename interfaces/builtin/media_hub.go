@@ -160,12 +160,10 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := []byte("")
+		new := slotAppLabelExpr(slot)
 		if release.OnClassic {
 			// On classic MediaHub will run unconfined
 			new = []byte("unconfined")
-		} else {
-			new = slotAppLabelExpr(slot)
 		}
 		snippet := bytes.Replace([]byte(mediaHubConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
