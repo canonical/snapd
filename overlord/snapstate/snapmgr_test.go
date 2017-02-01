@@ -3898,6 +3898,42 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.verifyRefreshLast(c)
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Set("core", "refresh.disabled", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify that the disable works
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	// and no last refresh got updated
+	var lastRefresh time.Time
+	tr = config.NewTransaction(s.state)
+	tr.Get("core", "refresh.last", &lastRefresh)
+	c.Check(lastRefresh.IsZero(), Equals, true)
+
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
