@@ -72,7 +72,7 @@ export SNAP_NAME=name.app
 FAIL() {
     printf ": FAIL\n"
     printf "Seccomp:\n"
-    dmesg | tail -10 | grep type=1326
+    dmesg --ctime | tail -10 | grep type=1326
     printf "Time: "
     date
     exit 1

@@ -22,7 +22,7 @@ if "$L" snap.name.app /bin/true 2>/dev/null; then
     FAIL
 else
     # true returned a error code, check dmesg
-    if dmesg|tail -n1|grep -q "audit"; then
+    if dmesg --ctime|tail -n1|grep -q "type=1326"; then
         PASS
     else
         FAIL
