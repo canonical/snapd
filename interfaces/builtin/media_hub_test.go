@@ -120,39 +120,70 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.media-hub.app"),`)
 }
 
-func (s *MediaHubInterfaceSuite) TestAppArmorUsedSecuritySystem(c *C) {
+func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	system := interfaces.SecurityAppArmor
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
-func (s *MediaHubInterfaceSuite) TestSecCompUsedSecuritySystem(c *C) {
+func (s *MediaHubInterfaceSuite) TestPermanentPlugSnippetAppArmor(c *C) {
+	system := interfaces.SecurityAppArmor
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
+}
+
+func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
+	system := interfaces.SecurityAppArmor
+
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
+}
+
+func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	system := interfaces.SecuritySecComp
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "sendto\n")
 }
 
-func (s *MediaHubInterfaceSuite) TestDBusUsedSecuritySystem(c *C) {
+func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	system := interfaces.SecuritySecComp
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "sendto\n")
+}
+
+func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetDBus(c *C) {
 	system := interfaces.SecurityDBus
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
+}
+
+func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetDBus(c *C) {
+	system := interfaces.SecurityDBus
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
