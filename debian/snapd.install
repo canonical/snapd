@@ -1,4 +1,0 @@
-usr/bin/snap
-usr/bin/snap-exec /usr/lib/snapd/
-usr/bin/snapctl
-usr/bin/snapd /usr/lib/snapd/

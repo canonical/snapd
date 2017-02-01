@@ -22,29 +22,40 @@ package partition
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
-	"sort"
+	"path/filepath"
+
+	"github.com/mvo5/goconfigparser"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-
-	. "gopkg.in/check.v1"
 )
 
-func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootmodeVar)
-	return mockGrubEditenvOutput, nil
+func grubEnvPath() string {
+	return filepath.Join(dirs.GlobalRootDir, "boot/grub/grubenv")
 }
 
-func mockGrubFile(c *C, newPath string, mode os.FileMode) {
-	err := ioutil.WriteFile(newPath, []byte(""), mode)
+func grubEditenvSet(c *C, key, value string) {
+	_, err := runCommand("/usr/bin/grub-editenv", grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value))
 	c.Assert(err, IsNil)
 }
 
+func grubEditenvGet(c *C, key string) string {
+	output, err := runCommand("/usr/bin/grub-editenv", grubEnvPath(), "list")
+	c.Assert(err, IsNil)
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err = cfg.ReadString(output)
+	c.Assert(err, IsNil)
+	v, err := cfg.Get("", key)
+	c.Assert(err, IsNil)
+	return v
+}
+
 func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	// these files just needs to exist
 	g := &grub{}
-	mockGrubFile(c, g.ConfigFile(), 0644)
-	mockGrubFile(c, g.envFile(), 0644)
+	err := ioutil.WriteFile(g.ConfigFile(), nil, 0644)
+	c.Assert(err, IsNil)
+	grubEditenvSet(c, "k", "v")
 }
 
 func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
@@ -72,7 +83,7 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 
 func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	runCommand = mockGrubEditenvList
+	grubEditenvSet(c, bootmodeVar, "regular")
 
 	g := newGrub()
 	v, err := g.GetBootVars(bootmodeVar)
@@ -83,11 +94,6 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 
 func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	cmds := [][]string{}
-	runCommand = func(cmd ...string) (string, error) {
-		cmds = append(cmds, cmd)
-		return "", nil
-	}
 
 	g := newGrub()
 	err := g.SetBootVars(map[string]string{
@@ -95,12 +101,7 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(cmds, HasLen, 1)
-	c.Check(cmds[0][0:3], DeepEquals, []string{
-		"/usr/bin/grub-editenv", g.(*grub).envFile(), "set",
-	})
-	// need to sort, its coming from a slice
-	kwargs := cmds[0][3:]
-	sort.Strings(kwargs)
-	c.Check(kwargs, DeepEquals, []string{"k1=v1", "k2=v2"})
+
+	c.Check(grubEditenvGet(c, "k1"), Equals, "v1")
+	c.Check(grubEditenvGet(c, "k2"), Equals, "v2")
 }

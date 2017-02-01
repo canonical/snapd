@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -43,7 +44,7 @@ type InterfaceManager struct {
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
-func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
@@ -55,7 +56,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
-	if err := m.initialize(extra); err != nil {
+	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err
 	}
 
@@ -70,12 +71,22 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 
+	// helper for ubuntu-core -> core
+	runner.AddHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
+
 	return m, nil
 }
 
 // Connect returns a set of tasks for connecting an interface.
 //
-func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+		return nil, err
+	}
+	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+		return nil, err
+	}
+
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -85,7 +96,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary := fmt.Sprintf(i18n.G("Prepare connection of plug %s:%s"), plugSnap, plugName)
-	preparePlugConnection := hookstate.HookTask(s, summary, plugHookSetup, nil)
+	preparePlugConnection := hookstate.HookTask(st, summary, plugHookSetup, nil)
 
 	slotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
@@ -93,12 +104,12 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Prepare connection of slot %s:%s"), slotSnap, slotName)
-	prepareSlotConnection := hookstate.HookTask(s, summary, slotHookSetup, nil)
+	prepareSlotConnection := hookstate.HookTask(st, summary, slotHookSetup, nil)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
 
 	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	connectInterface := s.NewTask("connect", summary)
+	connectInterface := st.NewTask("connect", summary)
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	connectInterface.WaitFor(prepareSlotConnection)
@@ -109,7 +120,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of slot %s:%s"), slotSnap, slotName)
-	confirmSlotConnection := hookstate.HookTask(s, summary, confirmSlotHookSetup, nil)
+	confirmSlotConnection := hookstate.HookTask(st, summary, confirmSlotHookSetup, nil)
 	confirmSlotConnection.WaitFor(connectInterface)
 
 	confirmPlugHookSetup := &hookstate.HookSetup{
@@ -118,17 +129,24 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 		Optional: true,
 	}
 	summary = fmt.Sprintf(i18n.G("Confirm connection of plug %s:%s"), plugSnap, plugName)
-	confirmPlugConnection := hookstate.HookTask(s, summary, confirmPlugHookSetup, nil)
+	confirmPlugConnection := hookstate.HookTask(st, summary, confirmPlugHookSetup, nil)
 	confirmPlugConnection.WaitFor(confirmSlotConnection)
 
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, confirmSlotConnection, confirmPlugConnection), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
-func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, nil); err != nil {
+		return nil, err
+	}
+	if err := snapstate.CheckChangeConflict(st, slotSnap, nil); err != nil {
+		return nil, err
+	}
+
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := s.NewTask("disconnect", summary)
+	task := st.NewTask("disconnect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return state.NewTaskSet(task), nil

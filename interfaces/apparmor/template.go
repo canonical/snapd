@@ -119,6 +119,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/expr ixr,
   /{,usr/}bin/false ixr,
   /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
@@ -305,6 +306,10 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
+
+  # Read-only install directory for other revisions to help with bugs like
+  # LP: #1616650 and LP: #1655992
+  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
 
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
