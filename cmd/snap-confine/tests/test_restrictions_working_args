@@ -78,7 +78,7 @@ echo "mknod - |S_IFIFO" >>"$TMP"/snap.name.app
 
 # use "$SHM"/pipe here since snap-confine uses a mount namespace for /tmp
 printf "Test good seccomp arg filtering (mkfifo "$SHM"/pipe)"
-if strace -f -vv -o /tmp/trace2 $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe ; then
+if $L snap.name.app /usr/bin/mkfifo "$SHM"/pipe ; then
     if [ -p "$SHM"/pipe ]; then
         PASS
     else
