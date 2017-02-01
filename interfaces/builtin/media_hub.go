@@ -68,8 +68,6 @@ dbus (receive)
 `
 
 const mediaHubConnectedSlotAppArmor = `
-# Allow connected clients to interact with the service
-
 # Allow connected clients to interact with the player
 dbus (receive)
     bus=session
