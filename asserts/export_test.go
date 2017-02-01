@@ -188,3 +188,11 @@ var (
 	CompilePlugRule             = compilePlugRule
 	CompileSlotRule             = compileSlotRule
 )
+
+type featureExposer interface {
+	feature(flabel string) bool
+}
+
+func RuleFeature(rule featureExposer, flabel string) bool {
+	return rule.feature(flabel)
+}
