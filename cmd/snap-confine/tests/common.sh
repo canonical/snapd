@@ -55,12 +55,14 @@ uname
 EOF
 }
 
-L="$(pwd)/snap-confine/snap-confine"
-export L
-
 TMP="$(mktemp -d)"
 SHM="$(mktemp -d -p /run/shm)"
 trap 'rm -rf $TMP $SHM' EXIT
+
+# name snap-confine as the test name for improved logging
+L="$TMP/`basename $0`"
+cp "$(pwd)/snap-confine/snap-confine" "$L"
+export L
 
 export SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR="$TMP"
 export SNAPPY_LAUNCHER_INSIDE_TESTS="1"
