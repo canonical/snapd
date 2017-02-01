@@ -65,6 +65,11 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    path=/core/ubuntu/media/Service{,/**}
+    peer=(label=unconfined),
 `
 
 const mediaHubConnectedSlotAppArmor = `
@@ -190,13 +195,7 @@ func (iface *MediaHubInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := []byte("")
-		if release.OnClassic {
-			// On classic MediaHub will run unconfined
-			new = []byte("unconfined")
-		} else {
-			new = plugAppLabelExpr(plug)
-		}
+		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace([]byte(mediaHubConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
