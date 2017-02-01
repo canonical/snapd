@@ -71,13 +71,8 @@ export SNAP_NAME=name.app
 
 FAIL() {
     printf ": FAIL\n"
-    tailcmd="dmesg | tail -10"
-    # kern.log has nice timestamps so use it when it is available
-    if [ -f /var/log/kern.log ]; then
-        tailcmd="tail -10 /var/log/kern.log"
-    fi
     printf "Seccomp:\n"
-    $tailcmd | grep type=1326
+    dmesg | tail -10 | grep type=1326
     printf "Time: "
     date
     exit 1
