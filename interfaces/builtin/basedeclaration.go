@@ -425,6 +425,11 @@ slots:
     deny-auto-connection: true
     deny-connection:
       on-classic: false
+  online-accounts:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   opengl:
     allow-installation:
       slot-snap-type:
