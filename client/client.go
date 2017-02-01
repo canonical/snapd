@@ -64,8 +64,8 @@ type Config struct {
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
 
-	// DisableAuth controls if the client should try to read the auth.json
-	// data
+	// DisableAuth controls whether the client should send an
+	// Authorization header from reading the auth.json data.
 	DisableAuth bool
 }
 
