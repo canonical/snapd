@@ -34,8 +34,15 @@ type AttrMatchContext interface {
 	SlotAttr(arg string) (interface{}, error)
 }
 
+const (
+	// feature label for $SLOT()/$PLUG()/$MISSING
+	dollarAttrConstraintsFeature = "dollar-attr-constraints"
+)
+
 type attrMatcher interface {
 	match(apath string, v interface{}, ctx AttrMatchContext) error
+
+	feature(flabel string) bool
 }
 
 func chain(path, k string) string {
@@ -132,6 +139,15 @@ func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatch
 	return nil
 }
 
+func (matcher mapAttrMatcher) feature(flabel string) bool {
+	for _, matcher1 := range matcher {
+		if matcher1.feature(flabel) {
+			return true
+		}
+	}
+	return false
+}
+
 func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	switch x := v.(type) {
 	case map[string]interface{}: // maps in attributes look like this
@@ -149,6 +165,10 @@ func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchCo
 }
 
 type missingAttrMatcher struct{}
+
+func (matcher missingAttrMatcher) feature(flabel string) bool {
+	return flabel == dollarAttrConstraintsFeature
+}
 
 func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	if v != nil {
@@ -176,6 +196,10 @@ func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
 		op:  ops[1],
 		arg: ops[2],
 	}, nil
+}
+
+func (matcher evalAttrMatcher) feature(flabel string) bool {
+	return flabel == dollarAttrConstraintsFeature
 }
 
 func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
@@ -209,6 +233,10 @@ func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) 
 		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", cc, s, err)
 	}
 	return regexpAttrMatcher{rx}, nil
+}
+
+func (matcher regexpAttrMatcher) feature(flabel string) bool {
+	return false
 }
 
 func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
@@ -249,6 +277,15 @@ func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, err
 
 }
 
+func (matcher altAttrMatcher) feature(flabel string) bool {
+	for _, alt := range matcher.alts {
+		if alt.feature(flabel) {
+			return true
+		}
+	}
+	return false
+}
+
 func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	var firstErr error
 	for _, alt := range matcher.alts {
@@ -272,6 +309,10 @@ type AttributeConstraints struct {
 	matcher attrMatcher
 }
 
+func (ac *AttributeConstraints) feature(flabel string) bool {
+	return ac.matcher.feature(flabel)
+}
+
 // compileAttributeConstraints checks and compiles a mapping or list
 // from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
@@ -284,6 +325,10 @@ func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints
 
 type fixedAttrMatcher struct {
 	result error
+}
+
+func (matcher fixedAttrMatcher) feature(flabel string) bool {
+	return false
 }
 
 func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
@@ -503,6 +548,26 @@ type PlugRule struct {
 	DenyAutoConnection  []*PlugConnectionConstraints
 }
 
+func (r *PlugRule) feature(flabel string) bool {
+	for _, cs := range [][]*PlugInstallationConstraints{r.AllowInstallation, r.DenyInstallation} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	for _, cs := range [][]*PlugConnectionConstraints{r.AllowConnection, r.DenyConnection, r.AllowAutoConnection, r.DenyAutoConnection} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func castPlugInstallationConstraints(cstrs []constraintsHolder) (res []*PlugInstallationConstraints) {
 	res = make([]*PlugInstallationConstraints, len(cstrs))
 	for i, cstr := range cstrs {
@@ -561,6 +626,10 @@ type PlugInstallationConstraints struct {
 	OnClassic *OnClassicConstraint
 }
 
+func (c *PlugInstallationConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel)
+}
+
 func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
 	switch field {
 	case "plug-attributes":
@@ -604,6 +673,10 @@ type PlugConnectionConstraints struct {
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+}
+
+func (c *PlugConnectionConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
 func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -714,6 +787,26 @@ func castSlotInstallationConstraints(cstrs []constraintsHolder) (res []*SlotInst
 	return res
 }
 
+func (r *SlotRule) feature(flabel string) bool {
+	for _, cs := range [][]*SlotInstallationConstraints{r.AllowInstallation, r.DenyInstallation} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	for _, cs := range [][]*SlotConnectionConstraints{r.AllowConnection, r.DenyConnection, r.AllowAutoConnection, r.DenyAutoConnection} {
+		for _, c := range cs {
+			if c.feature(flabel) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func castSlotConnectionConstraints(cstrs []constraintsHolder) (res []*SlotConnectionConstraints) {
 	res = make([]*SlotConnectionConstraints, len(cstrs))
 	for i, cstr := range cstrs {
@@ -765,6 +858,10 @@ type SlotInstallationConstraints struct {
 	OnClassic *OnClassicConstraint
 }
 
+func (c *SlotInstallationConstraints) feature(flabel string) bool {
+	return c.SlotAttributes.feature(flabel)
+}
+
 func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
 	switch field {
 	case "slot-attributes":
@@ -808,6 +905,10 @@ type SlotConnectionConstraints struct {
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
+}
+
+func (c *SlotConnectionConstraints) feature(flabel string) bool {
+	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
 }
 
 func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {

@@ -332,6 +332,49 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
+
+	headers = map[string]interface{}{
+		"plugs": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"plug-attributes": map[string]interface{}{
+						"x": "$SLOT(x)",
+					},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 2)
+
+	headers = map[string]interface{}{
+		"slots": map[string]interface{}{
+			"interface3": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"plug-attributes": map[string]interface{}{
+						"x": "$SLOT(x)",
+					},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 2)
+
+	// errors
+	headers = map[string]interface{}{
+		"plugs": "what",
+	}
+	_, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, ErrorMatches, `assertion snap-declaration: "plugs" header must be a map`)
+
+	headers = map[string]interface{}{
+		"slots": "what",
+	}
+	_, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, ErrorMatches, `assertion snap-declaration: "slots" header must be a map`)
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
