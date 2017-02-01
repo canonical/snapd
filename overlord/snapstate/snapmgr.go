@@ -430,9 +430,20 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	var lastRefresh time.Time
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.last", &lastRefresh)
+
+	// for tests
+	var refreshDisabled bool
+	err := tr.Get("core", "refresh.disabled", &refreshDisabled)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if refreshDisabled {
+		return nil
+	}
+
+	var lastRefresh time.Time
+	err = tr.Get("core", "refresh.last", &lastRefresh)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
