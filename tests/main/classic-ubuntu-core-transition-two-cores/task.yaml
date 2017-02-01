@@ -1,6 +1,6 @@
 summary: Ensure that the ubuntu-core -> core transition works with two cores
 
-systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm32,-ubuntu-core-16-arm64]
+systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm-32,-ubuntu-core-16-arm-64]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -8,10 +8,10 @@ execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure we have two cores"
     apt install -y jq
-    
+
     echo "install a snap"
-    snap install xkcd-webserver
-    snap interfaces |MATCH ":network.*xkcd-webserver"
+    snap install test-snapd-python-webserver
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
 
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
@@ -20,7 +20,7 @@ execute: |
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
-    snap install ubuntu-core
+    snap install --${CORE_CHANNEL} ubuntu-core
 
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
     cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="os"' > /var/lib/snapd/state.json
@@ -41,4 +41,4 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*xkcd-webserver"
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
