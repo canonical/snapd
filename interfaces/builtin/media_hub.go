@@ -41,25 +41,25 @@ dbus (send)
 
 # Allow binding the service to the requested connection name
 dbus (bind)
-	bus=session
-	name="org.mpris.MediaPlayer2.MediaHub",
+    bus=session
+    name="org.mpris.MediaPlayer2.MediaHub",
 
 # Allow binding the service to the requested connection name
 dbus (bind)
-	bus=session
-	name="core.ubuntu.media.Service",
+    bus=session
+    name="core.ubuntu.media.Service",
 
 dbus (receive, send)
-	bus=session
-	path=/com/ubuntu/media/Service{,/**}
-	interface=org.freedesktop.DBus{,.*}
-	peer=(label=unconfined),
+    bus=session
+    path=/com/ubuntu/media/Service{,/**}
+    interface=org.freedesktop.DBus{,.*}
+    peer=(label=unconfined),
 
 # We can always connect to ourselves
 dbus (receive)
-	bus=session
-	path=/core/ubuntu/media/Service
-	peer=(label=@{profile_name}),
+    bus=session
+    path=/core/ubuntu/media/Service
+    peer=(label=@{profile_name}),
 
 dbus (receive)
     bus=session
