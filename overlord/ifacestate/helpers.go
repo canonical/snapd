@@ -34,11 +34,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if err := m.addInterfaces(extra); err != nil {
+	if err := m.addInterfaces(extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(); err != nil {
@@ -58,6 +61,20 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	}
 	for _, iface := range extra {
 		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	for _, backend := range backends.All {
+		if err := m.repo.AddBackend(backend); err != nil {
+			return err
+		}
+	}
+	for _, backend := range extra {
+		if err := m.repo.AddBackend(backend); err != nil {
 			return err
 		}
 	}
@@ -101,13 +118,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
 	snapName := snapInfo.Name()
 
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Setup(snapInfo, opts, repo)
+		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
@@ -117,9 +134,9 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	return nil
 }
 
-func removeSnapSecurity(task *state.Task, snapName string) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
 	st := task.State()
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()
