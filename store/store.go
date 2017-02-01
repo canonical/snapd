@@ -625,10 +625,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		logRetryTime(startTime, reqOptions.URL.String(), attempt, resp, err)
-	}
+	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
 
 	return resp, err
 }
