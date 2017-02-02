@@ -1,5 +1,7 @@
 summary: Ensure that the ubuntu-core -> core transition works with two cores
 
+# we never test on core because the transition can only happen on "classic"
+# we disable on ppc64el because the downloads are very slow there
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
