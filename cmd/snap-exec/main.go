@@ -143,7 +143,20 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	// build the environment from the yaml
 	var expandedAppEnv []string
 	for _, appEnv := range app.Env() {
-		expandedAppEnv = append(expandedAppEnv, os.ExpandEnv(appEnv))
+		env := os.Expand(appEnv, func(k string) string {
+			// app specific env first
+			if s, ok := app.Environment[k]; ok {
+				return s
+			}
+			// snap env
+			if s, ok := app.Snap.Environment[k]; ok {
+				return s
+			}
+			// then runtime environment
+			return os.Getenv(k)
+		})
+
+		expandedAppEnv = append(expandedAppEnv, env)
 	}
 	env := append(os.Environ(), expandedAppEnv...)
 
