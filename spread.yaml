@@ -239,6 +239,7 @@ suites:
                 prepare_classic
             fi
         prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 prepare_each_classic
@@ -248,8 +249,6 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -261,13 +260,14 @@ suites:
             else
                 prepare_classic
             fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
@@ -284,5 +284,27 @@ suites:
                 exit 0
             fi
             $TESTSLIB/reset.sh
+
+    tests/unit/:
+        summary: Suite to run non-go unit tests and go unit tests for other runtimes
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh --store
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
 
 # vim:ts=4:sw=4:et
