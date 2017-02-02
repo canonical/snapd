@@ -63,7 +63,7 @@ func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	if !attempt.More() {
 		return false
 	}
-	return resp.StatusCode == 500 || resp.StatusCode == 503
+	return resp.StatusCode == 500 || resp.StatusCode == 502 || resp.StatusCode == 503
 }
 
 func shouldRetryError(attempt *retry.Attempt, err error) bool {
