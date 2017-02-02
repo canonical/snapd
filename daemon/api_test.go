@@ -2065,7 +2065,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 
 	rsp := trySnap(snapsCmd, req, nil, "/does/not/exist", snapstate.Flags{}).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "no such file or directory")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {

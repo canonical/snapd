@@ -682,7 +682,7 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
   "type": "error",
   "result": {
     "message":"error from server",
-    "kind":"snap-no-snap-dir"
+    "kind":"snap-not-snap"
   },
   "status-code": 400
 }
@@ -694,7 +694,7 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 	_, err := snap.Parser().ParseArgs(cmd)
 	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try prime"`)
+Try "snapcraft prime" in your project directory, then "snap try" again.`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
