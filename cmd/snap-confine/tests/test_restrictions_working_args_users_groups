@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -e
+
+. "${srcdir:-.}/snap-confine/tests/common.sh"
+
+get_common_syscalls >"$TMP"/tmpl
+cat >>"$TMP"/tmpl <<EOF
+# what we are testing
+EOF
+
+for i in "u:daemon|" "u:daemon|g:daemon" "|g:daemon" ; do
+    u=`echo "$i" | cut -d '|' -f 1`
+    g=`echo "$i" | cut -d '|' -f 2`
+    test -z "$u" && u="-"
+    test -z "$g" && g="-"
+
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "chown - $u $g" >>"$TMP"/snap.name.app
+
+    printf "Test good seccomp arg filtering (chown - %s %s)" "$u" "$g"
+    # ensure that the command "true" can run with the right filter
+    if $L snap.name.app /bin/true ; then
+        PASS
+    else
+        FAIL
+    fi
+done

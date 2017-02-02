@@ -20,6 +20,8 @@
 #include <ctype.h>
 #include <errno.h>
 #include <linux/can.h>		// needed for search mappings
+#include <grp.h>
+#include <pwd.h>
 #include <sched.h>
 #include <search.h>
 #include <stdbool.h>
@@ -364,6 +366,66 @@ static scmp_datum_t read_number(char *s)
 	return val;
 }
 
+static int find_uid(char *s, uid_t * uid)
+{
+	struct passwd pwd;
+	struct passwd *result;
+	char *buf;
+	size_t buf_size;
+	int rc = 0;
+
+	buf_size = sysconf(_SC_GETPW_R_SIZE_MAX);
+	if (buf_size < 0)
+		die("Could not find _SC_GETPW_R_SIZE_MAX");
+
+	buf = malloc(buf_size);
+	if (buf == NULL)
+		die("Out of memory creating passwd struct");
+
+	rc = getpwnam_r(s, &pwd, buf, buf_size, &result);
+	if (result == NULL) {
+		if (rc == 0)	// not found
+			return -1;
+		errno = rc;
+		die("getpwnam_r failed");
+	}
+
+	*uid = pwd.pw_uid;
+	free(buf);
+
+	return 0;
+}
+
+static int find_gid(char *s, gid_t * gid)
+{
+	struct group grp;
+	struct group *result;
+	char *buf;
+	size_t buf_size;
+	int rc = 0;
+
+	buf_size = sysconf(_SC_GETGR_R_SIZE_MAX);
+	if (buf_size < 0)
+		die("Could not find _SC_GETGR_R_SIZE_MAX");
+
+	buf = malloc(buf_size);
+	if (buf == NULL)
+		die("Out of memory creating group struct");
+
+	rc = getgrnam_r(s, &grp, buf, buf_size, &result);
+	if (result == NULL) {
+		if (rc == 0)	// not found
+			return -1;
+		errno = rc;
+		die("getpwnam_r failed");
+	}
+
+	*gid = grp.gr_gid;
+	free(buf);
+
+	return 0;
+}
+
 static int parse_line(char *line, struct seccomp_args *sargs)
 {
 	// strtok_r needs a pointer to keep track of where it is in the
@@ -428,6 +490,30 @@ static int parse_line(char *line, struct seccomp_args *sargs)
 			// syscall <N
 			op = SCMP_CMP_LT;
 			value = read_number(&buf_token[1]);
+		} else if (strncmp(buf_token, "u:", 2) == 0) {
+			// syscall UID
+			op = SCMP_CMP_EQ;
+			uid_t uid = 0;
+			uid_t *uid_p = &uid;
+			if (find_uid(&buf_token[2], uid_p) < 0) {
+				fprintf(stderr,
+					"Warning: could not find uid for '%s'. Skipping.\n",
+					&buf_token[2]);
+				continue;
+			}
+			value = (scmp_datum_t) uid;
+		} else if (strncmp(buf_token, "g:", 2) == 0) {
+			// syscall GID
+			op = SCMP_CMP_EQ;
+			gid_t gid = 0;
+			gid_t *gid_p = &gid;
+			if (find_gid(&buf_token[2], gid_p) < 0) {
+				fprintf(stderr,
+					"Warning: could not find gid for '%s'. Skipping.\n",
+					&buf_token[2]);
+				continue;
+			}
+			value = (scmp_datum_t) gid;
 		} else {
 			// syscall NNN
 			op = SCMP_CMP_EQ;
