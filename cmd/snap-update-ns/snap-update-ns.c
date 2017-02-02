@@ -32,10 +32,11 @@
 #include <sys/vfs.h>
 #include <unistd.h>
 
-#include "../libsnap-confine-private/utils.h"
-#include "../libsnap-confine-private/error.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/error.h"
 #include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 #include "mount-entry.h"
 
 static void missing_locking()
@@ -83,7 +84,7 @@ int main(int argc, char **argv)
 	struct sc_mount_entry
 	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) * desired =
 	    NULL;
-	must_snprintf(buf, sizeof buf, SC_DESIRED_PROFILE_FMT, snap_name);
+	sc_must_snprintf(buf, sizeof buf, SC_DESIRED_PROFILE_FMT, snap_name);
 	desired = sc_load_mount_profile(buf);
 	debug("Loaded desired mount profile:");
 	for (struct sc_mount_entry * e = desired; e != NULL; e = e->next) {
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
 	struct sc_mount_entry
 	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) * current =
 	    NULL;
-	must_snprintf(buf, sizeof buf, SC_CURRENT_PROFILE_FMT, snap_name);
+	sc_must_snprintf(buf, sizeof buf, SC_CURRENT_PROFILE_FMT, snap_name);
 	current = sc_load_mount_profile(buf);
 	debug("Loaded current mount profile");
 	for (struct sc_mount_entry * e = current; e != NULL; e = e->next) {
@@ -176,8 +177,8 @@ int main(int argc, char **argv)
 		// Once all mount operations are performed the current profile is
 		// overwritten with the desired profile.
 		// This way the next time we are called we will have nothing to do.
-		must_snprintf(buf, sizeof buf, SC_CURRENT_PROFILE_FMT,
-			      snap_name);
+		sc_must_snprintf(buf, sizeof buf, SC_CURRENT_PROFILE_FMT,
+				 snap_name);
 		sc_save_mount_profile(desired, buf);
 		debug("The current profile has been updated.");
 	}
@@ -188,27 +189,28 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-static void sc_show_mountinfo(struct mountinfo_entry *mi_entry)
+static void sc_show_mountinfo(struct sc_mountinfo_entry *mi_entry)
 {
-	debug("\t\tid:           %d", mountinfo_entry_mount_id(mi_entry));
-	debug("\t\tparent-id:    %d", mountinfo_entry_parent_id(mi_entry));
-	debug("\t\troot:         %s", mountinfo_entry_root(mi_entry));
-	debug("\t\tmount-dir:    %s", mountinfo_entry_mount_dir(mi_entry));
-	debug("\t\tmount-opts:   %s", mountinfo_entry_mount_opts(mi_entry));
+	debug("\t\tid:           %d", sc_mountinfo_entry_mount_id(mi_entry));
+	debug("\t\tparent-id:    %d", sc_mountinfo_entry_parent_id(mi_entry));
+	debug("\t\troot:         %s", sc_mountinfo_entry_root(mi_entry));
+	debug("\t\tmount-dir:    %s", sc_mountinfo_entry_mount_dir(mi_entry));
+	debug("\t\tmount-opts:   %s", sc_mountinfo_entry_mount_opts(mi_entry));
 	debug("\t\toptional:     %s",
-	      mountinfo_entry_optional_fields(mi_entry));
-	debug("\t\tfs-type:      %s", mountinfo_entry_fs_type(mi_entry));
-	debug("\t\tmount-source: %s", mountinfo_entry_mount_source(mi_entry));
-	debug("\t\tsuper-opts:   %s", mountinfo_entry_super_opts(mi_entry));
+	      sc_mountinfo_entry_optional_fields(mi_entry));
+	debug("\t\tfs-type:      %s", sc_mountinfo_entry_fs_type(mi_entry));
+	debug("\t\tmount-source: %s",
+	      sc_mountinfo_entry_mount_source(mi_entry));
+	debug("\t\tsuper-opts:   %s", sc_mountinfo_entry_super_opts(mi_entry));
 }
 
-static struct mountinfo_entry *sc_find_mountinfo_by_id(struct mountinfo *mi,
-						       int mount_id)
+static struct sc_mountinfo_entry *sc_find_mountinfo_by_id(struct sc_mountinfo
+							  *mi, int mount_id)
 {
-	for (struct mountinfo_entry * mi_entry =
-	     first_mountinfo_entry(mi); mi_entry != NULL;
-	     mi_entry = next_mountinfo_entry(mi_entry)) {
-		if (mountinfo_entry_mount_id(mi_entry) == mount_id) {
+	for (struct sc_mountinfo_entry * mi_entry =
+	     sc_first_mountinfo_entry(mi); mi_entry != NULL;
+	     mi_entry = sc_next_mountinfo_entry(mi_entry)) {
+		if (sc_mountinfo_entry_mount_id(mi_entry) == mount_id) {
 			return mi_entry;
 		}
 	}
@@ -220,19 +222,19 @@ static bool sc_should_act_on_change(const struct sc_mount_change *change)
 	// Load the table of mount points that affect the current process.  We're
 	// doing this each time we are asked to mount something as it is safer than
 	// trying to keep track of what the kernel may be doing.
-	struct mountinfo __attribute__ ((cleanup(cleanup_mountinfo))) * mi =
-	    NULL;
+	struct sc_mountinfo
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) * mi = NULL;
 	const char *mnt_dir;
-	mi = parse_mountinfo(NULL);
+	mi = sc_parse_mountinfo(NULL);
 
 	switch (change->action) {
 	case SC_ACTION_MOUNT:
 		// We cannot mount over existing mount points as that can confuse
 		// apparmor. As a safety measure we reject such mount requests.
-		for (struct mountinfo_entry * mi_entry =
-		     first_mountinfo_entry(mi); mi_entry != NULL;
-		     mi_entry = next_mountinfo_entry(mi_entry)) {
-			mnt_dir = mountinfo_entry_mount_dir(mi_entry);
+		for (struct sc_mountinfo_entry * mi_entry =
+		     sc_first_mountinfo_entry(mi); mi_entry != NULL;
+		     mi_entry = sc_next_mountinfo_entry(mi_entry)) {
+			mnt_dir = sc_mountinfo_entry_mount_dir(mi_entry);
 			// XXX: it would be perfect if this could detect that we don't have
 			// to do anything but it is not an error. Specifically for the case
 			// of bind mounts that are already satisfied.
@@ -242,16 +244,16 @@ static bool sc_should_act_on_change(const struct sc_mount_change *change)
 				      change->entry->mnt_dir);
 				debug("\tIn the way:");
 				sc_show_mountinfo(mi_entry);
-				struct mountinfo_entry *parent_mi_entry =
+				struct sc_mountinfo_entry *parent_mi_entry =
 				    sc_find_mountinfo_by_id(mi,
-							    mountinfo_entry_parent_id
+							    sc_mountinfo_entry_parent_id
 							    (mi_entry));
 				while (parent_mi_entry != NULL) {
 					debug("\t(parent chain)...");
 					sc_show_mountinfo(parent_mi_entry);
 					parent_mi_entry =
 					    sc_find_mountinfo_by_id(mi,
-								    mountinfo_entry_parent_id
+								    sc_mountinfo_entry_parent_id
 								    (parent_mi_entry));
 				}
 				return false;
@@ -260,10 +262,10 @@ static bool sc_should_act_on_change(const struct sc_mount_change *change)
 		return true;
 	case SC_ACTION_UNMOUNT:
 		// We don't want to unmount something that is not mounted.
-		for (struct mountinfo_entry * mi_entry =
-		     first_mountinfo_entry(mi); mi_entry != NULL;
-		     mi_entry = next_mountinfo_entry(mi_entry)) {
-			mnt_dir = mountinfo_entry_mount_dir(mi_entry);
+		for (struct sc_mountinfo_entry * mi_entry =
+		     sc_first_mountinfo_entry(mi); mi_entry != NULL;
+		     mi_entry = sc_next_mountinfo_entry(mi_entry)) {
+			mnt_dir = sc_mountinfo_entry_mount_dir(mi_entry);
 			if (strcmp(mnt_dir, change->entry->mnt_dir) == 0) {
 				return true;
 			}
@@ -282,7 +284,7 @@ static void sc_reassociate_with_snap_namespace_or_exit(const char *snap_name)
 	char buf[PATH_MAX];
 	int mnt_ns_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 
-	must_snprintf(buf, sizeof buf, SC_MNT_NS_FMT, snap_name);
+	sc_must_snprintf(buf, sizeof buf, SC_MNT_NS_FMT, snap_name);
 
 	mnt_ns_fd = open(buf, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
 	if (mnt_ns_fd < 0) {

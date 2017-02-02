@@ -155,6 +155,11 @@ plugs:
     allow-installation: false
     deny-auto-connection: true
 slots:
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   alsa:
     allow-installation:
       slot-snap-type:
@@ -199,9 +204,14 @@ slots:
       slot-snap-type:
         - app
         - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
   core-support:
     allow-installation:
       slot-snap-type:

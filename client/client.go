@@ -63,18 +63,28 @@ type Config struct {
 	// BaseURL contains the base URL where snappy daemon is expected to be.
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
+
+	// DisableAuth controls whether the client should send an
+	// Authorization header from reading the auth.json data.
+	DisableAuth bool
 }
 
 // A Client knows how to talk to the snappy daemon.
 type Client struct {
 	baseURL url.URL
 	doer    doer
+
+	disableAuth bool
 }
 
 // New returns a new instance of Client
 func New(config *Config) *Client {
+	if config == nil {
+		config = &Config{}
+	}
+
 	// By default talk over an UNIX socket.
-	if config == nil || config.BaseURL == "" {
+	if config.BaseURL == "" {
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
@@ -83,15 +93,18 @@ func New(config *Config) *Client {
 			doer: &http.Client{
 				Transport: &http.Transport{Dial: unixDialer()},
 			},
+			disableAuth: config.DisableAuth,
 		}
 	}
+
 	baseURL, err := url.Parse(config.BaseURL)
 	if err != nil {
 		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 	}
 	return &Client{
-		baseURL: *baseURL,
-		doer:    &http.Client{},
+		baseURL:     *baseURL,
+		doer:        &http.Client{},
+		disableAuth: config.DisableAuth,
 	}
 }
 
@@ -148,10 +161,12 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		req.Header.Set(key, value)
 	}
 
-	// set Authorization header if there are user's credentials
-	err = client.setAuthorization(req)
-	if err != nil {
-		return nil, AuthorizationError{err}
+	if !client.disableAuth {
+		// set Authorization header if there are user's credentials
+		err = client.setAuthorization(req)
+		if err != nil {
+			return nil, AuthorizationError{err}
+		}
 	}
 
 	rsp, err := client.doer.Do(req)

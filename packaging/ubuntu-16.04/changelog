@@ -1,3 +1,118 @@
+snapd (2.23+) UNRELEASED; urgency=medium
+
+  * New upstream release, LP: #xxxx
+    - ...
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Jan 2017 14:42:46 +0100
+
+snapd (2.22) xenial; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - many: make ubuntu-core-launcher mostly go
+    - interfaces/builtin: add account-control interface
+    - interfaces/builtin: add missing syscalls to core-support needed
+      for systemctl
+    - interfaces/builtin: rework core-support to only allow full access
+      to systemctl
+    - debian/tests: drop stale autopkgtest dependencies.
+    - tests: make the debugging of c-unit-tests more useful
+    - store: retry auth-related requests
+    - tests: integration test for system reload
+    - snap: be more helpful in the `snap install <already-installed>`
+      error message
+    - tests: set SNAPPY_USE_STAGING_STORE in su call
+    - tests: use test snap
+    - spread: set SNAPD_DEBUG=1 in the core snap as well
+    - tests: add extra debugging to security-setuid-root test
+    - cmd,snap,wrappers: systemd reload command support
+    - interfaces: builtin: mir: Allow recv and send
+    - overlord/ifacestate: use ParseConnRef
+    - overlord/snapstate,overlord/ifacestate: add automatic ubuntu-core
+      -> core transition
+    - debian: remove aliases as well in snapd.postrm
+    - many: change interfaces.ParseID to return value
+    - interfaces/opengl: allow access to the nvidia abstract socket
+    - overlord, daemon: flag failures feature fancy forms.
+    - many: add --classic support to try and revert, and make missing
+      these things a little harder
+    - interfaces: allow reading non-PCI-attached usb devices via raw-usb
+    - many: rename snap-alter-ns to snap-update-ns
+    - interfaces/builtin: add core-support
+    - store: increase the retry.LimitTime()
+    - debian: move the packaging out into package/$id-$version_id
+    - overlord/stapstate: don't use unkeyed fields
+    - many: add stub implementation of snap-alter-ns
+    - asserts: improve error message when key is not valid at the given
+      time
+    - snapstate, ifacestate: add snapstate.CheckChangeConflict() to
+      ifacestate.{Connect,Disconnect}
+    - debian: remove trusty specific bits
+    - docs: Add a note about building snapd.
+    - interfaces: miscellaneous updates for default and network-control
+    - daemon: bubble out store.ErrSnapNotFound in the findOne codepath
+    - store: add retry logging into download as well
+    - snap: show price in `snap info`
+    - cmd: add fault injection support code
+    - interfaces: network-manager: allow rw access to /etc/netplan
+    - debian: move systemd files out of ./debian and into ./data/systemd
+    - asserts: implement SuggestFormat to help avoid specifying the
+      wrong format iteration for an assertion
+    - many: detect potentially insecure use of snap-confine
+    - interfaces: allow querying added security backends
+    - cmd: ensure that all .c files have a -test.c file
+    - asserts: don't use 'context' for the path of attributes, want to
+      reuse the concept for something else
+    - interfaces: abbreviate ConnRef construction
+    - tests: ensure systemd override directory is available before using
+      it
+    - cmd: more build system cleanups and a small fix
+    - tests: increase retries for service up
+    - cmd: move seccomp cleanup function to seccomp-support
+    - many: auto-connect plugs and slots symmetrically
+    - overlord: use a ticker for the pruning
+    - interfaces/builtin: add uhid interface
+    - cmd/snap-confine: add shutdown helper
+    - tests: fix path used when debugging
+    - cmd: switch to non-recursive make
+    - overlord/ifacestate: setup security of snaps affected by auto-
+      connection
+    - spread: refresh apt cache before first install
+    - overlord: allow max 500 changes in "ready" state to avoid growing
+      changes for 24h
+    - snap: add {Plug,Slot}Info.SecurityTags
+    - cmd: move snap-discard-ns to dedicated directory
+    - tests: skip i18n test when no "snappy.mo" file is available
+    - interfaces,overlord/ifacestate: small refactor around reference
+      methods
+    - tests: remove the snapd dirs last (should fix random test errors)
+    - interfaces: mm: permissions for protocol proxies
+    - interfaces/builtin: add evolution interfaces
+    - many: extract the logging http client and user-agent handling for
+      use in devicestate
+    - interfaces: unity8-download-manager is the chosen name for this
+      interface.
+    - tests: add "quiet" wrapper function that only prints output on
+      failure
+    - tests: fix failing snapd-reexec test
+    - docs: simplify HACKING.md that snapd itself supports setting up
+      the sockets
+    - overlord: flag required-snaps from model as required and prevent
+      removing them
+    - spread: exclude .o and .a files
+    - tests: parameterize remote store
+    - cmd: fix hardcoded paths to rst2man and support rst2man.py
+    - tests: improve debug output when reexec is used
+    - tests: disable ipv6 before unpacking delta
+    - interfaces: add new interface API
+    - tests: change TRUST_TEST_KEYS to be controlled from the host
+    - spread: add boilerplate for Linode delta uploads
+    - wrappers: add support for the X-Ayatana-Desktop-Shortcuts=
+      extension
+    - partition: add support for native grubenv read/write and use it
+    - tests: add test ensuring manual pages are shipped
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 27 Jan 2017 23:18:57 +0100
+
 snapd (2.21) xenial; urgency=medium
 
   * New upstream release, LP: #1656382

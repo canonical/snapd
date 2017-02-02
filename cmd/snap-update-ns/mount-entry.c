@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 
 /**
@@ -141,12 +142,12 @@ int sc_compare_mount_entry(const struct sc_mount_entry *a,
 const char *sc_mount_entry_to_string(const struct sc_mount_entry *entry)
 {
 	static char buf[PATH_MAX * 2 + 1000];
-	must_snprintf(buf, sizeof buf,
-		      "%s %s %s %s %d %d",
-		      entry->mnt_fsname,
-		      entry->mnt_dir,
-		      entry->mnt_type,
-		      entry->mnt_opts, entry->mnt_freq, entry->mnt_passno);
+	sc_must_snprintf(buf, sizeof buf,
+			 "%s %s %s %s %d %d",
+			 entry->mnt_fsname,
+			 entry->mnt_dir,
+			 entry->mnt_type,
+			 entry->mnt_opts, entry->mnt_freq, entry->mnt_passno);
 	return buf;
 }
 

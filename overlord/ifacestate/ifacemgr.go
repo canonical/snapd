@@ -44,7 +44,7 @@ type InterfaceManager struct {
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
-func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfaces.Interface) (*InterfaceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
@@ -56,7 +56,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
-	if err := m.initialize(extra); err != nil {
+	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err
 	}
 
@@ -70,6 +70,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extra []interfa
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
+
+	// helper for ubuntu-core -> core
+	runner.AddHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 
 	return m, nil
 }
