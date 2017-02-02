@@ -69,7 +69,7 @@ func Open(path string) (Container, error) {
 			return snapdir.New(path), nil
 		}
 
-		return nil, NoSnapDirError{path}
+		return nil, NotSnapError{Path: path}
 	}
 
 	// open the file and check magic
