@@ -19,10 +19,10 @@ prepare: |
     dpkg --get-selections > pkg-list
     # Download test kernel packages.
     for f in \
-            linux-image-4.8.0-34-generic_4.8.0-34.36+lp1656121v2_amd64.deb \
-            linux-image-extra-4.8.0-34-generic_4.8.0-34.36+lp1656121v2_amd64.deb \
-            linux-headers-4.8.0-34-generic_4.8.0-34.36+lp1656121v2_amd64.deb; do
-        wget --quiet http://people.canonical.com/~jj/lp1656121/$f
+            linux-headers-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb \
+            linux-image-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb \
+            linux-image-extra-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb; do
+        wget --quiet http://people.canonical.com/~jj/linux+jj/$f;
     done
     # Remove any installed regular kernel packages.
     #
