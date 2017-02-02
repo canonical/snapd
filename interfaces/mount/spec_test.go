@@ -28,14 +28,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type recorderSuite struct {
+type specSuite struct {
 	iface *ifacetest.TestInterface
 	spec  *mount.Specification
 	plug  *interfaces.Plug
 	slot  *interfaces.Slot
 }
 
-var _ = Suite(&recorderSuite{
+var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -67,12 +67,12 @@ var _ = Suite(&recorderSuite{
 	},
 })
 
-func (s *recorderSuite) SetUpTest(c *C) {
+func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &mount.Specification{}
 }
 
 // AddMountEntry is not broken
-func (s *recorderSuite) TestSmoke(c *C) {
+func (s *specSuite) TestSmoke(c *C) {
 	ent0 := "fs1"
 	ent1 := "fs2"
 	c.Assert(s.spec.AddSnippet(ent0), IsNil)
@@ -81,7 +81,7 @@ func (s *recorderSuite) TestSmoke(c *C) {
 }
 
 // The mount.Specification can be used through the interfaces.Specification interface
-func (s *recorderSuite) TestSpecificationIface(c *C) {
+func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)

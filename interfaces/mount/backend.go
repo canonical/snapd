@@ -81,7 +81,7 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// deriveContent computes .fstab tables based on requests made to the recorder.
+// deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
 	// No snippets? Nothing to do!
 	if len(spec.Snippets) == 0 {
