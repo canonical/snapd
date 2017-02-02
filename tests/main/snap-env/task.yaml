@@ -34,4 +34,4 @@ execute: |
     echo "Enure that EXTRA environment variables are what we expect"
     egrep -q '^EXTRA_GLOBAL=extra-global' extra-vars.txt
     egrep -q '^EXTRA_LOCAL=extra-local' extra-vars.txt
-    test $(wc -l < extra-vars.txt) -ge 2
+    test $(wc -l < extra-vars.txt) -eq 2
