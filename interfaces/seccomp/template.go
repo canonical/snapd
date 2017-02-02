@@ -316,7 +316,11 @@ sched_rr_get_interval
 # Use process-control interface for controlling other pids.
 sched_setaffinity 0 - -
 sched_setparam 0 -
-sched_setscheduler 0 - -
+
+# 'sched_setscheduler' without argument filtering was allowed in 2.21 and
+# earlier and 2.22 added 'sched_setscheduler 0 - -', introducing LP: #1661265.
+# For now, continue to allow sched_setscheduler unconditionally.
+sched_setscheduler
 
 sched_yield
 
