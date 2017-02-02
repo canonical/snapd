@@ -176,7 +176,7 @@ void sc_reassociate_with_pid1_mount_ns()
 	int self_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 
 	debug("checking if the current process shares mount namespace"
-	      "with the init process");
+	      " with the init process");
 
 	init_mnt_fd = open("/proc/1/ns/mnt",
 			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
