@@ -347,6 +347,11 @@ var defaultTemplate = []byte(`
   # abstract or anonymous socket
   unix peer=(label=snap.@{SNAP_NAME}.*),
 
+  # Allow apps from the same package to communicate with each other via DBus.
+  # Note: this does not grant access to the DBus sockets of well known buses
+  # (will still need to use an appropriate interface for that).
+  dbus (receive, send) peer=(label=snap.@{SNAP_NAME}.*),
+
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
 
