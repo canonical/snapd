@@ -42,24 +42,28 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
 ))
 
 func maybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
-	if osutil.GetenvBool("SNAPPY_TESTING") || attempt.Count() > 1 {
-		logger.Debugf("Retyring %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
+	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
+		logger.Debugf("Retrying %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
 	}
-
 }
 
-func logRetryTime(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
-	var status string
-	if err != nil {
-		status = err.Error()
-	} else if resp != nil {
-		status = fmt.Sprintf("%d", resp.StatusCode)
+func maybeLogRetrySummary(startTime time.Time, url string, attempt *retry.Attempt, resp *http.Response, err error) {
+	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
+		var status string
+		if err != nil {
+			status = err.Error()
+		} else if resp != nil {
+			status = fmt.Sprintf("%d", resp.StatusCode)
+		}
+		logger.Debugf("The retry loop for %s finished after %d retries, elapsed time=%v, status: %s", url, attempt.Count(), time.Since(startTime), status)
 	}
-	logger.Debugf("The retry loop for %s finished after %d retries, elapsed time=%v, status: %s", url, attempt.Count(), time.Since(startTime), status)
 }
 
 func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
-	return (resp.StatusCode == 500 || resp.StatusCode == 503) && attempt.More()
+	if !attempt.More() {
+		return false
+	}
+	return resp.StatusCode == 500 || resp.StatusCode == 503
 }
 
 func shouldRetryError(attempt *retry.Attempt, err error) bool {
