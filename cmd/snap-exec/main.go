@@ -141,7 +141,11 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
-	env := append(os.Environ(), app.Env()...)
+	var expandedAppEnv []string
+	for _, appEnv := range app.Env() {
+		expandedAppEnv = append(expandedAppEnv, os.ExpandEnv(appEnv))
+	}
+	env := append(os.Environ(), expandedAppEnv...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)

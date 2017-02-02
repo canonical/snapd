@@ -63,6 +63,7 @@ apps:
   post-stop-command: post-stop-app
   environment:
    LD_LIBRARY_PATH: /some/path
+   MY_PATH: $PATH
  nostop:
   command: nostop
 `)
@@ -150,6 +151,7 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s\n", os.Getenv("PATH")))
 }
 
 func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {

@@ -34,4 +34,5 @@ execute: |
     echo "Enure that EXTRA environment variables are what we expect"
     egrep -q '^EXTRA_GLOBAL=extra-global' extra-vars.txt
     egrep -q '^EXTRA_LOCAL=extra-local' extra-vars.txt
-    test $(wc -l < extra-vars.txt) -eq 2
+    egrep -q "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" extra-vars.txt
+    test $(wc -l < extra-vars.txt) -eq 3

@@ -2,6 +2,7 @@ name: test-snapd-tools
 version: 1.0
 environment:
   EXTRA_GLOBAL: extra-global
+  EXTRA_CACHE_DIR: $SNAP_USER_DATA/.cache
 apps:
     echo:
         command: bin/echo
