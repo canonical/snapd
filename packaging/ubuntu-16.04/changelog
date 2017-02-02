@@ -5,6 +5,13 @@ snapd (2.23+) UNRELEASED; urgency=medium
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Jan 2017 14:42:46 +0100
 
+snapd (2.22.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - cherry pick fix for snapctl auth.json handling
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 01 Feb 2017 17:09:31 +0100
+
 snapd (2.22) xenial; urgency=medium
 
   * New upstream release, LP: #1659522
