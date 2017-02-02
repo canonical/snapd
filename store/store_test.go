@@ -2622,6 +2622,42 @@ var MockUpdatesWithDeltasJSON = `
 }
 `
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+	for _, t := range []struct {
+		onClassic      bool
+		deltaFormatStr string
+	}{
+		{false, ""},
+		{true, "xdelta3"},
+	} {
+		restore := release.MockOnClassic(t.onClassic)
+		defer restore()
+
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, t.deltaFormatStr)
+		}))
+		defer mockServer.Close()
+
+		var err error
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		repo := New(&cfg, nil)
+		c.Assert(repo, NotNil)
+
+		repo.ListRefresh([]*RefreshCandidate{
+			{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(24),
+				Epoch:    "0",
+			},
+		}, nil)
+	}
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
