@@ -70,7 +70,6 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snap-confine*.deb
     apt_install_local ${GOPATH}/snapd_*.deb
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
@@ -144,7 +143,7 @@ EOF
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${GOPATH}/snapd_*.deb ${GOPATH}/snap-confine_*.deb
+        apt_install_local ${GOPATH}/snapd_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
@@ -193,7 +192,6 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        dpkg-deb -x ${SPREAD_PATH}/../snap-confine_*.deb $UNPACKD
 
         # add gpio and iio slots
         cat >> $UNPACKD/meta/snap.yaml <<-EOF
@@ -261,7 +259,7 @@ EOF
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
-ExecPreStart=/bin/touch /dev/iio:device0
+ExecStartPre=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf

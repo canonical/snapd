@@ -595,6 +595,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
+		"setup-profiles",
 		"link-snap",
 		"setup-aliases",
 		"start-snap-services",
@@ -621,6 +622,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-snap",
+		"remove-profiles",
 	})
 }
 
@@ -3673,6 +3675,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "candidate",
 			sinfo: si,
 		},
@@ -3740,6 +3747,11 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 	}
 	// start with an easier-to-read error if this fails:
