@@ -43,18 +43,6 @@
 			"revisionTime": "2016-02-27T09:34:14Z"
 		},
 		{
-			"checksumSHA1": "MXOfmoFN5PBz/N5pDNrFe9ugYf8=",
-			"path": "github.com/mvo5/gettext.go",
-			"revision": "da4fdf605f1b0e2aa523423db5c0a3f727d62019",
-			"revisionTime": "2016-12-13T07:12:38Z"
-		},
-		{
-			"checksumSHA1": "wClBtrHsGvzusCkIFdF78Iak6y0=",
-			"path": "github.com/mvo5/gettext.go/pluralforms",
-			"revision": "da4fdf605f1b0e2aa523423db5c0a3f727d62019",
-			"revisionTime": "2016-12-13T07:12:38Z"
-		},
-		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
@@ -71,6 +59,18 @@
 			"path": "github.com/mvo5/uboot-go/uenv",
 			"revision": "361f6ebcbb54f389d15dc9faefa000e996ba3e37",
 			"revisionTime": "2015-07-22T06:53:40Z"
+		},
+		{
+			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
+			"path": "github.com/ojii/gettext.go",
+			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
+			"revisionTime": "2016-07-14T06:47:45Z"
+		},
+		{
+			"checksumSHA1": "j5FytTwC2nAqSrDR7V7O7E4cHKM=",
+			"path": "github.com/ojii/gettext.go/pluralforms",
+			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
+			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
 			"checksumSHA1": "G1Zy6KNKWSz6Nx6GAgaKM2yPDLg=",
