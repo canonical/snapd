@@ -154,6 +154,16 @@ backends:
                 username: test
                 password: ubuntu
 
+    gruntwork:
+        type: linode
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        environment:
+            GIT_USERNAME: "$(HOST: echo ${SPREAD_GIT_USERNAME:-})"
+            GIT_PASSWORD: "$(HOST: echo ${SPREAD_GIT_PASSWORD:-})"
+        systems:
+            - ubuntu-16.04-64:
+                kernel: GRUB 2
+
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
@@ -272,7 +282,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd 
+                apt-get purge -y snapd
             fi
 
     tests/upgrade/:
@@ -312,5 +322,9 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
+
+    tests/gruntwork/:
+        summary: Generic automatable tasks
+        backends: [gruntwork]
 
 # vim:ts=4:sw=4:et

@@ -1,0 +1,38 @@
+summary: Mirror snapd adding go dependencies
+
+environment:
+    CREDENTIALS_FILE: /tmp/snapd-plus-vendor-git-credentials
+    TARGET_DIR:  $GOPATH/src/snapd-plus-vendor-target
+
+prepare: |
+    echo "https://$GIT_USERNAME:$GIT_PASSWORD@github.com" > "$CREDENTIALS_FILE"
+    chmod 600 "$CREDENTIALS_FILE"
+
+restore: |
+    rm -f $CREDENTIALS_FILE
+    rm -rf origin $TARGET_DIR
+
+execute: |
+    # clone origin repo and prepare for getting vendor dependencies
+    git clone https://github.com/snapcore/snapd origin
+    ( cd origin && rm -rf .git && sed -i 's|^vendor/\*/$||' .gitignore )
+
+    # clone target repo and copy origin over target
+    git clone https://github.com/snapcore/snapd-plus-vendor $TARGET_DIR
+    cp -ar origin/. $TARGET_DIR
+
+    # configure git locally
+    cd $TARGET_DIR
+    git config credential.helper "store --file=$CREDENTIALS_FILE"
+    git config user.name "Snappy Developers"
+    git config user.email snappy-dev@lists.launchpad.net
+
+    # get vendor dependencies on target repo
+    govendor sync
+
+    # if something was deleted, changed or added commit and push to the target repo
+    if [ $(git ls-files -dmo | wc -l) != "0" ]; then
+        git add .
+        git commit -am"Content updated"
+        git push
+    fi
