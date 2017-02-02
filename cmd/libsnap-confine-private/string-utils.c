@@ -71,47 +71,28 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 	return n;
 }
 
-char *sc_must_stpcpy(char *buf, size_t buf_size, char *dest, const char *src)
+void sc_string_append(char *buf, size_t buf_size, const char *str)
 {
 	// Set errno in case we die.
 	errno = 0;
 	if (buf == NULL) {
 		die("cannot append string: buffer is NULL");
 	}
-	if (dest == NULL) {
-		die("cannot append string: destination is NULL");
+	if (str == NULL) {
+		die("cannot append string: string is NULL");
 	}
-	if (src == NULL) {
-		die("cannot append string: source is NULL");
+	size_t buf_len = strlen(buf);
+	if (buf_len >= buf_size) {
+		// When writing tests for this I wrote a test that didn't initialize
+		// the buffer and was surprised to see the effect. While this test is
+		// not bulletproof it is a good sanity check to have. While the next
+		// test will always catch this issue the message is clearly distinct.
+		die("cannot append string: uninitialized buffer detected");
 	}
-	// Sanity check, the code doesn't need buffers larger than a few KBs so
-	// prevent corrupted or otherwise huge buffers from seeming "valid".
-	if (buf_size >= 0xFFFF) {
-		// NOTE: using %zd to format size_t as ssize_t which is more useful for
-		// -1 and similar huge values and also is better to test as it is
-		// independent of machine word size.
-		die("cannot append string: buffer size (%zd) exceeds internal limit", (ssize_t) buf_size);
-
-	}
-	// Sanity check, dest points to the inside of the buffer.
-	if (dest == &buf[buf_size]) {
-		die("cannot append string: destination points"
-		    " to the end of the buffer");
-	}
-	if (dest > &buf[buf_size]) {
-		die("cannot append string: destination points"
-		    " %td byte(s) beyond the buffer", dest - &buf[buf_size]);
-	}
-	if (dest < buf) {
-		die("cannot append string: destination points"
-		    " %td byte(s) in front of the buffer", buf - dest);
-	}
-	// Sanity check the new content fits the buffer.
-	size_t src_len = strlen(src);
-	if (&dest[src_len] >= &buf[buf_size]) {
+	size_t str_len = strlen(str);
+	if (buf_len + str_len >= buf_size) {
 		die("cannot append string: buffer overflow of %td byte(s)",
-		    &dest[src_len] - &buf[buf_size] + 1);
+		    buf_len + str_len + 1 - buf_size);
 	}
-	memcpy(dest, src, src_len + 1);
-	return &dest[src_len + 1];
+	memcpy(buf + buf_len, str, str_len + 1);
 }
