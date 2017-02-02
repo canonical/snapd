@@ -20,6 +20,7 @@ apps:
         command: bin/env
         environment:
           EXTRA_LOCAL: extra-local
+          EXTRA_LOCAL_NESTED: ${EXTRA_GLOBAL}-nested
     sh:
         command: bin/sh
     cmd:
