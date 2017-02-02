@@ -257,6 +257,7 @@ var defaultTemplate = []byte(`
   @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
+  /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
