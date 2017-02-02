@@ -40,6 +40,7 @@ execute: |
         1)
             # Restore package selection to what was there before.
             # After the next reboot we will just use the regular kernel.
+            # FIXME: this is not doing what I intended
             dpkg --set-selections < pkg-list
             rm -f pkg-list
             # Exercising the test kernel.
