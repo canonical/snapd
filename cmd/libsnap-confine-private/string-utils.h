@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,42 +15,28 @@
  *
  */
 
-#include "cleanup-funcs.h"
+#ifndef SNAP_CONFINE_STRING_UTILS_H
+#define SNAP_CONFINE_STRING_UTILS_H
 
-#include <mntent.h>
-#include <unistd.h>
+#include <stdbool.h>
+#include <stddef.h>
 
-void sc_cleanup_string(char **ptr)
-{
-	if (ptr != NULL) {
-		free(*ptr);
-	}
-}
+/**
+ * Check if two strings are equal.
+ **/
+bool sc_streq(const char *a, const char *b);
 
-void sc_cleanup_file(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		fclose(*ptr);
-	}
-}
+/**
+ * Check if a string has a given suffix.
+ **/
+bool sc_endswith(const char *str, const char *suffix);
 
-void sc_cleanup_endmntent(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		endmntent(*ptr);
-	}
-}
+/**
+ * Safer version of snprintf.
+ *
+ * This version dies on any error condition.
+ **/
+__attribute__ ((format(printf, 3, 4)))
+int sc_must_snprintf(char *str, size_t size, const char *format, ...);
 
-void sc_cleanup_closedir(DIR ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		closedir(*ptr);
-	}
-}
-
-void sc_cleanup_close(int *ptr)
-{
-	if (ptr != NULL && *ptr != -1) {
-		close(*ptr);
-	}
-}
+#endif

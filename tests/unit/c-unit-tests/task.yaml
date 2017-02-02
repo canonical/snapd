@@ -12,9 +12,6 @@ prepare: |
 execute: |
     # Refresh autotools build system
     cd $SPREAD_PATH/cmd/
-    touch before
-    touch after
-    find . > before
     autoreconf --install --force
     # Do an out-of-tree build in the autogarbage directory
     mkdir -p $SPREAD_PATH/cmd/autogarbage

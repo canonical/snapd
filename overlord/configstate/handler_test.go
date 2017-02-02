@@ -20,6 +20,8 @@
 package configstate_test
 
 import (
+	"testing"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -28,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+func TestConfigState(t *testing.T) { TestingT(t) }
 
 type configureHandlerSuite struct {
 	context *hookstate.Context
@@ -62,10 +66,10 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 	c.Check(s.handler.Before(), IsNil)
 
 	s.context.Lock()
-	transaction := configstate.ContextTransaction(s.context)
+	tr := configstate.ContextTransaction(s.context)
 	s.context.Unlock()
 
 	var value string
-	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
 }

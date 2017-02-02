@@ -1,6 +1,6 @@
 summary: Ensure that the ubuntu-core -> core transition works
 
-systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm32,-ubuntu-core-16-arm64]
+systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm-32,-ubuntu-core-16-arm-64]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -25,7 +25,7 @@ execute: |
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge snapd
     apt_install_local ${GOPATH}/snapd_*.deb
-    snap install ubuntu-core
+    snap install --${CORE_CHANNEL} ubuntu-core
     snap install test-snapd-python-webserver
     snap interfaces |MATCH ":network.*test-snapd-python-webserver"
 
