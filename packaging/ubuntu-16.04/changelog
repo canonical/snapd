@@ -1,3 +1,11 @@
+snapd (2.22.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - cherry pick fix for sched_setscheduler regression
+      (LP: #1661265)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Feb 2017 17:13:51 +0100
+
 snapd (2.22.1) xenial; urgency=medium
 
   * New upstream release, LP: #1659522
