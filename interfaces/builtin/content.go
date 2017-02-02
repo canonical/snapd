@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -175,14 +176,6 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		}
 
 		return contentSnippet.Bytes(), nil
-	case interfaces.SecurityMount:
-		for _, r := range iface.path(slot, "read") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-		}
-		for _, w := range iface.path(slot, "write") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-		}
-		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
 }
@@ -194,4 +187,16 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
+}
+
+// Interactions with the mount backend.
+
+func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, r := range iface.path(slot, "read") {
+		spec.AddSnippet(mountEntry(plug, slot, r, ",ro"))
+	}
+	for _, w := range iface.path(slot, "write") {
+		spec.AddSnippet(mountEntry(plug, slot, w, ""))
+	}
+	return nil
 }
