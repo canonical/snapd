@@ -803,6 +803,8 @@ func canAutoRefresh(st *state.State) bool {
 		return false
 	}
 
+	// FIXME: The serial requirement means that developer images
+	// with custom models will not auto-refresh
 	// and we also need to have a serial
 	_, err := Serial(st)
 	if err != nil {
