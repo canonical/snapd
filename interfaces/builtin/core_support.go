@@ -24,11 +24,17 @@ import (
 )
 
 const coreSupportConnectedPlugAppArmor = `
-# Description: Can control all aspects of systemd via the systemctl command. It
-# allows execution of the systemctl binary unconfined. As such, this gives device
-# ownership to the snap.
+# Description: Can control all aspects of systemd via the systemctl command
+# and update rsyslog configuration. The interface allows execution of the
+# systemctl binary unconfined. As such, this gives device ownership to the
+# snap.
 
 /bin/systemctl Uxr,
+
+# Allow modifying rsyslog configuration for such things as remote logging. For
+# now, only allow modifying NN-snap*.conf and snap*.conf files.
+/etc/rsyslog.d/{,*}                     r,
+/etc/rsyslog.d/{,[0-9][0-9]-}snap*.conf w,
 `
 
 const coreSupportConnectedPlugSecComp = `
