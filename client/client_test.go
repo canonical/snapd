@@ -151,6 +151,25 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
 
+func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
+
+	mockUserData := client.User{
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	}
+	err := client.TestWriteAuth(mockUserData)
+	c.Assert(err, IsNil)
+
+	var v string
+	cli := client.New(&client.Config{DisableAuth: true})
+	cli.SetDoer(cs)
+	_ = cli.Do("GET", "/this", nil, nil, &v)
+	authorization := cs.req.Header.Get("Authorization")
+	c.Check(authorization, Equals, "")
+}
+
 func (cs *clientSuite) TestClientSysInfo(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",

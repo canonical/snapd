@@ -16,7 +16,7 @@ execute: |
     egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$' snap-vars.txt
     egrep -q '^SNAP_COMMON=/var/snap/test-snapd-tools/common$' snap-vars.txt
     egrep -q '^SNAP_DATA=/var/snap/test-snapd-tools/x1$' snap-vars.txt
-    egrep -q '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:$' snap-vars.txt
+    egrep -q '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/void$' snap-vars.txt
     egrep -q '^SNAP_NAME=test-snapd-tools$' snap-vars.txt
     # XXX: probably not something we ought to test
     # egrep -q '^SNAP_REEXEC=0$' snap-vars.txt

@@ -165,19 +165,32 @@ static void sc_map_init()
 
 	// man 2 socket - domain
 	sc_map_add(AF_UNIX);
+	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
+	sc_map_add(PF_LOCAL);
 	sc_map_add(AF_INET);
+	sc_map_add(PF_INET);
 	sc_map_add(AF_INET6);
+	sc_map_add(PF_INET6);
 	sc_map_add(AF_IPX);
+	sc_map_add(PF_IPX);
 	sc_map_add(AF_NETLINK);
+	sc_map_add(PF_NETLINK);
 	sc_map_add(AF_X25);
+	sc_map_add(PF_X25);
 	sc_map_add(AF_AX25);
+	sc_map_add(PF_AX25);
 	sc_map_add(AF_ATMPVC);
+	sc_map_add(PF_ATMPVC);
 	sc_map_add(AF_APPLETALK);
+	sc_map_add(PF_APPLETALK);
 	sc_map_add(AF_PACKET);
+	sc_map_add(PF_PACKET);
 	sc_map_add(AF_ALG);
+	sc_map_add(PF_ALG);
 	// linux/can.h
 	sc_map_add(AF_CAN);
+	sc_map_add(PF_CAN);
 
 	// man 2 socket - type
 	sc_map_add(SOCK_STREAM);
