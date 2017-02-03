@@ -55,6 +55,7 @@ type imageSuite struct {
 	bootloader *boottest.MockBootloader
 
 	stdout *bytes.Buffer
+	stderr *bytes.Buffer
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
@@ -72,8 +73,10 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 
-	s.stdout = bytes.NewBuffer(nil)
+	s.stdout = &bytes.Buffer{}
 	image.Stdout = s.stdout
+	s.stderr = &bytes.Buffer{}
+	image.Stderr = s.stderr
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
 
@@ -140,6 +143,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string) {
 func (s *imageSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 	image.Stdout = os.Stdout
+	image.Stderr = os.Stderr
 }
 
 // interface for the store
@@ -417,6 +421,8 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Check(m["snap_core"], Equals, "core_3.snap")
+
+	c.Check(s.stderr.String(), Equals, "")
 }
 
 func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
@@ -532,6 +538,8 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 
 	// check that cloud-init is setup correctly
 	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)
+
+	c.Check(s.stderr.String(), Equals, `WARNING: "core", "required-snap1" were installed from local snaps disconnected from a store and cannot be refreshed subsequently!`)
 }
 
 func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
