@@ -23,8 +23,8 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 // FIXME: what we actually want is a schedule spec that is user configurable
@@ -65,11 +66,9 @@ import (
 // $ snap set core refresh.schedule=<time spec>
 // and we need to validate the time-spec, ideally internally by
 // intercepting the set call
-var (
-	minRefreshInterval = 4 * time.Hour
 
-	// random interval on top of the minmum time between refreshes
-	refreshRandomness = 4 * time.Hour
+var (
+	defaultRefreshSchedule = "00:00-04:59,5:00-10:59,11:00-16:49,17:00-23:59"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -445,18 +444,50 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
+	// get last refresh time
 	var lastRefresh time.Time
 	err := tr.Get("core", "refresh.last", &lastRefresh)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
 
-	// FIXME: this is skewed because it runs every 10min but it will
-	//        be replaced soon by randomness based on the window
-	randomness := time.Duration(rand.Int63n(int64(refreshRandomness)))
+	// get our schedule
+	refreshScheduleStr := defaultRefreshSchedule
+	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
+	if err != nil {
+		var err error
+		// FIXME: this will spam syslog :/
+		logger.Noticef("cannot use refresh.schedule: %s", err)
+		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
+		if err != nil {
+			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+		}
+	}
 
-	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(randomness)
-	if time.Now().Before(nextRefresh) {
+	// check schedule
+	now := time.Now()
+	needUpdate := false
+	for _, sch := range refreshSchedule {
+		startHour, _ := strconv.Atoi(sch.Start)
+		startMinute, _ := strconv.Atoi(sch.Start)
+
+		endHour, _ := strconv.Atoi(sch.End)
+		endMinute, _ := strconv.Atoi(sch.End)
+
+		// FIXME: randomness
+		// FIXME2: consider day-of-week
+
+		if now.Hour() > startHour && now.Hour() < endHour && now.Minute() > startMinute && now.Minute() < endMinute {
+			needUpdate = true
+			break
+		}
+
+	}
+	if !needUpdate {
 		return nil
 	}
 
