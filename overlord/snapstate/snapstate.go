@@ -1371,7 +1371,6 @@ var AutoRefreshAssertions func(st *state.State, userID int) error
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
 func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
-	// FIXME: obtain it somehow?
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
