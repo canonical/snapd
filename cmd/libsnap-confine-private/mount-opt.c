@@ -109,7 +109,7 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 		sc_string_append(buf, buf_size, of);
 	}
 	// Chop the excess comma from the end.
-	size_t len = strlen(buf);
+	size_t len = strnlen(buf, buf_size);
 	if (len > 0 && buf[len - 1] == ',') {
 		buf[len - 1] = 0;
 	}
