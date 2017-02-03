@@ -470,6 +470,8 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
+	// FIXME: test for lastRefreshAttempt missing
+
 	// Check that we have reasonable delays between unsuccessful attempts.
 	// If the store is under stress we need to make sure we do not
 	// hammer it too often

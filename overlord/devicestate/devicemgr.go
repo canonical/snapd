@@ -788,6 +788,8 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// FIXME: test missing
+
 // canAutoRefresh is a helper that checks if the device is able to
 // auto-refresh
 func canAutoRefresh(st *state.State) bool {
