@@ -69,13 +69,16 @@ var (
 	minRefreshInterval = 4 * time.Hour
 
 	// random interval on top of the minmum time between refreshes
-	refreshRandomness = 4 * time.Hour
+	defaultRefreshRandomness = 4 * time.Hour
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+
+	refreshRandomness  time.Duration
+	lastRefreshAttempt time.Time
 
 	runner *state.TaskRunner
 }
@@ -354,7 +357,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
+
+		refreshRandomness: time.Duration(rand.Int63n(int64(defaultRefreshRandomness))),
 	}
+	logger.Debugf("snapmgr refresh randomness %s", m.refreshRandomness)
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -451,11 +457,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
-	// FIXME: this is skewed because it runs every 10min but it will
-	//        be replaced soon by randomness based on the window
-	randomness := time.Duration(rand.Int63n(int64(refreshRandomness)))
-
-	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(randomness)
+	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(m.refreshRandomness)
 	if time.Now().Before(nextRefresh) {
 		return nil
 	}
@@ -468,17 +470,22 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).Before(time.Now()) {
+		return nil
+	}
+
+	// store attempts in memory so that we can backoff a
+	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
 	}
 
 	// Do setLastRefresh() only if the store (in AutoRefresh) gave
-	// us no error. This means we retry on store errors every
-	// ~10min which will put some burden on the store. But if the
-	// update schedule is very long (e.g. only once a week) this
-	// way we ensure that auto-refreshs are useful even when there
-	// are e.g. network problems.
+	// us no error.
 	setLastRefresh(m.state)
 
 	var msg string
@@ -487,14 +494,14 @@ func (m *SnapManager) ensureRefreshes() error {
 		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
 		return nil
 	case 1:
-		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
 	case 2:
 	case 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
 	default:
-		msg = fmt.Sprintf(i18n.G("Refresh %d snaps"), len(updated))
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
