@@ -62,6 +62,9 @@ type DeviceManager struct {
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
 	bootOkRan  bool
+
+	lastBecomeOperationalAttempt time.Time
+	becomeOperationalBackoff     time.Duration
 }
 
 // Manager returns a new device manager.
@@ -113,6 +116,21 @@ func (m *DeviceManager) changeInFlight(kind string) bool {
 	return false
 }
 
+func (m *DeviceManager) ensureOperationalBackoff(now time.Time) bool {
+	if !m.lastBecomeOperationalAttempt.IsZero() && m.lastBecomeOperationalAttempt.Add(m.becomeOperationalBackoff).After(now) {
+		return true
+	}
+	if m.becomeOperationalBackoff == 0 {
+		m.becomeOperationalBackoff = 5 * time.Minute
+	} else {
+		if m.becomeOperationalBackoff < (160 * time.Minute) {
+			m.becomeOperationalBackoff *= 2
+		}
+	}
+	m.lastBecomeOperationalAttempt = now
+	return false
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -142,11 +160,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	if serialRequestURL == "" {
-		// cannot do anything actually
-		return nil
-	}
-
 	gadgetInfo, err := snapstate.GadgetInfo(m.state)
 	if err == state.ErrNoState {
 		// no gadget installed yet, cannot proceed
@@ -154,6 +167,11 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	if err != nil {
 		return err
+	}
+
+	// have some backoff between full retries
+	if m.ensureOperationalBackoff(time.Now()) {
+		return nil
 	}
 
 	// XXX: some of these will need to be split and use hooks
@@ -448,6 +466,33 @@ func retryErr(t *state.Task, reason string, a ...interface{}) error {
 	return &state.Retry{After: retryInterval}
 }
 
+type serverError struct {
+	Message string         `json:"message"`
+	Errors  []*serverError `json:"error_list"`
+}
+
+func retryBadStatus(t *state.Task, reason string, resp *http.Response) error {
+	if resp.StatusCode > http.StatusInternalServerError {
+		// likely temporary
+		return retryErr(t, "%s: unexpected status %d", reason, resp.StatusCode)
+	}
+	if resp.Header.Get("Content-Type") == "application/json" {
+		var srvErr serverError
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&srvErr)
+		if err == nil {
+			msg := srvErr.Message
+			if msg == "" && len(srvErr.Errors) > 0 {
+				msg = srvErr.Errors[0].Message
+			}
+			if msg != "" {
+				return fmt.Errorf("%s: %s", reason, msg)
+			}
+		}
+	}
+	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
+}
+
 func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	st := t.State()
 	st.Unlock()
@@ -466,7 +511,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
+		return "", retryBadStatus(t, "cannot retrieve request-id for making a request for a serial", resp)
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -526,7 +571,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	case 202:
 		return nil, errPoll
 	default:
-		return nil, retryErr(t, "cannot deliver device serial request: unexpected status %d", resp.StatusCode)
+		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
 	}
 
 	// decode body with serial assertion
