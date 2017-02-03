@@ -27,6 +27,9 @@ case "$ID" in
 	ubuntu)
 		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu"
 		;;
+	fedora)
+		extra_opts="--disable-apparmor"
+		;;
 esac
 
 ./configure --enable-maintainer-mode --prefix=/usr $extra_opts
