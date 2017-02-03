@@ -221,10 +221,57 @@ plugs:
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
-	// content will also depend for now AutoConnect(plug, slot)
 	// random snaps cannot connect with content
+	// (Sanitize* will now also block this)
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 }
 
@@ -501,6 +548,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":                   true,
+		"content":                 true,
 		"docker":                  true,
 		"fwupd":                   true,
 		"location-control":        true,
@@ -595,4 +643,60 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 			}
 		}
 	}
+}
+
+func (s *baseDeclSuite) TestConnectionContent(c *C) {
+	// we let connect explicitly as long as content matches (or is absent on both sides)
+
+	// random (Sanitize* will now also block this)
+	cand := s.connectCand(c, "content", "", "")
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, NotNil)
 }

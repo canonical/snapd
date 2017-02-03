@@ -24,9 +24,9 @@ static void test_parse_mountinfo_entry__sysfs()
 {
 	const char *line =
 	    "19 25 0:18 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 19);
 	g_assert_cmpint(entry->parent_id, ==, 25);
 	g_assert_cmpint(entry->dev_major, ==, 0);
@@ -48,9 +48,9 @@ static void test_parse_mountinfo_entry__snapd_ns()
 {
 	const char *line =
 	    "104 23 0:19 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=99840k,mode=755";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 104);
 	g_assert_cmpint(entry->parent_id, ==, 23);
 	g_assert_cmpint(entry->dev_major, ==, 0);
@@ -69,9 +69,9 @@ static void test_parse_mountinfo_entry__snapd_mnt()
 {
 	const char *line =
 	    "256 104 0:3 mnt:[4026532509] /run/snapd/ns/hello-world.mnt rw - nsfs nsfs rw";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 256);
 	g_assert_cmpint(entry->parent_id, ==, 104);
 	g_assert_cmpint(entry->dev_major, ==, 0);
@@ -89,7 +89,7 @@ static void test_parse_mountinfo_entry__snapd_mnt()
 static void test_parse_mountinfo_entry__garbage()
 {
 	const char *line = "256 104 0:3";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_null(entry);
 }
 
@@ -97,9 +97,9 @@ static void test_parse_mountinfo_entry__no_tags()
 {
 	const char *line =
 	    "1 2 3:4 root mount-dir mount-opts - fs-type mount-source super-opts";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 1);
 	g_assert_cmpint(entry->parent_id, ==, 2);
 	g_assert_cmpint(entry->dev_major, ==, 3);
@@ -118,9 +118,9 @@ static void test_parse_mountinfo_entry__one_tag()
 {
 	const char *line =
 	    "1 2 3:4 root mount-dir mount-opts tag:1 - fs-type mount-source super-opts";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 1);
 	g_assert_cmpint(entry->parent_id, ==, 2);
 	g_assert_cmpint(entry->dev_major, ==, 3);
@@ -135,13 +135,13 @@ static void test_parse_mountinfo_entry__one_tag()
 	g_assert_null(entry->next);
 }
 
-static void test_parse_mountinfo_entry__two_tags()
+static void test_parse_mountinfo_entry__many_tags()
 {
 	const char *line =
-	    "1 2 3:4 root mount-dir mount-opts tag:1 tag:2 - fs-type mount-source super-opts";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	    "1 2 3:4 root mount-dir mount-opts tag:1 tag:2 tag:3 tag:4 - fs-type mount-source super-opts";
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
 	g_assert_cmpint(entry->mount_id, ==, 1);
 	g_assert_cmpint(entry->parent_id, ==, 2);
 	g_assert_cmpint(entry->dev_major, ==, 3);
@@ -149,7 +149,7 @@ static void test_parse_mountinfo_entry__two_tags()
 	g_assert_cmpstr(entry->root, ==, "root");
 	g_assert_cmpstr(entry->mount_dir, ==, "mount-dir");
 	g_assert_cmpstr(entry->mount_opts, ==, "mount-opts");
-	g_assert_cmpstr(entry->optional_fields, ==, "tag:1 tag:2");
+	g_assert_cmpstr(entry->optional_fields, ==, "tag:1 tag:2 tag:3 tag:4");
 	g_assert_cmpstr(entry->fs_type, ==, "fs-type");
 	g_assert_cmpstr(entry->mount_source, ==, "mount-source");
 	g_assert_cmpstr(entry->super_opts, ==, "super-opts");
@@ -160,22 +160,22 @@ static void test_accessor_funcs()
 {
 	const char *line =
 	    "256 104 0:3 mnt:[4026532509] /run/snapd/ns/hello-world.mnt rw - nsfs nsfs rw";
-	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
 	g_assert_nonnull(entry);
-	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
-	g_assert_cmpint(mountinfo_entry_mount_id(entry), ==, 256);
-	g_assert_cmpint(mountinfo_entry_parent_id(entry), ==, 104);
-	g_assert_cmpint(mountinfo_entry_dev_major(entry), ==, 0);
-	g_assert_cmpint(mountinfo_entry_dev_minor(entry), ==, 3);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_cmpint(sc_mountinfo_entry_mount_id(entry), ==, 256);
+	g_assert_cmpint(sc_mountinfo_entry_parent_id(entry), ==, 104);
+	g_assert_cmpint(sc_mountinfo_entry_dev_major(entry), ==, 0);
+	g_assert_cmpint(sc_mountinfo_entry_dev_minor(entry), ==, 3);
 
-	g_assert_cmpstr(mountinfo_entry_root(entry), ==, "mnt:[4026532509]");
-	g_assert_cmpstr(mountinfo_entry_mount_dir(entry), ==,
+	g_assert_cmpstr(sc_mountinfo_entry_root(entry), ==, "mnt:[4026532509]");
+	g_assert_cmpstr(sc_mountinfo_entry_mount_dir(entry), ==,
 			"/run/snapd/ns/hello-world.mnt");
-	g_assert_cmpstr(mountinfo_entry_mount_opts(entry), ==, "rw");
-	g_assert_cmpstr(mountinfo_entry_optional_fields(entry), ==, "");
-	g_assert_cmpstr(mountinfo_entry_fs_type(entry), ==, "nsfs");
-	g_assert_cmpstr(mountinfo_entry_mount_source(entry), ==, "nsfs");
-	g_assert_cmpstr(mountinfo_entry_super_opts(entry), ==, "rw");
+	g_assert_cmpstr(sc_mountinfo_entry_mount_opts(entry), ==, "rw");
+	g_assert_cmpstr(sc_mountinfo_entry_optional_fields(entry), ==, "");
+	g_assert_cmpstr(sc_mountinfo_entry_fs_type(entry), ==, "nsfs");
+	g_assert_cmpstr(sc_mountinfo_entry_mount_source(entry), ==, "nsfs");
+	g_assert_cmpstr(sc_mountinfo_entry_super_opts(entry), ==, "rw");
 }
 
 static void __attribute__ ((constructor)) init()
@@ -192,7 +192,7 @@ static void __attribute__ ((constructor)) init()
 			test_parse_mountinfo_entry__no_tags);
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/one_tags",
 			test_parse_mountinfo_entry__one_tag);
-	g_test_add_func("/mountinfo/parse_mountinfo_entry/two_tags",
-			test_parse_mountinfo_entry__two_tags);
+	g_test_add_func("/mountinfo/parse_mountinfo_entry/many_tags",
+			test_parse_mountinfo_entry__many_tags);
 	g_test_add_func("/mountinfo/accessor_funcs", test_accessor_funcs);
 }

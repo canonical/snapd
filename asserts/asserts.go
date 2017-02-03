@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -103,7 +103,10 @@ var maxSupportedFormat = map[string]int{}
 
 func init() {
 	// register maxSupportedFormats while breaking initialisation loop
-	maxSupportedFormat[SnapDeclarationType.Name] = 1
+
+	// 1: plugs and slots
+	// 2: support for $SLOT()/$PLUG()/$MISSING
+	maxSupportedFormat[SnapDeclarationType.Name] = 2
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -125,7 +128,11 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 		// no analyzer, format 0 is all there is
 		return 0, nil
 	}
-	return analyzer(headers, body)
+	formatnum, err = analyzer(headers, body)
+	if err != nil {
+		return 0, fmt.Errorf("assertion %s: %v", assertType.Name, err)
+	}
+	return formatnum, nil
 }
 
 // Ref expresses a reference to an assertion.

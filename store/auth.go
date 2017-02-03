@@ -142,10 +142,7 @@ func retryPostRequest(endpoint string, headers map[string]string, data []byte, d
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		logRetryTime(startTime, endpoint, attempt, resp, err)
-	}
+	maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
 
 	return resp, err
 }
