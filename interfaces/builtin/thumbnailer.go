@@ -79,14 +79,14 @@ func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, s
 
 func (iface *ThumbnailerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
 func (iface *ThumbnailerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
