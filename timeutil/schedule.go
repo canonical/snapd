@@ -22,13 +22,51 @@ package timeutil
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
+var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
+
+func ParseTime(s string) (hour int, minute int, err error) {
+	m := validTime.FindStringSubmatch(s)
+	if len(m) < 3 {
+		return 0, 0, fmt.Errorf("cannot parse %q", s)
+	}
+	hour, err = strconv.Atoi(m[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot parse %q: %s", m[1], err)
+	}
+	minute, err = strconv.Atoi(m[2])
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot parse %q: %s", m[2], err)
+	}
+	return hour, minute, nil
+}
+
 type Schedule struct {
-	Start   string
-	End     string
+	StartHour, StartMinute int
+	EndHour, EndMinute     int
+
 	Weekday string
+}
+
+// Matches returns true when the given time is within the schedule
+// interval
+func (sched *Schedule) Matches(t time.Time) bool {
+	// FIXME: weekday
+
+	if t.Hour() >= sched.StartHour && t.Minute() >= sched.StartMinute {
+		if t.Hour() < sched.EndHour {
+			return true
+		}
+		if t.Hour() == sched.EndHour && t.Minute() <= sched.EndMinute {
+			return true
+		}
+	}
+
+	return false
 }
 
 var weekdayMap = map[string]int{
@@ -58,21 +96,21 @@ func parseWeekday(s string, sched *Schedule) (rest string, err error) {
 	return rest, nil
 }
 
-var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$`)
-
 func parseTimeInterval(s string, sched *Schedule) error {
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
 		return fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
-	if !validTime.MatchString(l[0]) {
+
+	var err error
+	sched.StartHour, sched.StartMinute, err = ParseTime(l[0])
+	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[0])
 	}
-	if !validTime.MatchString(l[1]) {
+	sched.EndHour, sched.EndMinute, err = ParseTime(l[1])
+	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
-	sched.Start = l[0]
-	sched.End = l[1]
 
 	return nil
 }
