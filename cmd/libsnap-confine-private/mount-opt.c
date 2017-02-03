@@ -105,7 +105,7 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 	// Render any flags that are unaccounted for.
 	if (flags) {
 		char of[128];
-		sprintf(of, "%#lx", flags);
+		sc_must_snprintf(of, sizeof of, "%#lx", flags);
 		sc_string_append(buf, buf_size, of);
 	}
 	// Chop the excess comma from the end.
