@@ -71,28 +71,30 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 	return n;
 }
 
-void sc_string_append(char *buf, size_t buf_size, const char *str)
+size_t sc_string_append(char *dst, size_t dst_size, const char *str)
 {
 	// Set errno in case we die.
 	errno = 0;
-	if (buf == NULL) {
+	if (dst == NULL) {
 		die("cannot append string: buffer is NULL");
 	}
 	if (str == NULL) {
 		die("cannot append string: string is NULL");
 	}
-	size_t buf_len = strlen(buf);
-	if (buf_len >= buf_size) {
-		// When writing tests for this I wrote a test that didn't initialize
-		// the buffer and was surprised to see the effect. While this test is
-		// not bulletproof it is a good sanity check to have. While the next
-		// test will always catch this issue the message is clearly distinct.
-		die("cannot append string: uninitialized buffer detected");
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append string: dst is unterminated");
 	}
-	size_t str_len = strlen(str);
-	if (buf_len + str_len >= buf_size) {
-		die("cannot append string: buffer overflow of %td byte(s)",
-		    buf_len + str_len + 1 - buf_size);
+
+	size_t max_str_len = dst_size - dst_len;
+	size_t str_len = strnlen(str, max_str_len);
+	if (str_len == max_str_len) {
+		die("cannot append string: str is too long or unterminated");
 	}
-	memcpy(buf + buf_len, str, str_len + 1);
+	// Append the string
+	memcpy(dst + dst_len, str, str_len);
+	// Ensure we are terminated
+	dst[dst_len + str_len] = '\0';
+	// return the new size
+	return strlen(dst);
 }

@@ -46,8 +46,8 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...);
  * not to overflow it. If any argument is NULL a buffer overflow is detected
  * then the function dies.
  *
- * The string cannot overlap the buffer in any way.
+ * The buffers cannot overlap.
  **/
-void sc_string_append(char *buf, size_t buf_size, const char *str);
+size_t sc_string_append(char *dst, size_t dst_size, const char *str);
 
 #endif

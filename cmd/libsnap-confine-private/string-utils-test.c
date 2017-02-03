@@ -152,7 +152,7 @@ static void test_sc_string_append__overflow()
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("cannot append string: buffer overflow of 1 byte(s)\n");
+	    ("cannot append string: str is too long or unterminated\n");
 }
 
 // Check that the uninitialized buffer detection works.
@@ -160,7 +160,6 @@ static void test_sc_string_append__uninitialized_buf()
 {
 	if (g_test_subprocess()) {
 		char buf[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
-		volatile char canary = 0;
 
 		// Try to append a string to a buffer which is not a valic C-string.
 		sc_string_append(buf, sizeof buf, "");
@@ -172,7 +171,7 @@ static void test_sc_string_append__uninitialized_buf()
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("cannot append string: uninitialized buffer detected\n");
+	    ("cannot append string: dst is unterminated\n");
 }
 
 // Check that `buf' cannot be NULL.
