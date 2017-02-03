@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -471,17 +470,11 @@ func (m *SnapManager) ensureRefreshes() error {
 	// check schedule
 	now := time.Now()
 	needUpdate := false
-	for _, sch := range refreshSchedule {
-		startHour, _ := strconv.Atoi(sch.Start)
-		startMinute, _ := strconv.Atoi(sch.Start)
-
-		endHour, _ := strconv.Atoi(sch.End)
-		endMinute, _ := strconv.Atoi(sch.End)
+	for _, sched := range refreshSchedule {
 
 		// FIXME: randomness
-		// FIXME2: consider day-of-week
 
-		if now.Hour() > startHour && now.Hour() < endHour && now.Minute() > startMinute && now.Minute() < endMinute {
+		if sched.Matches(now) {
 			needUpdate = true
 			break
 		}
