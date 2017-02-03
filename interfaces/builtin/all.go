@@ -51,6 +51,7 @@ var allInterfaces = []interfaces.Interface{
 	&PppInterface{},
 	&PulseAudioInterface{},
 	&SerialPortInterface{},
+	&ThumbnailerInterface{},
 	&TimeControlInterface{},
 	&UDisks2Interface{},
 	&UbuntuDownloadManagerInterface{},
