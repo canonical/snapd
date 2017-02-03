@@ -34,7 +34,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image"
@@ -82,7 +81,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
@@ -109,15 +108,20 @@ func (s *imageSuite) SetUpTest(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.model = model.(*asserts.Model)
+
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other", map[string]interface{}{
+		"account-id": "other",
+	}, "")
+	s.storeSigning.Add(otherAcct)
 }
 
-func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string) {
+func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher string) {
 	snapID := snapName + "-Id"
 	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
-		"publisher-id": "can0nical",
+		"publisher-id": publisher,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -132,7 +136,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string) {
 		"snap-size":     fmt.Sprintf("%d", snapSize),
 		"snap-id":       snapID,
 		"snap-revision": s.storeSnapInfo[snapName].Revision.String(),
-		"developer-id":  "can0nical",
+		"developer-id":  publisher,
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -319,7 +323,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	}
 }
 
-func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string) {
+func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
 	err := os.MkdirAll(gadgetUnpackDir, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
@@ -327,23 +331,23 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string) {
 
 	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1))
-	s.addSystemSnapAssertions(c, "pc")
+	s.addSystemSnapAssertions(c, "pc", publishers["pc"])
 
 	s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
 	s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
-	s.addSystemSnapAssertions(c, "pc-kernel")
+	s.addSystemSnapAssertions(c, "pc-kernel", publishers["pc-kernel"])
 
 	s.downloadedSnaps["core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
 	s.storeSnapInfo["core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
-	s.addSystemSnapAssertions(c, "core")
+	s.addSystemSnapAssertions(c, "core", "canonical")
 
 	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
-	s.addSystemSnapAssertions(c, "required-snap1")
+	s.addSystemSnapAssertions(c, "required-snap1", "other")
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
-	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
@@ -351,7 +355,10 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
 
-	s.setupSnaps(c, gadgetUnpackDir)
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
 
 	// mock the mount cmds (for the extract kernel assets stuff)
 	c1 := testutil.MockCommand(c, "mount", "")
@@ -425,8 +432,8 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Check(s.stderr.String(), Equals, "")
 }
 
-func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
-	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
@@ -434,7 +441,10 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
 
-	s.setupSnaps(c, gadgetUnpackDir)
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	})
 
 	// mock the mount cmds (for the extract kernel assets stuff)
 	c1 := testutil.MockCommand(c, "mount", "")
@@ -543,7 +553,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 }
 
 func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
-	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
@@ -556,7 +566,10 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.setupSnaps(c, gadgetUnpackDir)
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
 
 	s.downloadedSnaps["devmode-snap"] = snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
 	s.storeSnapInfo["devmode-snap"] = infoFromSnapYaml(c, devmodeSnap, snap.R(0))
@@ -604,6 +617,37 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		DevMode:    true,
 		Unasserted: true,
 	})
+}
+
+func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "other",
+	})
+
+	// mock the mount cmds (for the extract kernel assets stuff)
+	c1 := testutil.MockCommand(c, "mount", "")
+	defer c1.Restore()
+	c2 := testutil.MockCommand(c, "umount", "")
+	defer c2.Restore()
+
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "other" for model by "my-brand"`)
 }
 
 func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
