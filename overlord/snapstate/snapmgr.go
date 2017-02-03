@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -432,29 +433,29 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	tr := config.NewTransaction(m.state)
 
-	// for tests
-	var refreshDisabled bool
-	err := tr.Get("core", "refresh.disabled", &refreshDisabled)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if refreshDisabled {
-		return nil
+	// allow disabling auto-refresh in the tests
+	if osutil.GetenvBool("SNAPD_DEBUG") {
+		var refreshDisabled bool
+		err := tr.Get("core", "refresh.disabled", &refreshDisabled)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if refreshDisabled {
+			return nil
+		}
 	}
 
 	var lastRefresh time.Time
-	err = tr.Get("core", "refresh.last", &lastRefresh)
+	err := tr.Get("core", "refresh.last", &lastRefresh)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
 
-	var refreshRand time.Duration
-	err = tr.Get("core", "refresh.rand", &refreshRand)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
+	// FIXME: this is skewed because it runs every 10min but it will
+	//        be replaced soon by randomness based on the window
+	randomness := time.Duration(rand.Int63n(int64(refreshRandomness)))
 
-	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(refreshRand)
+	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(randomness)
 	if time.Now().Before(nextRefresh) {
 		return nil
 	}
@@ -467,36 +468,33 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
-	// For setLastRefresh() we have two options here:
-	//  1. setLastRefresh only if no error happened
-	//     below in the "AutoRefresh()" call
-	//  2. always set the last refresh regardless of errors
-	//     in "AutoRefresh()"
-	//
-	// This currently implements (2) because if there are e.g. store
-	// errors we don't want to put more burden on the store by having
-	// every client in the world retry every 10min.
-	//
-	// However (1) is better for e.g. network errors on the client
-	// side (not yet connected etc)
-	setLastRefresh(m.state)
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
 	}
 
+	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// us no error. This means we retry on store errors every
+	// ~10min which will put some burden on the store. But if the
+	// update schedule is very long (e.g. only once a week) this
+	// way we ensure that auto-refreshs are useful even when there
+	// are e.g. network problems.
+	setLastRefresh(m.state)
+
 	var msg string
 	switch len(updated) {
 	case 0:
-		// check in after some hours
-		logger.Noticef("No snaps to auto-refresh found")
+		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
-	default:
+	case 2:
+	case 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Refresh %d snaps"), len(updated))
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
@@ -1201,11 +1199,8 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func setLastRefresh(st *state.State) {
-	randomness := time.Duration(rand.Int63n(int64(refreshRandomness)))
-
 	tr := config.NewTransaction(st)
 	tr.Set("core", "refresh.last", time.Now())
-	tr.Set("core", "refresh.rand", randomness)
 	tr.Commit()
 }
 

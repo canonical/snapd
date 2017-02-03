@@ -3915,6 +3915,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
+	// can only be disabled in debug mode
+	oldEnv := os.Getenv("SNAPD_DEBUG")
+	defer func() { os.Setenv("SNAPD_DEBUG", oldEnv) }()
+	os.Setenv("SNAPD_DEBUG", "1")
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
 	tr.Set("core", "refresh.disabled", true)
