@@ -495,6 +495,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  thumbnailer:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
   time-control:
     allow-installation:
       slot-snap-type:

@@ -417,6 +417,7 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"thumbnailer":             {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
 		"unity8-calendar":         {"app"},
