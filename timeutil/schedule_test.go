@@ -34,7 +34,7 @@ type timeutilSuite struct{}
 
 var _ = Suite(&timeutilSuite{})
 
-func (ts *timeutilSuite) TestSchedule(c *C) {
+func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	for _, t := range []struct {
 		in       string
 		expected []*timeutil.Schedule
@@ -49,10 +49,10 @@ func (ts *timeutilSuite) TestSchedule(c *C) {
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon": not a valid day`},
 
 		// valid
-		{"9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Start: "9:00", End: "11:00"}}, ""},
-		{"mon@9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: time.Weekday(1), Start: "9:00", End: "11:00"}}, ""},
-		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{&timeutil.Schedule{Start: "9:00", End: "11:00"}, &timeutil.Schedule{Start: "20:00", End: "22:00"}}, ""},
-		{"mon@9:00-11:00,wednesday@22:00-23:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: time.Weekday(1), Start: "9:00", End: "11:00"}, &timeutil.Schedule{Weekday: time.Weekday(3), Start: "22:00", End: "23:00"}}, ""},
+		{"9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}}, ""},
+		{"mon@9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}}, ""},
+		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}, &timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 20}, End: timeutil.TimeOnly{Hour: 22}}}, ""},
+		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}, &timeutil.Schedule{Weekday: "wednesday", Start: timeutil.TimeOnly{Hour: 22}, End: timeutil.TimeOnly{Hour: 23}}}, ""},
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
@@ -62,5 +62,63 @@ func (ts *timeutilSuite) TestSchedule(c *C) {
 			c.Check(schedule, DeepEquals, t.expected, Commentf("%q failed", t.in))
 		}
 
+	}
+}
+
+func (ts *timeutilSuite) TestParseTime(c *C) {
+	for _, t := range []struct {
+		timeStr      string
+		hour, minute int
+		errStr       string
+	}{
+		{"8:59", 8, 59, ""},
+		{"08:59", 8, 59, ""},
+		{"12:00", 12, 0, ""},
+		{"xx", 0, 0, `cannot parse "xx"`},
+		{"11:61", 0, 0, `cannot parse "11:61"`},
+		{"25:00", 0, 0, `cannot parse "25:00"`},
+	} {
+		ti, err := timeutil.ParseTime(t.timeStr)
+		if t.errStr != "" {
+			c.Check(err, ErrorMatches, t.errStr)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(ti.Hour, Equals, t.hour)
+			c.Check(ti.Minute, Equals, t.minute)
+		}
+	}
+}
+
+func (ts *timeutilSuite) TestScheduleMatches(c *C) {
+	for _, t := range []struct {
+		schedStr string
+		timeStr  string
+		weekday  string
+		matches  bool
+	}{
+		{"9:00-11:00", "8:59", "", false},
+		{"9:00-11:00", "9:00", "", true},
+		{"9:00-11:00", "11:00", "", true},
+		{"9:00-11:00", "11:01", "", false},
+		{"mon@9:00-11:00", "9:00", "mon", true},
+		{"mon@9:00-11:00", "9:00", "tue", false},
+	} {
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+		c.Assert(sched, HasLen, 1)
+
+		ti, err := timeutil.ParseTime(t.timeStr)
+		c.Assert(err, IsNil)
+
+		day := 5
+		switch t.weekday {
+		case "mon":
+			day = 6
+		case "tue":
+			day = 7
+		}
+		d := time.Date(2017, 02, day, ti.Hour, ti.Minute, 0, 0, time.UTC)
+
+		c.Check(sched[0].Matches(d), Equals, t.matches, Commentf("invalid match for %q with time %q (%s), expected %v, got %v", t.schedStr, t.timeStr, t.weekday, t.matches, sched[0].Matches(d)))
 	}
 }

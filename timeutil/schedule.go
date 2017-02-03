@@ -22,14 +22,65 @@ package timeutil
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
+var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
+
+type TimeOnly struct {
+	Hour   int
+	Minute int
+}
+
+// ParseTime parses a string that contains hour:minute and returns
+// an TimeOnly type or an error
+func ParseTime(s string) (t TimeOnly, err error) {
+	m := validTime.FindStringSubmatch(s)
+	if len(m) < 3 {
+		return t, fmt.Errorf("cannot parse %q", s)
+	}
+	hour, err := strconv.Atoi(m[1])
+	if err != nil {
+		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
+	}
+	minute, err := strconv.Atoi(m[2])
+	if err != nil {
+		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
+	}
+	return TimeOnly{Hour: hour, Minute: minute}, nil
+}
+
+// Schedule defines a start and end time and an optional weekday in which
+// events should run.
 type Schedule struct {
-	Start   string
-	End     string
-	Weekday time.Weekday
+	Start TimeOnly
+	End   TimeOnly
+
+	Weekday string
+}
+
+// Matches returns true when the given time is within the schedule
+// interval.
+func (sched *Schedule) Matches(t time.Time) bool {
+	if sched.Weekday != "" {
+		wd := time.Weekday(weekdayMap[sched.Weekday])
+		if t.Weekday() != wd {
+			return false
+		}
+	}
+
+	if t.Hour() >= sched.Start.Hour && t.Minute() >= sched.Start.Minute {
+		if t.Hour() < sched.End.Hour {
+			return true
+		}
+		if t.Hour() == sched.End.Hour && t.Minute() <= sched.End.Minute {
+			return true
+		}
+	}
+
+	return false
 }
 
 var weekdayMap = map[string]int{
@@ -48,31 +99,32 @@ func parseWeekday(s string, sched *Schedule) (rest string, err error) {
 	}
 
 	l := strings.SplitN(s, "@", 2)
-	weekday, ok := weekdayMap[strings.ToLower(l[0])]
+	weekday := strings.ToLower(l[0])
+	_, ok := weekdayMap[weekday]
 	if !ok {
 		return "", fmt.Errorf("cannot parse %q: not a valid day", l[0])
 	}
-	sched.Weekday = time.Weekday(weekday)
+	sched.Weekday = weekday
 	rest = l[1]
 
 	return rest, nil
 }
-
-var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$`)
 
 func parseTimeInterval(s string, sched *Schedule) error {
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
 		return fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
-	if !validTime.MatchString(l[0]) {
+
+	var err error
+	sched.Start, err = ParseTime(l[0])
+	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[0])
 	}
-	if !validTime.MatchString(l[1]) {
+	sched.End, err = ParseTime(l[1])
+	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
-	sched.Start = l[0]
-	sched.End = l[1]
 
 	return nil
 }
@@ -91,6 +143,15 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	return &cur, nil
 }
 
+// ParseSchedule takes a schedule string in the form of:
+//
+// 9:00-15:00 (every day between 9am and 3pm)
+// 9:00-15:00,21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
+// thu@9:00-15:00 (only Thursday between 9am and 3pm)
+// fri@9:00-11:00,mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
+// fri@9:00-11:00,13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
+//
+// and returns a list of Schdule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
