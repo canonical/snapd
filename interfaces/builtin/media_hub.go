@@ -42,11 +42,6 @@ dbus (send)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=session
-    name="org.mpris.MediaPlayer2.MediaHub",
-
-# Allow binding the service to the requested connection name
-dbus (bind)
-    bus=session
     name="core.ubuntu.media.Service",
 
 dbus (receive, send)
