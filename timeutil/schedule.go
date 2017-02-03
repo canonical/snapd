@@ -29,25 +29,30 @@ import (
 
 var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
 
-func ParseTime(s string) (hour int, minute int, err error) {
+type TimeOnly struct {
+	Hour   int
+	Minute int
+}
+
+func ParseTime(s string) (t TimeOnly, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) < 3 {
-		return 0, 0, fmt.Errorf("cannot parse %q", s)
+		return t, fmt.Errorf("cannot parse %q", s)
 	}
-	hour, err = strconv.Atoi(m[1])
+	hour, err := strconv.Atoi(m[1])
 	if err != nil {
-		return 0, 0, fmt.Errorf("cannot parse %q: %s", m[1], err)
+		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
 	}
-	minute, err = strconv.Atoi(m[2])
+	minute, err := strconv.Atoi(m[2])
 	if err != nil {
-		return 0, 0, fmt.Errorf("cannot parse %q: %s", m[2], err)
+		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
 	}
-	return hour, minute, nil
+	return TimeOnly{Hour: hour, Minute: minute}, nil
 }
 
 type Schedule struct {
-	StartHour, StartMinute int
-	EndHour, EndMinute     int
+	Start TimeOnly
+	End   TimeOnly
 
 	Weekday string
 }
@@ -57,11 +62,11 @@ type Schedule struct {
 func (sched *Schedule) Matches(t time.Time) bool {
 	// FIXME: weekday
 
-	if t.Hour() >= sched.StartHour && t.Minute() >= sched.StartMinute {
-		if t.Hour() < sched.EndHour {
+	if t.Hour() >= sched.Start.Hour && t.Minute() >= sched.Start.Minute {
+		if t.Hour() < sched.End.Hour {
 			return true
 		}
-		if t.Hour() == sched.EndHour && t.Minute() <= sched.EndMinute {
+		if t.Hour() == sched.End.Hour && t.Minute() <= sched.End.Minute {
 			return true
 		}
 	}
@@ -103,11 +108,11 @@ func parseTimeInterval(s string, sched *Schedule) error {
 	}
 
 	var err error
-	sched.StartHour, sched.StartMinute, err = ParseTime(l[0])
+	sched.Start, err = ParseTime(l[0])
 	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[0])
 	}
-	sched.EndHour, sched.EndMinute, err = ParseTime(l[1])
+	sched.End, err = ParseTime(l[1])
 	if err != nil {
 		return fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
