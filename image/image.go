@@ -38,10 +38,12 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
 )
 
 type Options struct {
@@ -291,6 +293,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	snaps = append(snaps, opts.Snaps...)
 
 	seen := make(map[string]bool)
+	var locals []string
 	downloadedSnapsInfo := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
@@ -321,6 +324,8 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			if err != nil {
 				return err
 			}
+		} else {
+			locals = append(locals, name)
 		}
 
 		typ := info.Type
@@ -345,6 +350,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
 		})
+	}
+	if len(locals) > 0 {
+		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!", strutil.Quoted(locals))
 	}
 
 	for _, aRef := range f.addedRefs {
