@@ -35,10 +35,11 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
-	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
+check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests snap-update-ns/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
+	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
@@ -335,6 +336,22 @@ EXTRA_DIST += snap-update-ns/snap-update-ns.rst
 
 snap_update_ns_snap_update_ns_LDADD = libsnap-confine-private.a
 
+snap_update_ns_snap_update_ns_SOURCES = \
+	snap-update-ns/snap-update-ns.c \
+	snap-update-ns/mount-entry.h \
+	snap-update-ns/mount-entry.c
+
 snap-update-ns/%.5: snap-update-ns/%.rst
 	mkdir -p snap-update-ns
 	$(HAVE_RST2MAN) $^ > $@
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += snap-update-ns/unit-tests
+snap_update_ns_unit_tests_SOURCES = \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	snap-update-ns/mount-entry-test.c
+snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
+snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)
+endif
