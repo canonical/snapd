@@ -23,6 +23,7 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -67,13 +68,15 @@ import (
 // intercepting the set call
 
 var (
-	defaultRefreshSchedule = "00:00-04:59,5:00-10:59,11:00-16:49,17:00-23:59"
+	defaultRefreshSchedule = "00:00-04:59,5:00-10:59,11:00-16:59,17:00-23:59"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+
+	nextRefresh *time.Timer
 
 	runner *state.TaskRunner
 }
@@ -443,6 +446,11 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
+	// already have a refresh timer
+	if m.nextRefresh != nil {
+		return nil
+	}
+
 	// get last refresh time
 	var lastRefresh time.Time
 	err := tr.Get("core", "refresh.last", &lastRefresh)
@@ -469,18 +477,23 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// check schedule
 	now := time.Now()
-	needUpdate := false
+	var matchedSchedule *timeutil.Schedule
 	for _, sched := range refreshSchedule {
-
-		// FIXME: randomness
-
 		if sched.Matches(now) {
-			needUpdate = true
+			matchedSchedule = sched
 			break
 		}
 
 	}
-	if !needUpdate {
+	if matchedSchedule == nil {
+		return nil
+	}
+
+	// FIXME: what about different days?
+	// FIXME2: what about a schedule like "00:00-23:59"
+
+	// we already updated in this schedule window
+	if matchedSchedule.Matches(lastRefresh) {
 		return nil
 	}
 
@@ -491,11 +504,21 @@ func (m *SnapManager) ensureRefreshes() error {
 			return nil
 		}
 	}
-
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
 		return err
 	}
+
+	endOfInterval := time.Date(now.Year(), now.Month(), now.Day(), matchedSchedule.End.Hour, matchedSchedule.End.Minute, 0, 0, now.Location())
+	timeToEndOfInterval := endOfInterval.Sub(now)
+	when := time.Duration(rand.Int63n(int64(timeToEndOfInterval)))
+
+	m.nextRefresh = time.AfterFunc(when, func() { m.doAutoRefresh(updated, tasksets) })
+
+	return nil
+}
+
+func (m *SnapManager) doAutoRefresh(updated []string, tasksets []*state.TaskSet) error {
 
 	// Do setLastRefresh() only if the store (in AutoRefresh) gave
 	// us no error. This means we retry on store errors every
@@ -527,6 +550,8 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	chg.Set("snap-names", updated)
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	m.nextRefresh = nil
 	return nil
 }
 
