@@ -49,10 +49,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon": not a valid day`},
 
 		// valid
-		{"9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{StartHour: 9, EndHour: 11}}, ""},
-		{"mon@9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", StartHour: 9, EndHour: 11}}, ""},
-		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{&timeutil.Schedule{StartHour: 9, EndHour: 11}, &timeutil.Schedule{StartHour: 20, EndHour: 22}}, ""},
-		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", StartHour: 9, EndHour: 11}, &timeutil.Schedule{Weekday: "wednesday", StartHour: 22, EndHour: 23}}, ""},
+		{"9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}}, ""},
+		{"mon@9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}}, ""},
+		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}, &timeutil.Schedule{Start: timeutil.TimeOnly{Hour: 20}, End: timeutil.TimeOnly{Hour: 22}}}, ""},
+		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOnly{Hour: 9}, End: timeutil.TimeOnly{Hour: 11}}, &timeutil.Schedule{Weekday: "wednesday", Start: timeutil.TimeOnly{Hour: 22}, End: timeutil.TimeOnly{Hour: 23}}}, ""},
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
@@ -78,13 +78,13 @@ func (ts *timeutilSuite) TestParseTime(c *C) {
 		{"11:61", 0, 0, `cannot parse "11:61"`},
 		{"25:00", 0, 0, `cannot parse "25:00"`},
 	} {
-		hour, minute, err := timeutil.ParseTime(t.timeStr)
+		ti, err := timeutil.ParseTime(t.timeStr)
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {
 			c.Check(err, IsNil)
-			c.Check(hour, Equals, t.hour)
-			c.Check(minute, Equals, t.minute)
+			c.Check(ti.Hour, Equals, t.hour)
+			c.Check(ti.Minute, Equals, t.minute)
 		}
 	}
 }
@@ -104,11 +104,11 @@ func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(sched, HasLen, 1)
 
-		hour, minute, err := timeutil.ParseTime(t.timeStr)
+		ti, err := timeutil.ParseTime(t.timeStr)
 		c.Assert(err, IsNil)
 
-		ti := time.Date(2017, 02, 03, hour, minute, 0, 0, time.UTC)
+		d := time.Date(2017, 02, 03, ti.Hour, ti.Minute, 0, 0, time.UTC)
 
-		c.Check(sched[0].Matches(ti), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.matches, sched[0].Matches(ti)))
+		c.Check(sched[0].Matches(d), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.matches, sched[0].Matches(d)))
 	}
 }
