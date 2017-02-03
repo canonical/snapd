@@ -69,6 +69,18 @@ func (s *unity8InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity8")
 }
 
+func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+}
+
 func (s *unity8InterfaceSuite) TestRestrictedSlotConnection(c *C) {
 	info := snap.Info{}
 	slot := &interfaces.Slot{
