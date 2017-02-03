@@ -60,7 +60,12 @@ type Schedule struct {
 // Matches returns true when the given time is within the schedule
 // interval
 func (sched *Schedule) Matches(t time.Time) bool {
-	// FIXME: weekday
+	if sched.Weekday != "" {
+		wd := time.Weekday(weekdayMap[sched.Weekday])
+		if t.Weekday() != wd {
+			return false
+		}
+	}
 
 	if t.Hour() >= sched.Start.Hour && t.Minute() >= sched.Start.Minute {
 		if t.Hour() < sched.End.Hour {

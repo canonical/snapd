@@ -93,12 +93,15 @@ func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 	for _, t := range []struct {
 		schedStr string
 		timeStr  string
+		weekday  string
 		matches  bool
 	}{
-		{"9:00-11:00", "8:59", false},
-		{"9:00-11:00", "9:00", true},
-		{"9:00-11:00", "11:00", true},
-		{"9:00-11:00", "11:01", false},
+		{"9:00-11:00", "8:59", "", false},
+		{"9:00-11:00", "9:00", "", true},
+		{"9:00-11:00", "11:00", "", true},
+		{"9:00-11:00", "11:01", "", false},
+		{"mon@9:00-11:00", "9:00", "mon", true},
+		{"mon@9:00-11:00", "9:00", "tue", false},
 	} {
 		sched, err := timeutil.ParseSchedule(t.schedStr)
 		c.Assert(err, IsNil)
@@ -107,8 +110,15 @@ func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 		ti, err := timeutil.ParseTime(t.timeStr)
 		c.Assert(err, IsNil)
 
-		d := time.Date(2017, 02, 03, ti.Hour, ti.Minute, 0, 0, time.UTC)
+		day := 5
+		switch t.weekday {
+		case "mon":
+			day = 6
+		case "tue":
+			day = 7
+		}
+		d := time.Date(2017, 02, day, ti.Hour, ti.Minute, 0, 0, time.UTC)
 
-		c.Check(sched[0].Matches(d), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.matches, sched[0].Matches(d)))
+		c.Check(sched[0].Matches(d), Equals, t.matches, Commentf("invalid match for %q with time %q (%s), expected %v, got %v", t.schedStr, t.timeStr, t.weekday, t.matches, sched[0].Matches(d)))
 	}
 }
