@@ -34,6 +34,8 @@ type TimeOnly struct {
 	Minute int
 }
 
+// ParseTime parses a string that contains hour:minute and returns
+// an TimeOnly type or an error
 func ParseTime(s string) (t TimeOnly, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) < 3 {
@@ -50,6 +52,8 @@ func ParseTime(s string) (t TimeOnly, err error) {
 	return TimeOnly{Hour: hour, Minute: minute}, nil
 }
 
+// Schedule defines a start and end time and an optional weekday in which
+// events should run.
 type Schedule struct {
 	Start TimeOnly
 	End   TimeOnly
@@ -58,7 +62,7 @@ type Schedule struct {
 }
 
 // Matches returns true when the given time is within the schedule
-// interval
+// interval.
 func (sched *Schedule) Matches(t time.Time) bool {
 	if sched.Weekday != "" {
 		wd := time.Weekday(weekdayMap[sched.Weekday])
@@ -139,6 +143,15 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	return &cur, nil
 }
 
+// ParseSchedule takes a schedule string in the form of:
+//
+// 9:00-15:00 (every day between 9am and 3pm)
+// 9:00-15:00,21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
+// thu@9:00-15:00 (only Thursday between 9am and 3pm)
+// fri@9:00-11:00,mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
+// fri@9:00-11:00,13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
+//
+// and returns a list of Schdule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
