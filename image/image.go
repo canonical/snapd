@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
@@ -272,7 +271,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
-			logger.Noticef("Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image: %v", err)
+			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v", err)
 			f.addedRefs = nil
 		}
 	}
