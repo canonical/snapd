@@ -1083,17 +1083,6 @@ name: other-gadget`, nil)
 	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
 
 	// setup model assertion
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"gadget":       "gadget",
-		"kernel":       "krnl",
-		"architecture": "amd64",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id": "my-brand",
 	}, "")
@@ -1111,6 +1100,16 @@ name: other-gadget`, nil)
 	err = assertstate.Add(s.state, brandAccKey)
 	c.Assert(err, IsNil)
 
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
 	err = auth.SetDevice(s.state, &auth.DeviceState{
@@ -1203,17 +1202,6 @@ name: lnrk`, nil)
 	c.Check(err, ErrorMatches, `cannot install kernel without model assertion`)
 
 	// setup model assertion
-	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"gadget":       "gadget",
-		"kernel":       "krnl",
-		"architecture": "amd64",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
 		"account-id": "my-brand",
 	}, "")
@@ -1231,6 +1219,16 @@ name: lnrk`, nil)
 	err = assertstate.Add(s.state, brandAccKey)
 	c.Assert(err, IsNil)
 
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"architecture": "amd64",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
 	err = auth.SetDevice(s.state, &auth.DeviceState{
