@@ -143,9 +143,12 @@ int main(int argc, char **argv)
 			debug
 			    ("resetting PATH to values in sync with core snap");
 			setenv("PATH",
-			       "/usr/local/sbin:" "/usr/sbin:" "/usr/local/bin:"
-			       "/usr/bin:" "/sbin:" "/bin:" "/usr/local/games:"
-			       "/usr/games", 1);
+			       "/usr/local/sbin:"
+			       "/usr/local/bin:"
+			       "/usr/sbin:"
+			       "/usr/bin:"
+			       "/sbin:"
+			       "/bin:" "/usr/games:" "/usr/local/games", 1);
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);

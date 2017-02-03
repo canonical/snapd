@@ -17,7 +17,7 @@ execute: |
     echo "We can see that PATH is stable across calls"
     [ "$one" = "$two" ]
     echo "We can make sure that it has the right value"
-    [ "$one" = "/usr/local/sbin:/usr/sbin:/usr/local/bin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games" ]
+    [ "$one" = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games" ]
     # NOTE: the following parts are notably absent from PATH
     #  - /snap/test-snapd-tools/$revision/bin
     #  - /snap/test-snapd-tools/$revision/usr/bin

@@ -34,6 +34,6 @@ execute: |
 
     echo "Ensure that SNAP, PATH and HOME are what we expect"
     egrep -q '^SNAP=/snap/test-snapd-tools/x1$' misc-vars.txt
-    egrep -q '^PATH=/usr/local/sbin:/usr/sbin:/usr/local/bin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games$' misc-vars.txt
+    egrep -q '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' misc-vars.txt
     egrep -q '^HOME=/root/snap/test-snapd-tools/x1$' misc-vars.txt
     test $(wc -l < misc-vars.txt) -eq 3
