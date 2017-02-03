@@ -62,6 +62,18 @@ func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
 
+func (m *DeviceManager) EnsureOperationalBackoff(now time.Time) bool {
+	return m.ensureOperationalBackoff(now)
+}
+
+func (m *DeviceManager) BecomeOperationalBackoff() time.Duration {
+	return m.becomeOperationalBackoff
+}
+
+func (m *DeviceManager) SetLastBecomeOperationalAttempt(t time.Time) {
+	m.lastBecomeOperationalAttempt = t
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
