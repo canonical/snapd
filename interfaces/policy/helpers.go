@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,10 +81,10 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 }
 
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs()); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
 		return err
 	}
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs()); err != nil {
+	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
 		return err
 	}
 	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
@@ -121,10 +121,10 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Pl
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.SlotConnectionConstraints) error {
-	if err := cstrs.PlugAttributes.Check(connc.plugAttrs()); err != nil {
+	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
 		return err
 	}
-	if err := cstrs.SlotAttributes.Check(connc.slotAttrs()); err != nil {
+	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
 		return err
 	}
 	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
@@ -161,7 +161,8 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 }
 
 func checkSlotInstallationConstraints1(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
-	if err := cstrs.SlotAttributes.Check(slot.Attrs); err != nil {
+	// TODO: allow evaluated attr constraints here too?
+	if err := cstrs.SlotAttributes.Check(slot.Attrs, nil); err != nil {
 		return err
 	}
 	if err := checkSnapType(slot.Snap.Type, cstrs.SlotSnapTypes); err != nil {
@@ -189,7 +190,8 @@ func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs []*asserts.Slot
 }
 
 func checkPlugInstallationConstraints1(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
-	if err := cstrs.PlugAttributes.Check(plug.Attrs); err != nil {
+	// TODO: allow evaluated attr constraints here too?
+	if err := cstrs.PlugAttributes.Check(plug.Attrs, nil); err != nil {
 		return err
 	}
 	if err := checkSnapType(plug.Snap.Type, cstrs.PlugSnapTypes); err != nil {

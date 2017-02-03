@@ -57,6 +57,7 @@ var allInterfaces = []interfaces.Interface{
 	&Unity8Interface{},
 	&UpowerObserveInterface{},
 	&UhidInterface{},
+	NewAccountControlInterface(),
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),

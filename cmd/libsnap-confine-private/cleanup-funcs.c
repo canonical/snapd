@@ -22,29 +22,35 @@
 
 void sc_cleanup_string(char **ptr)
 {
-	free(*ptr);
+	if (ptr != NULL) {
+		free(*ptr);
+	}
 }
 
 void sc_cleanup_file(FILE ** ptr)
 {
-	if (*ptr != NULL)
+	if (ptr != NULL && *ptr != NULL) {
 		fclose(*ptr);
+	}
 }
 
 void sc_cleanup_endmntent(FILE ** ptr)
 {
-	if (*ptr != NULL)
+	if (ptr != NULL && *ptr != NULL) {
 		endmntent(*ptr);
+	}
 }
 
 void sc_cleanup_closedir(DIR ** ptr)
 {
-	if (*ptr != NULL) {
+	if (ptr != NULL && *ptr != NULL) {
 		closedir(*ptr);
 	}
 }
 
 void sc_cleanup_close(int *ptr)
 {
-	close(*ptr);
+	if (ptr != NULL && *ptr != -1) {
+		close(*ptr);
+	}
 }
