@@ -60,6 +60,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.Unity8Interface{})
 	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, Contains, &builtin.UhidInterface{})
+	c.Check(all, DeepContains, builtin.NewAccountControlInterface())
 	c.Check(all, DeepContains, builtin.NewAlsaInterface())
 	c.Check(all, DeepContains, builtin.NewAvahiObserveInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())

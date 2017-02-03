@@ -100,10 +100,10 @@ static void g_test_in_ephemeral_dir()
 	int err = chdir(temp_dir);
 	g_assert_cmpint(err, ==, 0);
 
-	g_test_queue_destroy((GDestroyNotify) rmdir, temp_dir);
 	g_test_queue_free(temp_dir);
-	g_test_queue_destroy((GDestroyNotify) chdir, orig_dir);
+	g_test_queue_destroy((GDestroyNotify) rmdir, temp_dir);
 	g_test_queue_free(orig_dir);
+	g_test_queue_destroy((GDestroyNotify) chdir, orig_dir);
 }
 
 /**

@@ -61,7 +61,7 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	context.Lock()
-	transaction := configstate.ContextTransaction(context)
+	tr := configstate.ContextTransaction(context)
 	context.Unlock()
 
 	for _, patchValue := range s.Positional.ConfValues {
@@ -77,7 +77,7 @@ func (s *setCommand) Execute(args []string) error {
 			value = parts[1]
 		}
 
-		transaction.Set(s.context().SnapName(), key, value)
+		tr.Set(s.context().SnapName(), key, value)
 	}
 
 	return nil

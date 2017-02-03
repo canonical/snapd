@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -1421,13 +1422,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	transaction := configstate.NewTransaction(s)
+	tr := config.NewTransaction(s)
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
 	for _, key := range keys {
 		var value interface{}
-		if err := transaction.Get(snapName, key, &value); err != nil {
+		if err := tr.Get(snapName, key, &value); err != nil {
 			return BadRequest("%s", err)
 		}
 

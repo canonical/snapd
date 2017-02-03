@@ -192,8 +192,10 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+// Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	deltasDefault := release.OnClassic
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
 }
 
 func useStaging() bool {
@@ -625,10 +627,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		logRetryTime(startTime, reqOptions.URL.String(), attempt, resp, err)
-	}
+	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
 
 	return resp, err
 }

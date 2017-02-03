@@ -36,6 +36,7 @@
 #include <seccomp.h>
 
 #include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
@@ -163,19 +164,32 @@ static void sc_map_init()
 
 	// man 2 socket - domain
 	sc_map_add(AF_UNIX);
+	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
+	sc_map_add(PF_LOCAL);
 	sc_map_add(AF_INET);
+	sc_map_add(PF_INET);
 	sc_map_add(AF_INET6);
+	sc_map_add(PF_INET6);
 	sc_map_add(AF_IPX);
+	sc_map_add(PF_IPX);
 	sc_map_add(AF_NETLINK);
+	sc_map_add(PF_NETLINK);
 	sc_map_add(AF_X25);
+	sc_map_add(PF_X25);
 	sc_map_add(AF_AX25);
+	sc_map_add(PF_AX25);
 	sc_map_add(AF_ATMPVC);
+	sc_map_add(PF_ATMPVC);
 	sc_map_add(AF_APPLETALK);
+	sc_map_add(PF_APPLETALK);
 	sc_map_add(AF_PACKET);
+	sc_map_add(PF_PACKET);
 	sc_map_add(AF_ALG);
+	sc_map_add(PF_ALG);
 	// linux/can.h
 	sc_map_add(AF_CAN);
+	sc_map_add(PF_CAN);
 
 	// man 2 socket - type
 	sc_map_add(SOCK_STREAM);
@@ -640,8 +654,8 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
 	char profile_path[512];	// arbitrary path name limit
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
-		      filter_profile_dir, filter_profile);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
+			 filter_profile_dir, filter_profile);
 
 	f = fopen(profile_path, "r");
 	if (f == NULL) {

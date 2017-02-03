@@ -14,3 +14,6 @@ execute: |
   test "$(./toggle foo)" = "immutable -> mutable"
   # no immutable flag again:
   lsattr foo | grep -qv i
+restore: |
+    rm -f foo
+    rm -f toggle
