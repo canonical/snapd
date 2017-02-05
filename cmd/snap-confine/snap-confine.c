@@ -40,6 +40,9 @@
 
 int main(int argc, char **argv)
 {
+	if (argc == 0) {
+		exit(1);
+	}
 	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;
