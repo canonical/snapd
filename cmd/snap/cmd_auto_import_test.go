@@ -154,7 +154,7 @@ too short
 
 	l, err := snap.AutoImportCandidates()
 	c.Check(err, IsNil)
-	c.Check(l, DeepEquals, files[1:len(files)])
+	c.Check(l, DeepEquals, files[1:])
 }
 
 func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
