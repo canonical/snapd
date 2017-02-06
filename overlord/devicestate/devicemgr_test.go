@@ -705,22 +705,9 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a serial assertion
-	devKey, _ := assertstest.GenerateKey(752)
-	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Assert(err, IsNil)
-	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
-		"brand-id":            "canonical",
-		"model":               "pc",
-		"serial":              "8989",
-		"device-key":          string(encDevKey),
-		"device-key-sha3-384": devKey.PublicKey().ID(),
-		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
 	s.state.Lock()
-	err = assertstate.Add(s.state, serial)
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
 	s.state.Unlock()
-	c.Assert(err, IsNil)
 
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
@@ -1145,4 +1132,57 @@ name: lnrk`, nil)
 name: krnl`, nil)
 	err = devicestate.CheckGadgetOrKernel(s.state, krnlKernelInfo, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshOnClassicAlways(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	release.OnClassic = true
+	c.Check(devicestate.CanAutoRefresh(s.state), Equals, true)
+}
+
+func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
+	devKey, _ := assertstest.GenerateKey(752)
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            brandID,
+		"model":               model,
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, serial)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	release.OnClassic = false
+
+	// not seeded, no serial -> no auto-refresh
+	s.state.Set("seeded", false)
+	c.Check(devicestate.CanAutoRefresh(s.state), Equals, false)
+
+	// seeded, no serial -> no auto-refresh
+	s.state.Set("seeded", true)
+	c.Check(devicestate.CanAutoRefresh(s.state), Equals, false)
+
+	// seeded, serial -> auto-refresh
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+	c.Check(devicestate.CanAutoRefresh(s.state), Equals, true)
+
+	// not seeded, serial -> no auto-refresh
+	s.state.Set("seeded", false)
+	c.Check(devicestate.CanAutoRefresh(s.state), Equals, false)
 }

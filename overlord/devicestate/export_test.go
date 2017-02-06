@@ -95,4 +95,5 @@ func (m *DeviceManager) SetBootOkRan(b bool) {
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
+	CanAutoRefresh           = canAutoRefresh
 )
