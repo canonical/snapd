@@ -271,7 +271,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
-			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v", err)
+			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
 		}
 	}
@@ -379,7 +379,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		})
 	}
 	if len(locals) > 0 {
-		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!", strutil.Quoted(locals))
+		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
 
 	for _, aRef := range f.addedRefs {
