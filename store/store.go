@@ -196,7 +196,7 @@ func getStructFields(s interface{}) []string {
 func useDeltas() bool {
 	// only xdelta3 is supported for now, so check the binary exists here
 	// TODO: have a per-format checker instead
-	if _, err := getXdelta3Binary(); err != nil {
+	if _, err := getXdelta3Cmd(); err != nil {
 		return false
 	}
 
@@ -1434,14 +1434,14 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
-func getXdelta3Binary() (string, error) {
+func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	switch {
 	case osutil.ExecutableExists("xdelta3"):
-		return "xdelta3", nil
+		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3"), nil
+		return osutil.CommandFromCore("/usr/bin/xdelta3"), nil
 	}
-	return "", fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
@@ -1459,12 +1459,11 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 
 	partialTargetPath := targetPath + ".partial"
 
-	xdelta3Bin, err := getXdelta3Binary()
+	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
+	cmd, err := getXdelta3Cmd(xdelta3Args...)
 	if err != nil {
 		return err
 	}
-	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd := exec.Command(xdelta3Bin, xdelta3Args...)
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {
