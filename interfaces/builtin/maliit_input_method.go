@@ -32,14 +32,14 @@ var maliitInputMethodPermanentSlotAppArmor = []byte(`
 # DBus accesses
 #include <abstractions/dbus-session>
 
-# https://specifications.freedesktop.org/maliitInputMethod-spec/latest/
-# allow binding to the well-known DBus maliitInputMethod interface based on the snap's name
+# allow binding to the maliit dbus server for address negotiation
 dbus (bind)
     bus=session
     name="org.maliit.server",
 
 /usr/share/glib-2.0/schemas/ r,
 
+# maliit uses peer-to-peer dbus over a unix socket after address negotiation
 unix (bind, send, receive, listen, accept) addr="@/tmp/maliit-server/dbus-*",
 `)
 
