@@ -4023,6 +4023,42 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
+	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
+
+	// simulate failure in snapstate.AutoRefresh()
+	autoRefreshAssertionsCalled := 0
+	snapstate.AutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertionsCalled++
+		return fmt.Errorf("simulate store error")
+	}
+
+	// check that no change got created and that autoRefreshAssertins
+	// got called once
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+
+	// run Ensure() again and check that AutoRefresh() did not run
+	// again because to test that lastRefreshAttempt backoff is working
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }
