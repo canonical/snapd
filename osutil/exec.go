@@ -21,6 +21,10 @@ package osutil
 
 import (
 	"bufio"
+	"bytes"
+	"debug/elf"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -68,15 +72,43 @@ func libraryPathForCore(confPath string) []string {
 	return out
 }
 
-func CommandFromCore(name string, arg ...string) *exec.Cmd {
+func elfInterp(cmd string) (string, error) {
+	el, err := elf.Open(cmd)
+	if err != nil {
+		return "", err
+	}
+	defer el.Close()
+
+	for _, prog := range el.Progs {
+		if prog.Type == elf.PT_INTERP {
+			r := prog.Open()
+			interp, err := ioutil.ReadAll(r)
+			if err != nil {
+				return "", nil
+			}
+
+			return string(bytes.Trim(interp, "\x00")), nil
+		}
+	}
+
+	return "", fmt.Errorf("cannot find PT_INTERP header")
+}
+
+func CommandFromCore(name string, arg ...string) (*exec.Cmd, error) {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
 
-	coreLdSo := filepath.Join(root, "/lib/ld-linux.so.2")
 	cmdPath := filepath.Join(root, name)
+	// FIXME: support `#!/...` style in addition to elf
+	interp, err := elfInterp(cmdPath)
+	if err != nil {
+		return nil, err
+	}
+
+	coreLdSo := filepath.Join(root, interp)
 
 	ldLibraryPathForCore := libraryPathForCore("/etc/ld.so.conf")
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
 
 	allArgs := append(ldSoArgs, arg...)
-	return exec.Command(coreLdSo, allArgs...)
+	return exec.Command(coreLdSo, allArgs...), nil
 }

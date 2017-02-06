@@ -728,7 +728,7 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 
 	for _, scenario := range scenarios {
 		if scenario.exeInCore {
-			ioutil.WriteFile(exeInCorePath, nil, 0755)
+			osutil.CopyFile("/bin/true", exeInCorePath, 0)
 		} else {
 			os.Remove(exeInCorePath)
 		}

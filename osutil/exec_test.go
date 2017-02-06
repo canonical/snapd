@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -66,12 +68,19 @@ func (s *commandFromCoreSuite) makeMockLdSoConf(c *C) {
 
 func (s *commandFromCoreSuite) TestCommandFromCore(c *C) {
 	s.makeMockLdSoConf(c)
-
-	cmd := osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
-
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile("/bin/true", filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
+
+	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
+	c.Assert(err, IsNil)
+	interp := strings.TrimSpace(string(out))
+
 	c.Check(cmd.Args, DeepEquals, []string{
-		filepath.Join(root, "/lib/ld-linux.so.2"),
+		filepath.Join(root, interp),
 		"--library-path",
 		fmt.Sprintf("%s/lib/x86_64-linux-gnu:%s/usr/lib/x86_64-linux-gnu", root, root),
 		filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3"),
