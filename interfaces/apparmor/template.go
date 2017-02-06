@@ -277,6 +277,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
