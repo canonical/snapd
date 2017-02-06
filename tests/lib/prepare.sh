@@ -97,13 +97,14 @@ EOF
 StartLimitInterval=0
 EOF
 
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
+    fi
+
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        if [ "$REMOTE_STORE" = staging ]; then
-            . $TESTSLIB/store.sh
-            setup_staging_store
-        fi
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
