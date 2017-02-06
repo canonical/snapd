@@ -708,8 +708,8 @@ version: gadget
 	c.Check(device.KeyID, Not(Equals), "")
 	keyID := device.KeyID
 
-	c.Check(s.mgr.EnsureOperationalBackoff(time.Now()), Equals, true)
-	c.Check(s.mgr.EnsureOperationalBackoff(time.Now().Add(6*time.Minute)), Equals, false)
+	c.Check(s.mgr.EnsureOperationalShouldBackoff(time.Now()), Equals, true)
+	c.Check(s.mgr.EnsureOperationalShouldBackoff(time.Now().Add(6*time.Minute)), Equals, false)
 
 	// try again the whole device registration process
 	s.reqID = "REQID-1"
@@ -736,20 +736,21 @@ version: gadget
 	c.Check(device.Serial, Equals, "10000")
 }
 
-func (s *deviceMgrSuite) TestEnsureBecomeOperationalBackoff(c *C) {
+func (s *deviceMgrSuite) TestEnsureBecomeOperationalShouldBackoff(c *C) {
 	t0 := time.Now()
-	c.Check(s.mgr.EnsureOperationalBackoff(t0), Equals, false)
+	c.Check(s.mgr.EnsureOperationalShouldBackoff(t0), Equals, false)
 	c.Check(s.mgr.BecomeOperationalBackoff(), Equals, 5*time.Minute)
 
-	backoffs := []time.Duration{5, 10, 20, 40, 80, 160, 160}
+	backoffs := []time.Duration{5, 10, 20, 40, 80, 160, 320, 640, 1440, 1440}
 	t1 := t0
 	for _, m := range backoffs {
-		c.Check(s.mgr.EnsureOperationalBackoff(t1.Add(time.Duration(m-1)*time.Minute)), Equals, true)
+		c.Check(s.mgr.EnsureOperationalShouldBackoff(t1.Add(time.Duration(m-1)*time.Minute)), Equals, true)
 
 		t1 = t1.Add(time.Duration(m+1) * time.Minute)
-		c.Check(s.mgr.EnsureOperationalBackoff(t1), Equals, false)
-		if m < 160 {
-			m *= 2
+		c.Check(s.mgr.EnsureOperationalShouldBackoff(t1), Equals, false)
+		m *= 2
+		if m > (12 * 60) {
+			m = 24 * 60
 		}
 		c.Check(s.mgr.BecomeOperationalBackoff(), Equals, m*time.Minute)
 	}
