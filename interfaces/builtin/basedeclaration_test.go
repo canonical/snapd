@@ -139,6 +139,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":         true,
 		"gsettings":               true,
+		"maliit-input-method":     true,
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
@@ -409,6 +410,7 @@ var (
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"maliit-input-method":     {"app"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},

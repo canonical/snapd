@@ -345,6 +345,10 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  maliit-input-method:
+    allow-installation:
+      slot-snap-type:
+        - app
   mir:
     allow-installation:
       slot-snap-type:
