@@ -21,8 +21,6 @@ package builtin
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -57,26 +55,6 @@ func (iface *Unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
-
-	// Make sure this is tied to applications not packages
-	if len(plug.Apps) == 0 {
-		return fmt.Errorf("%q plug must be on an application", iface)
-	}
-
-	mountdir := plug.Snap.MountDir()
-	for _, app := range plug.Apps {
-		// Check to ensure we have a desktop file for each application
-		path := filepath.Join(mountdir, "meta", "gui", fmt.Sprintf("%s.desktop", app.Name))
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fmt.Errorf("Application %q does not have a required desktop file for interface %q", app.Name, iface)
-		}
-
-		// Ensure that we're not daemons
-		if app.Daemon != "" {
-			return fmt.Errorf("Application %q is a daemon, which isn't allowed to use interface %q", app.Name, iface)
-		}
-	}
-
 	return nil
 }
 
@@ -84,16 +62,6 @@ func (iface *Unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
-
-	// Restrict which snaps can use this slot for now, until we're further along.
-	validName := slot.Snap.Name() == "unity8-session"
-	validPublisher := slot.Snap.PublisherID == "canonical"
-	emptyPublisher := slot.Snap.PublisherID == ""
-	allowSnap := emptyPublisher || (validName && validPublisher)
-	if !allowSnap {
-		return fmt.Errorf("Using %q as a slot is restricted while it is under development", iface)
-	}
-
 	return nil
 }
 

@@ -509,6 +509,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -627,6 +628,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
