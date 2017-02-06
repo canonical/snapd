@@ -54,6 +54,7 @@ var allInterfaces = []interfaces.Interface{
 	&TimeControlInterface{},
 	&UDisks2Interface{},
 	&UbuntuDownloadManagerInterface{},
+	&Unity8Interface{},
 	&UpowerObserveInterface{},
 	&UhidInterface{},
 	NewAccountControlInterface(),

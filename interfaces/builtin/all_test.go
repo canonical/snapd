@@ -57,6 +57,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.TimeControlInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
 	c.Check(all, Contains, &builtin.UbuntuDownloadManagerInterface{})
+	c.Check(all, Contains, &builtin.Unity8Interface{})
 	c.Check(all, Contains, &builtin.UpowerObserveInterface{})
 	c.Check(all, Contains, &builtin.UhidInterface{})
 	c.Check(all, DeepContains, builtin.NewAccountControlInterface())
