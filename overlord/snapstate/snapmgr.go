@@ -470,12 +470,10 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
-	// FIXME: test for lastRefreshAttempt missing
-
 	// Check that we have reasonable delays between unsuccessful attempts.
 	// If the store is under stress we need to make sure we do not
 	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).Before(time.Now()) {
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
 		return nil
 	}
 
