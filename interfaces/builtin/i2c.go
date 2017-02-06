@@ -22,10 +22,11 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"github.com/snapcore/snapd/interfaces"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // The type for i2c interface
@@ -79,6 +80,14 @@ func (iface *I2cInterface) SanitizePlug(plug *interfaces.Plug) error {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	// Currently nothing is checked on the plug side
+	return nil
+}
+
+func (iface *I2cInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *I2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

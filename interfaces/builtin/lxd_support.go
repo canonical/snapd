@@ -73,6 +73,14 @@ func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *LxdSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *LxdSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

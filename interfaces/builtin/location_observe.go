@@ -281,6 +281,14 @@ func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error
 	return nil
 }
 
+func (iface *LocationObserveInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *LocationObserveInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *LocationObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

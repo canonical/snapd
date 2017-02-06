@@ -576,6 +576,14 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DockerSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

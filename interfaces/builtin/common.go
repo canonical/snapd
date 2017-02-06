@@ -70,6 +70,14 @@ func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *commonInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *commonInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentPlugSnippet returns the snippet of text for the given security
 // system that is used during the whole lifetime of affected applications,
 // whether the plug is connected or not.

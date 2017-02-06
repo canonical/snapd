@@ -54,6 +54,14 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *UhidInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UhidInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Check and possibly modify a plug
 func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {

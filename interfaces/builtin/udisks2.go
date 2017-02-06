@@ -405,6 +405,14 @@ func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *UDisks2Interface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UDisks2Interface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *UDisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

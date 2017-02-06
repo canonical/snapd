@@ -74,6 +74,14 @@ func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
+func (iface *PhysicalMemoryControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *PhysicalMemoryControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Returns snippet granted on install
 func (iface *PhysicalMemoryControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil

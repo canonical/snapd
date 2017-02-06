@@ -314,6 +314,14 @@ func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *OfonoInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *OfonoInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *OfonoInterface) LegacyAutoConnect() bool {
 	return false
 }

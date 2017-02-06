@@ -142,6 +142,14 @@ func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *MirInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *MirInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *MirInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

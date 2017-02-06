@@ -120,6 +120,12 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
+	// ValidatePlug checks if the attributes of the plug are correct, altering if necessary.
+	ValidatePlug(plug *Plug, attrs map[string]interface{}) error
+
+	// ValidateSlot checks if the attributes of the slot are correct, altering if necessary.
+	ValidateSlot(slot *Slot, attrs map[string]interface{}) error
+
 	// PermanentPlugSnippet returns the snippet of text for the given security
 	// system that is used during the whole lifetime of affected applications,
 	// whether the plug is connected or not.

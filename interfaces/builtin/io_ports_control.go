@@ -81,6 +81,14 @@ func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error
 	return nil
 }
 
+func (iface *IioPortsControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *IioPortsControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Returns snippet granted on install
 func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil

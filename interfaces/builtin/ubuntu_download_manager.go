@@ -273,6 +273,14 @@ func (iface *UbuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot)
 	return nil
 }
 
+func (iface *UbuntuDownloadManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UbuntuDownloadManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *UbuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true

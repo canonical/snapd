@@ -81,6 +81,14 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *GpioInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *GpioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentPlugSnippet returns security snippets for plug at install
 func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil

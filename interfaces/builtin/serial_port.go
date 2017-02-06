@@ -112,6 +112,14 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *SerialPortInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *SerialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentSlotSnippet returns snippets granted on install
 func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {

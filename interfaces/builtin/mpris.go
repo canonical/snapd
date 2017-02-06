@@ -248,6 +248,14 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
+func (iface *MprisInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *MprisInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 func (iface *MprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
