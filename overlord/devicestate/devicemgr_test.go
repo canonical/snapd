@@ -66,6 +66,7 @@ type deviceMgrSuite struct {
 	db      *asserts.Database
 
 	storeSigning *assertstest.StoreStack
+	brandSigning *assertstest.SigningDB
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -131,6 +132,9 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
 	s.state = state.New(nil)
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -1073,18 +1077,35 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	defer s.state.Unlock()
 	// nothing is setup
 	gadgetInfo := snaptest.MockInfo(c, `type: gadget
-name: gadget`, nil)
+name: other-gadget`, nil)
 
 	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
 
 	// setup model assertion
-	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	err = assertstate.Add(s.state, brandAcct)
+	c.Assert(err, IsNil)
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
+		"account-id": "other-brand",
+	}, "")
+	err = assertstate.Add(s.state, otherAcct)
+	c.Assert(err, IsNil)
+
+	brandPubKey, err := s.brandSigning.PublicKey("")
+	c.Assert(err, IsNil)
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPubKey, "")
+	err = assertstate.Add(s.state, brandAccKey)
+	c.Assert(err, IsNil)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"gadget":       "pc",
-		"kernel":       "kernel",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
 		"architecture": "amd64",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
@@ -1092,18 +1113,80 @@ name: gadget`, nil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
 	err = auth.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc",
+		Brand: "my-brand",
+		Model: "my-model",
 	})
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `cannot install gadget "gadget", model assertion requests "pc"`)
+	c.Check(err, ErrorMatches, `cannot install gadget "other-gadget", model assertion requests "gadget"`)
 
-	// install pc gadget
-	pcGadgetInfo := snaptest.MockInfo(c, `type: gadget
-name: pc`, nil)
-	err = devicestate.CheckGadgetOrKernel(s.state, pcGadgetInfo, nil, snapstate.Flags{})
+	// brand gadget
+	brandGadgetDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "gadget",
+		"snap-id":      "brand-gadget-id",
+		"publisher-id": "my-brand",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, brandGadgetDecl)
+	c.Assert(err, IsNil)
+	brandGadgetInfo := snaptest.MockInfo(c, `
+type: gadget
+name: gadget
+`, nil)
+	brandGadgetInfo.SnapID = "brand-gadget-id"
+
+	// canonical gadget
+	canonicalGadgetDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "gadget",
+		"snap-id":      "canonical-gadget-id",
+		"publisher-id": "canonical",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, canonicalGadgetDecl)
+	c.Assert(err, IsNil)
+	canonicalGadgetInfo := snaptest.MockInfo(c, `
+type: gadget
+name: gadget
+`, nil)
+	canonicalGadgetInfo.SnapID = "canonical-gadget-id"
+
+	// other gadget
+	otherGadgetDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "gadget",
+		"snap-id":      "other-gadget-id",
+		"publisher-id": "other-brand",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, otherGadgetDecl)
+	c.Assert(err, IsNil)
+	otherGadgetInfo := snaptest.MockInfo(c, `
+type: gadget
+name: gadget
+`, nil)
+	otherGadgetInfo.SnapID = "other-gadget-id"
+
+	// install brand gadget ok
+	err = devicestate.CheckGadgetOrKernel(s.state, brandGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// install canonical gadget ok
+	err = devicestate.CheckGadgetOrKernel(s.state, canonicalGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// install other gadget fails
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install gadget "gadget" published by "other-brand" for model by "my-brand"`)
+
+	// unasserted installation of other works
+	otherGadgetInfo.SnapID = ""
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 }
 
@@ -1119,11 +1202,28 @@ name: lnrk`, nil)
 	c.Check(err, ErrorMatches, `cannot install kernel without model assertion`)
 
 	// setup model assertion
-	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id": "my-brand",
+	}, "")
+	err = assertstate.Add(s.state, brandAcct)
+	c.Assert(err, IsNil)
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
+		"account-id": "other-brand",
+	}, "")
+	err = assertstate.Add(s.state, otherAcct)
+	c.Assert(err, IsNil)
+
+	brandPubKey, err := s.brandSigning.PublicKey("")
+	c.Assert(err, IsNil)
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPubKey, "")
+	err = assertstate.Add(s.state, brandAccKey)
+	c.Assert(err, IsNil)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
 		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"gadget":       "pc",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "gadget",
 		"kernel":       "krnl",
 		"architecture": "amd64",
 		"timestamp":    time.Now().Format(time.RFC3339),
@@ -1132,17 +1232,79 @@ name: lnrk`, nil)
 	err = assertstate.Add(s.state, model)
 	c.Assert(err, IsNil)
 	err = auth.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc",
+		Brand: "my-brand",
+		Model: "my-model",
 	})
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
 
-	// install krnl kernel
-	krnlKernelInfo := snaptest.MockInfo(c, `type: kernel
-name: krnl`, nil)
-	err = devicestate.CheckGadgetOrKernel(s.state, krnlKernelInfo, nil, snapstate.Flags{})
+	// brand kernel
+	brandKrnlDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "krnl",
+		"snap-id":      "brand-krnl-id",
+		"publisher-id": "my-brand",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, brandKrnlDecl)
+	c.Assert(err, IsNil)
+	brandKrnlInfo := snaptest.MockInfo(c, `
+type: kernel
+name: krnl
+`, nil)
+	brandKrnlInfo.SnapID = "brand-krnl-id"
+
+	// canonical kernel
+	canonicalKrnlDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "krnl",
+		"snap-id":      "canonical-krnl-id",
+		"publisher-id": "canonical",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, canonicalKrnlDecl)
+	c.Assert(err, IsNil)
+	canonicalKrnlInfo := snaptest.MockInfo(c, `
+type: kernel
+name: krnl
+`, nil)
+	canonicalKrnlInfo.SnapID = "canonical-krnl-id"
+
+	// other kernel
+	otherKrnlDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "krnl",
+		"snap-id":      "other-krnl-id",
+		"publisher-id": "other-brand",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, otherKrnlDecl)
+	c.Assert(err, IsNil)
+	otherKrnlInfo := snaptest.MockInfo(c, `
+type: kernel
+name: krnl
+`, nil)
+	otherKrnlInfo.SnapID = "other-krnl-id"
+
+	// install brand kernel ok
+	err = devicestate.CheckGadgetOrKernel(s.state, brandKrnlInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// install canonical kernel ok
+	err = devicestate.CheckGadgetOrKernel(s.state, canonicalKrnlInfo, nil, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// install other kernel fails
+	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `cannot install kernel "krnl" published by "other-brand" for model by "my-brand"`)
+
+	// unasserted installation of other works
+	otherKrnlInfo.SnapID = ""
+	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, snapstate.Flags{})
 	c.Check(err, IsNil)
 }

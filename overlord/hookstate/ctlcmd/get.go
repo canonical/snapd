@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -178,7 +179,7 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 		if err == nil {
 			return value, true, nil
 		}
-		if configstate.IsNoOption(err) {
+		if config.IsNoOption(err) {
 			if !c.Typed {
 				value = ""
 			}

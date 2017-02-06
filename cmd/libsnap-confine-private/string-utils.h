@@ -39,4 +39,15 @@ bool sc_endswith(const char *str, const char *suffix);
 __attribute__ ((format(printf, 3, 4)))
 int sc_must_snprintf(char *str, size_t size, const char *format, ...);
 
+/**
+ * Append a string to a buffer containing a string.
+ *
+ * This version is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL a buffer overflow is detected
+ * then the function dies.
+ *
+ * The buffers cannot overlap.
+ **/
+size_t sc_string_append(char *dst, size_t dst_size, const char *str);
+
 #endif
