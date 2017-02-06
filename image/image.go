@@ -347,6 +347,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 				kind = "gadget"
 			}
 			if kind != "" { // kernel or gadget
+				// TODO: share helpers with devicestate if the policy becomes much more complicated
 				publisher := snapDecl.PublisherID()
 				if publisher != model.BrandID() && publisher != "canonical" {
 					return fmt.Errorf("cannot use %s %q published by %q for model by %q", kind, name, publisher, model.BrandID())
