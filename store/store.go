@@ -194,10 +194,14 @@ func getStructFields(s interface{}) []string {
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	deltasDefault := release.OnClassic
 	// only xdelta3 is supported for now, so check the binary exists here
 	// TODO: have a per-format checker instead
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
+	if _, err := getXdelta3Binary(); err != nil {
+		return false
+	}
+
+	deltasDefault := release.OnClassic
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
 }
 
 func useStaging() bool {
@@ -1430,6 +1434,16 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
+func getXdelta3Binary() (string, error) {
+	switch {
+	case osutil.ExecutableExists("xdelta3"):
+		return "xdelta3", nil
+	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
+		return filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3"), nil
+	}
+	return "", fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+}
+
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
 var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
@@ -1445,8 +1459,12 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 
 	partialTargetPath := targetPath + ".partial"
 
+	xdelta3Bin, err := getXdelta3Binary()
+	if err != nil {
+		return err
+	}
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd := exec.Command("xdelta3", xdelta3Args...)
+	cmd := exec.Command(xdelta3Bin, xdelta3Args...)
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {

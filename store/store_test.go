@@ -684,28 +684,53 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	altPath := c.MkDir()
+	origSnapMountDir := dirs.SnapMountDir
+	defer func() { dirs.SnapMountDir = origSnapMountDir }()
+	dirs.SnapMountDir = c.MkDir()
+	exeInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")
+	os.MkdirAll(filepath.Dir(exeInCorePath), 0755)
 
 	scenarios := []struct {
-		env      string
-		classic  bool
-		exe      bool
-		expected bool
+		env       string
+		classic   bool
+		exe       bool
+		exeInCore bool
+		expected  bool
 	}{
-		{"", false, false, false},  // no env, not on classic, no executable => no delta
-		{"", false, true, false},   // no env, not on classic, executable => no delta
-		{"", true, false, false},   // no env, on classic, no executable => no delta
-		{"", true, true, true},     // no env, on classic, executable => DELTA!
-		{"0", false, false, false}, // env says NO, not classic, no executable => no delta
-		{"0", false, true, false},  // env says NO, not classic, executable => no delta
-		{"0", true, false, false},  // env says NO, classic, no executable => no delta
-		{"0", true, true, false},   // env says NO, classic, executable => no delta
-		{"1", false, false, false}, // env says YES, no classic, no executable => no delta
-		{"1", false, true, true},   // env says YES, no classic, executable => DELTA!
-		{"1", true, false, false},  // env says YES, classic, no executable => no delta
-		{"1", true, true, true},    // env says YES, classic, executable => DELTA!
+		{"", false, false, false, false},  // no env, not on classic, no executable, no exe in core => no delta
+		{"", false, true, false, false},   // no env, not on classic, executable, no exe in core => no delta
+		{"", true, false, false, false},   // no env, on classic, no executable, no exe in core => no delta
+		{"", true, true, false, true},     // no env, on classic, executable, no exe in core => DELTA!
+		{"0", false, false, false, false}, // env says NO, not classic, no executable, no exe in core => no delta
+		{"0", false, true, false, false},  // env says NO, not classic, executable, no exe in core => no delta
+		{"0", true, false, false, false},  // env says NO, classic, no executable, no exe in core => no delta
+		{"0", true, true, false, false},   // env says NO, classic, executable, no exe in core => no delta
+		{"1", false, false, false, false}, // env says YES, no classic, no executable, no exe in core => no delta
+		{"1", false, true, false, true},   // env says YES, no classic, executable, no exe in core => DELTA!
+		{"1", true, false, false, false},  // env says YES, classic, no executable, no exe in core => no delta
+		{"1", true, true, false, true},    // env says YES, classic, executable, no exe in core => DELTA!
+
+		{"", false, false, true, false},  // no env, not on classic, no executable, exe in core => no delta
+		{"", false, true, true, false},   // no env, not on classic, executable, exe in core => no delta
+		{"", true, false, true, true},    // no env, on classic, no executable, exe in core => no delta
+		{"", true, true, true, true},     // no env, on classic, executable, exe in core => DELTA!
+		{"0", false, false, true, false}, // env says NO, not classic, no executable, exe in core => no delta
+		{"0", false, true, true, false},  // env says NO, not classic, executable, exe in core => no delta
+		{"0", true, false, true, false},  // env says NO, classic, no executable, exe in core => no delta
+		{"0", true, true, true, false},   // env says NO, classic, executable, exe in core => no delta
+		{"1", false, false, true, true},  // env says YES, no classic, no executable, exe in core => no delta
+		{"1", false, true, true, true},   // env says YES, no classic, executable, exe in core => DELTA!
+		{"1", true, false, true, true},   // env says YES, classic, no executable, exe in core => no delta
+		{"1", true, true, true, true},    // env says YES, classic, executable, exe in core => DELTA!
+
 	}
 
 	for _, scenario := range scenarios {
+		if scenario.exeInCore {
+			ioutil.WriteFile(exeInCorePath, nil, 0755)
+		} else {
+			os.Remove(exeInCorePath)
+		}
 		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
 		release.MockOnClassic(scenario.classic)
 		if scenario.exe {
