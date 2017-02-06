@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -51,6 +52,13 @@ type TestInterface struct {
 	TestConnectedSlotCallback func(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	TestPermanentPlugCallback func(spec *Specification, plug *interfaces.Plug) error
 	TestPermanentSlotCallback func(spec *Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the mount backend.
+
+	MountConnectedPlugCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
+	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -157,6 +165,36 @@ func (t *TestInterface) TestPermanentPlug(spec *Specification, plug *interfaces.
 func (t *TestInterface) TestPermanentSlot(spec *Specification, slot *interfaces.Slot) error {
 	if t.TestPermanentSlotCallback != nil {
 		return t.TestPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the mount backend.
+
+func (t *TestInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.MountConnectedPlugCallback != nil {
+		return t.MountConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.MountConnectedSlotCallback != nil {
+		return t.MountConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error {
+	if t.MountPermanentPlugCallback != nil {
+		return t.MountPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
+	if t.MountPermanentSlotCallback != nil {
+		return t.MountPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }

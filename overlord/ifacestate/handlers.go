@@ -62,7 +62,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
-		if err := setupSnapSecurity(task, affectedSnapInfo, opts, m.repo); err != nil {
+		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
 		}
 	}
@@ -127,7 +127,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
 	affectedSet := make(map[string]bool)
@@ -182,7 +182,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	}
 
 	// Remove security artefacts of the snap.
-	if err := removeSnapSecurity(task, snapName); err != nil {
+	if err := m.removeSnapSecurity(task, snapName); err != nil {
 		// TODO: how long to wait?
 		return &state.Retry{}
 	}
@@ -401,11 +401,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
 		return err
 	}
 
@@ -460,7 +460,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
+		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 			return &state.Retry{}
 		}
 	}

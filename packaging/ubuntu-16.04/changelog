@@ -1,3 +1,10 @@
+snapd (2.23+) UNRELEASED; urgency=medium
+
+  * New upstream release, LP: #xxxx
+    - ...
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Jan 2017 14:42:46 +0100
+
 snapd (2.22) xenial; urgency=medium
 
   * New upstream release, LP: #1659522

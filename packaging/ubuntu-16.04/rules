@@ -59,7 +59,7 @@ override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
 
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnap-confine
+	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
 	dh_installdeb
 
 override_dh_clean:

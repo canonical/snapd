@@ -42,10 +42,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -624,7 +625,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	}
 	gadgetName := gadgetInfo.Name()
 
-	tr := configstate.NewTransaction(t.State())
+	tr := config.NewTransaction(t.State())
 	var svcURL string
 	err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
 	if err != nil {
@@ -915,6 +916,27 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install a %s snap on classic", kind)
 	}
 
+	model, err := Model(st)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot install %s without model assertion", kind)
+	}
+	if err != nil {
+		return err
+	}
+
+	if snapInfo.SnapID != "" {
+		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+		}
+		publisher := snapDecl.PublisherID()
+		if publisher != "canonical" && publisher != model.BrandID() {
+			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.Name(), publisher, model.BrandID())
+		}
+	} else {
+		logger.Noticef("installing unasserted %s %q", kind, snapInfo.Name())
+	}
+
 	currentSnap, err := currentInfo(st)
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
@@ -924,14 +946,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 	// first installation of a gadget/kernel
-
-	model, err := Model(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
 
 	expectedName := getName(model)
 	if snapInfo.Name() != expectedName {

@@ -128,7 +128,11 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 		// no analyzer, format 0 is all there is
 		return 0, nil
 	}
-	return analyzer(headers, body)
+	formatnum, err = analyzer(headers, body)
+	if err != nil {
+		return 0, fmt.Errorf("assertion %s: %v", assertType.Name, err)
+	}
+	return formatnum, nil
 }
 
 // Ref expresses a reference to an assertion.
