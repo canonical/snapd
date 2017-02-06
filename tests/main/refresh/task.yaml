@@ -48,6 +48,7 @@ prepare: |
     fi
 
 restore: |
+    rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
             exit

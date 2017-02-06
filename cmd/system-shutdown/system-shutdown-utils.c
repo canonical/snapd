@@ -32,38 +32,7 @@
 #include <unistd.h>		// getpid, close
 
 #include "../libsnap-confine-private/mountinfo.h"
-
-bool streq(const char *a, const char *b)
-{
-	if (!a || !b) {
-		return false;
-	}
-
-	size_t alen = strlen(a);
-	size_t blen = strlen(b);
-
-	if (alen != blen) {
-		return false;
-	}
-
-	return strncmp(a, b, alen) == 0;
-}
-
-static bool endswith(const char *str, const char *suffix)
-{
-	if (!str || !suffix) {
-		return false;
-	}
-
-	size_t xlen = strlen(suffix);
-	size_t slen = strlen(str);
-
-	if (slen < xlen) {
-		return false;
-	}
-
-	return strncmp(str - xlen + slen, suffix, xlen) == 0;
-}
+#include "../libsnap-confine-private/string-utils.h"
 
 __attribute__ ((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
@@ -137,20 +106,20 @@ bool umount_all()
 
 			cur = sc_next_mountinfo_entry(cur);
 
-			if (streq("/", dir)) {
+			if (sc_streq("/", dir)) {
 				continue;
 			}
 
-			if (streq("/dev", dir)) {
+			if (sc_streq("/dev", dir)) {
 				continue;
 			}
 
-			if (streq("/proc", dir)) {
+			if (sc_streq("/proc", dir)) {
 				continue;
 			}
 
 			if (major != 0 && major != LOOP_MAJOR
-			    && endswith(dir, "/writable")) {
+			    && sc_endswith(dir, "/writable")) {
 				had_writable = true;
 			}
 

@@ -36,6 +36,7 @@
 #include <seccomp.h>
 
 #include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
@@ -640,8 +641,8 @@ scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
 	char profile_path[512];	// arbitrary path name limit
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
-		      filter_profile_dir, filter_profile);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s",
+			 filter_profile_dir, filter_profile);
 
 	f = fopen(profile_path, "r");
 	if (f == NULL) {

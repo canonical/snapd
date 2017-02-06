@@ -25,21 +25,21 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type getCommand struct {
 	baseCommand
 
 	// these two options are mutually exclusive
-	ForceSlotSide bool `long:"slot" description:"request attribute of the slot"`
-	ForcePlugSide bool `long:"plug" description:"request attribute of the plug"`
+	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
+	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
 		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
@@ -47,7 +47,7 @@ type getCommand struct {
 	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("Prints configuration options or attribute values of plug/slot")
+var shortGetHelp = i18n.G("The get command prints configuration and interface connection settings.")
 var longGetHelp = i18n.G(`
 The get command prints configuration options for the current snap.
 
@@ -67,31 +67,24 @@ Nested values may be retrieved via a dotted path:
     $ snapctl get author.name
     frank
 
-Values of plug or slot attributes may be printed in plug hooks via:
+Values of interface connection settings may be printed with:
 
-    $ snapctl get :plugname serial-path
-	/dev/ttyS0
+    $ snapctl get :myplug usb-vendor
+    $ snapctl get :myslot path
 
-    $ snapctl get --slot :slotname camera-path
-	/dev/video0
+This will return the named setting from the local interface endpoint, whether a plug
+or a slot. Returning the setting from the connected snap's endpoint is also possible
+by explicitly requesting that via the --plug and --slot command line options:
 
-Values of plug or slot attributes may be printed in slot hooks via:
+    $ snapctl get :myplug --slot usb-vendor
 
-    $ snapctl get --plug :slotname serial-path
-	/dev/ttyS0
-
-    $ snapctl get :slotname camera-path
-	/dev/video0
+This requests the "usb-vendor" setting from the slot that is connected to "myplug".
 `)
 
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() command {
 		return &getCommand{}
-	}, map[string]string{
-		"slot": i18n.G("Access the slot side of the connection"),
-		"plug": i18n.G("Access the plug side of the connection"),
-	}, []argDesc{
-		{name: i18n.G("<snap>:<slot>")}})
+	})
 }
 
 func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error)) error {
@@ -137,6 +130,10 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 }
 
 func (c *getCommand) Execute(args []string) error {
+	if c.Positional.PlugOrSlotSpec == "" && len(c.Positional.Keys) == 0 {
+		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+	}
+
 	context := c.context()
 	if context == nil {
 		return fmt.Errorf("cannot get without a context")
@@ -146,19 +143,27 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
 
-	var snapAndPlugOrSlot snap.SnapAndName
-	// treat PlugOrSlotSpec argument as config key if it doesn't contain ':'
-	if !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
-		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
-		c.Positional.PlugOrSlotSpec = ""
-	} else {
-		snapAndPlugOrSlot.UnmarshalFlag(c.Positional.PlugOrSlotSpec)
+	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
+		parts := strings.SplitN(c.Positional.PlugOrSlotSpec, ":", 2)
+		snap, name := parts[0], parts[1]
+		if name == "" {
+			return fmt.Errorf("plug or slot name not provided")
+		}
+		if snap != "" {
+			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
+		}
+
+		return c.getInterfaceSetting(context, name)
 	}
 
-	if snapAndPlugOrSlot.Name != "" {
-		return c.handleGetInterfaceAttributes(context, snapAndPlugOrSlot.Snap, snapAndPlugOrSlot.Name)
-	}
+	// PlugOrSlotSpec is actually a configuration key.
+	c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
+	c.Positional.PlugOrSlotSpec = ""
 
+	return c.getConfigSetting(context)
+}
+
+func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug or --slot without <snap>:<plug|slot> argument")
 	}
@@ -183,76 +188,116 @@ func (c *getCommand) Execute(args []string) error {
 	})
 }
 
-func (c *getCommand) handleGetInterfaceAttributes(context *hookstate.Context, snapName string, plugOrSlot string) error {
-	// Make sure get :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
-	var isPreparePlugHook, isPrepareSlotHook, isConnectPlugHook, isConnectSlotHook bool
+type ifaceHookType int
 
-	if strings.HasPrefix(context.HookName(), "prepare-plug-") {
-		isPreparePlugHook = true
-	} else if strings.HasPrefix(context.HookName(), "connect-plug-") {
-		isConnectPlugHook = true
-	} else if strings.HasPrefix(context.HookName(), "prepare-slot-") {
-		isPrepareSlotHook = true
-	} else if strings.HasPrefix(context.HookName(), "connect-slot-") {
-		isConnectSlotHook = true
+const (
+	preparePlugHook ifaceHookType = iota
+	prepareSlotHook
+	connectPlugHook
+	connectSlotHook
+	unknownHook
+)
+
+func interfaceHookType(hookName string) (ifaceHookType, error) {
+	if strings.HasPrefix(hookName, "prepare-plug-") {
+		return preparePlugHook, nil
+	} else if strings.HasPrefix(hookName, "connect-plug-") {
+		return connectPlugHook, nil
+	} else if strings.HasPrefix(hookName, "prepare-slot-") {
+		return prepareSlotHook, nil
+	} else if strings.HasPrefix(hookName, "connect-slot-") {
+		return connectSlotHook, nil
 	}
-	if !(isPreparePlugHook || isPrepareSlotHook || isConnectPlugHook || isConnectSlotHook) {
+	return unknownHook, fmt.Errorf("unknown hook type")
+}
+
+func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string) error {
+	// check if the requested plug or slot is correct for given hook.
+	attrsTask.State().Lock()
+	defer attrsTask.State().Unlock()
+
+	var name string
+	var err error
+	if plugSide {
+		var plugRef interfaces.PlugRef
+		if err = attrsTask.Get("plug", &plugRef); err == nil {
+			name = plugRef.Name
+		}
+	} else {
+		var slotRef interfaces.SlotRef
+		if err = attrsTask.Get("slot", &slotRef); err == nil {
+			name = slotRef.Name
+		}
+	}
+	if err != nil {
+		return fmt.Errorf(i18n.G("failed to find plug/slot data in the attrs task"))
+	}
+	if name != plugOrSlot {
+		return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
+	}
+	return nil
+}
+
+func attributesTask(context *hookstate.Context) (*state.Task, error) {
+	var attrsTaskID string
+	context.Lock()
+	defer context.Unlock()
+
+	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
+		return nil, err
+	}
+
+	st := context.State()
+
+	attrsTask := st.Task(attrsTaskID)
+	if attrsTask == nil {
+		return nil, fmt.Errorf(i18n.G("failed to find attrs task"))
+	}
+
+	return attrsTask, nil
+}
+
+func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
+	// Make sure get :<plug|slot> is only supported during the execution of interface hooks
+	hookType, err := interfaceHookType(context.HookName())
+	if err != nil {
 		return fmt.Errorf(i18n.G("interface attributes can only be read during the execution of interface hooks"))
 	}
 
-	var err error
-	var attributes map[string]map[string]interface{}
-
-	context.Lock()
-	defer context.Unlock()
-	err = context.Get("attributes", &attributes)
-
-	if err == state.ErrNoState {
-		return fmt.Errorf(i18n.G("attributes not found"))
-	}
+	var attrsTask *state.Task
+	attrsTask, err = attributesTask(context)
 	if err != nil {
-		return err
+		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
 	}
 
 	if c.ForcePlugSide && c.ForceSlotSide {
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	// the typical case, we don't expect snap name to be provided via snapctl get :<plug|slot> ...
-	// if it's provided it should be the current snap, otherwise it's an error.
-	if snapName == "" {
-		isPlugSide := (isPreparePlugHook || isConnectPlugHook)
-		isSlotSide := (isPrepareSlotHook || isConnectSlotHook)
-		if (isSlotSide && c.ForcePlugSide) || (isPlugSide && c.ForceSlotSide) {
-			// get attributes of the remote end
-			err = context.Get("other-snap", &snapName)
-			if err != nil {
-				// this should never happen unless the context is inconsistent
-				return fmt.Errorf(i18n.G("failed to get the name of the other snap from hook context: %q"), err)
-			}
-		} else {
-			// get own attributes
-			snapName = context.SnapName()
-		}
-	} else {
-		// support the unlikely case where snap name was provided but it's not the current snap.
-		if snapName != context.SnapName() {
-			return fmt.Errorf(i18n.G("snap name other than current snap cannot be used"))
-		}
-	}
-
-	// check if the requested plug or slot is correct for this hook.
-	var val string
-	if err := context.Get("plug-or-slot", &val); err == nil {
-		if val != plugOrSlot {
-			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
-		}
-	} else {
+	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
+	isSlotSide := (hookType == prepareSlotHook || hookType == connectSlotHook)
+	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
 
+	var which string
+	if (isPlugSide && !c.ForceSlotSide) || (isSlotSide && c.ForcePlugSide) {
+		which = "plug-attrs"
+	} else {
+		which = "slot-attrs"
+	}
+
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	attributes := make(map[string]interface{})
+	if err = attrsTask.Get(which, &attributes); err != nil {
+		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
+	}
+
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		if value, ok := attributes[snapName][key]; ok {
+		if value, ok := attributes[key]; ok {
 			return value, true, nil
 		}
 		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)

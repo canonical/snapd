@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,42 +17,8 @@
  *
  */
 
-#include "cleanup-funcs.h"
+package policy
 
-#include <mntent.h>
-#include <unistd.h>
-
-void sc_cleanup_string(char **ptr)
-{
-	if (ptr != NULL) {
-		free(*ptr);
-	}
-}
-
-void sc_cleanup_file(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		fclose(*ptr);
-	}
-}
-
-void sc_cleanup_endmntent(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		endmntent(*ptr);
-	}
-}
-
-void sc_cleanup_closedir(DIR ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		closedir(*ptr);
-	}
-}
-
-void sc_cleanup_close(int *ptr)
-{
-	if (ptr != NULL && *ptr != -1) {
-		close(*ptr);
-	}
-}
+var (
+	NestedGet = nestedGet
+)

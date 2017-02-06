@@ -20,11 +20,9 @@
 package ifacestate
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 type prepareHandler struct {
@@ -35,69 +33,12 @@ type connectHandler struct {
 	context *hookstate.Context
 }
 
-func connectTask(context *hookstate.Context) (*state.Task, error) {
-	var id string
-	err := context.Get("connect-task", &id)
-	if err != nil {
-		return nil, err
-	}
-	state := context.State()
-	ts := state.Task(id)
-	if ts == nil {
-		return nil, fmt.Errorf("Failed to find connect-task")
-	}
-	return ts, nil
-}
-
-func copyAttributesFromConnectTask(context *hookstate.Context) (err error) {
-	var ts *state.Task
-	if ts, err = connectTask(context); err != nil {
-		return err
-	}
-
-	var attrs map[string]interface{}
-	err = ts.Get("attributes", &attrs)
-	if err == state.ErrNoState {
-		return nil
-	}
-
-	if err == nil {
-		context.Set("attributes", attrs)
-	}
-
-	return err
-}
-
-func copyAttributesToConnectTask(context *hookstate.Context) error {
-	var attrs map[string]interface{}
-	err := context.Get("attributes", &attrs)
-	if err == state.ErrNoState {
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	var ts *state.Task
-	if ts, err = connectTask(context); err != nil {
-		return err
-	}
-
-	ts.Set("attributes", attrs)
+func (h *prepareHandler) Before() error {
 	return nil
 }
 
-func (h *prepareHandler) Before() error {
-	h.context.Lock()
-	defer h.context.Unlock()
-	return copyAttributesFromConnectTask(h.context)
-}
-
 func (h *prepareHandler) Done() error {
-	h.context.Lock()
-	defer h.context.Unlock()
-	return copyAttributesToConnectTask(h.context)
+	return nil
 }
 
 func (h *prepareHandler) Error(err error) error {
@@ -105,9 +46,7 @@ func (h *prepareHandler) Error(err error) error {
 }
 
 func (h *connectHandler) Before() error {
-	h.context.Lock()
-	defer h.context.Unlock()
-	return copyAttributesFromConnectTask(h.context)
+	return nil
 }
 
 func (h *connectHandler) Done() error {

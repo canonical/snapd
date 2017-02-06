@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -41,20 +42,30 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 
 	state := state.New(nil)
 	state.Lock()
-	defer state.Unlock()
 
-	attributes := make(map[string]map[string]interface{})
+	ch := state.NewChange("mychange", "mychange")
+	attrsTask := state.NewTask("connect-task", "my connect task")
+	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
+	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
 	attrs := make(map[string]interface{})
-	attributes["test-snap"] = attrs
-	contextData := map[string]interface{}{"attributes": attributes, "other-snap": "othersnap", "plug-or-slot": "aplug"}
+	attrs["foo"] = "bar"
+	attrs["baz"] = []string{"a", "b"}
+	attrsTask.Set("plug-attrs", attrs)
+	attrsTask.Set("slot-attrs", make(map[string]interface{}))
 
-	task := state.NewTask("test-task", "my test task")
-	task.Set("hook-context", contextData)
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-a"}
+	hookTask := state.NewTask("run-hook", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
+	ch.AddTask(attrsTask)
+	state.Unlock()
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
+	s.mockContext, err = hookstate.NewContext(hookTask, setup, s.mockHandler)
 	c.Assert(err, IsNil)
+
+	s.mockContext.Lock()
+	s.mockContext.Set("attrs-task", attrsTask.ID())
+	defer s.mockContext.Unlock()
+	ch.AddTask(hookTask)
 }
 
 func (s *setAttrSuite) TestCommand(c *C) {
@@ -63,13 +74,16 @@ func (s *setAttrSuite) TestCommand(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
-	s.mockContext.Lock()
-	defer s.mockContext.Unlock()
-	var attrs map[string]map[string]interface{}
-	err = s.mockContext.Get("attributes", &attrs)
-	c.Check(err, IsNil)
-	c.Check(attrs["test-snap"]["foo"], Equals, "bar")
-	c.Check(attrs["test-snap"]["baz"], DeepEquals, []interface{}{"a", "b"})
+	attrsTask, err := ctlcmd.AttributesTask(s.mockContext)
+	c.Assert(err, IsNil)
+	st := s.mockContext.State()
+	st.Lock()
+	defer st.Unlock()
+	attrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Check(attrs["foo"], Equals, "bar")
+	c.Check(attrs["baz"], DeepEquals, []interface{}{"a", "b"})
 }
 
 func (s *setAttrSuite) TestCommandFailsOutsideOfValidContext(c *C) {

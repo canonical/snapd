@@ -27,15 +27,13 @@ import (
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type setCommand struct {
 	baseCommand
 
 	Positional struct {
-		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>" required:"yes"`
+		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>"`
 		ConfValues     []string `positional-arg-name:"key=value"`
 	} `positional-args:"yes"`
 }
@@ -53,42 +51,46 @@ Nested values may be modified via a dotted path:
 
     $ snapctl set author.name=frank
 
-Plug attributes may be set in the prepare- and connect- plug hooks via:
+Plug and slot attributes may be set in the respective prepare and connect hooks by
+naming the respective plug or slot:
 
-    $ snapctl set :plugname serial-path=/dev/ttyS0
-
-Slot attributes may be set in the prepare- and connect- slot hooks via:
-
-    $ snapctl set :slotname camera-path=/dev/video0
+    $ snapctl set :myplug path=/dev/ttyS0
 `)
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} }, nil, nil)
+	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
 }
 
 func (s *setCommand) Execute(args []string) error {
+	if s.Positional.PlugOrSlotSpec == "" && len(s.Positional.ConfValues) == 0 {
+		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+	}
+
 	context := s.context()
 	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	var snapAndPlugOrSlot snap.SnapAndName
 	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
 	// values such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
 	if strings.Contains(s.Positional.PlugOrSlotSpec, "=") || !strings.Contains(s.Positional.PlugOrSlotSpec, ":") {
 		s.Positional.ConfValues = append([]string{s.Positional.PlugOrSlotSpec}, s.Positional.ConfValues[0:]...)
 		s.Positional.PlugOrSlotSpec = ""
-	} else {
-		snapAndPlugOrSlot.UnmarshalFlag(s.Positional.PlugOrSlotSpec)
+		return s.setConfigSetting(context)
 	}
 
-	if snapAndPlugOrSlot.Snap != "" && snapAndPlugOrSlot.Snap != s.context().SnapName() {
-		return fmt.Errorf(i18n.G("cannot set interface attribute of other snap: %q"), snapAndPlugOrSlot.Snap)
+	parts := strings.SplitN(s.Positional.PlugOrSlotSpec, ":", 2)
+	snap, name := parts[0], parts[1]
+	if name == "" {
+		return fmt.Errorf("plug or slot name not provided")
 	}
-	if snapAndPlugOrSlot.Name != "" {
-		return s.handleSetInterfaceAttributes(context, snapAndPlugOrSlot.Name)
+	if snap != "" {
+		return fmt.Errorf(`"snapctl set %s" not supported, use "snapctl set :%s" instead`, s.Positional.PlugOrSlotSpec, parts[1])
 	}
+	return s.setInterfaceSetting(context, name)
+}
 
+func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	context.Lock()
 	transaction := configstate.ContextTransaction(context)
 	context.Unlock()
@@ -112,39 +114,37 @@ func (s *setCommand) Execute(args []string) error {
 	return nil
 }
 
-func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, plugOrSlot string) error {
+func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
-	if !(strings.HasPrefix(context.HookName(), "prepare-slot-") ||
-		strings.HasPrefix(context.HookName(), "prepare-plug-")) {
-		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of interface hooks"))
+	hookType, _ := interfaceHookType(context.HookName())
+	if hookType != preparePlugHook && hookType != prepareSlotHook {
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare- hooks"))
 	}
 
-	context.Lock()
-	defer context.Unlock()
-
-	var attributes map[string]map[string]interface{}
-	if err := context.Get("attributes", &attributes); err != nil {
-		if err == state.ErrNoState {
-			return fmt.Errorf(i18n.G("attributes not found"))
-		}
-		return err
+	attrsTask, err := attributesTask(context)
+	if err != nil {
+		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
 	}
 
 	// check if the requested plug or slot is correct for this hook.
-	var val string
-	if err := context.Get("plug-or-slot", &val); err == nil {
-		if val != plugOrSlot {
-			return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
-		}
-	} else {
+	if err := validatePlugOrSlot(attrsTask, hookType == preparePlugHook, plugOrSlot); err != nil {
 		return err
 	}
 
-	var attrs map[string]interface{}
-	var ok bool
-	if attrs, ok = attributes[context.SnapName()]; !ok {
-		// this should never happen unless there is an inconsistency in hook task setup.
-		return fmt.Errorf(i18n.G("missing attributes for snap %s"), context.SnapName())
+	var which string
+	if hookType == preparePlugHook {
+		which = "plug-attrs"
+	} else {
+		which = "slot-attrs"
+	}
+
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
+	attributes := make(map[string]interface{})
+	if err := attrsTask.Get(which, &attributes); err != nil {
+		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -159,10 +159,9 @@ func (s *setCommand) handleSetInterfaceAttributes(context *hookstate.Context, pl
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attrs[parts[0]] = value
+		attributes[parts[0]] = value
 	}
 
-	attributes[context.SnapName()] = attrs
-	s.context().Set("attributes", attributes)
+	attrsTask.Set(which, attributes)
 	return nil
 }

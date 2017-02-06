@@ -37,6 +37,7 @@ restore: |
     fi
 
     rm -r $SEED_DIR
+    rm -f *.snap
     mv /etc/os-release.save /etc/os-release
     systemctl start snapd.socket snapd.service
 execute: |

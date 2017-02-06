@@ -75,28 +75,19 @@ type command interface {
 	Execute(args []string) error
 }
 
-type argDesc struct {
-	name string
-	desc string
-}
-
 type commandInfo struct {
 	shortHelp string
 	longHelp  string
 	generator func() command
-	optDescs  map[string]string
-	argDescs  []argDesc
 }
 
 var commands = make(map[string]*commandInfo)
 
-func addCommand(name, shortHelp, longHelp string, generator func() command, optDescs map[string]string, argDescs []argDesc) {
+func addCommand(name, shortHelp, longHelp string, generator func() command) {
 	commands[name] = &commandInfo{
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		generator: generator,
-		optDescs:  optDescs,
-		argDescs:  argDescs,
 	}
 }
 

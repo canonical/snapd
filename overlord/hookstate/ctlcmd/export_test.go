@@ -21,9 +21,11 @@ package ctlcmd
 
 import "fmt"
 
+var AttributesTask = attributesTask
+
 func AddMockCommand(name string) *MockCommand {
 	mockCommand := NewMockCommand()
-	addCommand(name, "", "", func() command { return mockCommand }, nil, nil)
+	addCommand(name, "", "", func() command { return mockCommand })
 	return mockCommand
 }
 
