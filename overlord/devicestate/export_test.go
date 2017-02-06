@@ -62,8 +62,8 @@ func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
 
-func (m *DeviceManager) EnsureOperationalBackoff(now time.Time) bool {
-	return m.ensureOperationalBackoff(now)
+func (m *DeviceManager) EnsureOperationalShouldBackoff(now time.Time) bool {
+	return m.ensureOperationalShouldBackoff(now)
 }
 
 func (m *DeviceManager) BecomeOperationalBackoff() time.Duration {

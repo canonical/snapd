@@ -116,16 +116,21 @@ func (m *DeviceManager) changeInFlight(kind string) bool {
 	return false
 }
 
-func (m *DeviceManager) ensureOperationalBackoff(now time.Time) bool {
+// ensureOperationalShouldBackoff returns whether we should abstain from
+// further become-operational tentatives while its backoff interval is
+// not expired.
+func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
 	if !m.lastBecomeOperationalAttempt.IsZero() && m.lastBecomeOperationalAttempt.Add(m.becomeOperationalBackoff).After(now) {
 		return true
 	}
 	if m.becomeOperationalBackoff == 0 {
 		m.becomeOperationalBackoff = 5 * time.Minute
 	} else {
-		if m.becomeOperationalBackoff < (160 * time.Minute) {
-			m.becomeOperationalBackoff *= 2
+		newBackoff := m.becomeOperationalBackoff * 2
+		if newBackoff > (12 * time.Hour) {
+			newBackoff = 24 * time.Hour
 		}
+		m.becomeOperationalBackoff = newBackoff
 	}
 	m.lastBecomeOperationalAttempt = now
 	return false
@@ -170,7 +175,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	// have some backoff between full retries
-	if m.ensureOperationalBackoff(time.Now()) {
+	if m.ensureOperationalShouldBackoff(time.Now()) {
 		return nil
 	}
 
