@@ -136,7 +136,7 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestConnectedSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.gadgetPlug, s.gadgetGpioSlot, interfaces.SecuritySystemd)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.gadgetPlug, nil, s.gadgetGpioSlot, nil, interfaces.SecuritySystemd)
 	c.Assert(err, IsNil)
 	var data interface{}
 	err = json.Unmarshal(snippet, &data)

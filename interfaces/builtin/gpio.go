@@ -140,7 +140,7 @@ func (iface *GpioInterface) ConnectedSlotRichSnippet(plug *interfaces.Plug, slot
 	return nil, nil
 }
 
-func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	richSnippet, err := iface.ConnectedSlotRichSnippet(plug, slot, securitySystem)
 	if err != nil {
 		return nil, err

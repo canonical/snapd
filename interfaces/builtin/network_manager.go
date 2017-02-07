@@ -444,7 +444,7 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 	return nil, nil
 }
 
-func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

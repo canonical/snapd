@@ -119,7 +119,7 @@ func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 // between a plug and a slot exists.
 //
 // Slots don't get any per-connection security snippets.
-func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

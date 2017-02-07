@@ -74,7 +74,7 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 	return nil, nil
 }
 
-func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

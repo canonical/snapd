@@ -223,7 +223,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
@@ -244,7 +244,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
 }
@@ -263,7 +263,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.app"),`)
 }
@@ -339,7 +339,7 @@ func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }

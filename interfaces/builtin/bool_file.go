@@ -87,7 +87,7 @@ func (iface *BoolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[st
 
 // ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
 // Applications associated with the slot don't gain any extra permissions.
-func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

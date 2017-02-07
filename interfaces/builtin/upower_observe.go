@@ -247,7 +247,7 @@ func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot,
 	return nil, nil
 }
 
-func (iface *UpowerObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UpowerObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")

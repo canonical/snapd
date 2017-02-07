@@ -172,7 +172,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 

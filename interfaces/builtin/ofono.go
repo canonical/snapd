@@ -295,7 +295,7 @@ func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 	return nil, nil
 }
 
-func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")

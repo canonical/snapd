@@ -386,7 +386,7 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	return nil, nil
 }
 
-func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")

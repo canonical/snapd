@@ -142,7 +142,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

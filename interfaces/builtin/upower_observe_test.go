@@ -208,7 +208,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.upower.app"),`)
 }

@@ -128,7 +128,7 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -395,7 +395,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.ConnectedSlotSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -414,7 +414,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.ConnectedSlotSnippet(s.connectedSystemPlug, s.connectedSystemSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.ConnectedSlotSnippet(s.connectedSystemPlug, nil, s.connectedSystemSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 

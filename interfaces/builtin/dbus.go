@@ -378,7 +378,7 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
-func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return nil, err

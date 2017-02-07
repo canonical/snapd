@@ -139,7 +139,7 @@ func (t *TestInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySyst
 
 // ConnectedSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.SlotSnippetCallback != nil {
 		return t.SlotSnippetCallback(plug, slot, securitySystem)
 	}

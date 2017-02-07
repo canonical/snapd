@@ -184,7 +184,7 @@ type Interface interface {
 	// An empty snippet is returned when there are no additional permissions
 	// that are required to implement this interface or when the interface
 	// doesn't recognize the security system.
-	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	ConnectedSlotSnippet(plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}, securitySystem SecuritySystem) ([]byte, error)
 
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
