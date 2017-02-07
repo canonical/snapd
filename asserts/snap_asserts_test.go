@@ -1326,22 +1326,13 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 	}
 }
 
-type snapDevSuite struct {
-	ts     time.Time
-	tsLine string
-}
-
-func (sds *snapDevSuite) SetUpSuite(c *C) {
-	sds.ts = time.Now().Truncate(time.Second).UTC()
-	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
-}
+type snapDevSuite struct{}
 
 func (sds *snapDevSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-developer\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"publisher-id: dev-id1\n" +
-		sds.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
@@ -1352,7 +1343,6 @@ func (sds *snapDevSuite) TestDecodeOK(c *C) {
 	c.Check(snapDev.AuthorityID(), Equals, "dev-id1")
 	c.Check(snapDev.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDev.SnapID(), Equals, "snap-id-1")
-	c.Check(snapDev.Timestamp(), Equals, sds.ts)
 }
 
 const (
@@ -1364,7 +1354,6 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"publisher-id: dev-id1\n" +
-		sds.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
@@ -1375,9 +1364,6 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		{"publisher-id: dev-id1\n", "publisher-id: dev-id2\n", `authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: \"dev-id1\" != \"dev-id2\"`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
-		{sds.tsLine, "", `"timestamp" header is mandatory`},
-		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
-		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -1395,7 +1381,6 @@ func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 		"authority-id": "dev-id1",
 		"snap-id":      "snap-id-1",
 		"publisher-id": "dev-id1",
-		"timestamp":    sds.ts.Format(time.RFC3339),
 	}
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
 	c.Assert(err, IsNil)

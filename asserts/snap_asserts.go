@@ -703,7 +703,6 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 // can collaborate on a snap while it's owned by a specific publisher.
 type SnapDeveloper struct {
 	assertionBase
-	timestamp time.Time
 }
 
 // SnapID returns the snap id of the snap.
@@ -714,11 +713,6 @@ func (snapdev *SnapDeveloper) SnapID() string {
 // PublisherID returns the publisher's account id.
 func (snapdev *SnapDeveloper) PublisherID() string {
 	return snapdev.HeaderString("publisher-id")
-}
-
-// Timestamp returns the time when the snap-developer assertion was created.
-func (snapdev *SnapDeveloper) Timestamp() time.Time {
-	return snapdev.timestamp
 }
 
 func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
@@ -755,13 +749,7 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 
 	// TODO(matt): `developers` header
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
-	if err != nil {
-		return nil, err
-	}
-
 	return &SnapDeveloper{
 		assertionBase: assert,
-		timestamp:     timestamp,
 	}, nil
 }
