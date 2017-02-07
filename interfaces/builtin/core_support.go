@@ -39,6 +39,16 @@ const coreSupportConnectedPlugAppArmor = `
 # Allow modifying /etc/systemd/timesyncd.conf for adjusting systemd-timesyncd's
 # timeservers
 /etc/systemd/timesyncd.conf rw,
+
+# Allow modifying sysctl configuration and applying the changes. For now, allow
+# reading all sysctl files but only allow modifying NN-snap*.conf and
+# snap*.conf files in /etc/sysctl.d.
+/etc/sysctl.conf                       r,
+/etc/sysctl.d/{,*}                     r,
+/etc/sysctl.d/{,[0-9][0-9]-}snap*.conf w,
+/{,usr/}{,s}bin/sysctl                 ixr,
+@{PROC}/sys/{,**}                      r,
+@{PROC}/sys/**                         w,
 `
 
 const coreSupportConnectedPlugSecComp = `
