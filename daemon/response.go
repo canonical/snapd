@@ -129,7 +129,7 @@ const (
 	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
-	errorKindNoSnap = errorKind("snap-no-snap")
+	errorKindNotSnap = errorKind("snap-not-a-snap")
 
 	errorKindSnapNeedsMode          = errorKind("snap-needs-mode")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
