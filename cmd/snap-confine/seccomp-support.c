@@ -106,7 +106,7 @@ static scmp_datum_t sc_map_search(char *s)
 
 	e.key = s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
-		die("hsearch_r failed");
+		die("hsearch_r failed for %s", s);
 
 	if (ep != NULL) {
 		scmp_datum_t *val_p = NULL;
