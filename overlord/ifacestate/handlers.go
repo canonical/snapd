@@ -297,15 +297,6 @@ func getTaskHookAttributes(task *state.Task) (map[string]interface{}, error) {
 	return nil, err
 }
 
-func addAttributes(targetAttrs map[string]interface{}, attrs map[string]interface{}) {
-	for k, v := range attrs {
-		// make sure existing attributes are not overwritten
-		if _, ok := targetAttrs[k]; !ok {
-			targetAttrs[k] = v
-		}
-	}
-}
-
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -354,13 +345,25 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	// get attributes set by interface hooks (if present) and add them to the plug/slot attributes
+	// get attributes set by interface hooks and validate plug/slot
 	if attributes, err := getTaskHookAttributes(task); err == nil {
+		if slot.Interface != plug.Interface {
+			return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+				plug.Snap.Name(), plug.Name, plug.Interface, slot.Snap.Name(), slot.Name, slot.Interface)
+		}
+		iface := m.repo.Interface(slot.Interface)
+		if iface == nil {
+			return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
+		}
 		if plugAttrs, ok := attributes[connRef.PlugRef.Snap].(map[string]interface{}); ok {
-			addAttributes(plug.Attrs, plugAttrs)
+			if err := iface.ValidatePlug(plug, plugAttrs); err != nil {
+				return err
+			}
 		}
 		if slotAttrs, ok := attributes[connRef.SlotRef.Snap].(map[string]interface{}); ok {
-			addAttributes(slot.Attrs, slotAttrs)
+			if err := iface.ValidateSlot(slot, slotAttrs); err != nil {
+				return err
+			}
 		}
 	} else {
 		return err
