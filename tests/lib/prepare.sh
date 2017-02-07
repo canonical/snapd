@@ -110,6 +110,9 @@ EOF
         snap install --${CORE_CHANNEL} core
         snap list | grep core
 
+        # ensure no auto-refresh happens during the tests
+        snap set core refresh.disabled=true
+
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
         if [ -n "$output" ]; then
@@ -328,6 +331,9 @@ prepare_all_snap() {
             exit 1
         fi
     done
+
+    # ensure no auto-refresh happens during the tests
+    snap set core refresh.disabled=true
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
