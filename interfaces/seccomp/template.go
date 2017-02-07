@@ -252,10 +252,16 @@ munmap
 
 nanosleep
 
-# LP: #1446748 - deny until we have syscall arg filtering. Alternatively, set
-# RLIMIT_NICE hard limit for apps, launch them under an appropriate nice value
-# and allow this call
-#nice
+# Allow using nice() with default or lower priority
+# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
+# currently have to use <=19. When that bug is fixed, use >=0
+nice <=19
+# Allow using setpriority to set the priority of the calling process to default
+# or lower priority (eg, 'nice -n 9 <command>')
+# default or lower priority.
+# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
+# currently have to use <=19. When that bug is fixed, use >=0
+setpriority PRIO_PROCESS 0 <=19
 
 # LP: #1446748 - support syscall arg filtering for mode_t with O_CREAT
 open
