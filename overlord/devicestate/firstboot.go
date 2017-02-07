@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,8 +34,11 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+var errNothingToDo = errors.New("nothing to do")
 
 func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
@@ -47,8 +51,13 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+
 	// ack all initial assertions
 	model, err := importAssertionsFromSeed(st)
+	if err == errNothingToDo {
+		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +119,6 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	ts := tsAll[len(tsAll)-1]
-	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 	markSeeded.WaitAll(ts)
 	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
 
@@ -135,6 +143,10 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	// set device,model from the model assertion
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
+	if release.OnClassic && os.IsNotExist(err) {
+		// on classic seeding is optional
+		return nil, errNothingToDo
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
