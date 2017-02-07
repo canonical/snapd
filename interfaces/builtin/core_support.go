@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,10 +24,11 @@ import (
 )
 
 const coreSupportConnectedPlugAppArmor = `
-# Description: Can control all aspects of systemd via the systemctl command
-# and update rsyslog configuration. The interface allows execution of the
-# systemctl binary unconfined. As such, this gives device ownership to the
-# snap.
+# Description: Can control all aspects of systemd via the systemctl command,
+# update rsyslog configuration, update systemd-timesyncd configuration and
+# update/apply sysctl configuration. The interface allows execution of the
+# systemctl binary unconfined and modifying all sysctl configuration. As such,
+# this gives device ownership to the snap.
 
 /bin/systemctl Uxr,
 
