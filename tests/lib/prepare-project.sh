@@ -35,7 +35,7 @@ build_deb(){
 download_from_ppa(){
     local ppa_version="$1"
 
-    for pkg in snap-confine ubuntu-core-launcher snapd; do
+    for pkg in snapd; do
         file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
     done
@@ -65,7 +65,7 @@ if [ "$SPREAD_BACKEND" = external ]; then
        snap remove classic
    fi
    # stop and disable autorefresh
-   systemctl disable --now snapd.refresh.timer
+   snap set core refresh.disabled=true
    exit 0
 fi
 
@@ -100,7 +100,7 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd snap-confine
+quiet apt-get purge -y snapd
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"

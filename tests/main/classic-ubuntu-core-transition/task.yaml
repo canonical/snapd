@@ -1,6 +1,8 @@
 summary: Ensure that the ubuntu-core -> core transition works
 
-systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm-32,-ubuntu-core-16-arm-64]
+# we never test on core because the transition can only happen on "classic"
+# we disable on ppc64el because the downloads are very slow there
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -25,7 +27,7 @@ execute: |
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge snapd
     apt_install_local ${GOPATH}/snapd_*.deb
-    snap install ubuntu-core
+    snap install --${CORE_CHANNEL} ubuntu-core
     snap install test-snapd-python-webserver
     snap interfaces |MATCH ":network.*test-snapd-python-webserver"
 
@@ -39,6 +41,7 @@ execute: |
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
+        snap change 3||true
         sleep 1
     done
 

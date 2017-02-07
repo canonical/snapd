@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -1119,6 +1120,16 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 
 	// the developer asked us to do this with a trusted snap dir
 	info, err := unsafeReadSnapInfo(trydir)
+	if _, ok := err.(snap.NotSnapError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNotSnap,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
@@ -1421,13 +1432,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	transaction := configstate.NewTransaction(s)
+	tr := config.NewTransaction(s)
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
 	for _, key := range keys {
 		var value interface{}
-		if err := transaction.Get(snapName, key, &value); err != nil {
+		if err := tr.Get(snapName, key, &value); err != nil {
 			return BadRequest("%s", err)
 		}
 

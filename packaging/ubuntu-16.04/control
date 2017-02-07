@@ -57,13 +57,13 @@ Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
          gnupg1 | gnupg,
-         snap-confine (= ${binary:Version}),
          squashfs-tools,
          systemd,
+         xdelta3,
          ${misc:Depends},
          ${shlibs:Depends}
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
+Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
@@ -98,19 +98,15 @@ Description: transitional dummy package
 
 Package: snap-confine
 Architecture: any
-Breaks: ubuntu-core-launcher (<< 2.22)
-Replaces: ubuntu-core-launcher (<< 2.22)
-Depends: apparmor (>= 2.10.95-0ubuntu2.2), ${misc:Depends}, ${shlibs:Depends}
-Description: Support executable to apply confinement for snappy apps
- This package contains an internal tool for applying confinement to snappy app.
- The executable (snap-confine) is ran internally by snapd to apply confinement
- to the started application process. The tool is written in C and carefully
- reviewed to limit the attack surface on the security model of snapd.
+Section: oldlibs
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
+Description: Transitional package for snapd
+ This is a transitional dummy package. It can safely be removed.
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: snap-confine (= ${binary:Version}), ${misc:Depends}
+Depends: snapd (= ${binary:Version}), ${misc:Depends}
 Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Transitional package for snap-confine
+Description: Transitional package for snapd
  This is a transitional dummy package. It can safely be removed.

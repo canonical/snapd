@@ -54,7 +54,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -142,6 +142,10 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		ID:        "ubuntu",
 		VersionID: "mocked",
 	})
+
+	snapstate.CanAutoRefresh = func(*state.State) bool {
+		return false
+	}
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
@@ -2179,10 +2183,10 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 
 	// Set a config that we'll get in a moment
 	d.overlord.State().Lock()
-	transaction := configstate.NewTransaction(d.overlord.State())
-	transaction.Set("test-snap", "test-key1", "test-value1")
-	transaction.Set("test-snap", "test-key2", "test-value2")
-	transaction.Commit()
+	tr := config.NewTransaction(d.overlord.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Commit()
 	d.overlord.State().Unlock()
 
 	result := s.runGetConf(c, []string{"test-key1"})
