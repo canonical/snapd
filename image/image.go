@@ -117,6 +117,11 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	// TODO: might make sense to support this later
+	if model.Classic() {
+		return fmt.Errorf("classic models are not supported")
+	}
+
 	local, err := localSnaps(opts)
 	if err != nil {
 		return err
