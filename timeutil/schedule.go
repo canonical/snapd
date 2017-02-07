@@ -29,14 +29,14 @@ import (
 
 var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
 
-type TimeOnly struct {
+type TimeOfDay struct {
 	Hour   int
 	Minute int
 }
 
 // ParseTime parses a string that contains hour:minute and returns
-// an TimeOnly type or an error
-func ParseTime(s string) (t TimeOnly, err error) {
+// an TimeOfDay type or an error
+func ParseTime(s string) (t TimeOfDay, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) < 3 {
 		return t, fmt.Errorf("cannot parse %q", s)
@@ -49,14 +49,14 @@ func ParseTime(s string) (t TimeOnly, err error) {
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
 	}
-	return TimeOnly{Hour: hour, Minute: minute}, nil
+	return TimeOfDay{Hour: hour, Minute: minute}, nil
 }
 
 // Schedule defines a start and end time and an optional weekday in which
 // events should run.
 type Schedule struct {
-	Start TimeOnly
-	End   TimeOnly
+	Start TimeOfDay
+	End   TimeOfDay
 
 	Weekday string
 }
