@@ -44,7 +44,7 @@ capability sys_rawio,
 
 # util-linux
 /{,usr/}bin/lscpu ixr,
-@{PROC}/bus/pci/devices r,
+@{PROC}/bus/pci/{,**} r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic
