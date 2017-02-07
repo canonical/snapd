@@ -4,4 +4,4 @@ plugs:
     foo:
         interface: content
         target: initialtarget
-        content: x
+        content: xyz
