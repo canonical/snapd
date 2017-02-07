@@ -95,3 +95,5 @@ execute: |
     cat stderr.out | MATCH "snap \"$SNAP_NAME\" has no updates available"
 
     echo "classic snaps "
+
+    snap refresh $SNAP_NAME core | MATCH "All snaps up to date."
