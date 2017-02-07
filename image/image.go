@@ -32,16 +32,18 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
 )
 
 type Options struct {
@@ -120,6 +122,10 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	// FIXME: limitation until we can pass series parametrized much more
+	if model.Series() != release.Series {
+		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
+	}
 	sto := makeStore(model)
 
 	if err := downloadUnpackGadget(sto, model, opts, local); err != nil {
@@ -228,6 +234,16 @@ func installCloudConfig(gadgetDir string) error {
 
 const defaultCore = "core"
 
+var trusted = sysdb.Trusted()
+
+func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
+	prevTrusted := trusted
+	trusted = mockTrusted
+	return func() {
+		trusted = prevTrusted
+	}
+}
+
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -244,7 +260,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	// a bit more API there, potential issues when crossing stores/series)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   sysdb.Trusted(),
+		Trusted:   trusted,
 	})
 	if err != nil {
 		return err
@@ -255,7 +271,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
-			logger.Noticef("Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image: %v", err)
+			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
 		}
 	}
@@ -291,6 +307,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	snaps = append(snaps, opts.Snaps...)
 
 	seen := make(map[string]bool)
+	var locals []string
 	downloadedSnapsInfo := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
@@ -312,18 +329,34 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		}
 
 		seen[name] = true
+		typ := info.Type
 
 		// if it comes from the store fetch the snap assertions too
 		// TODO: support somehow including available assertions
 		// also for local snaps
 		if info.SnapID != "" {
-			err = FetchAndCheckSnapAssertions(fn, info, f, db)
+			snapDecl, err := FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {
 				return err
 			}
+			var kind string
+			switch typ {
+			case snap.TypeKernel:
+				kind = "kernel"
+			case snap.TypeGadget:
+				kind = "gadget"
+			}
+			if kind != "" { // kernel or gadget
+				// TODO: share helpers with devicestate if the policy becomes much more complicated
+				publisher := snapDecl.PublisherID()
+				if publisher != model.BrandID() && publisher != "canonical" {
+					return fmt.Errorf("cannot use %s %q published by %q for model by %q", kind, name, publisher, model.BrandID())
+				}
+			}
+		} else {
+			locals = append(locals, name)
 		}
 
-		typ := info.Type
 		// kernel/os are required for booting
 		if typ == snap.TypeKernel || typ == snap.TypeOS {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
@@ -345,6 +378,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
 		})
+	}
+	if len(locals) > 0 {
+		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
 
 	for _, aRef := range f.addedRefs {
@@ -462,7 +498,6 @@ func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath str
 func makeStore(model *asserts.Model) Store {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = model.Architecture()
-	cfg.Series = model.Series()
 	cfg.StoreID = model.Store()
 	return store.New(cfg, nil)
 }
