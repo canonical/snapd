@@ -446,20 +446,15 @@ const unity7ConnectedPlugSecComp = `
 # eavesdropping or apps interfering with one another.
 
 # X
-getpeername
 recvfrom
 recvmsg
 shutdown
-getsockopt
 
 # dbus
-connect
-getsockname
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewUnity7Interface returns a new "unity7" interface.
