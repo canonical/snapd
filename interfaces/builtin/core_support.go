@@ -35,6 +35,10 @@ const coreSupportConnectedPlugAppArmor = `
 # now, only allow modifying NN-snap*.conf and snap*.conf files.
 /etc/rsyslog.d/{,*}                     r,
 /etc/rsyslog.d/{,[0-9][0-9]-}snap*.conf w,
+
+# Allow modifying /etc/systemd/timesyncd.conf for adjusting systemd-timesyncd's
+# timeservers
+/etc/systemd/timesyncd.conf rw,
 `
 
 const coreSupportConnectedPlugSecComp = `
