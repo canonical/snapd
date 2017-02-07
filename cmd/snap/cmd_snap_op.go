@@ -619,6 +619,12 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
+
+	if len(x.Positional.Snaps) == 0 && os.Getenv("SNAP_REFRESH_FROM_TIMER") == "1" {
+		fmt.Fprintf(Stdout, "Ignoring `snap refresh` from the systemd timer")
+		return nil
+	}
+
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
 		names[i] = string(name)

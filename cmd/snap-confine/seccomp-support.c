@@ -17,6 +17,7 @@
 #include "config.h"
 #include "seccomp-support.h"
 
+#include <asm/ioctls.h>
 #include <ctype.h>
 #include <errno.h>
 #include <linux/can.h>		// needed for search mappings
@@ -31,6 +32,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include <seccomp.h>
@@ -294,6 +296,9 @@ static void sc_map_init()
 	sc_map_add(CLONE_NEWPID);
 	sc_map_add(CLONE_NEWUSER);
 	sc_map_add(CLONE_NEWUTS);
+
+	// man 4 tty_ioctl
+	sc_map_add(TIOCSTI);
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
