@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -107,6 +108,7 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
+	snap.AddImplicitSlots(snapInfo)
 
 	slotAttrs := make(map[string]interface{})
 	if slot, ok := snapInfo.Slots[slotName]; ok {
