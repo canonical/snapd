@@ -35,7 +35,7 @@ var maliitInputMethodPermanentSlotAppArmor = []byte(`
 /usr/share/glib-2.0/schemas/ r,
 
 # maliit uses peer-to-peer dbus over a unix socket after address negotiation
-unix (bind, send, receive, listen, accept) addr="@/tmp/maliit-server/dbus-*",
+unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 `)
 
 var maliitInputMethodConnectedSlotAppArmor = []byte(`
@@ -45,6 +45,8 @@ dbus (send, receive)
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 var maliitInputMethodConnectedPlugAppArmor = []byte(`
@@ -60,7 +62,7 @@ dbus (send, receive)
     path=/org/maliit/server/address
     peer=(label=###SLOT_SECURITY_TAGS###),
 
-unix (send, receive, connect) addr=none peer=(label=###SLOT_SECURITY_TAGS###),
+unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
 var maliitInputMethodPermanentSlotSecComp = []byte(`
