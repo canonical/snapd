@@ -839,6 +839,32 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// canAutoRefresh is a helper that checks if the device is able to
+// auto-refresh
+func canAutoRefresh(st *state.State) bool {
+	// no need to wait for seeding on classic
+	if release.OnClassic {
+		return true
+	}
+
+	// on all-snap devices we need to be seeded first
+	var seeded bool
+	st.Get("seeded", &seeded)
+	if !seeded {
+		return false
+	}
+
+	// FIXME: The serial requirement means that developer images
+	// with custom models will not auto-refresh
+	// and we also need to have a serial
+	_, err := Serial(st)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 var repeatRequestSerial string
 
 // implementing auth.DeviceAssertions
@@ -1007,4 +1033,5 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 
 func init() {
 	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+	snapstate.CanAutoRefresh = canAutoRefresh
 }
