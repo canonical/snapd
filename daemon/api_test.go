@@ -229,6 +229,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
+	// mark as already seeded
+	st.Set("seeded", true)
 
 	s.d = d
 	return d
@@ -1792,7 +1794,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1816,7 +1818,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1833,7 +1835,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 	// add the assertions first
@@ -1915,7 +1917,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1958,7 +1960,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 }
 
 func (s *apiSuite) TestTrySnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2073,7 +2075,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 

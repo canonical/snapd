@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -99,6 +100,25 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	s.mockUdevAdm.Restore()
 
 	s.restore()
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
+	c.Assert(err, IsNil)
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// only mark seeded
+	c.Check(tsAll, HasLen, 1)
+	tasks := tsAll[0].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
@@ -200,7 +220,8 @@ snaps:
 	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
 
 	// now run the change and check the result
-	chg := st.NewChange("run-it", "run the populate from seed changes")
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -364,7 +385,8 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("run-it", "run the populate from seed changes")
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
