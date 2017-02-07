@@ -189,11 +189,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	var defaults map[string]interface{}
 
 	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+		// FIXME: this doesn't work during seeding itself
 		gadget, err := GadgetInfo(st)
 		if err != nil && err != state.ErrNoState {
 			return nil, err
 		}
-		if err == nil {
+		if err == nil && !release.OnClassic {
+			// XXX: we likely want defaults on classic with gadget
+			// but atm this function is too strict?
+			// how should gadget.yaml look like for classic?
 			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
 			if err != nil {
 				return nil, err
