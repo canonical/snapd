@@ -124,6 +124,7 @@ all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args_null \
     snap-confine/tests/test_bad_seccomp_filter_args_prctl \
     snap-confine/tests/test_bad_seccomp_filter_args_prio \
+    snap-confine/tests/test_bad_seccomp_filter_args_quotactl \
     snap-confine/tests/test_bad_seccomp_filter_args_socket \
     snap-confine/tests/test_bad_seccomp_filter_args_termios \
     snap-confine/tests/test_bad_seccomp_filter_length \
@@ -138,6 +139,7 @@ all_tests = \
     snap-confine/tests/test_restrictions_working_args_mknod \
     snap-confine/tests/test_restrictions_working_args_prctl \
     snap-confine/tests/test_restrictions_working_args_prio \
+    snap-confine/tests/test_restrictions_working_args_quotactl \
     snap-confine/tests/test_restrictions_working_args_socket \
     snap-confine/tests/test_restrictions_working_args_termios \
     snap-confine/tests/test_unrestricted \
