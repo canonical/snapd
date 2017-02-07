@@ -58,6 +58,7 @@ var allInterfaces = []interfaces.Interface{
 	&UhidInterface{},
 	NewAccountControlInterface(),
 	NewAlsaInterface(),
+	NewAutopilotIntrospectionInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
 	NewCameraInterface(),
