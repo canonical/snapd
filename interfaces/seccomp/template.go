@@ -185,8 +185,9 @@ inotify_init
 inotify_init1
 inotify_rm_watch
 
-# Needed by shell
-ioctl
+# TIOCSTI allows for faking input (man tty_ioctl)
+# TODO: this should be scaled back even more
+ioctl - !TIOCSTI
 
 io_cancel
 io_destroy
