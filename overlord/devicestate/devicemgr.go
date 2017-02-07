@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -61,6 +62,9 @@ type DeviceManager struct {
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
 	bootOkRan  bool
+
+	lastBecomeOperationalAttempt time.Time
+	becomeOperationalBackoff     time.Duration
 }
 
 // Manager returns a new device manager.
@@ -112,6 +116,26 @@ func (m *DeviceManager) changeInFlight(kind string) bool {
 	return false
 }
 
+// ensureOperationalShouldBackoff returns whether we should abstain from
+// further become-operational tentatives while its backoff interval is
+// not expired.
+func (m *DeviceManager) ensureOperationalShouldBackoff(now time.Time) bool {
+	if !m.lastBecomeOperationalAttempt.IsZero() && m.lastBecomeOperationalAttempt.Add(m.becomeOperationalBackoff).After(now) {
+		return true
+	}
+	if m.becomeOperationalBackoff == 0 {
+		m.becomeOperationalBackoff = 5 * time.Minute
+	} else {
+		newBackoff := m.becomeOperationalBackoff * 2
+		if newBackoff > (12 * time.Hour) {
+			newBackoff = 24 * time.Hour
+		}
+		m.becomeOperationalBackoff = newBackoff
+	}
+	m.lastBecomeOperationalAttempt = now
+	return false
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -141,11 +165,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	if serialRequestURL == "" {
-		// cannot do anything actually
-		return nil
-	}
-
 	gadgetInfo, err := snapstate.GadgetInfo(m.state)
 	if err == state.ErrNoState {
 		// no gadget installed yet, cannot proceed
@@ -153,6 +172,11 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	if err != nil {
 		return err
+	}
+
+	// have some backoff between full retries
+	if m.ensureOperationalShouldBackoff(time.Now()) {
+		return nil
 	}
 
 	// XXX: some of these will need to be split and use hooks
@@ -447,6 +471,33 @@ func retryErr(t *state.Task, reason string, a ...interface{}) error {
 	return &state.Retry{After: retryInterval}
 }
 
+type serverError struct {
+	Message string         `json:"message"`
+	Errors  []*serverError `json:"error_list"`
+}
+
+func retryBadStatus(t *state.Task, reason string, resp *http.Response) error {
+	if resp.StatusCode > http.StatusInternalServerError {
+		// likely temporary
+		return retryErr(t, "%s: unexpected status %d", reason, resp.StatusCode)
+	}
+	if resp.Header.Get("Content-Type") == "application/json" {
+		var srvErr serverError
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&srvErr)
+		if err == nil {
+			msg := srvErr.Message
+			if msg == "" && len(srvErr.Errors) > 0 {
+				msg = srvErr.Errors[0].Message
+			}
+			if msg != "" {
+				return fmt.Errorf("%s: %s", reason, msg)
+			}
+		}
+	}
+	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
+}
+
 func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	st := t.State()
 	st.Unlock()
@@ -465,7 +516,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
+		return "", retryBadStatus(t, "cannot retrieve request-id for making a request for a serial", resp)
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -525,7 +576,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	case 202:
 		return nil, errPoll
 	default:
-		return nil, retryErr(t, "cannot deliver device serial request: unexpected status %d", resp.StatusCode)
+		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
 	}
 
 	// decode body with serial assertion
@@ -788,6 +839,32 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// canAutoRefresh is a helper that checks if the device is able to
+// auto-refresh
+func canAutoRefresh(st *state.State) bool {
+	// no need to wait for seeding on classic
+	if release.OnClassic {
+		return true
+	}
+
+	// on all-snap devices we need to be seeded first
+	var seeded bool
+	st.Get("seeded", &seeded)
+	if !seeded {
+		return false
+	}
+
+	// FIXME: The serial requirement means that developer images
+	// with custom models will not auto-refresh
+	// and we also need to have a serial
+	_, err := Serial(st)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 var repeatRequestSerial string
 
 // implementing auth.DeviceAssertions
@@ -915,6 +992,27 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return fmt.Errorf("cannot install a %s snap on classic", kind)
 	}
 
+	model, err := Model(st)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot install %s without model assertion", kind)
+	}
+	if err != nil {
+		return err
+	}
+
+	if snapInfo.SnapID != "" {
+		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+		}
+		publisher := snapDecl.PublisherID()
+		if publisher != "canonical" && publisher != model.BrandID() {
+			return fmt.Errorf("cannot install %s %q published by %q for model by %q", kind, snapInfo.Name(), publisher, model.BrandID())
+		}
+	} else {
+		logger.Noticef("installing unasserted %s %q", kind, snapInfo.Name())
+	}
+
 	currentSnap, err := currentInfo(st)
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
@@ -924,14 +1022,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		return nil
 	}
 	// first installation of a gadget/kernel
-
-	model, err := Model(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
 
 	expectedName := getName(model)
 	if snapInfo.Name() != expectedName {
@@ -943,4 +1033,5 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 
 func init() {
 	snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+	snapstate.CanAutoRefresh = canAutoRefresh
 }

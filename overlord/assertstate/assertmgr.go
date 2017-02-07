@@ -475,6 +475,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 func init() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
+	// hook auto refresh of assertions into snapstate
+	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
 }
 
 // BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
@@ -537,4 +539,9 @@ func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
 func init() {
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
+}
+
+// AutoRefreshAssertions tries to refresh all assertions
+func AutoRefreshAssertions(s *state.State, userID int) error {
+	return RefreshSnapDeclarations(s, userID)
 }
