@@ -265,7 +265,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"classic: true\n", "classic: foo\n", `"classic" header must be 'true' or 'false'`},
 		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
-		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `classic model cannot specify explicitly a kernel`},
+		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
 	}
 
 	for _, test := range invalidTests {
