@@ -104,7 +104,7 @@ static scmp_datum_t sc_map_search(const char *s)
 	scmp_datum_t val = 0;
 	errno = 0;
 
-	e.key = (char*)s;
+	e.key = (char *)s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed");
 
