@@ -103,8 +103,14 @@ func CommandFromCore(name string, arg ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	coreLdSo := filepath.Join(root, interp)
+	if IsSymlink(coreLdSo) {
+		link, err := os.Readlink(coreLdSo)
+		if err != nil {
+			return nil, err
+		}
+		coreLdSo = filepath.Join(root, link)
+	}
 
 	ldLibraryPathForCore := libraryPathForCore("/etc/ld.so.conf")
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
