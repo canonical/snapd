@@ -7,11 +7,7 @@ if ! output=$(snapctl get --slot :foo read); then
     exit 1
 fi
 
-PATTERN="read.:\s*\[\s*\n\
-\s*\"/etc\",\n\
-\s*\"/usr\"\n\
-\s*\]\n\
-\}"
+PATTERN="read.:\s*.*?/etc"
 
 echo "$output" | grep -Pzq "$PATTERN"
 

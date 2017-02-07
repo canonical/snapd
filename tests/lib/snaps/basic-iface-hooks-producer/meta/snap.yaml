@@ -5,5 +5,4 @@ slots:
         interface: content
         content: abc
         read:
-            - /etc
-            - /usr
+            - $SNAP/etc
