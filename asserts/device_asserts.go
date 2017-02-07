@@ -181,9 +181,8 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	if classic {
-		_, ok := assert.headers["kernel"]
-		if ok {
-			return nil, fmt.Errorf("classic model cannot specify explicitly a kernel")
+		if _, ok := assert.headers["kernel"]; ok {
+			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
 	}
 
