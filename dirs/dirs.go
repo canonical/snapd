@@ -61,6 +61,8 @@ var (
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
 
+	SystemApparmorDir string
+
 	CloudMetaDataFile string
 
 	ClassicDir string
@@ -133,6 +135,8 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+
+	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d/")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 

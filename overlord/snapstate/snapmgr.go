@@ -23,13 +23,18 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -551,6 +556,45 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
+// ensureSnapConfineApparmor ensures that we have a valid apparmor
+// profile for snap-confine when we are in re-exec mode
+func (m *SnapManager) ensureSnapConfineApparmor() error {
+	if !release.OnClassic {
+		return nil
+	}
+
+	root := filepath.Join(dirs.SnapMountDir, "/core/current/")
+	snapConfineInCore, err := filepath.EvalSymlinks(filepath.Join(root, "/usr/lib/snapd/snap-confine"))
+	if err != nil {
+		return err
+	}
+
+	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
+	if osutil.FileExists(apparmorProfilePath) {
+		return nil
+	}
+
+	// FIXME2: cleanup old entries here
+
+	// FIXME: what to do for debian? debian has a less powerful apparmor
+	//        so we can not use the ubuntu profile?
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(root, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+	if err != nil {
+		return err
+	}
+	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
+
+	if err := ioutil.WriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644); err != nil {
+		return err
+	}
+
+	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
@@ -559,6 +603,12 @@ func (m *SnapManager) Ensure() error {
 	err2 := m.ensureRefreshes()
 
 	m.runner.Ensure()
+
+	// needs to run after the runner
+	if err := m.ensureSnapConfineApparmor(); err != nil {
+		// FIMXE: this will spam the world as ensure runs often
+		logger.Noticef("ensureSnapConfineApparmor failed with: %s", err)
+	}
 
 	//FIXME: use firstErr helper
 	if err1 != nil {

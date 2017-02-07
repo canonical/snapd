@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -181,7 +182,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	snapConfinePathInCore := filepath.Join(dirs.SnapMountDir, "/core/current/", snapConfinePath)
 
 	cmd := []string{}
-	if osutil.FileExists(snapConfinePathInCore) {
+	if release.OnClassic && osutil.FileExists(snapConfinePathInCore) {
 		cmd = append(cmd, snapConfinePathInCore)
 	} else {
 		cmd = append(cmd, snapConfinePath)
