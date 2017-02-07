@@ -103,18 +103,22 @@ EOF
 StartLimitInterval=0
 EOF
 
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
+    fi
+
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        if [ "$REMOTE_STORE" = staging ]; then
-            . $TESTSLIB/store.sh
-            setup_staging_store
-        fi
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
         snap install --${CORE_CHANNEL} core
         snap list | grep core
+
+        # ensure no auto-refresh happens during the tests
+        snap set core refresh.disabled=true
 
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
@@ -336,6 +340,9 @@ prepare_all_snap() {
             exit 1
         fi
     done
+
+    # ensure no auto-refresh happens during the tests
+    snap set core refresh.disabled=true
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then

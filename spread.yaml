@@ -231,7 +231,7 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        systemctl enable --now snapd.refresh.timer
+        snap config set core refresh.disabled=false
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
