@@ -3,7 +3,7 @@ version: 1.0
 slots:
     bar:
         interface: content
-        content: y
+        content: abc
         read:
             - /etc
             - /usr
