@@ -23,41 +23,69 @@
 
 static void test_sc_mount_opt2str()
 {
-	g_assert_cmpstr(sc_mount_opt2str(0), ==, "");
-	g_assert_cmpstr(sc_mount_opt2str(MS_RDONLY), ==, "ro");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NOSUID), ==, "nosuid");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NODEV), ==, "nodev");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NOEXEC), ==, "noexec");
-	g_assert_cmpstr(sc_mount_opt2str(MS_SYNCHRONOUS), ==, "sync");
-	g_assert_cmpstr(sc_mount_opt2str(MS_REMOUNT), ==, "remount");
-	g_assert_cmpstr(sc_mount_opt2str(MS_MANDLOCK), ==, "mand");
-	g_assert_cmpstr(sc_mount_opt2str(MS_DIRSYNC), ==, "dirsync");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NOATIME), ==, "noatime");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NODIRATIME), ==, "nodiratime");
-	g_assert_cmpstr(sc_mount_opt2str(MS_BIND), ==, "bind");
-	g_assert_cmpstr(sc_mount_opt2str(MS_REC | MS_BIND), ==, "rbind");
-	g_assert_cmpstr(sc_mount_opt2str(MS_MOVE), ==, "move");
-	g_assert_cmpstr(sc_mount_opt2str(MS_SILENT), ==, "silent");
-	g_assert_cmpstr(sc_mount_opt2str(MS_POSIXACL), ==, "acl");
-	g_assert_cmpstr(sc_mount_opt2str(MS_UNBINDABLE), ==, "unbindable");
-	g_assert_cmpstr(sc_mount_opt2str(MS_PRIVATE), ==, "private");
-	g_assert_cmpstr(sc_mount_opt2str(MS_REC | MS_PRIVATE), ==, "rprivate");
-	g_assert_cmpstr(sc_mount_opt2str(MS_SLAVE), ==, "slave");
-	g_assert_cmpstr(sc_mount_opt2str(MS_REC | MS_SLAVE), ==, "rslave");
-	g_assert_cmpstr(sc_mount_opt2str(MS_SHARED), ==, "shared");
-	g_assert_cmpstr(sc_mount_opt2str(MS_REC | MS_SHARED), ==, "rshared");
-	g_assert_cmpstr(sc_mount_opt2str(MS_RELATIME), ==, "relatime");
-	g_assert_cmpstr(sc_mount_opt2str(MS_KERNMOUNT), ==, "kernmount");
-	g_assert_cmpstr(sc_mount_opt2str(MS_I_VERSION), ==, "iversion");
-	g_assert_cmpstr(sc_mount_opt2str(MS_STRICTATIME), ==, "strictatime");
-	g_assert_cmpstr(sc_mount_opt2str(MS_LAZYTIME), ==, "lazytime");
+	char buf[1000];
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, 0), ==, "");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_RDONLY), ==, "ro");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOSUID), ==,
+			"nosuid");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NODEV), ==,
+			"nodev");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOEXEC), ==,
+			"noexec");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_SYNCHRONOUS), ==,
+			"sync");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_REMOUNT), ==,
+			"remount");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_MANDLOCK), ==,
+			"mand");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_DIRSYNC), ==,
+			"dirsync");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOATIME), ==,
+			"noatime");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NODIRATIME), ==,
+			"nodiratime");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_BIND), ==, "bind");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_REC | MS_BIND), ==,
+			"rbind");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_MOVE), ==, "move");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_SILENT), ==,
+			"silent");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_POSIXACL), ==,
+			"acl");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_UNBINDABLE), ==,
+			"unbindable");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_PRIVATE), ==,
+			"private");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_REC | MS_PRIVATE),
+			==, "rprivate");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_SLAVE), ==,
+			"slave");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_REC | MS_SLAVE),
+			==, "rslave");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_SHARED), ==,
+			"shared");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_REC | MS_SHARED),
+			==, "rshared");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_RELATIME), ==,
+			"relatime");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_KERNMOUNT), ==,
+			"kernmount");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_I_VERSION), ==,
+			"iversion");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_STRICTATIME), ==,
+			"strictatime");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_LAZYTIME), ==,
+			"lazytime");
 	// MS_NOSEC is not defined in userspace
 	// MS_BORN is not defined in userspace
-	g_assert_cmpstr(sc_mount_opt2str(MS_ACTIVE), ==, "active");
-	g_assert_cmpstr(sc_mount_opt2str(MS_NOUSER), ==, "nouser");
-	g_assert_cmpstr(sc_mount_opt2str(0x300), ==, "0x300");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_ACTIVE), ==,
+			"active");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOUSER), ==,
+			"nouser");
+	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, 0x300), ==, "0x300");
 	// random compositions do work
-	g_assert_cmpstr(sc_mount_opt2str(MS_RDONLY | MS_NOEXEC | MS_BIND), ==,
+	g_assert_cmpstr(sc_mount_opt2str
+			(buf, sizeof buf, MS_RDONLY | MS_NOEXEC | MS_BIND), ==,
 			"ro,noexec,bind");
 }
 
