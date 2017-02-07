@@ -682,7 +682,7 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
   "type": "error",
   "result": {
     "message":"error from server",
-    "kind":"snap-not-snap"
+    "kind":"snap-not-a-snap"
   },
   "status-code": 400
 }

@@ -1124,7 +1124,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindNoSnap,
+				Kind:    errorKindNotSnap,
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
