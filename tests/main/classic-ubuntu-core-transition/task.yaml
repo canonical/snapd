@@ -41,6 +41,7 @@ execute: |
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
+        snap change 3||true
         sleep 1
     done
 
