@@ -109,7 +109,11 @@ func CommandFromCore(name string, arg ...string) (*exec.Cmd, error) {
 		if err != nil {
 			return nil, err
 		}
-		coreLdSo = filepath.Join(root, link)
+		if strings.HasPrefix(link, "/") {
+			coreLdSo = filepath.Join(root, link)
+		} else {
+			coreLdSo = filepath.Join(filepath.Dir(coreLdSo), link)
+		}
 	}
 
 	ldLibraryPathForCore := libraryPathForCore("/etc/ld.so.conf")
