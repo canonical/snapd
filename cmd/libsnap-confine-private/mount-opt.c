@@ -22,13 +22,13 @@
 #include <sys/mount.h>
 
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 
-const char *sc_mount_opt2str(unsigned long flags)
+const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
-	static char buf[1000];
 	unsigned long used = 0;
 	strcpy(buf, "");
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { strcat(buf, #TEXT ","); flags ^= (FLAG); } while (0)
+#define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
@@ -41,10 +41,10 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_NODIRATIME, nodiratime);
 	if (flags & MS_BIND) {
 		if (flags & MS_REC) {
-			strcat(buf, "rbind,");
+			sc_string_append(buf, buf_size, "rbind,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "bind,");
+			sc_string_append(buf, buf_size, "bind,");
 		}
 		flags ^= MS_BIND;
 	}
@@ -57,28 +57,28 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_UNBINDABLE, unbindable);
 	if (flags & MS_PRIVATE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rprivate,");
+			sc_string_append(buf, buf_size, "rprivate,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "private,");
+			sc_string_append(buf, buf_size, "private,");
 		}
 		flags ^= MS_PRIVATE;
 	}
 	if (flags & MS_SLAVE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rslave,");
+			sc_string_append(buf, buf_size, "rslave,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "slave,");
+			sc_string_append(buf, buf_size, "slave,");
 		}
 		flags ^= MS_SLAVE;
 	}
 	if (flags & MS_SHARED) {
 		if (flags & MS_REC) {
-			strcat(buf, "rshared,");
+			sc_string_append(buf, buf_size, "rshared,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "shared,");
+			sc_string_append(buf, buf_size, "shared,");
 		}
 		flags ^= MS_SHARED;
 	}
@@ -105,11 +105,11 @@ const char *sc_mount_opt2str(unsigned long flags)
 	// Render any flags that are unaccounted for.
 	if (flags) {
 		char of[128];
-		sprintf(of, "%#lx", flags);
-		strcat(buf, of);
+		sc_must_snprintf(of, sizeof of, "%#lx", flags);
+		sc_string_append(buf, buf_size, of);
 	}
 	// Chop the excess comma from the end.
-	size_t len = strlen(buf);
+	size_t len = strnlen(buf, buf_size);
 	if (len > 0 && buf[len - 1] == ',') {
 		buf[len - 1] = 0;
 	}
