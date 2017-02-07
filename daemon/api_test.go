@@ -143,8 +143,8 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		VersionID: "mocked",
 	})
 
-	snapstate.CanAutoRefresh = func(*state.State) bool {
-		return false
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		return false, nil
 	}
 }
 

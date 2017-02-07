@@ -116,6 +116,21 @@ func (m *DeviceManager) changeInFlight(kind string) bool {
 	return false
 }
 
+// helpers to keep count of attempts to get a serial, useful to decide
+// to give up holding off trying to auto-refresh
+
+type ensureOperationalAttemptsKey struct{}
+
+func incEnsureOperationalAttempts(st *state.State) {
+	cur, _ := st.Cached(ensureOperationalAttemptsKey{}).(int)
+	st.Cache(ensureOperationalAttemptsKey{}, cur+1)
+}
+
+func ensureOperationalAttempts(st *state.State) int {
+	cur, _ := st.Cached(ensureOperationalAttemptsKey{}).(int)
+	return cur
+}
+
 // ensureOperationalShouldBackoff returns whether we should abstain from
 // further become-operational tentatives while its backoff interval is
 // not expired.
@@ -152,10 +167,10 @@ func (m *DeviceManager) ensureOperational() error {
 
 	if device.Brand == "" || device.Model == "" {
 		// need first-boot, loading of model assertion info
-		if release.OnClassic {
-			// TODO: are we going to have model assertions on classic or need will need to cheat here?
-			return nil
-		}
+
+		// TODO: on classic if seeded means there was no model
+		// use a fallback
+
 		// cannot proceed yet, once first boot is done these will be set
 		// and we can pick up from there
 		return nil
@@ -178,6 +193,8 @@ func (m *DeviceManager) ensureOperational() error {
 	if m.ensureOperationalShouldBackoff(time.Now()) {
 		return nil
 	}
+	// increment attempt count
+	incEnsureOperationalAttempts(m.state)
 
 	// XXX: some of these will need to be split and use hooks
 	// retries might need to embrace more than one "task" then,
@@ -833,28 +850,39 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 
 // canAutoRefresh is a helper that checks if the device is able to
 // auto-refresh
-func canAutoRefresh(st *state.State) bool {
-	// no need to wait for seeding on classic
-	if release.OnClassic {
-		return true
-	}
-
-	// on all-snap devices we need to be seeded first
+func canAutoRefresh(st *state.State) (bool, error) {
+	// we need to be seeded first
 	var seeded bool
 	st.Get("seeded", &seeded)
 	if !seeded {
-		return false
+		return false, nil
 	}
 
-	// FIXME: The serial requirement means that developer images
-	// with custom models will not auto-refresh
-	// and we also need to have a serial
-	_, err := Serial(st)
+	_, err := Model(st)
+	if err == state.ErrNoState {
+		// no model, no need to wait for a serial
+		// can happen only on classic
+		return true, nil
+	}
 	if err != nil {
-		return false
+		return false, err
 	}
 
-	return true
+	// either we have a serial or we try anyway if we attempted for a while to get a serial, this would allow us to at least upgrade core if that can help
+
+	if ensureOperationalAttempts(st) >= 3 {
+		return true, nil
+	}
+
+	_, err = Serial(st)
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 var repeatRequestSerial string
@@ -971,17 +999,16 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		currentInfo = snapstate.GadgetInfo
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
+		if release.OnClassic {
+			return fmt.Errorf("cannot install a kernel snap on classic")
+		}
+
 		kind = "kernel"
 		currentInfo = snapstate.KernelInfo
 		getName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
 		return nil
-	}
-
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a %s snap on classic", kind)
 	}
 
 	model, err := Model(st)
@@ -1016,6 +1043,10 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 	// first installation of a gadget/kernel
 
 	expectedName := getName(model)
+	if expectedName == "" { // can happen only on classic
+		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
+	}
+
 	if snapInfo.Name() != expectedName {
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.Name(), expectedName)
 	}
