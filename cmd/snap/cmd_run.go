@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -175,9 +176,17 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+	// use snap-confine from core if it is available
+	snapConfinePath := filepath.Join(dirs.LibExecDir, "snap-confine")
+	snapConfinePathInCore := filepath.Join(dirs.SnapMountDir, "/core/current/", snapConfinePath)
+
+	cmd := []string{}
+	if osutil.FileExists(snapConfinePathInCore) {
+		cmd = append(cmd, snapConfinePathInCore)
+	} else {
+		cmd = append(cmd, snapConfinePath)
 	}
+
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
