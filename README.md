@@ -1,12 +1,16 @@
 [![Build Status][travis-image]][travis-url]
 [![Go Report Card][goreportcard-image]][goreportcard-url]
 
-# snapd
+## Snaps
 
-The snapd and snap tools enable systems to work with .snap files. See
-[snapcraft.io](http://snapcraft.io) for a high level overview about
-snap files and the snapd application.
-  
+Package any app for every Linux desktop, server, cloud or device.
+
+Snaps are faster to install, easier to create, safer to run, and they update
+automatically and transactionally so your app is always fresh and never
+broken. You can bring your own build infrastructure or use ours.
+
+Head over to [snapcraft.io](https://snapcraft.io) to get started.
+
 ## Development
 
 To get started with development off the snapd code itself, please check

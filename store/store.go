@@ -195,7 +195,9 @@ func getStructFields(s interface{}) []string {
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
 	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	// only xdelta3 is supported for now, so check the binary exists here
+	// TODO: have a per-format checker instead
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
 }
 
 func useStaging() bool {
