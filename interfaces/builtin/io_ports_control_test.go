@@ -97,7 +97,7 @@ func (s *IioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 capability sys_rawio, # required by iopl
 
-/dev/ports rw,
+/dev/port rw,
 `)
 
 	expectedSnippet2 := []byte(`
@@ -110,7 +110,7 @@ ioperm
 iopl
 `)
 
-	expectedSnippet3 := []byte(`KERNEL=="ports", TAG+="snap_client-snap_app-accessing-io-ports"
+	expectedSnippet3 := []byte(`KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"
 `)
 
 	// connected plugs have a non-nil security snippet for apparmor
