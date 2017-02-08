@@ -182,6 +182,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	snapConfinePathInCore := filepath.Join(dirs.SnapMountDir, "/core/current/", snapConfinePath)
 
 	cmd := []string{}
+	// FIXME: add version compare magic just like we do for re-exec
+	//        to ensure we do not use an older snap-confine
 	if release.OnClassic && osutil.FileExists(snapConfinePathInCore) {
 		// FIXME: once https://github.com/snapcore/snapd/pull/2791
 		// lands use osutil.CommandFromCore() here
