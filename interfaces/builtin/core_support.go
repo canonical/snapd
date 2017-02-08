@@ -51,9 +51,12 @@ const coreSupportConnectedPlugAppArmor = `
 @{PROC}/sys/{,**}                      r,
 @{PROC}/sys/**                         w,
 
-# Allow modifying logind configuration from the core snap
-/etc/systemd/logind.conf.d/{,*}         r,
-/etc/systemd/logind.conf.d/{,core.conf} w,
+# Allow modifying logind configuration. For now, allow reading all logind
+# configuration but only allow modifying NN-snap*.conf and snap*.conf files
+# in /etc/systemd/logind.conf.d.
+/etc/systemd/logind.conf                            r,
+/etc/systemd/logind.conf.d/{,*}                     r,
+/etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
 `
 
 const coreSupportConnectedPlugSecComp = `
