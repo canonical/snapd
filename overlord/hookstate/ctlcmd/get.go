@@ -281,7 +281,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	}
 
 	var which string
-	if c.ForcePlugSide || isPlugSide {
+	if c.ForcePlugSide || (isPlugSide && !c.ForceSlotSide) {
 		which = "plug-attrs"
 	} else {
 		which = "slot-attrs"
