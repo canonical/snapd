@@ -33,23 +33,23 @@ func (s *entrySuite) TestString(c *C) {
 	ent0 := mount.Entry{}
 	c.Assert(ent0.String(), Equals, "none none none defaults 0 0")
 	ent1 := mount.Entry{
-		FsName:  "/var/snap/foo/common",
+		Name:    "/var/snap/foo/common",
 		Dir:     "/var/snap/bar/common",
 		Options: []string{"bind"},
 	}
 	c.Assert(ent1.String(), Equals,
 		"/var/snap/foo/common /var/snap/bar/common none bind 0 0")
 	ent2 := mount.Entry{
-		FsName:  "/dev/sda5",
+		Name:    "/dev/sda5",
 		Dir:     "/media/foo",
-		FsType:  "ext4",
+		Type:    "ext4",
 		Options: []string{"rw,noatime"},
 	}
 	c.Assert(ent2.String(), Equals, "/dev/sda5 /media/foo ext4 rw,noatime 0 0")
 	ent3 := mount.Entry{
-		FsName:  "/dev/sda5",
+		Name:    "/dev/sda5",
 		Dir:     "/media/My Files",
-		FsType:  "ext4",
+		Type:    "ext4",
 		Options: []string{"rw,noatime"},
 	}
 	c.Assert(ent3.String(), Equals, `/dev/sda5 /media/My\040Files ext4 rw,noatime 0 0`)
