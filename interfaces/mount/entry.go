@@ -28,13 +28,13 @@ import (
 //
 // Fields are named after names in struct returned by getmntent(3).
 //
-// struct Mntent {
-//     char *Mnt_fsname;   /* name of mounted filesystem */
-//     char *Mnt_dir;      /* filesystem path prefix */
-//     char *Mnt_type;     /* mount type (see Mntent.h) */
-//     char *Mnt_opts;     /* mount options (see Mntent.h) */
-//     int   Mnt_freq;     /* dump frequency in days */
-//     int   Mnt_passno;   /* pass number on parallel fsck */
+// struct mntent {
+//     char *mnt_fsname;   /* name of mounted filesystem */
+//     char *mnt_dir;      /* filesystem path prefix */
+//     char *mnt_type;     /* mount type (see Mntent.h) */
+//     char *mnt_opts;     /* mount options (see Mntent.h) */
+//     int   mnt_freq;     /* dump frequency in days */
+//     int   mnt_passno;   /* pass number on parallel fsck */
 // };
 type Entry struct {
 	FsName  MntFsName
