@@ -20,8 +20,11 @@
 package osutil
 
 import (
+	"fmt"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 // GetenvBool returns whether the given key may be considered "set" in the
@@ -49,4 +52,39 @@ func GetenvBool(key string, dflt ...bool) bool {
 	}
 
 	return b
+}
+
+// SubstituteEnv takes a list of environment strings like:
+// - K1=BAR
+// - K2=$BAR
+// - K3=${BAZ}
+// and substitutes them using the os environment strings.
+//
+// The result will be sorted list of environment strings or
+// an error if there are circular refrences.
+func SubstituteEnv(env []string) ([]string, error) {
+	var allEnv []string
+
+	envMap := map[string]string{}
+	for _, s := range env {
+		l := strings.SplitN(s, "=", 2)
+		if len(l) < 2 {
+			return nil, fmt.Errorf("invalid environment string %q", s)
+		}
+		envMap[l[0]] = l[1]
+	}
+
+	for _, s := range env {
+		env := os.Expand(s, func(k string) string {
+			if s, ok := envMap[k]; ok {
+				return s
+			}
+			return os.Getenv(k)
+		})
+
+		allEnv = append(allEnv, env)
+	}
+	sort.Strings(allEnv)
+
+	return allEnv, nil
 }

@@ -464,7 +464,7 @@ func (app *AppInfo) Env() []string {
 		appEnv[k] = v
 	}
 	for k, v := range appEnv {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 	return env
 }

@@ -20,7 +20,9 @@
 package osutil_test
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -80,5 +82,31 @@ func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
 		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
+	}
+}
+
+func (s *envSuite) TestSubstitueEnv(c *check.C) {
+	for _, t := range []struct {
+		env string
+
+		expected string
+		errStr   string
+	}{
+		// trivial
+		{"K1=V1,K2=V2", "K1=V1,K2=V2", ""},
+		// simple
+		{"K=V,K2=$K", "K2=V,K=V", ""},
+		// simple, but from environment
+		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH")), ""},
+		// multi-level
+		//{"A=1,B=$A/2,C=$B/3", "A=1,B=1/2,C=1/2/3", ""},
+	} {
+		env, err := osutil.SubstituteEnv(strings.Split(t.env, ","))
+		if t.errStr != "" {
+			c.Check(err, check.ErrorMatches, t.errStr)
+		} else {
+			c.Check(err, check.IsNil)
+			c.Check(strings.Join(env, ","), check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
+		}
 	}
 }

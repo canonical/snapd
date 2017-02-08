@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -141,24 +142,11 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
-	var expandedAppEnv []string
-	for _, appEnv := range app.Env() {
-		env := os.Expand(appEnv, func(k string) string {
-			// app specific env first
-			if s, ok := app.Environment[k]; ok {
-				return s
-			}
-			// snap env
-			if s, ok := app.Snap.Environment[k]; ok {
-				return s
-			}
-			// then runtime environment
-			return os.Getenv(k)
-		})
-
-		expandedAppEnv = append(expandedAppEnv, env)
+	appEnv, err := osutil.SubstituteEnv(app.Env())
+	if err != nil {
+		return err
 	}
-	env := append(os.Environ(), expandedAppEnv...)
+	env := append(os.Environ(), appEnv...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
