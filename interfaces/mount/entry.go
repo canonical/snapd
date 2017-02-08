@@ -39,7 +39,7 @@ import (
 type Entry struct {
 	Name    string
 	Dir     string
-	Type    MntFsType
+	Type    string
 	Options MntOptions
 
 	DumpFrequency   int
@@ -54,16 +54,6 @@ func (v MntOptions) String() string {
 		return escape(strings.Join(v, ","))
 	}
 	return "defaults"
-}
-
-// MntFsType represents file system type in a mount entry.
-type MntFsType string
-
-func (v MntFsType) String() string {
-	if len(v) != 0 {
-		return escape(string(v))
-	}
-	return "none"
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
@@ -95,6 +85,13 @@ func (e Entry) String() string {
 	} else {
 		dir = "none"
 	}
+	// Type represents file system type in a mount entry.
+	var fsType string
+	if len(e.Type) != 0 {
+		fsType = escape(e.Type)
+	} else {
+		fsType = "none"
+	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
-		name, dir, e.Type, e.Options, e.DumpFrequency, e.CheckPassNumber)
+		name, dir, fsType, e.Options, e.DumpFrequency, e.CheckPassNumber)
 }
