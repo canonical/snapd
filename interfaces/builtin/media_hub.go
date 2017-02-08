@@ -23,7 +23,6 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/release"
 )
 
 const mediaHubPermanentSlotAppArmor = `
@@ -86,7 +85,7 @@ dbus (receive)
     path=/core/ubuntu/media/Service
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# Allow clients to manager Player sessions
+# Allow clients to manage Player sessions
 dbus (receive)
     bus=session
     path=/core/ubuntu/media/Service
@@ -156,10 +155,6 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		if release.OnClassic {
-			// On classic MediaHub will run unconfined
-			new = []byte("unconfined")
-		}
 		snippet := bytes.Replace([]byte(mediaHubConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:

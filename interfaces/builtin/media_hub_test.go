@@ -128,7 +128,6 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(snippet, Not(IsNil))
 
 	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
