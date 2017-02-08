@@ -17,12 +17,14 @@
 
 #include "mount-opt.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
 
-#include "../libsnap-confine-private/utils.h"
-#include "../libsnap-confine-private/string-utils.h"
+#include "utils.h"
+#include "string-utils.h"
 
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
@@ -113,5 +115,97 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 	if (len > 0 && buf[len - 1] == ',') {
 		buf[len - 1] = 0;
 	}
+	return buf;
+}
+
+const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
+			 *target, const char *filesystemtype,
+			 unsigned long mountflags, const
+			 void *data)
+{
+	if (buf_size == 0) {
+		die("cannot work with an empty buffer");
+	}
+	*buf = 0;
+
+	sc_string_append(buf, buf_size, "mount");
+
+	// Add filesysystem type if it's there and doesn't have the special value "none"
+	if (filesystemtype != NULL && strcmp(filesystemtype, "none") != 0) {
+		sc_string_append(buf, buf_size, " -t ");
+		sc_string_append(buf, buf_size, filesystemtype);
+	}
+	// Check for some special, dedicated syntax. Collect the flags that were
+	// displayed this way so that they are not repeated with -o foo syntax.
+	int used_special_flags = 0;
+
+	// Bind-ounts (bind)
+	if (mountflags & MS_BIND) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --rbind");
+		} else {
+			sc_string_append(buf, buf_size, " --bind");
+		}
+		used_special_flags |= MS_BIND | MS_REC;
+	}
+	// Moving mount point location (move)
+	if (mountflags & MS_MOVE) {
+		sc_string_append(buf, buf_size, " --move");
+		used_special_flags |= MS_MOVE;
+	}
+	// Shared subtree operations (shared, slave, private, unbindable).
+	if (MS_SHARED & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rshared");
+		} else {
+			sc_string_append(buf, buf_size, " --make-shared");
+		}
+		used_special_flags |= MS_SHARED | MS_REC;
+	}
+
+	if (MS_SLAVE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rslave");
+		} else {
+			sc_string_append(buf, buf_size, " --make-slave");
+		}
+		used_special_flags |= MS_SLAVE | MS_REC;
+	}
+
+	if (MS_PRIVATE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rprivate");
+		} else {
+			sc_string_append(buf, buf_size, " --make-private");
+		}
+		used_special_flags |= MS_PRIVATE | MS_REC;
+	}
+
+	if (MS_UNBINDABLE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-runbindable");
+		} else {
+			sc_string_append(buf, buf_size, " --make-unbindable");
+		}
+		used_special_flags |= MS_UNBINDABLE | MS_REC;
+	}
+	// If regular option syntax exists then use it.
+	if (mountflags & ~used_special_flags) {
+		sc_string_append(buf, buf_size, " -o ");
+		size_t used = strnlen(buf, buf_size);
+		// NOTE: the option are written directly to the buffer we are working with.
+		sc_mount_opt2str(buf + used, buf_size - used,
+				 mountflags & ~used_special_flags);
+	}
+	// Add source and target locations
+	if (source != NULL && strcmp(source, "none") != 0) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, source);
+	}
+	if (target != NULL && strcmp(target, "none") != 0) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, target);
+	}
+
 	return buf;
 }
