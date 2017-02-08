@@ -49,12 +49,6 @@ dbus (receive, send)
     interface=org.freedesktop.DBus{,.*}
     peer=(label=unconfined),
 
-# We can always connect to ourselves
-dbus (receive)
-    bus=session
-    path=/core/ubuntu/media/Service
-    peer=(label=@{profile_name}),
-
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
