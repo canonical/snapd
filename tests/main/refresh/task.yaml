@@ -96,4 +96,4 @@ execute: |
 
     echo "classic snaps "
 
-    snap refresh $SNAP_NAME core | MATCH "All snaps up to date."
+    snap refresh $SNAP_NAME core 2>&1 | MATCH "All snaps up to date."
