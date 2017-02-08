@@ -1,7 +1,4 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
-# This test only applies to classic systems because we use a test/debug kernel.
-# Once the regular kernel is fixed the test can be applied to all systems.
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
@@ -15,66 +12,7 @@ prepare: |
     echo "Having installed the test snap in devmode"
     . $TESTSLIB/snaps.sh
     install_local_devmode test-snapd-tools
-    # Remember what we want to have when we restore.
-    dpkg --get-selections > pkg-list
-    # Download test kernel packages.
-    for f in \
-            linux-headers-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb \
-            linux-image-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb \
-            linux-image-extra-4.8.0-34-generic_4.8.0-34.36+jj2_amd64.deb; do
-        wget --quiet http://people.canonical.com/~jj/linux+jj/$f;
-    done
-    # Remove any installed regular kernel packages.
-    #
-    # This is done so that we can deterministically reboot into the test kernel
-    # which has a lower version number than the production kernel.
-    apt-get remove --purge --yes $(dpkg --get-selections | grep linux-image | cut -f 1)
-    # Install the test kernel.
-    dpkg -i *.deb || apt-get -f install --yes
 execute: |
-    case "$SPREAD_REBOOT" in
-        0)
-            # Rebooting to use the test kernel
-            REBOOT
-            ;;
-        1)
-            # Restore package selection to what was there before.
-            # After the next reboot we will just use the regular kernel.
-            # FIXME: this is not doing what I intended
-            dpkg --set-selections < pkg-list
-            rm -f pkg-list
-            # Exercising the test kernel.
-            uname -a
-            # Let's make sure we can capture apparmor debugging data.
-            echo 1 > /sys/module/apparmor/parameters/debug
-            echo 0 > /proc/sys/kernel/printk_ratelimit
-            echo -n noquiet > /sys/module/apparmor/parameters/audit
-            # Let's run the test snap from itself and see what happens.
-            test-snapd-tools.cmd /bin/true
-            if test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true >/run/snap-confine.log 2>&1"; then
-                echo "yes" > test-ok
-            else
-                echo "no" > test-ok
-                # Collect interesting error messages
-                echo "kern.lo:" > debug.log
-                pastebinit /var/log/kern.log >> debug.log
-                echo "journalctl:" >> debug.log
-                journalctl | pastebinit >> debug.log
-                echo "snap-confine.log:" >> debug.log
-                pastebinit /run/snap-confine.log >> debug.log
-            fi
-            # Rebooting to use the stock kernel
-            REBOOT
-            ;;
-        2)
-            # Check if the test worked
-            test "$(cat test-ok)" = yes
-            ;;
-    esac
-restore: |
-    rm -f pkg-list test-ok debug.log *.deb
-debug: |
-    # This feature has been noted to cause kernel oops before.
-    tail -n 100 /var/log/kern.log
-    # Show where we pastebinned the kernel log
-    cat debug.log || true
+    echo "We can now run a snap command from the namespace of a snap command and see it work"
+    test-snapd-tools.cmd /bin/true
+    test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true"
