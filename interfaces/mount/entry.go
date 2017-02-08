@@ -62,32 +62,24 @@ var whitespaceReplacer = strings.NewReplacer(
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
-	var name string
+	name := "none"
 	if len(e.Name) != 0 {
 		name = escape(e.Name)
-	} else {
-		name = "none"
 	}
-	var dir string
 	// Dir represents mount directory in a mount entry.
+	dir := "none"
 	if len(e.Dir) != 0 {
 		dir = escape(e.Dir)
-	} else {
-		dir = "none"
 	}
 	// Type represents file system type in a mount entry.
-	var fsType string
+	fsType := "none"
 	if len(e.Type) != 0 {
 		fsType = escape(e.Type)
-	} else {
-		fsType = "none"
 	}
 	// Options represents mount options in a mount entry.
-	var options string
+	options := "defaults"
 	if len(e.Options) != 0 {
 		options = escape(strings.Join(e.Options, ","))
-	} else {
-		options = "defaults"
 	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
 		name, dir, fsType, options, e.DumpFrequency, e.CheckPassNumber)
