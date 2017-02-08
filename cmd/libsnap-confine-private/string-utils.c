@@ -108,5 +108,5 @@ void sc_string_init(char *buf, size_t buf_size)
 	if (buf_size == 0) {
 		die("cannot initialize string, buffer is too small");
 	}
-	*buf = 0;
+	buf[0] = '\0';
 }
