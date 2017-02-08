@@ -112,67 +112,6 @@ func (s *nsSuite) TestDiscardNamespaceSilentFailure(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "snap-name"}})
 }
 
-func (s *nsSuite) TestUpdateNamespaceMntFilePresent(c *C) {
-	// Mock the snap-update-ns command
-	cmd := testutil.MockCommand(c, "snap-update-ns", "")
-	dirs.LibExecDir = cmd.BinDir()
-	defer cmd.Restore()
-
-	// the presence of the .mnt file is the trigger so create it now
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
-
-	err := s.be.UpdateSnapNamespace("snap-name")
-	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
-}
-
-func (s *nsSuite) TestUpdateNamespaceMntFileAbsent(c *C) {
-	// Mock the snap-update-ns command
-	cmd := testutil.MockCommand(c, "snap-update-ns", "")
-	dirs.LibExecDir = cmd.BinDir()
-	defer cmd.Restore()
-
-	// don't create the .mnt file that triggers the update operation
-
-	// ask the backend to update the namespace
-	err := s.be.UpdateSnapNamespace("snap-name")
-	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), IsNil)
-}
-
-func (s *nsSuite) TestUpdateNamespaceFailure(c *C) {
-	// Mock the snap-update-ns command, make it fail
-	cmd := testutil.MockCommand(c, "snap-update-ns", "echo failure; exit 1;")
-	dirs.LibExecDir = cmd.BinDir()
-	defer cmd.Restore()
-
-	// the presence of the .mnt file is the trigger so create it now
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
-
-	// ask the backend to update the namespace
-	err := s.be.UpdateSnapNamespace("snap-name")
-	c.Assert(err, ErrorMatches, `cannot update preserved namespaces of snap "snap-name": failure`)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
-}
-
-func (s *nsSuite) TestUpdateNamespaceSilentFailure(c *C) {
-	// Mock the snap-update-ns command, make it fail
-	cmd := testutil.MockCommand(c, "snap-update-ns", "exit 1")
-	dirs.LibExecDir = cmd.BinDir()
-	defer cmd.Restore()
-
-	// the presence of the .mnt file is the trigger so create it now
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
-
-	// ask the backend to update the namespace
-	err := s.be.UpdateSnapNamespace("snap-name")
-	c.Assert(err, ErrorMatches, `cannot update preserved namespaces of snap "snap-name": exit status 1`)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
-}
-
 func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 	for _, t := range []struct {
 		cmd    string
