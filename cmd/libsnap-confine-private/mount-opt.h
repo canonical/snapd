@@ -28,4 +28,21 @@
  **/
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
 
+/**
+ * Compute an equivalent mount(8) command from mount(2) arguments.
+ *
+ * This function serves as a human-readable representation of the mount system
+ * call. The return value is a string that looks like a shell mount command.
+ *
+ * Note that the returned command is may not be a valid mount command. No
+ * sanity checking is performed on the mount flags, source or destination
+ * arguments.
+ *
+ * The returned value is always buf, it is provided as a convenience.
+ **/
+const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
+			 *target, const char *filesystemtype,
+			 unsigned long mountflags, const
+			 void *data);
+
 #endif				// SNAP_CONFINE_MOUNT_OPT_H
