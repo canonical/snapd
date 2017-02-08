@@ -180,14 +180,25 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		errStr string
 		res    [][]string
 	}{
-		// mnt file present
-		{"", true, "", [][]string{{"snap-update-ns", "snap-name"}}},
-		// no .mnt file means no call is generated
-		{"", false, "", nil},
-		// failure with msg
-		{"echo failure; exit 1;", true, `cannot update preserved namespaces of snap "snap-name": failure`, [][]string{{"snap-update-ns", "snap-name"}}},
-		// silent failure
-		{"exit 1;", true, `cannot update preserved namespaces of snap "snap-name": exit status 1`, [][]string{{"snap-update-ns", "snap-name"}}},
+		// The mnt file present so we use snap-update-ns;
+		// The command doesn't fail and there's no error.
+		{cmd: "", mnt: true, errStr: "", res: [][]string{{"snap-update-ns", "snap-name"}}},
+		// The mnt file is not present so we don't do anything.
+		{cmd: "", mnt: false, errStr: "", res: nil},
+		// The mnt file is present so we use snap-update-ns;
+		// The command fails and we forward the error along with the output.
+		{
+			cmd:    "echo failure; exit 1;",
+			mnt:    true,
+			errStr: `cannot update preserved namespaces of snap "snap-name": failure`,
+			res:    [][]string{{"snap-update-ns", "snap-name"}}},
+		// The mnt file is present so we use snap-update-ns;
+		// The command fails silently and we forward this fact using a generic message.
+		{
+			cmd:    "exit 1;",
+			mnt:    true,
+			errStr: `cannot update preserved namespaces of snap "snap-name": exit status 1`,
+			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)
 		dirs.LibExecDir = cmd.BinDir()
