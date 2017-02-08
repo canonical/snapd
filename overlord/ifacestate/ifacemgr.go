@@ -86,17 +86,12 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err = snapstate.Get(st, plugSnap, &snapst); err != nil {
 		return err
 	}
-
 	snapInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
-
-	plugAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		for k, v := range plug.Attrs {
-			plugAttrs[k] = v
-		}
+		ts.Set("plug-attrs", plug.Attrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -109,20 +104,13 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 		return err
 	}
 	snap.AddImplicitSlots(snapInfo)
-
-	slotAttrs := make(map[string]interface{})
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		for k, v := range slot.Attrs {
-			slotAttrs[k] = v
-		}
+		ts.Set("slot-attrs", slot.Attrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}
 
-	ts.Set("slot-attrs", slotAttrs)
-	ts.Set("plug-attrs", plugAttrs)
-
-	return err
+	return nil
 }
 
 // Connect returns a set of tasks for connecting an interface.
