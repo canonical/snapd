@@ -40,20 +40,10 @@ type Entry struct {
 	Name    string
 	Dir     string
 	Type    string
-	Options MntOptions
+	Options []string
 
 	DumpFrequency   int
 	CheckPassNumber int
-}
-
-// MntOptions represents mount options in a mount entry.
-type MntOptions []string
-
-func (v MntOptions) String() string {
-	if len(v) != 0 {
-		return escape(strings.Join(v, ","))
-	}
-	return "defaults"
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
@@ -92,6 +82,13 @@ func (e Entry) String() string {
 	} else {
 		fsType = "none"
 	}
+	// Options represents mount options in a mount entry.
+	var options string
+	if len(e.Options) != 0 {
+		options = escape(strings.Join(e.Options, ","))
+	} else {
+		options = "defaults"
+	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
-		name, dir, fsType, e.Options, e.DumpFrequency, e.CheckPassNumber)
+		name, dir, fsType, options, e.DumpFrequency, e.CheckPassNumber)
 }
