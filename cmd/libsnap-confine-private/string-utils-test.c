@@ -224,8 +224,10 @@ static void __attribute__ ((constructor)) init()
 			test_sc_string_append__overflow);
 	g_test_add_func("/string-utils/sc_string_append/uninitialized_buf",
 			test_sc_string_append__uninitialized_buf);
-	g_test_add_func("/string-utils/test_sc_string_append/NULL_buf",
+	g_test_add_func("/string-utils/sc_string_append/NULL_buf",
 			test_sc_string_append__NULL_buf);
-	g_test_add_func("/string-utils/test_sc_string_append/NULL_str",
+	g_test_add_func("/string-utils/sc_string_append/NULL_str",
+			test_sc_string_append__NULL_str);
+	g_test_add_func("/string-utils/sc_string_append/NULL_str",
 			test_sc_string_append__NULL_str);
 }
