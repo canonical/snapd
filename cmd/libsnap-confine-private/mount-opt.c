@@ -119,17 +119,16 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 }
 
 const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
-			 *target, const char *filesystemtype,
-			 unsigned long mountflags, const
+			 *target, const char *fs_type, unsigned long mountflags, const
 			 void *data)
 {
 	sc_string_init(buf, buf_size);
 	sc_string_append(buf, buf_size, "mount");
 
 	// Add filesysystem type if it's there and doesn't have the special value "none"
-	if (filesystemtype != NULL && strncmp(filesystemtype, "none", 5) != 0) {
+	if (fs_type != NULL && strncmp(fs_type, "none", 5) != 0) {
 		sc_string_append(buf, buf_size, " -t ");
-		sc_string_append(buf, buf_size, filesystemtype);
+		sc_string_append(buf, buf_size, fs_type);
 	}
 	// Check for some special, dedicated syntax. Collect the flags that were
 	// displayed this way so that they are not repeated with -o foo syntax.
