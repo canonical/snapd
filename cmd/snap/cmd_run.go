@@ -183,6 +183,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 
 	cmd := []string{}
 	if release.OnClassic && osutil.FileExists(snapConfinePathInCore) {
+		// FIXME: once https://github.com/snapcore/snapd/pull/2791
+		// lands use osutil.CommandFromCore() here
 		cmd = append(cmd, snapConfinePathInCore)
 	} else {
 		cmd = append(cmd, snapConfinePath)

@@ -556,40 +556,96 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
+// cleanupSnapConfineApparmor will remove all but the current apparmor
+// profiles for the snap-confine binary from core
+func (m *SnapManager) cleanupSnapConfineApparmor(currentSnapConfineProfilePath string) error {
+	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
+
+	glob, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, apparmorProfilePathPattern))
+	if err != nil {
+		return err
+	}
+
+	for _, path := range glob {
+		if path == currentSnapConfineProfilePath {
+			continue
+		}
+
+		// not using apparmor.UnloadProfile() because it uses a
+		// different cachedir
+		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
+			logger.Noticef("cannot remove apparmor %s: %q", path, output)
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(filepath.Join(dirs.SystemApparmorCacheDir, filepath.Base(path))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *SnapManager) addSnapConfineApparmor(snapConfineInCore, apparmorProfilePath string) error {
+	root := filepath.Join(dirs.SnapMountDir, "/core/current/")
+
+	// FIXME: make this more generic once we start supporting more
+	//        distros with apparmor around snap-confine, i.e.
+	//        ship `snap-confine.apparmor.in` and use that as the base
+	//        because core is ubuntu and classic host might be anything
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(root, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+	if err != nil {
+		return err
+	}
+
+	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
+
+	// /etc/apparmor.d is read/write OnClassic, so write out the
+	// new core's profile there
+	if err := ioutil.WriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644); err != nil {
+		return err
+	}
+
+	// not using apparmor.LoadProfile() because it uses a different cachedir
+	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
 // ensureSnapConfineApparmor ensures that we have a valid apparmor
 // profile for snap-confine when we are in re-exec mode
 func (m *SnapManager) ensureSnapConfineApparmor() error {
+	// On all-snaps we always use the mounted snapd, snap-confine,
+	// apparmor, etc but on classic we use the snapd and
+	// snap-confine from the latest core snap.  As such, nothing
+	// to do when not OnClassic
 	if !release.OnClassic {
 		return nil
 	}
 
 	root := filepath.Join(dirs.SnapMountDir, "/core/current/")
 	snapConfineInCore, err := filepath.EvalSymlinks(filepath.Join(root, "/usr/lib/snapd/snap-confine"))
+	// in flight
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 
 	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
-	if osutil.FileExists(apparmorProfilePath) {
-		return nil
-	}
 
-	// FIXME2: cleanup old entries here
-
-	// FIXME: what to do for debian? debian has a less powerful apparmor
-	//        so we can not use the ubuntu profile?
-	apparmorProfile, err := ioutil.ReadFile(filepath.Join(root, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
-	if err != nil {
-		return err
-	}
-	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
-
-	if err := ioutil.WriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644); err != nil {
+	if err := m.cleanupSnapConfineApparmor(apparmorProfilePath); err != nil {
 		return err
 	}
 
-	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	if !osutil.FileExists(apparmorProfilePath) {
+		if err := m.addSnapConfineApparmor(snapConfineInCore, apparmorProfilePath); err != nil {
+			return err
+		}
 	}
 
 	return nil
