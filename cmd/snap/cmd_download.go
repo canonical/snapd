@@ -84,7 +84,8 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 	}
 	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
 
-	return image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
+	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
+	return err
 }
 
 func (x *cmdDownload) Execute(args []string) error {

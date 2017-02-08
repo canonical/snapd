@@ -85,14 +85,11 @@ const systemObserveConnectedPlugSecComp = `
 #@deny ptrace
 
 # for connecting to /org/freedesktop/hostname1 over DBus
-connect
-getsockname
 recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.
