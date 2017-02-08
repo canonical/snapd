@@ -112,6 +112,54 @@ func (s *nsSuite) TestDiscardNamespaceSilentFailure(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "snap-name"}})
 }
 
+func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
+	for _, t := range []struct {
+		cmd    string
+		mnt    bool
+		errStr string
+		res    [][]string
+	}{
+		// The mnt file present so we use snap-discard-ns;
+		// The command doesn't fail and there's no error.
+		{cmd: "", mnt: true, errStr: "", res: [][]string{{"snap-discard-ns", "snap-name"}}},
+		// The mnt file is not present so we don't do anything.
+		{cmd: "", mnt: false, errStr: "", res: nil},
+		// The mnt file is present so we use snap-discard-ns;
+		// The command fails and we forward the error along with the output.
+		{
+			cmd:    "echo failure; exit 1;",
+			mnt:    true,
+			errStr: `cannot discard preserved namespaces of snap "snap-name": failure`,
+			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
+		// The mnt file is present so we use snap-discard-ns;
+		// The command fails silently and we forward this fact using a generic message.
+		{
+			cmd:    "exit 1;",
+			mnt:    true,
+			errStr: `cannot discard preserved namespaces of snap "snap-name": exit status 1`,
+			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
+	} {
+		cmd := testutil.MockCommand(c, "snap-discard-ns", t.cmd)
+		dirs.LibExecDir = cmd.BinDir()
+		defer cmd.Restore()
+
+		if t.mnt {
+			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
+			c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+		} else {
+			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
+		}
+
+		err := s.be.DiscardSnapNamespace("snap-name")
+		if t.errStr != "" {
+			c.Check(err, ErrorMatches, t.errStr)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(cmd.Calls(), DeepEquals, t.res)
+		}
+	}
+}
+
 func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 	for _, t := range []struct {
 		cmd    string
