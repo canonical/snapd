@@ -22,9 +22,6 @@ package snap
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/snapcore/snapd/i18n"
 )
 
 // Type represents the kind of snap (app, core, gadget, os, kernel)
@@ -116,33 +113,5 @@ func (confinementType *ConfinementType) fromString(str string) error {
 
 	*confinementType = c
 
-	return nil
-}
-
-// SnapAndName holds a snap name and a plug or slot name.
-type SnapAndName struct {
-	Snap string
-	Name string
-}
-
-// UnmarshalFlag unmarshals snap and plug or slot name.
-func (sn *SnapAndName) UnmarshalFlag(value string) error {
-	parts := strings.Split(value, ":")
-	sn.Snap = ""
-	sn.Name = ""
-	switch len(parts) {
-	case 1:
-		sn.Snap = parts[0]
-	case 2:
-		sn.Snap = parts[0]
-		sn.Name = parts[1]
-		// Reject "snap:" (that should be spelled as "snap")
-		if sn.Name == "" {
-			sn.Snap = ""
-		}
-	}
-	if sn.Snap == "" && sn.Name == "" {
-		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
-	}
 	return nil
 }
