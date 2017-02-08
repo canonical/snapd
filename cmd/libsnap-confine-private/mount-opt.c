@@ -186,11 +186,11 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
+		char opts_buf[1000];
+		sc_mount_opt2str(opts_buf, sizeof opts_buf, mountflags &
+				 ~used_special_flags);
 		sc_string_append(buf, buf_size, " -o ");
-		size_t used = strnlen(buf, buf_size);
-		// NOTE: the option are written directly to the buffer we are working with.
-		sc_mount_opt2str(buf + used, buf_size - used,
-				 mountflags & ~used_special_flags);
+		sc_string_append(buf, buf_size, opts_buf);
 	}
 	// Add source and target locations
 	if (source != NULL && strncmp(source, "none", 5) != 0) {
