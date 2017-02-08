@@ -142,11 +142,7 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
-	appEnv, err := osutil.SubstituteEnv(app.Env())
-	if err != nil {
-		return err
-	}
-	env := append(os.Environ(), appEnv...)
+	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)

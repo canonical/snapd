@@ -60,31 +60,49 @@ func GetenvBool(key string, dflt ...bool) bool {
 // - K3=${BAZ}
 // and substitutes them using the os environment strings.
 //
-// The result will be sorted list of environment strings or
-// an error if there are circular refrences.
-func SubstituteEnv(env []string) ([]string, error) {
-	var allEnv []string
-
+// Strings that do not have the form "k=v" will be dropped.
+//
+// The result will be sorted list of environment strings.
+//
+// Circular references (A=$B,B=$A) will result in empty A,B
+// (just like in shell)
+func SubstituteEnv(env []string) []string {
 	envMap := map[string]string{}
 	for _, s := range env {
 		l := strings.SplitN(s, "=", 2)
 		if len(l) < 2 {
-			return nil, fmt.Errorf("invalid environment string %q", s)
+			continue
 		}
 		envMap[l[0]] = l[1]
 	}
 
-	for _, s := range env {
-		env := os.Expand(s, func(k string) string {
-			if s, ok := envMap[k]; ok {
-				return s
+	// this always terminates, in each iteration of the loop we
+	// eliminate at least one value with a "$var"
+	for {
+		changed := false
+		for k, v := range envMap {
+			newV := os.Expand(v, func(k string) string {
+				if s, ok := envMap[k]; ok {
+					return s
+				}
+				return os.ExpandEnv(v)
+			})
+			if v != newV {
+				changed = true
 			}
-			return os.Getenv(k)
-		})
 
-		allEnv = append(allEnv, env)
+			envMap[k] = newV
+		}
+		if !changed {
+			break
+		}
+	}
+
+	allEnv := make([]string, 0, len(envMap))
+	for k, v := range envMap {
+		allEnv = append(allEnv, fmt.Sprintf("%s=%s", k, os.ExpandEnv(v)))
 	}
 	sort.Strings(allEnv)
 
-	return allEnv, nil
+	return allEnv
 }

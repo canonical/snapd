@@ -90,23 +90,21 @@ func (s *envSuite) TestSubstitueEnv(c *check.C) {
 		env string
 
 		expected string
-		errStr   string
 	}{
 		// trivial
-		{"K1=V1,K2=V2", "K1=V1,K2=V2", ""},
+		{"K1=V1,K2=V2", "K1=V1,K2=V2"},
 		// simple
-		{"K=V,K2=$K", "K2=V,K=V", ""},
-		// simple, but from environment
-		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH")), ""},
+		{"K=V,K2=$K", "K2=V,K=V"},
+		// simple from environment
+		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH"))},
 		// multi-level
-		//{"A=1,B=$A/2,C=$B/3", "A=1,B=1/2,C=1/2/3", ""},
+		{"A=1,B=$A/2,C=$B/3,D=$C/4", "A=1,B=1/2,C=1/2/3,D=1/2/3/4"},
+		// circular leads to empty strings
+		{"A=$A", "A="},
+		{"A=$B,B=$A", "A=,B="},
+		{"A=$B,B=$C,C=$A", "A=,B=,C="},
 	} {
-		env, err := osutil.SubstituteEnv(strings.Split(t.env, ","))
-		if t.errStr != "" {
-			c.Check(err, check.ErrorMatches, t.errStr)
-		} else {
-			c.Check(err, check.IsNil)
-			c.Check(strings.Join(env, ","), check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
-		}
+		env := osutil.SubstituteEnv(strings.Split(t.env, ","))
+		c.Check(strings.Join(env, ","), check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }
