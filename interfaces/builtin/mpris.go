@@ -140,14 +140,12 @@ dbus (send)
 `)
 
 var mprisPermanentSlotSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto
 `)
 
 var mprisConnectedPlugSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto

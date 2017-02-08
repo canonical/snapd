@@ -81,6 +81,10 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = ioutil.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
+	snapCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.fstab")
+	err = ioutil.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	c.Assert(err, IsNil)
+
 	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
 	err = ioutil.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
@@ -92,6 +96,7 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = s.Backend.Remove("hello-world")
 	c.Assert(err, IsNil)
 
+	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
 	content, err := ioutil.ReadFile(appCanaryToStay)
@@ -138,6 +143,13 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	// (because mount profiles are global in the whole snap)
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	sort.Strings(expected)
+	// and that we have the modern fstab file (global for snap)
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
 	// and that we have the legacy, per app/hook files as well.
 	for _, binary := range []string{"app1", "app2", "hook.configure"} {
 		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
