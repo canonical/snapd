@@ -208,6 +208,45 @@ static void test_sc_string_append__NULL_str()
 	g_test_trap_assert_stderr("cannot append string: string is NULL\n");
 }
 
+static void test_sc_string_init__normal()
+{
+	char buf[1] = { 0xFF };
+
+	sc_string_init(buf, sizeof buf);
+	g_assert_cmpint(buf[0], ==, 0);
+}
+
+static void test_sc_string_init__empty_buf()
+{
+	if (g_test_subprocess()) {
+		char buf[1] = { 0xFF };
+
+		sc_string_init(buf, 0);
+
+		g_test_message("expected sc_string_init not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot initialize string, buffer is too small\n");
+}
+
+static void test_sc_string_init__NULL_buf()
+{
+	if (g_test_subprocess()) {
+		sc_string_init(NULL, 1);
+
+		g_test_message("expected sc_string_init not to return");
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr("cannot initialize string, buffer is NULL\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
@@ -228,6 +267,10 @@ static void __attribute__ ((constructor)) init()
 			test_sc_string_append__NULL_buf);
 	g_test_add_func("/string-utils/sc_string_append/NULL_str",
 			test_sc_string_append__NULL_str);
-	g_test_add_func("/string-utils/sc_string_append/NULL_str",
-			test_sc_string_append__NULL_str);
+	g_test_add_func("/string-utils/sc_string_init/normal",
+			test_sc_string_init__normal);
+	g_test_add_func("/string-utils/sc_string_init/empty_buf",
+			test_sc_string_init__empty_buf);
+	g_test_add_func("/string-utils/sc_string_init/NULL_buf",
+			test_sc_string_init__NULL_buf);
 }
