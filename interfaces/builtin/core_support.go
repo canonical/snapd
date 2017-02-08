@@ -50,6 +50,10 @@ const coreSupportConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/sysctl                 ixr,
 @{PROC}/sys/{,**}                      r,
 @{PROC}/sys/**                         w,
+
+# Allow modifying logind configuration from the core snap
+/etc/systemd/logind.conf.d/{,*}         r,
+/etc/systemd/logind.conf.d/{,core.conf} w,
 `
 
 const coreSupportConnectedPlugSecComp = `
