@@ -66,5 +66,6 @@ func (iface *Unity8Interface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *Unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
 	return true
 }
