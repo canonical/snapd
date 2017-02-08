@@ -7,14 +7,18 @@ environment:
     SNAP_NAME: test-snapd-delta-refresh
 
 prepare: |
-    echo "Ensure no xdelta3 is installed on the host"
-    apt-get remove -y xdelta3
+    echo "Ensure no xdelta3 available on the host"
+    if [ -e /usr/bin/xdelta3 ]; then
+        mv /usr/bin/xdelta3{,.disabled)
+    fi
 
     echo "Given a snap is installed"
     snap install --edge $SNAP_NAME
 
 restore: |
-    apt-get install -y xdelta3
+    if [ -e /usr/bin/xdelta3.disabled ]; then
+        mv /usr/bin/xdelta3{.disabled,)
+    fi
 
 execute: |
     echo "When the snap is refreshed"

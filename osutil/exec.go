@@ -94,17 +94,21 @@ func elfInterp(cmd string) (string, error) {
 	return "", fmt.Errorf("cannot find PT_INTERP header")
 }
 
+// CommandFromCore runs a command from the core snap using the proper
+// interpreter and library paths.
+//
+// At the moment it can only run ELF files, expects a standard ld.so
+// interpreter, and can't handle RPATH.
 func CommandFromCore(name string, arg ...string) (*exec.Cmd, error) {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
 
 	cmdPath := filepath.Join(root, name)
-	// FIXME: support `#!/...` style in addition to elf
 	interp, err := elfInterp(cmdPath)
 	if err != nil {
 		return nil, err
 	}
 	coreLdSo := filepath.Join(root, interp)
-	if IsSymlink(coreLdSo) {
+	for IsSymlink(coreLdSo) {
 		link, err := os.Readlink(coreLdSo)
 		if err != nil {
 			return nil, err
