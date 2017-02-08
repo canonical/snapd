@@ -9,7 +9,7 @@ environment:
 prepare: |
     echo "Ensure no xdelta3 available on the host"
     if [ -e /usr/bin/xdelta3 ]; then
-        mv /usr/bin/xdelta3{,.disabled)
+        mv /usr/bin/xdelta3{,.disabled}
     fi
 
     echo "Given a snap is installed"
@@ -17,7 +17,7 @@ prepare: |
 
 restore: |
     if [ -e /usr/bin/xdelta3.disabled ]; then
-        mv /usr/bin/xdelta3{.disabled,)
+        mv /usr/bin/xdelta3{.disabled,}
     fi
 
 execute: |
