@@ -34,7 +34,6 @@ execute: |
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -ge 1
 
-
     echo "Enure that EXTRA environment variables are what we expect"
     egrep -q '^EXTRA_GLOBAL=extra-global' extra-vars.txt
     egrep -q '^EXTRA_LOCAL=extra-local' extra-vars.txt
