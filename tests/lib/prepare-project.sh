@@ -65,7 +65,7 @@ if [ "$SPREAD_BACKEND" = external ]; then
        snap remove classic
    fi
    # stop and disable autorefresh
-   systemctl disable --now snapd.refresh.timer
+   snap set core refresh.disabled=true
    exit 0
 fi
 

@@ -18,12 +18,14 @@
 #ifndef SNAP_CONFINE_MOUNT_OPT_H
 #define SNAP_CONFINE_MOUNT_OPT_H
 
+#include <stddef.h>
+
 /**
  * Convert flags for mount(2) system call to a string representation. 
  *
  * The function uses an internal static buffer that is overwritten on each
  * request.
  **/
-const char *sc_mount_opt2str(unsigned long flags);
+const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
 
 #endif				// SNAP_CONFINE_MOUNT_OPT_H

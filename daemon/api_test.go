@@ -142,6 +142,10 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		ID:        "ubuntu",
 		VersionID: "mocked",
 	})
+
+	snapstate.CanAutoRefresh = func(*state.State) bool {
+		return false
+	}
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
