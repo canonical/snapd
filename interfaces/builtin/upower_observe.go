@@ -198,14 +198,11 @@ const upowerObserveConnectedPlugSecComp = `
 # Description: Can query UPower for power devices, history and statistics.
 
 # dbus
-connect
-getsockname
 recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 type UpowerObserveInterface struct{}
