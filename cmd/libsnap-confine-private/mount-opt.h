@@ -38,9 +38,8 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
  * The returned value is always buf, it is provided as a convenience.
  **/
 const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
-			 *target, const char *filesystemtype,
-			 unsigned long mountflags, const
-			 void *data);
+			 *target, const char *fs_type, unsigned long mountflags,
+			 const void *data);
 
 /**
  * Compute an equivalent umount(8) command from umount2(2) arguments.
