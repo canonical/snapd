@@ -127,7 +127,7 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	sc_string_append(buf, buf_size, "mount");
 
 	// Add filesysystem type if it's there and doesn't have the special value "none"
-	if (filesystemtype != NULL && strcmp(filesystemtype, "none") != 0) {
+	if (filesystemtype != NULL && strncmp(filesystemtype, "none", 5) != 0) {
 		sc_string_append(buf, buf_size, " -t ");
 		sc_string_append(buf, buf_size, filesystemtype);
 	}
@@ -194,11 +194,11 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 				 mountflags & ~used_special_flags);
 	}
 	// Add source and target locations
-	if (source != NULL && strcmp(source, "none") != 0) {
+	if (source != NULL && strncmp(source, "none", 5) != 0) {
 		sc_string_append(buf, buf_size, " ");
 		sc_string_append(buf, buf_size, source);
 	}
-	if (target != NULL && strcmp(target, "none") != 0) {
+	if (target != NULL && strncmp(target, "none", 5) != 0) {
 		sc_string_append(buf, buf_size, " ");
 		sc_string_append(buf, buf_size, target);
 	}
