@@ -38,22 +38,12 @@ import (
 // };
 type Entry struct {
 	Name    string
-	Dir     MntDir
+	Dir     string
 	Type    MntFsType
 	Options MntOptions
 
 	DumpFrequency   int
 	CheckPassNumber int
-}
-
-// MntDir represents mount directory in a mount entry.
-type MntDir string
-
-func (v MntDir) String() string {
-	if len(v) != 0 {
-		return escape(string(v))
-	}
-	return "none"
 }
 
 // MntOptions represents mount options in a mount entry.
@@ -98,6 +88,13 @@ func (e Entry) String() string {
 	} else {
 		name = "none"
 	}
+	var dir string
+	// Dir represents mount directory in a mount entry.
+	if len(e.Dir) != 0 {
+		dir = escape(e.Dir)
+	} else {
+		dir = "none"
+	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
-		name, e.Dir, e.Type, e.Options, e.DumpFrequency, e.CheckPassNumber)
+		name, dir, e.Type, e.Options, e.DumpFrequency, e.CheckPassNumber)
 }
