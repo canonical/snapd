@@ -381,7 +381,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	s.state.Lock()
 	_ = s.state.NewChange("kind", "summary")
 	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
-	c.Assert(err, ErrorMatches, `Snap "producer" has no slot named "whatslot"`)
+	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "whatslot"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
@@ -393,7 +393,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	s.state.Lock()
 	_ = s.state.NewChange("kind", "summary")
 	_, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
-	c.Assert(err, ErrorMatches, `Snap "consumer" has no plug named "whatplug"`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "whatplug"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
