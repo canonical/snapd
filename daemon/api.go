@@ -845,7 +845,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	case 0:
 		if len(inst.Snaps) != 0 {
 			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-			msg = fmt.Sprintf("Refresh snaps %s: no updates", strutil.Quoted(inst.Snaps))
+			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
 		} else {
 			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 		}
