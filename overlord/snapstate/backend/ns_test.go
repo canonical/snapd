@@ -172,3 +172,40 @@ func (s *nsSuite) TestUpdateNamespaceSilentFailure(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update preserved namespaces of snap "snap-name": exit status 1`)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
 }
+
+func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
+	for _, t := range []struct {
+		cmd    string
+		mnt    bool
+		errStr string
+		res    [][]string
+	}{
+		// mnt file present
+		{"", true, "", [][]string{{"snap-update-ns", "snap-name"}}},
+		// no .mnt file means no call is generated
+		{"", false, "", nil},
+		// failure with msg
+		{"echo failure; exit 1;", true, `cannot update preserved namespaces of snap "snap-name": failure`, [][]string{{"snap-update-ns", "snap-name"}}},
+		// silent failure
+		{"exit 1;", true, `cannot update preserved namespaces of snap "snap-name": exit status 1`, [][]string{{"snap-update-ns", "snap-name"}}},
+	} {
+		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)
+		dirs.LibExecDir = cmd.BinDir()
+		defer cmd.Restore()
+
+		if t.mnt {
+			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
+			c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+		} else {
+			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
+		}
+
+		err := s.be.UpdateSnapNamespace("snap-name")
+		if t.errStr != "" {
+			c.Check(err, ErrorMatches, t.errStr)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(cmd.Calls(), DeepEquals, t.res)
+		}
+	}
+}
