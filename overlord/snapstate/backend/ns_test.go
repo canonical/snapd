@@ -68,14 +68,14 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 		{
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
-			errStr: `cannot discard preserved namespaces of snap "snap-name": failure`,
+			errStr: `cannot discard preserved namespace of snap "snap-name": failure`,
 			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
 		// The mnt file is present so we use snap-discard-ns;
 		// The command fails silently and we forward this fact using a generic message.
 		{
 			cmd:    "exit 1;",
 			mnt:    true,
-			errStr: `cannot discard preserved namespaces of snap "snap-name": exit status 1`,
+			errStr: `cannot discard preserved namespace of snap "snap-name": exit status 1`,
 			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-discard-ns", t.cmd)
@@ -116,14 +116,14 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		{
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
-			errStr: `cannot update preserved namespaces of snap "snap-name": failure`,
+			errStr: `cannot update preserved namespace of snap "snap-name": failure`,
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 		// The mnt file is present so we use snap-update-ns;
 		// The command fails silently and we forward this fact using a generic message.
 		{
 			cmd:    "exit 1;",
 			mnt:    true,
-			errStr: `cannot update preserved namespaces of snap "snap-name": exit status 1`,
+			errStr: `cannot update preserved namespace of snap "snap-name": exit status 1`,
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)

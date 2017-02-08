@@ -50,7 +50,7 @@ func (b Backend) runNamespaceTool(toolName, snapName string) ([]byte, error) {
 func (b Backend) DiscardSnapNamespace(snapName string) error {
 	output, err := b.runNamespaceTool("snap-discard-ns", snapName)
 	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func (b Backend) DiscardSnapNamespace(snapName string) error {
 func (b Backend) UpdateSnapNamespace(snapName string) error {
 	output, err := b.runNamespaceTool("snap-update-ns", snapName)
 	if err != nil {
-		return fmt.Errorf("cannot update preserved namespaces of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
