@@ -1739,11 +1739,33 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
 		Current:  si.Revision,
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSameRevisionDifferentChannel(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "some-channel",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no update available and tracks "channel-for-7" now`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {

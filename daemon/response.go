@@ -125,9 +125,10 @@ const (
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 	errorKindPaymentDeclined   = errorKind("payment-declined")
 
-	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
-	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
-	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
+	errorKindSnapAlreadyInstalled        = errorKind("snap-already-installed")
+	errorKindSnapNotInstalled            = errorKind("snap-not-installed")
+	errorKindSnapNoUpdateAvailable       = errorKind("snap-no-update-available")
+	errorKindSnapNoUpdateChannelSwitched = errorKind("snap-no-update-channel-switched")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
