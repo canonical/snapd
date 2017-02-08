@@ -132,7 +132,7 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 
 func (c *getCommand) Execute(args []string) error {
 	if c.Positional.PlugOrSlotSpec == "" && len(c.Positional.Keys) == 0 {
-		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+		return fmt.Errorf(i18n.G("get which option?"))
 	}
 
 	context := c.context()
@@ -231,10 +231,10 @@ func validatePlugOrSlot(attrsTask *state.Task, plugSide bool, plugOrSlot string)
 		}
 	}
 	if err != nil {
-		return fmt.Errorf(i18n.G("failed to find plug/slot data in the attrs task"))
+		return fmt.Errorf(i18n.G("internal error: cannot find plug or slot data in the appropriate task"))
 	}
 	if name != plugOrSlot {
-		return fmt.Errorf(i18n.G("unknown plug/slot %s"), plugOrSlot)
+		return fmt.Errorf(i18n.G("unknown plug or slot %q"), plugOrSlot)
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 
 	attrsTask := st.Task(attrsTaskID)
 	if attrsTask == nil {
-		return nil, fmt.Errorf(i18n.G("failed to find attrs task"))
+		return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
 	}
 
 	return attrsTask, nil
@@ -268,7 +268,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	var attrsTask *state.Task
 	attrsTask, err = attributesTask(context)
 	if err != nil {
-		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
+		return err
 	}
 
 	if c.ForcePlugSide && c.ForceSlotSide {
@@ -276,13 +276,12 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	}
 
 	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
-	isSlotSide := (hookType == prepareSlotHook || hookType == connectSlotHook)
 	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
 
 	var which string
-	if (isPlugSide && !c.ForceSlotSide) || (isSlotSide && c.ForcePlugSide) {
+	if c.ForcePlugSide || isPlugSide {
 		which = "plug-attrs"
 	} else {
 		which = "slot-attrs"
@@ -294,7 +293,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	attributes := make(map[string]interface{})
 	if err = attrsTask.Get(which, &attributes); err != nil {
-		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
 	return c.printValues(func(key string) (interface{}, bool, error) {

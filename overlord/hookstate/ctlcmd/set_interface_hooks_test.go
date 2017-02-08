@@ -101,7 +101,7 @@ func (s *setAttrSuite) TestCommandFailsOutsideOfValidContext(c *C) {
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"})
 	c.Check(err, NotNil)
-	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare- hooks`)
+	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

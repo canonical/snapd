@@ -64,7 +64,7 @@ var getTests = []struct {
 }{
 	{
 		args:  "get",
-		error: ".*need option name or plug/slot and attribute name arguments.*",
+		error: ".*get which option.*",
 	},
 	{
 		args:  "get --foo",

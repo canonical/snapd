@@ -63,7 +63,7 @@ func init() {
 
 func (s *setCommand) Execute(args []string) error {
 	if s.Positional.PlugOrSlotSpec == "" && len(s.Positional.ConfValues) == 0 {
-		return fmt.Errorf(i18n.G("need option name or plug/slot and attribute name arguments"))
+		return fmt.Errorf(i18n.G("set which option?"))
 	}
 
 	context := s.context()
@@ -118,12 +118,12 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
 	if hookType != preparePlugHook && hookType != prepareSlotHook {
-		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare- hooks"))
+		return fmt.Errorf(i18n.G("interface attributes can only be set during the execution of prepare hooks"))
 	}
 
 	attrsTask, err := attributesTask(context)
 	if err != nil {
-		return fmt.Errorf(i18n.G("failed to find attrs task: %q"), err)
+		return err
 	}
 
 	// check if the requested plug or slot is correct for this hook.
@@ -144,7 +144,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	attributes := make(map[string]interface{})
 	if err := attrsTask.Get(which, &attributes); err != nil {
-		return fmt.Errorf(i18n.G("failed to get %s: %q"), which, err)
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {

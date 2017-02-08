@@ -78,7 +78,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 }
 
 func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName string, slotSnap string, slotName string) error {
-	// Set initial interface attributes for the plug- and slot- snaps in connect task.
+	// Set initial interface attributes for the plug and slot snaps in connect task.
 	var snapst snapstate.SnapState
 	var err error
 
@@ -98,7 +98,7 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 			plugAttrs[k] = v
 		}
 	} else {
-		return fmt.Errorf("Snap %q has no plug named %q", plugSnap, plugName)
+		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
 
 	if err = snapstate.Get(st, slotSnap, &snapst); err != nil {
@@ -116,7 +116,7 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 			slotAttrs[k] = v
 		}
 	} else {
-		return fmt.Errorf("Snap %q has no slot named %q", slotSnap, slotName)
+		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}
 
 	ts.Set("slot-attrs", slotAttrs)
