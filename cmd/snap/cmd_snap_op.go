@@ -820,6 +820,42 @@ func (x *cmdRevert) Execute(args []string) error {
 	return nil
 }
 
+var shortSwitchHelp = i18n.G("Switch snap to a different channel")
+var longSwitchHelp = i18n.G(`
+The switch command switch the given snap to a different channel without
+actually doing a refresh.
+`)
+
+type cmdSwitch struct {
+	channelMixin
+
+	Positional struct {
+		Snap    installedSnapName `positional-arg-name:"<snap>" required:"1"`
+		Channel string            `positional-arg-name:"<channel>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x cmdSwitch) Execute(args []string) error {
+	cli := Client()
+	name := string(x.Positional.Snap)
+	channel := string(x.Positional.Channel)
+	opts := &client.SnapOptions{
+		Channel: channel,
+	}
+	changeID, err := cli.Switch(name, opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("%s switched to %s\n"), name, channel)
+	return nil
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
 		map[string]string{"revision": i18n.G("Remove only the given revision")}, nil)
@@ -841,4 +877,6 @@ func init() {
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, modeDescs.also(map[string]string{
 		"revision": "Revert to the given revision",
 	}), nil)
+	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, nil, nil)
+
 }

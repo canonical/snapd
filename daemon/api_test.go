@@ -495,6 +495,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateRefreshCandidates",
 		"snapstateRevert",
 		"snapstateRevertToRevision",
+		"snapstateSwitch",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",

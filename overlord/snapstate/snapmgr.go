@@ -394,6 +394,9 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 
+	// misc
+	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
+
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
 
@@ -994,9 +997,23 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 

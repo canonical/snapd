@@ -758,6 +758,7 @@ var (
 	snapstateRemoveMany        = snapstate.RemoveMany
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
+	snapstateSwitch            = snapstate.Switch
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1009,6 +1010,19 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("switch takes no revision")
+	}
+	ts, err := snapstate.Switch(st, inst.Snaps[0], inst.Channel)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Switch %q snap to %s"), inst.Snaps[0], inst.Channel)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -1018,6 +1032,7 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"revert":  snapRevert,
 	"enable":  snapEnable,
 	"disable": snapDisable,
+	"switch":  snapSwitch,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
