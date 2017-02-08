@@ -1,5 +1,7 @@
 name: test-snapd-tools
 version: 1.0
+environment:
+  EXTRA_GLOBAL: extra-global
 apps:
     echo:
         command: bin/echo
@@ -15,6 +17,8 @@ apps:
         command: bin/head
     env:
         command: bin/env
+        environment:
+          EXTRA_LOCAL: extra-local
     sh:
         command: bin/sh
     cmd:
