@@ -37,23 +37,13 @@ import (
 //     int   mnt_passno;   /* pass number on parallel fsck */
 // };
 type Entry struct {
-	Name    MntFsName
+	Name    string
 	Dir     MntDir
 	Type    MntFsType
 	Options MntOptions
 
 	DumpFrequency   int
 	CheckPassNumber int
-}
-
-// MntFsName represents name of the device in a mount entry.
-type MntFsName string
-
-func (v MntFsName) String() string {
-	if len(v) != 0 {
-		return escape(string(v))
-	}
-	return "none"
 }
 
 // MntDir represents mount directory in a mount entry.
@@ -101,6 +91,13 @@ var whitespaceReplacer = strings.NewReplacer(
 	" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`)
 
 func (e Entry) String() string {
+	// Name represents name of the device in a mount entry.
+	var name string
+	if len(e.Name) != 0 {
+		name = escape(e.Name)
+	} else {
+		name = "none"
+	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
-		e.Name, e.Dir, e.Type, e.Options, e.DumpFrequency, e.CheckPassNumber)
+		name, e.Dir, e.Type, e.Options, e.DumpFrequency, e.CheckPassNumber)
 }
