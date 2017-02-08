@@ -63,17 +63,17 @@ var whitespaceReplacer = strings.NewReplacer(
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
-	if len(e.Name) != 0 {
+	if e.Name != "" {
 		name = escape(e.Name)
 	}
 	// Dir represents mount directory in a mount entry.
 	dir := "none"
-	if len(e.Dir) != 0 {
+	if e.Dir != "" {
 		dir = escape(e.Dir)
 	}
 	// Type represents file system type in a mount entry.
 	fsType := "none"
-	if len(e.Type) != 0 {
+	if e.Type != "" {
 		fsType = escape(e.Type)
 	}
 	// Options represents mount options in a mount entry.
