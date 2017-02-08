@@ -131,7 +131,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
-func (s *MediaHubInterfaceSuite) TestPermanentPlugSnippetAppArmor(c *C) {
+func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	system := interfaces.SecurityAppArmor
 
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
