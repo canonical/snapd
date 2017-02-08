@@ -116,6 +116,11 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("revert", name, options)
 }
 
+// Switch moves the snap to a different channel without a refresh
+func (client *Client) Switch(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("switch", name, options)
+}
+
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
 
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {

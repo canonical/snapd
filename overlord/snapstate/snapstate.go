@@ -674,6 +674,28 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (n
 	return new, mustRetire, transferTargets, nil
 }
 
+// Switch switches a snap to a new channel
+func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !snapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: snapst.CurrentSideInfo(),
+		Channel:  channel,
+	}
+
+	switchSnap := st.NewTask("switch-snap", fmt.Sprintf(i18n.G("Switch snap %q to %s"), snapsup.Name(), snapsup.Channel))
+	switchSnap.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(switchSnap), nil
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
