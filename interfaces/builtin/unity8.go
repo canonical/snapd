@@ -26,14 +26,15 @@ import (
 )
 
 var unity8ConnectedPlugAppArmor = []byte(`
-# Description: Can access unity8 desktop services
-# Usage: common
-
   #include <abstractions/dbus-session-strict>
-  #include <abstractions/fonts>
 
   # qmlscene (a common client) wants this
   network netlink raw,
+
+  # Fonts
+  #include <abstractions/fonts>
+  /var/cache/fontconfig/   r,
+  /var/cache/fontconfig/** mr,
 
   # Accessibility
   #include <abstractions/dbus-accessibility-strict>
@@ -48,23 +49,6 @@ var unity8ConnectedPlugAppArmor = []byte(`
        path=/org/a11y/atspi/**
        peer=(label=unconfined),
 
-  # OSK (on screen keyboard)
-  dbus (send)
-       bus=session
-       path=/org/maliit/server/address
-       interface=org.freedesktop.DBus.Properties
-       member=Get
-       peer=(name=org.maliit.server,label=unconfined),
-  unix (connect, receive, send)
-       type=stream
-       peer=(addr=@/tmp/maliit-server/dbus-*),
-
-  # Sensors
-  dbus (receive, send)
-       bus=session
-       path=/com/canonical/usensord/haptic
-       peer=(name=com.canonical.usensord,label=unconfined),
-
   # URL dispatcher. All apps can call this since:
   # a) the dispatched application is launched out of process and not
   #    controllable except via the specified URL
@@ -76,7 +60,7 @@ var unity8ConnectedPlugAppArmor = []byte(`
        path=/com/canonical/URLDispatcher
        interface=com.canonical.URLDispatcher
        member=DispatchURL
-       peer=(name=com.canonical.URLDispatcher,label=unconfined),
+       peer=(name=com.canonical.URLDispatcher,label=###SLOT_SECURITY_TAGS###),
 
   # This is needed when the app is already running and needs to be passed in
   # a URL to open. This is most often used with content-hub providers and
@@ -93,7 +77,7 @@ var unity8ConnectedPlugAppArmor = []byte(`
   dbus (receive, send)
        bus=session
        path=/com/canonical/Unity/Launcher/@{PROFILE_DBUS}
-       peer=(name=com.canonical.Unity.Launcher,label=unconfined),
+       peer=(name=com.canonical.Unity.Launcher,label=###SLOT_SECURITY_TAGS###),
 
   # Clipboard
   dbus (send)
@@ -101,13 +85,13 @@ var unity8ConnectedPlugAppArmor = []byte(`
        interface=com.ubuntu.content.dbus.Service
        path=/
        member={CreatePaste,GetLatestPasteData,GetPasteData,PasteFormats}
-       peer=(name=com.ubuntu.content.dbus.Service,label=unconfined),
+       peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
   dbus (receive)
        bus=session
        interface=com.ubuntu.content.dbus.Service
        path=/
        member=PasteFormatsChanged
-       peer=(name=com.ubuntu.content.dbus.Service,label=unconfined),
+       peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
 
   # Lttng tracing is very noisy and should not be allowed by confined apps.
   # Can safely deny. LP: #1260491
@@ -116,7 +100,9 @@ var unity8ConnectedPlugAppArmor = []byte(`
 
 var unity8ConnectedPlugSecComp = []byte(`
 bind
-sched_setscheduler
+recvfrom
+recvmsg
+sendmsg
 sendto
 shutdown
 `)
