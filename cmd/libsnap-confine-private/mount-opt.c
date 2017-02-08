@@ -29,7 +29,7 @@
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
 	unsigned long used = 0;
-	strcpy(buf, "");
+	sc_string_init(buf, buf_size);
 #define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
@@ -123,11 +123,7 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 			 unsigned long mountflags, const
 			 void *data)
 {
-	if (buf_size == 0) {
-		die("cannot work with an empty buffer");
-	}
-	*buf = 0;
-
+	sc_string_init(buf, buf_size);
 	sc_string_append(buf, buf_size, "mount");
 
 	// Add filesysystem type if it's there and doesn't have the special value "none"
@@ -213,11 +209,7 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 			  int flags)
 {
-	if (buf_size == 0) {
-		die("cannot work with an empty buffer");
-	}
-	*buf = 0;
-
+	sc_string_init(buf, buf_size);
 	sc_string_append(buf, buf_size, "umount");
 
 	if (flags & MNT_FORCE) {
