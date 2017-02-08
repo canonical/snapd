@@ -33,6 +33,7 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"

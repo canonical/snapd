@@ -17,6 +17,7 @@
 
 #include "mount-opt.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 
 #include "utils.h"
 #include "string-utils.h"
+#include "fault-injection.h"
 
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
@@ -240,4 +242,35 @@ const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 	}
 
 	return buf;
+}
+
+void sc_do_mount(const char *source, const char *target,
+		 const char *fs_type, unsigned long mountflags,
+		 const void *data)
+{
+	char buf[10000];
+	const char *mount_cmd = NULL;
+
+	void ensure_mount_cmd() {
+		if (mount_cmd == NULL) {
+			mount_cmd = sc_mount_cmd(buf, sizeof buf, source,
+						 target, fs_type, mountflags,
+						 data);
+		}
+	}
+
+	if (sc_is_debug_enabled()) {
+		ensure_mount_cmd();
+		debug("performing operation: %s", mount_cmd);
+	}
+	if (sc_faulty("mount", NULL)
+	    || mount(source, target, fs_type, mountflags, data) < 0) {
+		// Save errno as ensure can clobber it.
+		int saved_errno = errno;
+		ensure_mount_cmd();
+
+		// Restore errno and die.
+		errno = saved_errno;
+		die("cannot perform operation: %s", mount_cmd);
+	}
 }
