@@ -693,37 +693,37 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 	scenarios := []struct {
 		env       string
 		classic   bool
-		exe       bool
+		exeInHost bool
 		exeInCore bool
-		expected  bool
+
+		wantDelta bool
 	}{
-		{"", false, false, false, false}, // no env, not on classic, no executable, no exe in core => no delta
-		{"", false, false, true, false},  // no env, not on classic, no executable, exe in core => no delta
-		{"", false, true, false, false},  // no env, not on classic, executable, no exe in core => no delta
-		{"", false, true, true, false},   // no env, not on classic, executable, exe in core => no delta
-		{"", true, false, false, false},  // no env, on classic, no executable, no exe in core => no delta
-		{"", true, false, true, true},    // no env, on classic, no executable, exe in core => no delta
-		{"", true, true, false, true},    // no env, on classic, executable, no exe in core => DELTA!
-		{"", true, true, true, true},     // no env, on classic, executable, exe in core => DELTA!
+		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
 
-		{"0", false, false, false, false}, // env says NO, not classic, no executable, no exe in core => no delta
-		{"0", false, false, true, false},  // env says NO, not classic, no executable, exe in core => no delta
-		{"0", false, true, false, false},  // env says NO, not classic, executable, no exe in core => no delta
-		{"0", false, true, true, false},   // env says NO, not classic, executable, exe in core => no delta
-		{"0", true, false, false, false},  // env says NO, classic, no executable, no exe in core => no delta
-		{"0", true, false, true, false},   // env says NO, classic, no executable, exe in core => no delta
-		{"0", true, true, false, false},   // env says NO, classic, executable, no exe in core => no delta
-		{"0", true, true, true, false},    // env says NO, classic, executable, exe in core => no delta
+		{env: "0", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: true, wantDelta: false},
 
-		{"1", false, false, false, false}, // env says YES, no classic, no executable, no exe in core => no delta
-		{"1", false, false, true, true},   // env says YES, no classic, no executable, exe in core => no delta
-		{"1", false, true, false, true},   // env says YES, no classic, executable, no exe in core => DELTA!
-		{"1", false, true, true, true},    // env says YES, no classic, executable, exe in core => DELTA!
-		{"1", true, false, false, false},  // env says YES, classic, no executable, no exe in core => no delta
-		{"1", true, false, true, true},    // env says YES, classic, no executable, exe in core => no delta
-		{"1", true, true, false, true},    // env says YES, classic, executable, no exe in core => DELTA!
-		{"1", true, true, true, true},     // env says YES, classic, executable, exe in core => DELTA!
-
+		{env: "1", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
 	}
 
 	for _, scenario := range scenarios {
@@ -734,13 +734,13 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 		}
 		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
 		release.MockOnClassic(scenario.classic)
-		if scenario.exe {
+		if scenario.exeInHost {
 			os.Setenv("PATH", origPath)
 		} else {
 			os.Setenv("PATH", altPath)
 		}
 
-		c.Check(useDeltas(), Equals, scenario.expected, Commentf("%#v", scenario))
+		c.Check(useDeltas(), Equals, scenario.wantDelta, Commentf("%#v", scenario))
 	}
 }
 
