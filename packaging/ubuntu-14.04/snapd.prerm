@@ -3,6 +3,6 @@
 set -e
 
 if [ -d /run/systemd/system ]; then
-    systemctl stop snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
-    systemctl disable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service
+    systemctl stop snapd.autoimport.service snapd.socket snapd.service
+    systemctl disable snapd.autoimport.service snapd.socket snapd.service
 fi

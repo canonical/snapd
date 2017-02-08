@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -87,6 +88,17 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	prevOpenSnapFile := openSnapFile
 	openSnapFile = mock
 	return func() { openSnapFile = prevOpenSnapFile }
+}
+
+func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
+	prevMinRefreshInterval := minRefreshInterval
+	prevDefaultRefreshRandomness := defaultRefreshRandomness
+	minRefreshInterval = newMinRefreshInterval
+	defaultRefreshRandomness = newRefreshRandomness
+	return func() {
+		minRefreshInterval = prevMinRefreshInterval
+		defaultRefreshRandomness = prevDefaultRefreshRandomness
+	}
 }
 
 var (
