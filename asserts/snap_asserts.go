@@ -729,6 +729,13 @@ func (snapdev *SnapDeveloper) Developers() []*Developer {
 }
 
 func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+	// Check authority is the publisher or trusted.
+	authorityID := snapdev.AuthorityID()
+	publisherID := snapdev.PublisherID()
+	if !db.IsTrustedAccount(authorityID) && (publisherID != authorityID) {
+		return fmt.Errorf("snap-developer must be signed by the publisher or a trusted authority: authority-id=%q, publisher-id=%q", authorityID, publisherID)
+	}
+
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
@@ -754,14 +761,6 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
-	// TODO(matt): allow "canonical" as authority-id
-	// authority-id and publisher-id must match
-	authorityID := assert.AuthorityID()
-	publisherID := assert.HeaderString("publisher-id")
-	if publisherID != authorityID {
-		return nil, fmt.Errorf("authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: %q != %q", authorityID, publisherID)
-	}
-
 	developers, err := checkDevelopers(assert.headers, "developers")
 	if err != nil {
 		return nil, err

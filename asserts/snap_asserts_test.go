@@ -1395,7 +1395,6 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
-		{"publisher-id: dev-id1\n", "publisher-id: dev-id2\n", `authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: \"dev-id1\" != \"dev-id2\"`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{sds.developersLines, "developers: \n", `"developers" must be a list of developer maps`},
@@ -1417,6 +1416,100 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
 	}
+}
+
+func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"authority-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id2",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
+
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority: authority-id="dev-id1", publisher-id="dev-id2"`)
+}
+
+func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id1",
+		"display-name": "dev-id1",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
 }
 
 func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
