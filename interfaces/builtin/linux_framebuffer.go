@@ -22,8 +22,7 @@ package builtin
 import "github.com/snapcore/snapd/interfaces"
 
 const linuxFramebufferConnectedPlugAppArmor = `
-# Description: for those who need to talk to the system TPM chip over /dev/tpm0
-# Usage: reserved
+# Description: needed for applications using framebuffer
 
 /dev/fb0 rw,
 /dev/graphics/0 rw,
