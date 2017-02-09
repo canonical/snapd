@@ -699,10 +699,18 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	return nil
 }
 
+// TODO(matt): consider renaming this ... Developer is a bit vague.
+type Developer struct {
+	AccountID string
+	Since     time.Time
+	Until     time.Time
+}
+
 // SnapDeveloper holds a snap-developer assertion, defining the developers who
 // can collaborate on a snap while it's owned by a specific publisher.
 type SnapDeveloper struct {
 	assertionBase
+	developers []*Developer
 }
 
 // SnapID returns the snap id of the snap.
@@ -715,6 +723,11 @@ func (snapdev *SnapDeveloper) PublisherID() string {
 	return snapdev.HeaderString("publisher-id")
 }
 
+// Developers returns the developers allowed to collaborate on the snap.
+func (snapdev *SnapDeveloper) Developers() []*Developer {
+	return snapdev.developers
+}
+
 func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
@@ -725,6 +738,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
 	}
 
+	// TODO(matt): check publisher-id exists (only needed if different to account-id")
 	// TODO(matt): check each developer id has an acccount assertion.
 
 	return nil
@@ -740,6 +754,7 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
+	// TODO(matt): allow "canonical" as authority-id
 	// authority-id and publisher-id must match
 	authorityID := assert.AuthorityID()
 	publisherID := assert.HeaderString("publisher-id")
@@ -747,9 +762,55 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: %q != %q", authorityID, publisherID)
 	}
 
-	// TODO(matt): `developers` header
+	developers, err := checkDevelopers(assert.headers, "developers")
+	if err != nil {
+		return nil, err
+	}
 
 	return &SnapDeveloper{
 		assertionBase: assert,
+		developers:    developers,
 	}, nil
+}
+
+func checkDevelopers(headers map[string]interface{}, name string) ([]*Developer, error) {
+	// TODO:
+	// - reject overlapping date ranges?
+	value, ok := headers[name]
+	if !ok {
+		return nil, nil
+	}
+	list, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q must be a list of developer maps", name)
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+
+	developers := make([]*Developer, len(list))
+	for i, item := range list {
+		v, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("%q must be a list of developers", name)
+		}
+		accountID, err := checkNotEmptyString(v, "developer-id")
+		if err != nil {
+			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+		}
+		since, err := checkRFC3339Date(v, "since")
+		if err != nil {
+			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+		}
+		until, err := checkRFC3339DateWithDefault(v, "until", time.Time{})
+		if err != nil {
+			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+		}
+		if !until.IsZero() && since.After(until) {
+			return nil, fmt.Errorf(`%s[%d]: "since" must be less than or equal to "until"`, name, i)
+		}
+		developers[i] = &Developer{accountID, since, until}
+	}
+
+	return developers, nil
 }

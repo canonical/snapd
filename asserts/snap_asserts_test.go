@@ -1326,16 +1326,25 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 	}
 }
 
-type snapDevSuite struct{}
+type snapDevSuite struct {
+	developersLines string
+	validEncoded    string
+}
 
-func (sds *snapDevSuite) TestDecodeOK(c *C) {
-	encoded := "type: snap-developer\n" +
+func (sds *snapDevSuite) SetUpSuite(c *C) {
+	sds.developersLines = "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"
+	sds.validEncoded = "type: snap-developer\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"publisher-id: dev-id1\n" +
+		sds.developersLines +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
+}
+
+func (sds *snapDevSuite) TestDecodeOK(c *C) {
+	encoded := sds.validEncoded
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeveloperType)
@@ -1343,6 +1352,37 @@ func (sds *snapDevSuite) TestDecodeOK(c *C) {
 	c.Check(snapDev.AuthorityID(), Equals, "dev-id1")
 	c.Check(snapDev.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDev.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDev.Developers(), DeepEquals, []*asserts.Developer{
+		{"dev-id2", time.Date(2017, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2017, 2, 1, 0, 0, 0, 0, time.UTC)},
+	})
+}
+
+func (sds *snapDevSuite) TestDevelopersOptional(c *C) {
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+	snapDev := assert.(*asserts.SnapDeveloper)
+	c.Check(snapDev.Developers(), IsNil)
+}
+
+func (sds *snapDevSuite) TestDevelopersUntilOptional(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n", 1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestDevelopersRevoked(c *C) {
+	encoded := sds.validEncoded
+	encoded = strings.Replace(
+		encoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", 1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+	snapDev := assert.(*asserts.SnapDeveloper)
+	dev := snapDev.Developers()[0]
+	c.Check(dev.Since, Equals, dev.Until)
 }
 
 const (
@@ -1350,13 +1390,7 @@ const (
 )
 
 func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
-	encoded := "type: snap-developer\n" +
-		"authority-id: dev-id1\n" +
-		"snap-id: snap-id-1\n" +
-		"publisher-id: dev-id1\n" +
-		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
-		"\n\n" +
-		"AXNpZw=="
+	encoded := sds.validEncoded
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
@@ -1364,6 +1398,18 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		{"publisher-id: dev-id1\n", "publisher-id: dev-id2\n", `authority-id and publisher-id must match, snap-developer assertions are expected to be signed by the publisher: \"dev-id1\" != \"dev-id2\"`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
+		{sds.developersLines, "developers: \n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers: foo\n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers:\n  foo: bar\n", `"developers" must be a list of developer maps`},
+		// TODO(matt): they're not really  a "header" once they're inside another map
+		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `developers\[0\]: "developer-id" header is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n", `developers\[0\]: "since" header is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n", `developers\[0\]: "since" header should not be empty`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n", `developers\[0\]: "since" header is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n", `developers\[0\]: "until" header is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n", `developers\[0\]: "until" header is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n", `developers\[1\]: "developer-id" header is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", `developers\[0\]: "since" must be less than or equal to "until"`},
 	}
 
 	for _, test := range invalidTests {

@@ -144,6 +144,7 @@ func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, de
 	if !ok {
 		return time.Time{}, fmt.Errorf("%q header must be a string", name)
 	}
+	// TODO(matt): would it make sense to check for an empty string?
 	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
