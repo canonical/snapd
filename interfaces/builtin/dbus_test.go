@@ -132,11 +132,11 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
@@ -433,7 +433,7 @@ func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSystem(c *C) {
 
 func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.ConnectedPlugSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -457,7 +457,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 
 func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 	iface := &builtin.DbusInterface{}
-	snippet, err := iface.ConnectedPlugSnippet(s.connectedSystemPlug, s.connectedSystemSlot, interfaces.SecurityAppArmor)
+	snippet, err := iface.ConnectedPlugSnippet(s.connectedSystemPlug, nil, s.connectedSystemSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -478,7 +478,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, nil, s.connectedSessionSlot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -514,7 +514,7 @@ slots:
 	matchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
 	nonmatchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
 
-	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, matchingSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, nil, matchingSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "org.slotter.session")
@@ -522,7 +522,7 @@ slots:
 	c.Check(string(snippet), Not(testutil.Contains), "org.slotter.other-session")
 	c.Check(string(snippet), Not(testutil.Contains), "bus=system")
 
-	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nonmatchingSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nil, nonmatchingSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -556,7 +556,7 @@ slots:
 	matchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
 	nonmatchingSlot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
 
-	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, matchingSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug, nil, matchingSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "org.slotter.other-session")
@@ -564,7 +564,7 @@ slots:
 	c.Check(string(snippet), Not(testutil.Contains), "org.slotter.session")
 	c.Check(string(snippet), Not(testutil.Contains), "bus=session")
 
-	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nonmatchingSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug, nil, nonmatchingSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -603,13 +603,13 @@ slots:
 	matchingSlot1 := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
 	matchingSlot2 := &interfaces.Slot{SlotInfo: slotInfo.Slots["that"]}
 
-	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug1, matchingSlot1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(matchingPlug1, nil, matchingSlot1, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "org.slotter.session")
 	c.Check(string(snippet), testutil.Contains, "bus=session")
 
-	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug2, matchingSlot2, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(matchingPlug2, nil, matchingSlot2, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "org.slotter.other-session")
@@ -640,7 +640,7 @@ slots:
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
 
-	snippet, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, nil, slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -669,7 +669,7 @@ slots:
 	slotInfo := snaptest.MockInfo(c, slotYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: slotInfo.Slots["this"]}
 
-	snippet, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, nil, slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

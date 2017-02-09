@@ -282,7 +282,7 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 	return nil, nil
 }
 
-func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return nil, err

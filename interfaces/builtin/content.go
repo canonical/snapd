@@ -150,7 +150,7 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
 }
 
-func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:

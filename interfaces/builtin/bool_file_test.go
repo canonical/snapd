@@ -126,7 +126,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.gpioSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(snippet, IsNil)
 }
@@ -138,13 +138,13 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.gpioSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.ledSlot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
@@ -168,26 +168,26 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSecurityDoesNotContainSlotSecu
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.ConnectedPlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
+		s.iface.ConnectedPlugSnippet(s.plug, nil, s.missingPathSlot, nil, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, slot, nil, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, slot, nil, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, slot, nil, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, slot, nil, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 	}

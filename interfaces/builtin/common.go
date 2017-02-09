@@ -93,7 +93,7 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 //
 // Connected plugs get the static seccomp and apparmor blobs defined by the
 // instance variables.  They are not really connection specific in this case.
-func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(iface.connectedPlugAppArmor), nil

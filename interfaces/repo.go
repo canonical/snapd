@@ -732,7 +732,8 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 
 		// Add connection-specific snippet specific to each slot
 		for slot := range r.plugSlots[plug] {
-			snippet, err := iface.ConnectedPlugSnippet(plug, slot, securitySystem)
+			attrs := r.attributes[plug][slot]
+			snippet, err := iface.ConnectedPlugSnippet(plug, attrs.plugAttrs, slot, attrs.slotAttrs, securitySystem)
 			if err != nil {
 				return nil, err
 			}

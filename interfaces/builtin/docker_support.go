@@ -530,7 +530,7 @@ func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 	return nil, nil
 }
 
-func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:

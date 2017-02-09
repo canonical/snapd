@@ -105,7 +105,7 @@ func (iface *IioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil, nil

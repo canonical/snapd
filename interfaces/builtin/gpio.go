@@ -95,7 +95,7 @@ func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 }
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])

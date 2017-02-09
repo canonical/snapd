@@ -1193,7 +1193,7 @@ func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, 
 	return nil, nil
 }
 
-func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
 		return []byte(modemManagerConnectedPlugDBus), nil

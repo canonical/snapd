@@ -84,7 +84,7 @@ func (iface *PhysicalMemoryObserveInterface) PermanentSlotSnippet(slot *interfac
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *PhysicalMemoryObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PhysicalMemoryObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(physicalMemoryObserveConnectedPlugAppArmor), nil

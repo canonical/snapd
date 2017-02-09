@@ -113,7 +113,7 @@ func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
 // Applications associated with the plug gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.

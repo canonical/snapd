@@ -121,7 +121,7 @@ func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]int
 
 // ConnectedPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PlugSnippetCallback != nil {
 		return t.PlugSnippetCallback(plug, slot, securitySystem)
 	}
