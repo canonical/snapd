@@ -108,16 +108,24 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 		return nil, err
 	}
 	coreLdSo := filepath.Join(root, interp)
+	// we cannot use EvalSymlink here because we need to resolve
+	// relative and absolute symlinks differently. A absolute
+	// symlink is relative to root of the core snap.
+	seen := map[string]bool{}
 	for IsSymlink(coreLdSo) {
 		link, err := os.Readlink(coreLdSo)
 		if err != nil {
 			return nil, err
 		}
-		if strings.HasPrefix(link, "/") {
+		if filepath.IsAbs(link) {
 			coreLdSo = filepath.Join(root, link)
 		} else {
 			coreLdSo = filepath.Join(filepath.Dir(coreLdSo), link)
 		}
+		if seen[coreLdSo] {
+			return nil, fmt.Errorf("cannot run command from core: symlink cycle found")
+		}
+		seen[coreLdSo] = true
 	}
 
 	ldLibraryPathForCore := parseCoreLdSoConf("/etc/ld.so.conf")

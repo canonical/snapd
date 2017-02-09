@@ -87,3 +87,23 @@ func (s *commandFromCoreSuite) TestCommandFromCore(c *C) {
 		"--some-xdelta-arg",
 	})
 }
+
+func (s *commandFromCoreSuite) TestCommandFromCoreSymlinkCycle(c *C) {
+	s.makeMockLdSoConf(c)
+	root := filepath.Join(dirs.SnapMountDir, "/core/current")
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile("/bin/true", filepath.Join(root, "/usr/bin/xdelta3"), 0)
+
+	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
+	c.Assert(err, IsNil)
+	interp := strings.TrimSpace(string(out))
+
+	coreInterp := filepath.Join(root, interp)
+	c.Assert(os.MkdirAll(filepath.Dir(coreInterp), 0755), IsNil)
+	c.Assert(os.Symlink(filepath.Base(coreInterp), coreInterp), IsNil)
+
+	_, err = osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, ErrorMatches, "cannot run command from core: symlink cycle found")
+
+}
