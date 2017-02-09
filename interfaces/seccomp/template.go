@@ -163,7 +163,10 @@ inotify_rm_watch
 
 # TIOCSTI allows for faking input (man tty_ioctl)
 # TODO: this should be scaled back even more
-ioctl - !TIOCSTI
+#ioctl - !TIOCSTI
+# FIXME: replace this with the filter of TIOCSTI once snap-confine can read this syntax
+# See LP:#1662489 for context.
+ioctl
 
 io_cancel
 io_destroy
