@@ -29,6 +29,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type interfaceAttrs struct {
+	plugAttrs map[string]interface{}
+	slotAttrs map[string]interface{}
+}
+
 // Repository stores all known snappy plugs and slots and ifaces.
 type Repository struct {
 	// Protects the internals from concurrent access.
@@ -42,17 +47,21 @@ type Repository struct {
 	// given a plug and a slot, are they connected?
 	plugSlots map[*Plug]map[*Slot]bool
 	backends  map[SecuritySystem]SecurityBackend
+	// attributes of plugs and slots; the attributes include attribute values from
+	// the yaml and provided at runtime via interface hooks.
+	attributes map[*Plug]map[*Slot]*interfaceAttrs
 }
 
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	return &Repository{
-		ifaces:    make(map[string]Interface),
-		plugs:     make(map[string]map[string]*Plug),
-		slots:     make(map[string]map[string]*Slot),
-		slotPlugs: make(map[*Slot]map[*Plug]bool),
-		plugSlots: make(map[*Plug]map[*Slot]bool),
-		backends:  make(map[SecuritySystem]SecurityBackend),
+		ifaces:     make(map[string]Interface),
+		plugs:      make(map[string]map[string]*Plug),
+		slots:      make(map[string]map[string]*Slot),
+		slotPlugs:  make(map[*Slot]map[*Plug]bool),
+		plugSlots:  make(map[*Plug]map[*Slot]bool),
+		backends:   make(map[SecuritySystem]SecurityBackend),
+		attributes: make(map[*Plug]map[*Slot]*interfaceAttrs),
 	}
 }
 
@@ -428,7 +437,7 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef) error {
+func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -468,6 +477,11 @@ func (r *Repository) Connect(ref ConnRef) error {
 	r.plugSlots[plug][slot] = true
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
+
+	if r.attributes[plug] == nil {
+		r.attributes[plug] = make(map[*Slot]*interfaceAttrs)
+	}
+	r.attributes[plug][slot] = &interfaceAttrs{plugAttrs: plugAttrs, slotAttrs: slotAttrs}
 	return nil
 }
 

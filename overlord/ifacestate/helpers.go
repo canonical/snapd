@@ -111,7 +111,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-		if err := m.repo.Connect(connRef); err != nil {
+		// TODO pass attributes
+		if err := m.repo.Connect(connRef, nil, nil); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
@@ -254,7 +255,8 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// Suggested connection already exist so don't clobber it.
 			continue
 		}
-		if err := m.repo.Connect(connRef); err != nil {
+		// TODO: hooks, attributes
+		if err := m.repo.Connect(connRef, nil, nil); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
 		}
@@ -278,7 +280,8 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// Suggested connection already exist so don't clobber it.
 			continue
 		}
-		if err := m.repo.Connect(connRef); err != nil {
+		// TODO: hooks, attributes
+		if err := m.repo.Connect(connRef, nil, nil); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
 		}
