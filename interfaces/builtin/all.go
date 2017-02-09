@@ -71,6 +71,7 @@ var allInterfaces = []interfaces.Interface{
 	NewHomeInterface(),
 	NewKernelModuleControlInterface(),
 	NewLibvirtInterface(),
+	NewLinuxFramebufferInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
 	NewMountObserveInterface(),

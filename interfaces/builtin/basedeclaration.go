@@ -314,6 +314,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  linux-framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   locale-control:
     allow-installation:
       slot-snap-type:

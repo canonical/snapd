@@ -35,6 +35,6 @@ func NewLinuxFramebufferInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "linux-framebuffer",
 		connectedPlugAppArmor: linuxFramebufferConnectedPlugAppArmor,
-		reservedForOS:         false,
+		reservedForOS:         true,
 	}
 }
