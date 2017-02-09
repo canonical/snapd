@@ -92,6 +92,7 @@ var defaultTemplate = `
   /etc/profile r,
   /etc/environment r,
   /usr/share/terminfo/** r,
+  /usr/share/bash-completion/bash_completion r, # in-snap tab completion uses functions from here
   /etc/inputrc r,
   # Common utilities for shell scripts
   /{,usr/}bin/arch ixr,

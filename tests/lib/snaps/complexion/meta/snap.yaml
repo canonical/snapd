@@ -1,0 +1,6 @@
+name: complexion
+version: 1.0
+apps:
+  make:
+    command: bin/complexion
+    completer: complexion.bash-completer
