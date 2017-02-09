@@ -100,14 +100,14 @@ static struct sc_map_list sc_map_entries;
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map and linked list
  */
-static scmp_datum_t sc_map_search(char *s)
+static scmp_datum_t sc_map_search(const char *s)
 {
 	ENTRY e;
 	ENTRY *ep = NULL;
 	scmp_datum_t val = 0;
 	errno = 0;
 
-	e.key = s;
+	e.key = (char *)s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed for %s", s);
 
@@ -363,7 +363,7 @@ static void sc_map_destroy()
 }
 
 /* Caller must check if errno != 0 */
-static scmp_datum_t read_number(char *s)
+static scmp_datum_t read_number(const char *s)
 {
 	scmp_datum_t val = 0;
 
