@@ -1195,7 +1195,7 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
-	// optinally support switching the current snap channel too, e.g.
+	// optionally support switching the current snap channel too, e.g.
 	// if a snap is in both stable and candidate with the same revision
 	// we can update it here and it will be displayed correctly in the UI
 	if snapsup.SideInfo.Channel != "" {
