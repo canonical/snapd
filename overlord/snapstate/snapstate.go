@@ -680,7 +680,7 @@ type NoUpdateChannelSwitchedError struct {
 }
 
 func (e NoUpdateChannelSwitchedError) Error() string {
-	return fmt.Sprintf("snap %q has no update available and tracks %q now", e.Snap, e.Channel)
+	return fmt.Sprintf("snap %q has no updates available and tracks %q now", e.Snap, e.Channel)
 }
 
 // Update initiates a change updating a snap.
