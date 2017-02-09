@@ -39,11 +39,12 @@ import (
 type fakeOp struct {
 	op string
 
-	name  string
-	revno snap.Revision
-	sinfo snap.SideInfo
-	stype snap.Type
-	cand  store.RefreshCandidate
+	name    string
+	channel string
+	revno   snap.Revision
+	sinfo   snap.SideInfo
+	stype   snap.Type
+	cand    store.RefreshCandidate
 
 	old string
 
@@ -491,6 +492,14 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	f.ops = append(f.ops, fakeOp{
 		op:  "current",
 		old: old,
+	})
+}
+
+func (f *fakeSnappyBackend) SwitchSnapChannel(name, channel string) {
+	f.ops = append(f.ops, fakeOp{
+		op:      "switch-snap-channel",
+		name:    name,
+		channel: channel,
 	})
 }
 

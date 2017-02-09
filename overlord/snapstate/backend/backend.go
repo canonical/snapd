@@ -33,6 +33,9 @@ func (b Backend) Candidate(*snap.SideInfo) {}
 // CurrentInfo is a test hook.
 func (b Backend) CurrentInfo(*snap.Info) {}
 
+// SwitchSnapChannel is a test hook.
+func (b Backend) SwitchSnapChannel(string, string) {}
+
 // OpenSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.Container.
 // Assumes the file was verified beforehand or the user asked for --dangerous.
