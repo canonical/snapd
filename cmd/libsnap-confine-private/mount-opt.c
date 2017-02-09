@@ -138,10 +138,11 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	if (mountflags & MS_BIND) {
 		if (mountflags & MS_REC) {
 			sc_string_append(buf, buf_size, " --rbind");
+			used_special_flags |= MS_REC;
 		} else {
 			sc_string_append(buf, buf_size, " --bind");
 		}
-		used_special_flags |= MS_BIND | MS_REC;
+		used_special_flags |= MS_BIND;
 	}
 	// Moving mount point location (move)
 	if (mountflags & MS_MOVE) {
@@ -152,37 +153,41 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 	if (MS_SHARED & mountflags) {
 		if (mountflags & MS_REC) {
 			sc_string_append(buf, buf_size, " --make-rshared");
+			used_special_flags |= MS_REC;
 		} else {
 			sc_string_append(buf, buf_size, " --make-shared");
 		}
-		used_special_flags |= MS_SHARED | MS_REC;
+		used_special_flags |= MS_SHARED;
 	}
 
 	if (MS_SLAVE & mountflags) {
 		if (mountflags & MS_REC) {
 			sc_string_append(buf, buf_size, " --make-rslave");
+			used_special_flags |= MS_REC;
 		} else {
 			sc_string_append(buf, buf_size, " --make-slave");
 		}
-		used_special_flags |= MS_SLAVE | MS_REC;
+		used_special_flags |= MS_SLAVE;
 	}
 
 	if (MS_PRIVATE & mountflags) {
 		if (mountflags & MS_REC) {
 			sc_string_append(buf, buf_size, " --make-rprivate");
+			used_special_flags |= MS_REC;
 		} else {
 			sc_string_append(buf, buf_size, " --make-private");
 		}
-		used_special_flags |= MS_PRIVATE | MS_REC;
+		used_special_flags |= MS_PRIVATE;
 	}
 
 	if (MS_UNBINDABLE & mountflags) {
 		if (mountflags & MS_REC) {
 			sc_string_append(buf, buf_size, " --make-runbindable");
+			used_special_flags |= MS_REC;
 		} else {
 			sc_string_append(buf, buf_size, " --make-unbindable");
 		}
-		used_special_flags |= MS_UNBINDABLE | MS_REC;
+		used_special_flags |= MS_UNBINDABLE;
 	}
 	// If regular option syntax exists then use it.
 	if (mountflags & ~used_special_flags) {
