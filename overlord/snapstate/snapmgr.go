@@ -376,6 +376,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
+	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -1179,6 +1180,24 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+	if snapsup.SideInfo != nil && snapsup.SideInfo.Channel != "" {
+		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	}
+
+	Set(st, snapsup.Name(), snapst)
 	return nil
 }
 

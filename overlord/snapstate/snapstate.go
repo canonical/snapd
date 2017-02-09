@@ -674,15 +674,6 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (n
 	return new, mustRetire, transferTargets, nil
 }
 
-type NoUpdateChannelSwitchedError struct {
-	Snap    string
-	Channel string
-}
-
-func (e NoUpdateChannelSwitchedError) Error() string {
-	return fmt.Sprintf("snap %q has no updates available and tracks %q now", e.Snap, e.Channel)
-}
-
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
@@ -728,13 +719,26 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	if err != nil {
 		return nil, err
 	}
-	if len(tts) == 0 && len(updates) == 0 {
-		// see if we need to update the channel
-		if snapst.Channel != channel {
-			snapst.Channel = channel
-			Set(st, name, &snapst)
-			return nil, &NoUpdateChannelSwitchedError{Snap: name, Channel: channel}
+
+	// see if we need to update the channel
+	if infoErr != nil && snapst.Channel != channel {
+		snapsup := &SnapSetup{
+			SideInfo: snapst.CurrentSideInfo(),
+			Channel:  channel,
 		}
+		snapsup.SideInfo.Channel = channel
+
+		switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))
+		switchSnap.Set("snap-setup", &snapsup)
+
+		switchSnapTs := state.NewTaskSet(switchSnap)
+		for _, ts := range tts {
+			switchSnapTs.WaitAll(ts)
+		}
+		tts = append(tts, switchSnapTs)
+	}
+
+	if len(tts) == 0 && len(updates) == 0 {
 		// really nothing to do, return the original no-update-available error
 		return nil, infoErr
 	}

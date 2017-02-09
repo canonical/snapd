@@ -1037,8 +1037,6 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		result.Kind = errorKindSnapNotInstalled
 	case *snap.NoUpdateAvailableError:
 		result.Kind = errorKindSnapNoUpdateAvailable
-	case *snapstate.NoUpdateChannelSwitchedError:
-		result.Kind = errorKindSnapNoUpdateChannelSwitched
 	case *snapstate.ErrSnapNeedsMode:
 		result.Kind = errorKindSnapNeedsMode
 		result.Value = err.Mode
