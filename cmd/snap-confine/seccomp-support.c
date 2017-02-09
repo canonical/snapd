@@ -28,11 +28,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/quota.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <termios.h>
+#include <xfs/xqm.h>
 #include <unistd.h>
 
 #include <seccomp.h>
@@ -97,16 +99,16 @@ static struct sc_map_list sc_map_entries;
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map and linked list
  */
-static scmp_datum_t sc_map_search(char *s)
+static scmp_datum_t sc_map_search(const char *s)
 {
 	ENTRY e;
 	ENTRY *ep = NULL;
 	scmp_datum_t val = 0;
 	errno = 0;
 
-	e.key = s;
+	e.key = (char *)s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
-		die("hsearch_r failed");
+		die("hsearch_r failed for %s", s);
 
 	if (ep != NULL) {
 		scmp_datum_t *val_p = NULL;
@@ -300,6 +302,22 @@ static void sc_map_init()
 	// man 4 tty_ioctl
 	sc_map_add(TIOCSTI);
 
+	// man 2 quotactl (with what Linux supports)
+	sc_map_add(Q_SYNC);
+	sc_map_add(Q_QUOTAON);
+	sc_map_add(Q_QUOTAOFF);
+	sc_map_add(Q_GETFMT);
+	sc_map_add(Q_GETINFO);
+	sc_map_add(Q_SETINFO);
+	sc_map_add(Q_GETQUOTA);
+	sc_map_add(Q_SETQUOTA);
+	sc_map_add(Q_XQUOTAON);
+	sc_map_add(Q_XQUOTAOFF);
+	sc_map_add(Q_XGETQUOTA);
+	sc_map_add(Q_XSETQLIM);
+	sc_map_add(Q_XGETQSTAT);
+	sc_map_add(Q_XQUOTARM);
+
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
 	if (hcreate_r(sc_map_entries.count, &sc_map_htab) == 0)
@@ -337,7 +355,7 @@ static void sc_map_destroy()
 }
 
 /* Caller must check if errno != 0 */
-static scmp_datum_t read_number(char *s)
+static scmp_datum_t read_number(const char *s)
 {
 	scmp_datum_t val = 0;
 

@@ -186,7 +186,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
 
 // The label uses short form when exactly one app is bound to the mpris slot
@@ -325,7 +325,7 @@ func (s *MprisInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
 
 func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
