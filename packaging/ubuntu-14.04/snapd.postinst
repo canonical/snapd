@@ -20,4 +20,6 @@ case "$1" in
             systemctl -f enable snapd.autoimport.service snapd.socket snapd.service snap.mount.service snapd.system-shutdown.service
             systemctl start snapd.autoimport.service snapd.socket snapd.service snap.mount.service
         fi
+
+	echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
 esac
