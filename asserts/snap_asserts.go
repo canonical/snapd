@@ -746,6 +746,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	}
 
 	// TODO(matt): check publisher-id exists (only needed if different to account-id")
+	// TODO(matt): check that snap-decl's publisher is snap-dev's publisher? not sure about this.
 	// TODO(matt): check each developer id has an acccount assertion.
 
 	return nil
