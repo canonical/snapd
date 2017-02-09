@@ -36,7 +36,8 @@ execute: |
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
-        snap change 3||true
+        chg_id=$(snap changes|grep -o -P "^\d+(?= .*Transition ubuntu-core to core)")
+        snap change $chg_id||true
         sleep 1
     done
 
