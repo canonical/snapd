@@ -61,6 +61,7 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	Completer       string          `yaml:"completer,omitempty"`
 
 	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
 	SlotNames   []string                 `yaml:"slots,omitempty"`
@@ -233,6 +234,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
+			Completer:       yApp.Completer,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)

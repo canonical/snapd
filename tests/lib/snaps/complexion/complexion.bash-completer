@@ -1,0 +1,34 @@
+# -*- shell-script -*-
+
+_complete_complexion() {
+    local cur prev words cword
+    _init_completion || return
+
+    case "$prev" in
+        -f)
+            _filedir
+            return
+            ;;
+        -h)
+            _known_hosts_real "$cur"
+            return
+            ;;
+        -b)
+            COMPREPLY=(
+                counterrevolutionary
+                electroencephalogram
+                uncharacteristically
+            )
+            return
+            ;;
+    esac
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $( compgen -W "-f -h -b" -- "$cur" ) )
+        return
+    fi
+
+    _filedir
+}
+
+complete -F _complete_complexion complexion

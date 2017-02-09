@@ -372,6 +372,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
+	Completer       string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

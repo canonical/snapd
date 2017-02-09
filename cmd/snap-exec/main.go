@@ -43,7 +43,7 @@ var opts struct {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Printf("cannot snap-exec: %s\n", err)
+		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -93,6 +93,10 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	switch command {
 	case "shell":
 		cmd = "/bin/bash"
+	case "complete":
+		if app.Completer != "" {
+			cmd = "/bin/bash"
+		}
 	case "stop":
 		cmd = app.StopCommand
 	case "reload":
@@ -146,9 +150,18 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
-	if command == "shell" {
+	switch command {
+	case "shell":
 		fullCmd = "/bin/bash"
 		cmdArgs = nil
+	case "complete":
+		fullCmd = "/bin/bash"
+		cmdArgs = []string{
+			// XXX: this should be under /usr/lib/snapd/ or sth (there isn't
+			// /usr/share/snapd/ yet but if there were it would go there)
+			"/snap/complexion/current/bin/etelpmoc.sh",
+			filepath.Join(app.Snap.MountDir(), app.Completer),
+		}
 	}
 	fullCmdArgs := []string{fullCmd}
 	fullCmdArgs = append(fullCmdArgs, cmdArgs...)
