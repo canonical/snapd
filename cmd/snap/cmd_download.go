@@ -39,7 +39,7 @@ import (
 type cmdDownload struct {
 	channelMixin
 	Revision string `long:"revision"`
-	StoreID string `long:"store-id"`
+	StoreID  string `long:"store-id"`
 
 	Positional struct {
 		Snap remoteSnapName
@@ -119,7 +119,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	var cfg *store.Config = nil
 	if x.StoreID != "" {
 		cfg = store.DefaultConfig()
-		cfg.StoreID = x.StoreID;
+		cfg.StoreID = x.StoreID
 	}
 
 	sto := store.New(cfg, authContext)
