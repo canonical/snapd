@@ -724,8 +724,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	if infoErr != nil && snapst.Channel != channel {
 		snapsup := &SnapSetup{
 			SideInfo: snapst.CurrentSideInfo(),
-			Channel:  channel,
+			// update the tracked channel
+			Channel: channel,
 		}
+		// Update the current snap channel as well. This ensures that
+		// the UI displays the right values.
 		snapsup.SideInfo.Channel = channel
 
 		switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))

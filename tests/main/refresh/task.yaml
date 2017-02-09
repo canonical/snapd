@@ -103,5 +103,5 @@ execute: |
     snap refresh --stable $SNAP_NAME
     snap info $SNAP_NAME | MATCH "tracking: +stable"
 
-    snap refresh --candidate $SNAP_NAME 2>&1 | MATCH "test-snapd-tools (candidate) from 'canonical' refreshed"
+    snap refresh --candidate $SNAP_NAME 2>&1 | MATCH "$SNAP_NAME \(candidate\) 1.0+fake1 from 'canonical' refreshed"
     snap info $SNAP_NAME | MATCH "tracking: +candidate"
