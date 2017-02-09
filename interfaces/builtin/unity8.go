@@ -20,16 +20,19 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 var unity8ConnectedPlugAppArmor = []byte(`
-  #include <abstractions/dbus-session-strict>
+# Description: Can access unity8 desktop services
 
-  # qmlscene (a common client) wants this
-  network netlink raw,
+  #include <abstractions/dbus-session-strict>
 
   # Fonts
   #include <abstractions/fonts>
@@ -64,33 +67,25 @@ var unity8ConnectedPlugAppArmor = []byte(`
 
   # This is needed when the app is already running and needs to be passed in
   # a URL to open. This is most often used with content-hub providers and
-  # url-dispatcher, but is actually supported by Qt generally (though because
-  # we don't allow the send a malicious app can't send this to another app).
+  # url-dispatcher, but is actually supported by Qt generally.
   dbus (receive)
        bus=session
-       path=/@{PROFILE_DBUS}
+       path=/###PLUG_DBUS_APPIDS###
        interface=org.freedesktop.Application
        member=Open
-       peer=(label=unconfined),
+       peer=(label=###SLOT_SECURITY_TAGS###),
 
-  # Access to unity launcher (e.g. app counter, progress, alert)
+  # Unity launcher (e.g. app counter, progress, alert)
   dbus (receive, send)
        bus=session
-       path=/com/canonical/Unity/Launcher/@{PROFILE_DBUS}
+       path=/com/canonical/Unity/Launcher/###PLUG_DBUS_APPIDS###
        peer=(name=com.canonical.Unity.Launcher,label=###SLOT_SECURITY_TAGS###),
 
-  # Clipboard
-  dbus (send)
+  # Content Hub (pasteboard, file transfers)
+  dbus (receive, send)
        bus=session
        interface=com.ubuntu.content.dbus.Service
        path=/
-       member={CreatePaste,GetLatestPasteData,GetPasteData,PasteFormats}
-       peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
-  dbus (receive)
-       bus=session
-       interface=com.ubuntu.content.dbus.Service
-       path=/
-       member=PasteFormatsChanged
        peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
 
   # Lttng tracing is very noisy and should not be allowed by confined apps.
@@ -99,7 +94,6 @@ var unity8ConnectedPlugAppArmor = []byte(`
 `)
 
 var unity8ConnectedPlugSecComp = []byte(`
-bind
 recvfrom
 recvmsg
 sendmsg
@@ -117,6 +111,23 @@ func (iface *Unity8Interface) String() string {
 	return iface.Name()
 }
 
+func (iface *Unity8Interface) dbusAppId(app *snap.AppInfo) []byte {
+	var retval bytes.Buffer
+
+	appidbits := []string{app.Snap.Name(), app.Name, app.Snap.Revision.String()}
+	appid := strings.Join(appidbits, "_")
+
+	for _, value := range appid {
+		if unicode.In(rune(value), unicode.Letter, unicode.Digit) {
+			retval.WriteRune(rune(value))
+		} else {
+			retval.WriteString(fmt.Sprintf("_%2.2x", value))
+		}
+	}
+
+	return retval.Bytes()
+}
+
 func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
@@ -124,7 +135,26 @@ func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return unity8ConnectedPlugAppArmor, nil
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace(unity8ConnectedPlugAppArmor, old, new, -1)
+
+		old = []byte("###PLUG_DBUS_APPIDS###")
+		var appids bytes.Buffer
+		if len(plug.Apps) > 1 {
+			appids.WriteByte('{')
+		}
+		for _, app := range plug.Apps {
+			appids.Write(iface.dbusAppId(app))
+			appids.WriteByte(',')
+		}
+		appids.Truncate(appids.Len() - 1)
+		if len(plug.Apps) > 1 {
+			appids.WriteByte('}')
+		}
+		snippet = bytes.Replace(snippet, old, appids.Bytes(), -1)
+
+		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return unity8ConnectedPlugSecComp, nil
 	}
