@@ -108,6 +108,8 @@ recvmsg
 sendmsg
 sendto
 recvfrom
+send
+recv
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -198,6 +200,7 @@ const upowerObserveConnectedPlugSecComp = `
 # Description: Can query UPower for power devices, history and statistics.
 
 # dbus
+recv
 recvfrom
 recvmsg
 send
