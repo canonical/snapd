@@ -757,7 +757,9 @@ var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
-	// TODO(matt): return developer account refs.
+	// TODO(matt):
+	// - account - developers and publisher
+	// - snap-declaration
 	return nil
 }
 
