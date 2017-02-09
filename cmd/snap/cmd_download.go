@@ -39,6 +39,7 @@ import (
 type cmdDownload struct {
 	channelMixin
 	Revision string `long:"revision"`
+	StoreID string `long:"store-id"`
 
 	Positional struct {
 		Snap remoteSnapName
@@ -56,6 +57,7 @@ func init() {
 		return &cmdDownload{}
 	}, channelDescs.also(map[string]string{
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+		"store-id": i18n.G("Download snap from the given store, to which you must have access"),
 	}), []argDesc{{
 		name: "<snap>",
 		desc: i18n.G("Snap name"),
@@ -114,7 +116,13 @@ func (x *cmdDownload) Execute(args []string) error {
 	var authContext auth.AuthContext
 	var user *auth.UserState
 
-	sto := store.New(nil, authContext)
+	var cfg *store.Config = nil
+	if x.StoreID != "" {
+		cfg = store.DefaultConfig()
+		cfg.StoreID = x.StoreID;
+	}
+
+	sto := store.New(cfg, authContext)
 	// we always allow devmode for downloads
 	devMode := true
 
