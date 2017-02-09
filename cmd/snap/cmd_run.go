@@ -29,10 +29,12 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/reexec"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -181,10 +183,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	snapConfinePath := filepath.Join(dirs.LibExecDir, "snap-confine")
 	snapConfinePathInCore := filepath.Join(dirs.SnapMountDir, "/core/current/", snapConfinePath)
 
+	shouldReexec := (reexec.Path(cmd.Version) != "")
 	cmd := []string{}
-	// FIXME: add version compare magic just like we do for re-exec
-	//        to ensure we do not use an older snap-confine
-	if release.OnClassic && osutil.FileExists(snapConfinePathInCore) {
+	if release.OnClassic && shouldReexec && osutil.FileExists(snapConfinePathInCore) {
 		// FIXME: once https://github.com/snapcore/snapd/pull/2791
 		// lands use osutil.CommandFromCore() here
 		cmd = append(cmd, snapConfinePathInCore)
