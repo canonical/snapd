@@ -130,8 +130,11 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 		sc_string_append(buf, buf_size, " -t ");
 		sc_string_append(buf, buf_size, fs_type);
 	}
-	// Check for some special, dedicated syntax. Collect the flags that were
-	// displayed this way so that they are not repeated with -o foo syntax.
+	// Check for some special, dedicated options, that aren't represented with
+	// the generic mount option argument (mount -o ...), by collecting those
+	// options that we will display as command line arguments in
+	// used_special_flags so. This is used below to filter out these arguments
+	// from mount_flags when calling sc_mount_opt2str().
 	int used_special_flags = 0;
 
 	// Bind-ounts (bind)
