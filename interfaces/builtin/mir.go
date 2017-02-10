@@ -47,16 +47,14 @@ var mirPermanentSlotSecComp = []byte(`
 # Needed for server launch
 bind
 listen
-setsockopt
-getsockname
 # Needed by server upon client connect
+send
 sendto
+sendmsg
 accept
 shmctl
-open
-getsockopt
+recv
 recvmsg
-sendmsg
 recvfrom
 `)
 
@@ -77,10 +75,13 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
 # Usage: common
-recvmsg
-sendmsg
-sendto
+recv
 recvfrom
+recvmsg
+send
+sendto
+sendmsg
+
 `)
 
 type MirInterface struct{}

@@ -23,18 +23,17 @@ import "github.com/snapcore/snapd/interfaces"
 
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
+/etc/libvirt/* r,
 `
 
 const libvirtConnectedPlugSecComp = `
-connect
-getsockname
 recv
 recvmsg
 send
 sendto
 sendmsg
-socket
-socketpair
+listen
+accept
 `
 
 func NewLibvirtInterface() interfaces.Interface {

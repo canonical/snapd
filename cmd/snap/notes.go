@@ -55,14 +55,16 @@ type Notes struct {
 	Private  bool
 	DevMode  bool
 	JailMode bool
+	Classic  bool
 	TryMode  bool
 	Disabled bool
 	Broken   bool
 }
 
-func NotesFromRef(ref *snap.Ref) *Notes {
+func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
 	return &Notes{
-		DevMode: ref.Confinement != client.StrictConfinement,
+		DevMode: ref.Confinement == client.DevModeConfinement,
+		Classic: ref.Confinement == client.ClassicConfinement,
 	}
 }
 
@@ -70,6 +72,7 @@ func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 	notes := &Notes{
 		Private: snap.Private,
 		DevMode: snap.Confinement == client.DevModeConfinement,
+		Classic: snap.Confinement == client.ClassicConfinement,
 	}
 	if resInfo != nil {
 		notes.Price = getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status)
@@ -79,11 +82,11 @@ func NotesFromRemote(snap *client.Snap, resInfo *client.ResultInfo) *Notes {
 }
 
 func NotesFromLocal(snap *client.Snap) *Notes {
-	jailMode := snap.Confinement == client.DevModeConfinement && !snap.DevMode
 	return &Notes{
 		Private:  snap.Private,
-		DevMode:  snap.DevMode,
-		JailMode: jailMode,
+		DevMode:  !snap.JailMode && (snap.DevMode || snap.Confinement == client.DevModeConfinement),
+		Classic:  !snap.JailMode && (snap.Confinement == client.ClassicConfinement),
+		JailMode: snap.JailMode,
 		TryMode:  snap.TryMode,
 		Disabled: snap.Status != client.StatusActive,
 		Broken:   snap.Broken != "",
@@ -94,6 +97,7 @@ func NotesFromInfo(info *snap.Info) *Notes {
 	return &Notes{
 		Private: info.Private,
 		DevMode: info.Confinement == client.DevModeConfinement,
+		Classic: info.Confinement == client.ClassicConfinement,
 		Broken:  info.Broken != "",
 	}
 }
@@ -119,6 +123,10 @@ func (n *Notes) String() string {
 
 	if n.JailMode {
 		ns = append(ns, "jailmode")
+	}
+
+	if n.Classic {
+		ns = append(ns, "classic")
 	}
 
 	if n.Private {

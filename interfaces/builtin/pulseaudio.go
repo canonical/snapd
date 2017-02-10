@@ -31,6 +31,8 @@ const pulseaudioConnectedPlugAppArmor = `
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioConnectedPlugAppArmorDesktop = `
@@ -46,13 +48,8 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
-getsockopt
-setsockopt
-connect
 sendto
 shmctl
-getsockname
-getpeername
 sendmsg
 recvmsg
 `
@@ -92,27 +89,30 @@ owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
 /{run,dev}/shm/pulse-shm-* rwk,
+
+/usr/share/applications/ r,
+
+owner /run/pulse/native/ rwk,
+owner /run/user/[0-9]*/ r,
+owner /run/user/[0-9]*/pulse/ rw,
 `
 
 const pulseaudioPermanentSlotSecComp = `
 # The following are needed for UNIX sockets
 personality
 setpriority
-setsockopt
-getsockname
 bind
 listen
 sendto
 recvfrom
 accept4
 shmctl
-getsockname
-getpeername
 sendmsg
 recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
+setgroups32
 `
 
 type PulseAudioInterface struct{}

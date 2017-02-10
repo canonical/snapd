@@ -28,7 +28,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"path/filepath"
-	"strconv"
 
 	"gopkg.in/check.v1"
 
@@ -192,12 +191,47 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 
 	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
-	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\nfalse\r\n.*")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
 	c.Check(id, check.Equals, "66b3")
+}
+
+func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Dangerous: true,
+	}
+
+	// InstallPath takes Dangerous
+	_, err = cs.cli.InstallPath(snap, &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\ntrue\r\n.*")
+
+	// Install does not (and gives us a clear error message)
+	_, err = cs.cli.Install("foo", &opts)
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
+
+	// nor does InstallMany (whether it fails because any option
+	// at all was provided, or because dangerous was provided, is
+	// unimportant)
+	_, err = cs.cli.InstallMany([]string{"foo"}, &opts)
+	c.Assert(err, check.NotNil)
 }
 
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
@@ -224,29 +258,51 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 	snapdir := filepath.Join(c.MkDir(), "/some/path")
 
 	for _, opts := range []*client.SnapOptions{
-		{DevMode: false, JailMode: false},
-		{DevMode: false, JailMode: true},
-		{DevMode: true, JailMode: true},
-		{DevMode: true, JailMode: false},
+		{Classic: false, DevMode: false, JailMode: false},
+		{Classic: false, DevMode: false, JailMode: true},
+		{Classic: false, DevMode: true, JailMode: true},
+		{Classic: false, DevMode: true, JailMode: false},
+		{Classic: true, DevMode: false, JailMode: false},
+		{Classic: true, DevMode: false, JailMode: true},
+		{Classic: true, DevMode: true, JailMode: true},
+		{Classic: true, DevMode: true, JailMode: false},
 	} {
+		comment := check.Commentf("when Classic:%t DevMode:%t JailMode:%t", opts.Classic, opts.DevMode, opts.JailMode)
 		id, err := cs.cli.Try(snapdir, opts)
 		c.Assert(err, check.IsNil)
 
 		// ensure we send the right form-data
 		_, params, err := mime.ParseMediaType(cs.req.Header.Get("Content-Type"))
-		c.Assert(err, check.IsNil)
+		c.Assert(err, check.IsNil, comment)
 		mr := multipart.NewReader(cs.req.Body, params["boundary"])
 		formData := formToMap(c, mr)
-		c.Check(formData, check.DeepEquals, map[string]string{
-			"action":    "try",
-			"snap-path": snapdir,
-			"devmode":   strconv.FormatBool(opts.DevMode),
-			"jailmode":  strconv.FormatBool(opts.JailMode),
-		})
+		c.Check(formData["action"], check.Equals, "try", comment)
+		c.Check(formData["snap-path"], check.Equals, snapdir, comment)
+		expectedLength := 2
+		if opts.Classic {
+			c.Check(formData["classic"], check.Equals, "true", comment)
+			expectedLength++
+		}
+		if opts.DevMode {
+			c.Check(formData["devmode"], check.Equals, "true", comment)
+			expectedLength++
+		}
+		if opts.JailMode {
+			c.Check(formData["jailmode"], check.Equals, "true", comment)
+			expectedLength++
+		}
+		c.Check(len(formData), check.Equals, expectedLength)
 
-		c.Check(cs.req.Method, check.Equals, "POST")
-		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
-		c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
-		c.Check(id, check.Equals, "66b3")
+		c.Check(cs.req.Method, check.Equals, "POST", comment)
+		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"), comment)
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*", comment)
+		c.Check(id, check.Equals, "66b3", comment)
 	}
+}
+
+func (cs *clientSuite) TestClientOpTryModeDangerous(c *check.C) {
+	snapdir := filepath.Join(c.MkDir(), "/some/path")
+
+	_, err := cs.cli.Try(snapdir, &client.SnapOptions{Dangerous: true})
+	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 }

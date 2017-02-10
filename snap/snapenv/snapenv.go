@@ -70,14 +70,15 @@ func snapEnv(info *snap.Info) map[string]string {
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) map[string]string {
 	return map[string]string{
-		"SNAP":              info.MountDir(),
-		"SNAP_COMMON":       info.CommonDataDir(),
-		"SNAP_DATA":         info.DataDir(),
-		"SNAP_NAME":         info.Name(),
-		"SNAP_VERSION":      info.Version,
-		"SNAP_REVISION":     info.Revision.String(),
-		"SNAP_ARCH":         arch.UbuntuArchitecture(),
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP":          info.MountDir(),
+		"SNAP_COMMON":   info.CommonDataDir(),
+		"SNAP_DATA":     info.DataDir(),
+		"SNAP_NAME":     info.Name(),
+		"SNAP_VERSION":  info.Version,
+		"SNAP_REVISION": info.Revision.String(),
+		"SNAP_ARCH":     arch.UbuntuArchitecture(),
+		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
 }
@@ -87,12 +88,16 @@ func basicEnv(info *snap.Info) map[string]string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string) map[string]string {
-	return map[string]string{
-		"HOME":             info.UserDataDir(home),
+	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
 		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
 	}
+	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
+	if !info.NeedsClassic() {
+		result["HOME"] = info.UserDataDir(home)
+	}
+	return result
 }
 
 // envMap creates a map from the given environment string list, e.g. the

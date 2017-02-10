@@ -56,7 +56,7 @@ var fwupdPermanentSlotAppArmor = []byte(`
 
   # Allow access from efivar library
   owner @{PROC}/@{pid}/mounts r,
-  /sys/devices/pci*/**/block/**/partition r,
+  /sys/devices/{pci*,platform}/**/block/**/partition r,
   # Introspect the block devices to get partition guid and size information
   /run/udev/data/b[0-9]*:[0-9]* r,
 
@@ -164,12 +164,10 @@ var fwupdPermanentSlotSecComp = []byte(`
 # Usage: reserved
 # Can communicate with DBus system service
 bind
-getsockname
 recvfrom
 recvmsg
 sendmsg
 sendto
-setsockopt
 `)
 
 var fwupdConnectedPlugSecComp = []byte(`
@@ -177,13 +175,10 @@ var fwupdConnectedPlugSecComp = []byte(`
 # privileged access to the fwupd service.
 # Usage: reserved
 bind
-getsockname
-getsockopt
 recvfrom
 recvmsg
 sendmsg
 sendto
-setsockopt
 `)
 
 // FwupdInterface type

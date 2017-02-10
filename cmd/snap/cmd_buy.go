@@ -36,8 +36,6 @@ The buy command buys a snap from the store.
 `)
 
 type cmdBuy struct {
-	Currency string `long:"currency"`
-
 	Positional struct {
 		SnapName remoteSnapName
 	} `positional-args:"yes" required:"yes"`
@@ -46,9 +44,7 @@ type cmdBuy struct {
 func init() {
 	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
-	}, map[string]string{
-		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
-	}, []argDesc{{
+	}, map[string]string{}, []argDesc{{
 		name: "<snap>",
 		desc: i18n.G("Snap name"),
 	}})
@@ -59,10 +55,10 @@ func (x *cmdBuy) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return buySnap(string(x.Positional.SnapName), x.Currency)
+	return buySnap(string(x.Positional.SnapName))
 }
 
-func buySnap(snapName, currency string) error {
+func buySnap(snapName string) error {
 	cli := Client()
 
 	user := cli.LoggedInUser()
@@ -81,11 +77,7 @@ func buySnap(snapName, currency string) error {
 
 	opts := &store.BuyOptions{
 		SnapID:   snap.ID,
-		Currency: currency,
-	}
-
-	if opts.Currency == "" {
-		opts.Currency = resultInfo.SuggestedCurrency
+		Currency: resultInfo.SuggestedCurrency,
 	}
 
 	opts.Price, opts.Currency, err = getPrice(snap.Prices, opts.Currency)
@@ -105,7 +97,7 @@ func buySnap(snapName, currency string) error {
 				return fmt.Errorf(i18n.G(`You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
 Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 			}
 		}

@@ -47,6 +47,10 @@ var modemManagerPermanentSlotAppArmor = []byte(`
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
 
+# For {mbim,qmi}-proxy
+unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
+/sys/devices/**/usb**/descriptors r,
+
 include <abstractions/nameservice>
 
 # DBus accesses
@@ -63,6 +67,19 @@ dbus (send)
 dbus (bind)
     bus=system
     name="org.freedesktop.ModemManager1",
+
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our modem-manager services.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
 `)
 
 var modemManagerConnectedSlotAppArmor = []byte(`
@@ -94,7 +111,27 @@ var modemManagerConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
     peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`)
+
+var modemManagerConnectedPlugAppArmorClassic = []byte(`
+# Allow access to the unconfined ModemManager service on classic.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.ModemManager1*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/ModemManager1{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
 `)
 
 var modemManagerPermanentSlotSecComp = []byte(`
@@ -105,10 +142,6 @@ var modemManagerPermanentSlotSecComp = []byte(`
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -118,10 +151,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-socketpair
-socket
 `)
 
 var modemManagerConnectedPlugSecComp = []byte(`
@@ -130,26 +160,25 @@ var modemManagerConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 # Can communicate with DBus system service
-connect
-getsockname
 recv
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `)
 
 var modemManagerPermanentSlotDBus = []byte(`
-<!-- DBus policy for ModemManager (upstream version 1.4.0)
-  - TODO change to polkit one when we enable it -->
-<policy context="default">
-    <allow send_destination="org.freedesktop.ModemManager1"/>
-</policy>
-
 <policy user="root">
     <allow own="org.freedesktop.ModemManager1"/>
+    <allow send_destination="org.freedesktop.ModemManager1"/>
+</policy>
+`)
+
+var modemManagerConnectedPlugDBus = []byte(`
+<policy context="default">
+    <deny own="org.freedesktop.ModemManager1"/>
+    <deny send_destination="org.freedesktop.ModemManager1"/>
 </policy>
 `)
 
@@ -1157,18 +1186,15 @@ func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, 
 func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
-		return nil, nil
+		return []byte(modemManagerConnectedPlugDBus), nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		var new []byte
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace([]byte(modemManagerConnectedPlugAppArmor), old, new, -1)
 		if release.OnClassic {
-			// If we're running on classic ModemManager will be part
-			// of the OS snap and will run unconfined.
-			new = []byte("unconfined")
-		} else {
-			new = slotAppLabelExpr(slot)
+			// Let confined apps access unconfined ofono on classic
+			snippet = append(snippet, modemManagerConnectedPlugAppArmorClassic...)
 		}
-		snippet := bytes.Replace(modemManagerConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return modemManagerConnectedPlugSecComp, nil

@@ -24,12 +24,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
+	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-type authTestSuite struct{}
+type authTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&authTestSuite{})
 
@@ -70,6 +76,15 @@ const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
 
 const mockStoreReturnNoNonce = `{}`
 
+func (s *authTestSuite) SetUpTest(c *C) {
+	MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1.1,
+		},
+	)))
+}
+
 func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnMacaroon)
@@ -95,14 +110,17 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
 	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: store server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
 }
 
@@ -219,14 +237,21 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		data, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(data, NotNil)
+		c.Assert(string(data), Equals, `{"discharge_macaroon":"soft-expired-serialized-discharge-macaroon"}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(discharge, Equals, "")
 }
 
@@ -277,14 +302,17 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 }
 
 func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
 
 	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
+	c.Assert(n, Equals, 5)
 	c.Assert(nonce, Equals, "")
 }
 
@@ -335,14 +363,17 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 }
 
 func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
+	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error body"))
+		n++
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
 	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
+	c.Assert(n, Equals, 5)
 	c.Assert(macaroon, Equals, "")
 }

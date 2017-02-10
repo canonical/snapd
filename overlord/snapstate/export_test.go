@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -59,6 +60,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	m.runner.AddHandler("validate-snap", fakeHandler, nil)
+	m.runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -71,6 +73,11 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	}, nil)
 }
 
+// AddAdhocTaskHandlers registers handlers for ad hoc test handler
+func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Task, *tomb.Tomb) error) {
+	m.runner.AddHandler(adhoc, do, undo)
+}
+
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := readInfo
 	readInfo = mock
@@ -81,6 +88,17 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	prevOpenSnapFile := openSnapFile
 	openSnapFile = mock
 	return func() { openSnapFile = prevOpenSnapFile }
+}
+
+func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
+	prevMinRefreshInterval := minRefreshInterval
+	prevDefaultRefreshRandomness := defaultRefreshRandomness
+	minRefreshInterval = newMinRefreshInterval
+	defaultRefreshRandomness = newRefreshRandomness
+	return func() {
+		minRefreshInterval = prevMinRefreshInterval
+		defaultRefreshRandomness = prevDefaultRefreshRandomness
+	}
 }
 
 var (

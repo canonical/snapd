@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -66,6 +68,9 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
 		// Swap Offer and Use around
 		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
+	}
+	if x.Positionals.Use.Name == "" {
+		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", x.Positionals.Use.Snap)
 	}
 
 	cli := Client()

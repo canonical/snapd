@@ -7,8 +7,13 @@ execute: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
     snap install test-snapd-control-consumer
+    snap install test-snapd-auto-aliases
 
     echo "And snapd is purged"
+    # only available on trusty
+    if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
+        sh -x ${SPREAD_PATH}/debian/snapd.prerm
+    fi
     sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
 
     echo "Nothing is left"

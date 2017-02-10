@@ -38,6 +38,7 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidiactl rw,
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
+  unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
   # eglfs
   /dev/vchiq rw,
@@ -56,19 +57,11 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-const openglConnectedPlugSecComp = `
-# Description: Can access opengl.
-# Usage: reserved
-
-getsockopt
-`
-
 // NewOpenglInterface returns a new "opengl" interface.
 func NewOpenglInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "opengl",
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

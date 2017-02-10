@@ -31,7 +31,7 @@ def exists(name, d):
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
-    return re.compile(r"^\w\S*\s+\(\d+\)\s+" + s + "$")
+    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
 
 res = list(yaml.load_all(sys.stdin))
 
@@ -55,8 +55,11 @@ check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
    ("publisher", equals, "canonical"),
    ("summary", equals, "Tools for testing the snapd application"),
+   ("description", equals, "A tool to test snapd\n"),
+   ("commands", exists),
    ("tracking", equals, "stable"),
    ("installed", matches, verRevNotesRx("-")),
+   ("refreshed", exists),
    ("channels", check,
     ("stable", matches, verRevNotesRx("-")),
     ("candidate", matches, verRevNotesRx("-")),
@@ -69,8 +72,10 @@ check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
    ("publisher", equals, "canonical"),
    ("summary", equals, "Basic snap with devmode confinement"),
+   ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
+   ("refreshed", exists),
    ("channels", check,
     ("beta", matches, verRevNotesRx("devmode")),
     ("edge", matches, verRevNotesRx("devmode")),
@@ -82,8 +87,10 @@ check("core", res[4],
       ("type", equals, "core"), # attenti al cane
       ("publisher", exists),
       ("summary", exists),
+      ("description", exists),
       ("tracking", exists),
       ("installed", exists),
+      ("refreshed", exists),
       ("channels", exists),
 )
 

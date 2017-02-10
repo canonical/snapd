@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+. "${srcdir:-.}/snap-confine/tests/common.sh"
+
+printf "Test seccomp filter (bad - no trailing newline)"
+
+printf "missingnewline" > "$TMP"/snap.name.app
+
+if "$L" snap.name.app /bin/true 2>/dev/null; then
+    # true returned successfully, length test failed
+    FAIL
+fi
+
+# all good
+PASS

@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -75,7 +76,6 @@ var api = []*Command{
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
-	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
@@ -84,6 +84,7 @@ var api = []*Command{
 	snapctlCmd,
 	usersCmd,
 	sectionsCmd,
+	aliasesCmd,
 }
 
 var (
@@ -161,11 +162,6 @@ var (
 		GET:    assertsFindMany,
 	}
 
-	eventsCmd = &Command{
-		Path: "/v2/events",
-		GET:  getEvents,
-	}
-
 	stateChangeCmd = &Command{
 		Path:   "/v2/changes/{id}",
 		UserOK: true,
@@ -213,6 +209,13 @@ var (
 		Path:   "/v2/sections",
 		UserOK: true,
 		GET:    getSections,
+	}
+
+	aliasesCmd = &Command{
+		Path:   "/v2/aliases",
+		UserOK: true,
+		GET:    getAliases,
+		POST:   changeAliases,
 	}
 )
 
@@ -412,7 +415,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
+	about, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find %q snap", name)
@@ -431,7 +434,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
-	result := webify(mapLocal(localSnap, active), url.String())
+	result := webify(mapLocal(about), url.String())
 
 	return SyncResponse(result, nil)
 }
@@ -560,8 +563,16 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", true, snap.R(0), user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  "",
+		Revision: snap.R(0),
+	}
+	snapInfo, err := theStore.SnapInfo(spec, user)
 	if err != nil {
+		if err == store.ErrSnapNotFound {
+			return NotFound(err.Error())
+		}
 		return InternalError("%v", err)
 	}
 
@@ -678,7 +689,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
@@ -719,6 +730,7 @@ type snapInstruction struct {
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
+	Classic          bool          `json:"classic"`
 	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
@@ -728,6 +740,10 @@ type snapInstruction struct {
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
+}
+
+func (inst *snapInstruction) modeFlags() (snapstate.Flags, error) {
+	return modeFlags(inst.DevMode, inst.JailMode, inst.Classic)
 }
 
 var (
@@ -740,6 +756,8 @@ var (
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
 	snapstateRemoveMany        = snapstate.RemoveMany
+	snapstateRevert            = snapstate.Revert
+	snapstateRevertToRevision  = snapstate.RevertToRevision
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -788,27 +806,28 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errClassicDevmodeConflict = errors.New("cannot use classic and devmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
-func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	flags := snapstate.Flags{}
-	if jailMode {
-		if devModeOS {
-			return flags, errNoJailMode
-		}
-		if devMode {
-			return flags, errModeConflict
-		}
-		flags.JailMode = true
+	devModeOS := release.ReleaseInfo.ForceDevMode()
+	switch {
+	case jailMode && devModeOS:
+		return flags, errNoJailMode
+	case jailMode && devMode:
+		return flags, errDevJailModeConflict
+	case devMode && classic:
+		return flags, errClassicDevmodeConflict
 	}
-	if devMode || devModeOS {
-		flags.DevMode = true
-	}
-
+	// NOTE: jailmode and classic are allowed together. In that setting,
+	// jailmode overrides classic and the app gets regular (non-classic)
+	// confinement.
+	flags.JailMode = jailMode
+	flags.Classic = classic
+	flags.DevMode = devMode || devModeOS && !classic
 	return flags, nil
-
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
@@ -824,14 +843,14 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 
 	switch len(updated) {
 	case 0:
-		// not really needed but be paranoid
 		if len(inst.Snaps) != 0 {
-			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", strutil.Quoted(inst.Snaps))
+			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
+		} else {
+			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 		}
-		// FIXME: instead don't generated a change(?) at all
-		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
-		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
+		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
@@ -862,7 +881,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -887,7 +906,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
@@ -946,15 +965,15 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	var ts *state.TaskSet
 
-	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	flags, err := inst.modeFlags()
 	if err != nil {
 		return "", nil, err
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
 	} else {
-		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
 		return "", nil, err
@@ -1009,37 +1028,29 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
-	if _, ok := err.(*snap.AlreadyInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapAlreadyInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
+	result := &errorResult{Message: err.Error()}
+
+	switch err := err.(type) {
+	case *snap.AlreadyInstalledError:
+		result.Kind = errorKindSnapAlreadyInstalled
+	case *snap.NotInstalledError:
+		result.Kind = errorKindSnapNotInstalled
+	case *snap.NoUpdateAvailableError:
+		result.Kind = errorKindSnapNoUpdateAvailable
+	case *snapstate.ErrSnapNeedsMode:
+		result.Kind = errorKindSnapNeedsMode
+		result.Value = err.Mode
+	case *snapstate.ErrSnapNeedsClassicSystem:
+		result.Kind = errorKindSnapNeedsClassicSystem
+	default:
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
-	if _, ok := err.(*snap.NotInstalledError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNotInstalled,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	if _, ok := err.(*snap.NoUpdateAvailableError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindSnapNoUpdateAvailable,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	}
-	return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Result: result,
+		Status: http.StatusBadRequest,
+	}, nil)
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1109,6 +1120,16 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 
 	// the developer asked us to do this with a trusted snap dir
 	info, err := unsafeReadSnapInfo(trydir)
+	if _, ok := err.(snap.NotSnapError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNotSnap,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
@@ -1231,8 +1252,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	dangerousOK := isTrue(form, "dangerous")
-	devmode := isTrue(form, "devmode")
-	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
@@ -1311,7 +1331,7 @@ out:
 		case asserts.ErrNotFound:
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
-			if !devmode {
+			if !isTrue(form, "devmode") {
 				msg := "cannot find signatures with metadata for snap"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)
@@ -1377,7 +1397,7 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
-	info, _, err := localSnapInfo(st, name)
+	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
 			return NotFound("cannot find snap %q", name)
@@ -1385,7 +1405,7 @@ func iconGet(st *state.State, name string) Response {
 		return InternalError("%v", err)
 	}
 
-	path := filepath.Clean(snapIcon(info))
+	path := filepath.Clean(snapIcon(about.info))
 	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
@@ -1412,13 +1432,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	transaction := configstate.NewTransaction(s)
+	tr := config.NewTransaction(s)
 	s.Unlock()
 
 	currentConfValues := make(map[string]interface{})
 	for _, key := range keys {
 		var value interface{}
-		if err := transaction.Get(snapName, key, &value); err != nil {
+		if err := tr.Get(snapName, key, &value); err != nil {
 			return BadRequest("%s", err)
 		}
 
@@ -1530,8 +1550,13 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch a.Action {
 	case "connect":
-		summary = fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		taskset, err = ifacestate.Connect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		var connRef interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
+		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			taskset, err = ifacestate.Connect(state, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+		}
 	case "disconnect":
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
@@ -1594,10 +1619,6 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 		return InternalError("searching assertions failed: %v", err)
 	}
 	return AssertResponse(assertions, true)
-}
-
-func getEvents(c *Command, r *http.Request, user *auth.UserState) Response {
-	return EventResponse(c.d.hub)
 }
 
 type changeInfo struct {
@@ -2181,4 +2202,110 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 	return SyncResponse(resp, nil)
+}
+
+// aliasAction is an action performed on aliases
+type aliasAction struct {
+	Action  string   `json:"action"`
+	Snap    string   `json:"snap"`
+	Aliases []string `json:"aliases"`
+}
+
+func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
+	var a aliasAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into an alias action: %v", err)
+	}
+	if len(a.Aliases) == 0 {
+		return BadRequest("at least one alias name is required")
+	}
+
+	var summary string
+	var taskset *state.TaskSet
+	var err error
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	switch a.Action {
+	default:
+		return BadRequest("unsupported alias action: %q", a.Action)
+	case "alias":
+		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+	case "unalias":
+		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
+	case "reset":
+		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
+		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
+	}
+	if err != nil {
+		return BadRequest("%v", err)
+	}
+
+	change := state.NewChange(a.Action, summary)
+	change.Set("snap-names", []string{a.Snap})
+	change.AddAll(taskset)
+
+	state.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+type aliasStatus struct {
+	App    string `json:"app,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// getAliases produces a response with a map snap -> alias -> aliasStatus
+func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	res := make(map[string]map[string]aliasStatus)
+
+	allStates, err := snapstate.All(state)
+	if err != nil {
+		return InternalError("cannot list local snaps: %v", err)
+	}
+
+	allAliases, err := snapstate.Aliases(state)
+	if err != nil {
+		return InternalError("cannot list aliases: %v", err)
+	}
+
+	for snapName, snapst := range allStates {
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
+		}
+		if len(info.Aliases) != 0 {
+			snapAliases := make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+			for alias, aliasApp := range info.Aliases {
+				snapAliases[alias] = aliasStatus{
+					App: filepath.Base(aliasApp.WrapperPath()),
+				}
+			}
+		}
+	}
+
+	for snapName, aliasStatuses := range allAliases {
+		snapAliases := res[snapName]
+		if snapAliases == nil {
+			snapAliases = make(map[string]aliasStatus)
+			res[snapName] = snapAliases
+		}
+		for alias, status := range aliasStatuses {
+			entry := snapAliases[alias]
+			entry.Status = status
+			snapAliases[alias] = entry
+		}
+	}
+
+	return SyncResponse(res, nil)
 }

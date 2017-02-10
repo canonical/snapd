@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -43,6 +44,10 @@ func cleanSubPath(path string) bool {
 func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+	content, ok := slot.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content slot must have a content attribute set")
 	}
 
 	// check that we have either a read or write path
@@ -67,6 +72,10 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	content, ok := plug.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content plug must have a content attribute set")
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
@@ -135,15 +144,37 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
-	for _, r := range iface.path(slot, "read") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-	}
-	for _, w := range iface.path(slot, "write") {
-		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-	}
-
 	switch securitySystem {
-	case interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor:
+
+		writePaths := iface.path(slot, "write")
+		if len(writePaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+`)
+			for _, w := range writePaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+					resolveSpecialVariable(w, slot.Snap))
+			}
+		}
+
+		readPaths := iface.path(slot, "read")
+		if len(readPaths) > 0 {
+			fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+`)
+			for _, r := range readPaths {
+				fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+					resolveSpecialVariable(r, slot.Snap))
+			}
+		}
+
 		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
@@ -154,5 +185,18 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 }
 
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	return plug.Attrs["content"] == slot.Attrs["content"]
+	// allow what declarations allowed
+	return true
+}
+
+// Interactions with the mount backend.
+
+func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, r := range iface.path(slot, "read") {
+		spec.AddSnippet(mountEntry(plug, slot, r, ",ro"))
+	}
+	for _, w := range iface.path(slot, "write") {
+		spec.AddSnippet(mountEntry(plug, slot, w, ""))
+	}
+	return nil
 }

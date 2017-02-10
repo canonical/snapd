@@ -23,6 +23,9 @@ restore: |
         echo "$(readlink -f /snap/core/current) != $(cat current-core-symlink-target)"
         exit 1
     fi
+    shutdown -c
+    . $TESTSLIB/boot.sh
+    bootenv_unset snap_try_core
 
 execute: |
     . $TESTSLIB/names.sh
@@ -46,5 +49,3 @@ execute: |
         echo "The current core snap is no longer installed"
         exit 1
     fi
-
-

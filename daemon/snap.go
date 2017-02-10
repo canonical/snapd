@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -54,31 +55,53 @@ func snapDate(info *snap.Info) time.Time {
 	return st.ModTime()
 }
 
+func publisherName(st *state.State, info *snap.Info) (string, error) {
+	if info.SnapID == "" {
+		return "", nil
+	}
+
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	if err != nil {
+		return "", fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return pubAcct.Username(), nil
+}
+
+type aboutSnap struct {
+	info      *snap.Info
+	snapst    *snapstate.SnapState
+	publisher string
+}
+
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
-func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapState, error) {
+func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
+		return aboutSnap{}, fmt.Errorf("cannot consult state: %v", err)
 	}
 
 	info, err := snapst.CurrentInfo()
 	if err == snapstate.ErrNoCurrent {
-		return nil, nil, errNoSnap
+		return aboutSnap{}, errNoSnap
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
+		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	return info, &snapst, nil
-}
+	publisher, err := publisherName(st, info)
+	if err != nil {
+		return aboutSnap{}, err
+	}
 
-type aboutSnap struct {
-	info   *snap.Info
-	snapst *snapstate.SnapState
+	return aboutSnap{
+		info:      info,
+		snapst:    &snapst,
+		publisher: publisher,
+	}, nil
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
@@ -94,8 +117,9 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 
 	var firstErr error
 	for _, snapst := range snapStates {
-		var infos []*snap.Info
+		var aboutThis []aboutSnap
 		var info *snap.Info
+		var publisher string
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
@@ -103,11 +127,16 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 				if err != nil {
 					break
 				}
-				infos = append(infos, info)
+				publisher, err = publisherName(st, info)
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
-			infos = append(infos, info)
+			if err == nil {
+				var publisher string
+				publisher, err = publisherName(st, info)
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
+			}
 		}
 
 		if err != nil {
@@ -117,9 +146,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 			}
 			continue
 		}
-		for _, info := range infos {
-			about = append(about, aboutSnap{info, snapst})
-		}
+		about = append(about, aboutThis...)
 	}
 
 	return about, firstErr
@@ -127,7 +154,9 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Daemon  string   `json:"daemon"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -137,7 +166,8 @@ type screenshotJSON struct {
 	Height int64  `json:"height,omitempty"`
 }
 
-func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
+func mapLocal(about aboutSnap) map[string]interface{} {
+	localSnap, snapst := about.info, about.snapst
 	status := "installed"
 	if snapst.Active && localSnap.Revision == snapst.Current {
 		status = "active"
@@ -146,30 +176,34 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 	apps := make([]appJSON, 0, len(localSnap.Apps))
 	for _, app := range localSnap.Apps {
 		apps = append(apps, appJSON{
-			Name: app.Name,
+			Name:    app.Name,
+			Daemon:  app.Daemon,
+			Aliases: app.Aliases,
 		})
 	}
 
 	return map[string]interface{}{
-		"description":    localSnap.Description(),
-		"developer":      localSnap.Developer,
-		"icon":           snapIcon(localSnap),
-		"id":             localSnap.SnapID,
-		"install-date":   snapDate(localSnap),
-		"installed-size": localSnap.Size,
-		"name":           localSnap.Name(),
-		"revision":       localSnap.Revision,
-		"status":         status,
-		"summary":        localSnap.Summary(),
-		"type":           string(localSnap.Type),
-		"version":        localSnap.Version,
-		"channel":        localSnap.Channel,
-		"confinement":    localSnap.Confinement,
-		"devmode":        snapst.DevMode,
-		"trymode":        snapst.TryMode,
-		"private":        localSnap.Private,
-		"apps":           apps,
-		"broken":         localSnap.Broken,
+		"description":      localSnap.Description(),
+		"developer":        about.publisher,
+		"icon":             snapIcon(localSnap),
+		"id":               localSnap.SnapID,
+		"install-date":     snapDate(localSnap),
+		"installed-size":   localSnap.Size,
+		"name":             localSnap.Name(),
+		"revision":         localSnap.Revision,
+		"status":           status,
+		"summary":          localSnap.Summary(),
+		"type":             string(localSnap.Type),
+		"version":          localSnap.Version,
+		"channel":          localSnap.Channel,
+		"tracking-channel": snapst.Channel,
+		"confinement":      localSnap.Confinement,
+		"devmode":          snapst.DevMode,
+		"trymode":          snapst.TryMode,
+		"jailmode":         snapst.JailMode,
+		"private":          localSnap.Private,
+		"apps":             apps,
+		"broken":           localSnap.Broken,
 	}
 }
 
@@ -195,7 +229,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 
 	result := map[string]interface{}{
 		"description":   remoteSnap.Description(),
-		"developer":     remoteSnap.Developer,
+		"developer":     remoteSnap.Publisher,
 		"download-size": remoteSnap.Size,
 		"icon":          snapIcon(remoteSnap),
 		"id":            remoteSnap.SnapID,

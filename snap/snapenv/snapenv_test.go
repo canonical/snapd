@@ -54,6 +54,14 @@ var mockSnapInfo = &snap.Info{
 		Revision: snap.R(17),
 	},
 }
+var mockClassicSnapInfo = &snap.Info{
+	SuggestedName: "foo",
+	Version:       "1.0",
+	SideInfo: snap.SideInfo{
+		Revision: snap.R(17),
+	},
+	Confinement: snap.ClassicConfinement,
+}
 
 func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
@@ -63,7 +71,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 		"SNAP_NAME":         "foo",
 		"SNAP_REEXEC":       "",
 		"SNAP_REVISION":     "17",
@@ -77,6 +85,17 @@ func (ts *HTestSuite) TestUser(c *C) {
 
 	c.Assert(env, DeepEquals, map[string]string{
 		"HOME":             "/root/snap/foo/17",
+		"SNAP_USER_COMMON": "/root/snap/foo/common",
+		"SNAP_USER_DATA":   "/root/snap/foo/17",
+		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", os.Geteuid()),
+	})
+}
+
+func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
+	env := userEnv(mockClassicSnapInfo, "/root")
+
+	c.Assert(env, DeepEquals, map[string]string{
+		// NOTE HOME Is absent! we no longer override it
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", os.Geteuid()),
@@ -106,7 +125,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
 			"SNAP_DATA":         "/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
 			"SNAP_NAME":         "snapname",
 			"SNAP_REEXEC":       "",
 			"SNAP_REVISION":     "42",

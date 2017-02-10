@@ -34,6 +34,7 @@ var (
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook
 	Wait               = wait
+	ResolveApp         = resolveApp
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -85,3 +86,19 @@ func MockMountInfoPath(newMountInfoPath string) (restore func()) {
 }
 
 var AutoImportCandidates = autoImportCandidates
+
+func AliasInfoLess(snapName1, alias1, app1, snapName2, alias2, app2 string) bool {
+	x := aliasInfos{
+		&aliasInfo{
+			Snap:  snapName1,
+			Alias: alias1,
+			App:   app1,
+		},
+		&aliasInfo{
+			Snap:  snapName2,
+			Alias: alias2,
+			App:   app2,
+		},
+	}
+	return x.Less(0, 1)
+}

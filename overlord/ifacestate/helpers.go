@@ -21,7 +21,6 @@ package ifacestate
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -35,17 +34,23 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if err := m.addInterfaces(extra); err != nil {
+	if err := m.addInterfaces(extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
 	if err := m.reloadConnections(""); err != nil {
+		return err
+	}
+	if err := m.unbreakTheWorld(); err != nil {
 		return err
 	}
 	return nil
@@ -59,6 +64,20 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	}
 	for _, iface := range extra {
 		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	for _, backend := range backends.All {
+		if err := m.repo.AddBackend(backend); err != nil {
+			return err
+		}
+	}
+	for _, backend := range extra {
+		if err := m.repo.AddBackend(backend); err != nil {
 			return err
 		}
 	}
@@ -79,6 +98,62 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
+func (m *InterfaceManager) unbreakTheWorld() error {
+	// XXX: As a special measure to unbreak the world refresh seccomp security
+	// of all the snaps on the system. Later on this should be improved to
+	// either refresh all security backends or to know how to apply stashed
+	// (versioned) security that was preserved by snapd on upgrade to a new
+	// version of itself.
+
+	// Get all the security backends
+	securityBackends := m.repo.Backends()
+
+	// Get all the snap infos
+	snaps, err := snapstate.ActiveInfos(m.state)
+	if err != nil {
+		return err
+	}
+	// Add implicit slots to all snaps
+	for _, snapInfo := range snaps {
+		snap.AddImplicitSlots(snapInfo)
+	}
+
+	// From now on we don't fail if a particular operation fails, this is a
+	// best-effort service. It's not much of an unbreak-the-world idea if we
+	// bail out and don't start.
+
+	// For each snap:
+	for _, snapInfo := range snaps {
+		snapName := snapInfo.Name()
+		// Get the state of the snap so we can compute the confinement option
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
+			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+		}
+
+		// Compute confinement options
+		opts := confinementOptions(snapst.Flags)
+
+		// For each backend:
+		for _, backend := range securityBackends {
+			// The issue this is attempting to fix is only affecting seccomp so
+			// limit the work just to this backend.
+			shouldRefresh := backend.Name() == interfaces.SecuritySecComp
+			if !shouldRefresh {
+				continue
+			}
+			// Refresh security of this snap and backend
+			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
+				// Let's log this but carry on
+				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
+					backend.Name(), snapName, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -88,30 +163,27 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		return err
 	}
 	for id := range conns {
-		plugRef, slotRef, err := parseConnID(id)
+		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
 		}
-		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
+		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-
-		connRef := interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
-		err = m.repo.Connect(connRef)
-		if err != nil {
+		if err := m.repo.Connect(connRef); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
 	snapName := snapInfo.Name()
 
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Setup(snapInfo, opts, repo)
+		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
@@ -121,9 +193,9 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	return nil
 }
 
-func removeSnapSecurity(task *state.Task, snapName string) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
 	st := task.State()
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()
@@ -138,25 +210,6 @@ func removeSnapSecurity(task *state.Task, snapName string) error {
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	Interface string `json:"interface,omitempty"`
-}
-
-func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
-	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
-}
-
-func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
-	parts := strings.SplitN(conn, " ", 2)
-	if len(parts) != 2 {
-		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
-	}
-	plugParts := strings.SplitN(parts[0], ":", 2)
-	slotParts := strings.SplitN(parts[1], ":", 2)
-	if len(plugParts) != 2 || len(slotParts) != 2 {
-		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
-	}
-	plugRef := &interfaces.PlugRef{Snap: plugParts[0], Name: plugParts[1]}
-	slotRef := &interfaces.SlotRef{Snap: slotParts[0], Name: slotParts[1]}
-	return plugRef, slotRef, nil
 }
 
 type autoConnectChecker struct {
@@ -223,11 +276,15 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 	return ic.CheckAutoConnect() == nil
 }
 
-func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) error {
+// autoConnect connects the given snap to viable candidates returning the list
+// of connected snap names.  The blacklist can prevent auto-connection to
+// specific interfaces (blacklist entries are plug or slot names).
+func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) ([]string, error) {
 	var conns map[string]connState
+	var affectedSnapNames []string
 	err := task.State().Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
-		return err
+		return nil, err
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
@@ -235,32 +292,60 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 
 	autochecker, err := newAutoConnectChecker(task.State())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// XXX: quick hack, auto-connect everything
+	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		if blacklist[plug.Name] {
 			continue
 		}
-		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
 		if len(candidates) != 1 {
 			continue
 		}
 		slot := candidates[0]
-		connRef := interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: plug.Name},
-			SlotRef: interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
-			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
-				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			continue
 		}
-		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
+		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
+		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
 		conns[key] = connState{Interface: plug.Interface, Auto: true}
 	}
+	// Auto-connect all the slots
+	for _, slot := range m.repo.Slots(snapName) {
+		if blacklist[slot.Name] {
+			continue
+		}
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) != 1 {
+			continue
+		}
+		plug := candidates[0]
+		connRef := interfaces.ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			continue
+		}
+		if err := m.repo.Connect(connRef); err != nil {
+			task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			continue
+		}
+		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
+		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
+		conns[key] = connState{Interface: plug.Interface, Auto: true}
+	}
+
 	task.State().Set("conns", conns)
-	return nil
+	return affectedSnapNames, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
@@ -297,18 +382,19 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	// XXX: AddImplicitSlots is really a brittle interface
 	snap.AddImplicitSlots(snapInfo)
 
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, so skip interface checks
+		return nil
+	}
+
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	var snapDecl *asserts.SnapDeclaration
-	if snapInfo.SnapID != "" {
-		var err error
-		snapDecl, err = assertstate.SnapDeclaration(st, snapInfo.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
-		}
+	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
+	if err != nil {
+		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
 	}
 
 	ic := policy.InstallCandidate{

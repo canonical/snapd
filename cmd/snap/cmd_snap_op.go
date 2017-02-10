@@ -22,9 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -312,7 +315,7 @@ func showDone(names []string, op string) error {
 
 	for _, snap := range snaps {
 		channelStr := ""
-		if snap.Channel != "" {
+		if snap.Channel != "" && snap.Channel != "stable" {
 			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
 		}
 		switch op {
@@ -322,11 +325,11 @@ func showDone(names []string, op string) error {
 			} else {
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
-		case "upgrade":
+		case "refresh":
 			if snap.Developer != "" {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' upgraded\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
 			} else {
-				fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
 			}
 		default:
 			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
@@ -342,11 +345,13 @@ func (mx *channelMixin) asksForChannel() bool {
 type modeMixin struct {
 	DevMode  bool `long:"devmode"`
 	JailMode bool `long:"jailmode"`
+	Classic  bool `long:"classic"`
 }
 
 var modeDescs = mixinDescs{
-	"devmode":  i18n.G("Request non-enforcing security"),
-	"jailmode": i18n.G("Override a snap's request for non-enforcing security"),
+	"classic":  i18n.G("Put snap in classic mode and disable security confinement"),
+	"devmode":  i18n.G("Put snap in development mode and disable security confinement"),
+	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
 
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
@@ -359,7 +364,13 @@ func (mx modeMixin) validateMode() error {
 }
 
 func (mx modeMixin) asksForMode() bool {
-	return mx.DevMode || mx.JailMode
+	return mx.DevMode || mx.JailMode || mx.Classic
+}
+
+func (mx modeMixin) setModes(opts *client.SnapOptions) {
+	opts.DevMode = mx.DevMode
+	opts.JailMode = mx.JailMode
+	opts.Classic = mx.Classic
 }
 
 type cmdInstall struct {
@@ -377,6 +388,20 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+func setupAbortHandler(changeId string) {
+	// Intercept sigint
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		cli := Client()
+		_, err := cli.Abort(changeId)
+		if err != nil {
+			fmt.Fprintf(Stderr, err.Error()+"\n")
+		}
+	}()
+}
+
 func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
@@ -390,12 +415,14 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		changeID, err = cli.Install(name, opts)
 	}
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, e.Message+"\n")
+		fmt.Fprintf(Stderr, i18n.G("snap %q is already installed, see \"snap refresh --help\"\n"), name)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
@@ -428,6 +455,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	if err != nil {
 		return err
 	}
+
+	setupAbortHandler(changeID)
 
 	chg, err := wait(cli, changeID)
 	if err != nil {
@@ -472,11 +501,10 @@ func (x *cmdInstall) Execute([]string) error {
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
 		Channel:   x.Channel,
-		DevMode:   x.DevMode,
-		JailMode:  x.JailMode,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
+	x.setModes(opts)
 
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
@@ -518,13 +546,13 @@ func refreshMany(snaps []string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	var upgraded []string
-	if err := chg.Get("snap-names", &upgraded); err != nil && err != client.ErrNoData {
+	var refreshed []string
+	if err := chg.Get("snap-names", &refreshed); err != nil && err != client.ErrNoData {
 		return err
 	}
 
-	if len(upgraded) > 0 {
-		return showDone(upgraded, "upgrade")
+	if len(refreshed) > 0 {
+		return showDone(refreshed, "refresh")
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -547,7 +575,7 @@ func refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	return showDone([]string{name}, "upgrade")
+	return showDone([]string{name}, "refresh")
 }
 
 func listRefresh() error {
@@ -591,6 +619,12 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
+
+	if len(x.Positional.Snaps) == 0 && os.Getenv("SNAP_REFRESH_FROM_TIMER") == "1" {
+		fmt.Fprintf(Stdout, "Ignoring `snap refresh` from the systemd timer")
+		return nil
+	}
+
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
 		names[i] = string(name)
@@ -598,11 +632,10 @@ func (x *cmdRefresh) Execute([]string) error {
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
-			DevMode:          x.DevMode,
-			JailMode:         x.JailMode,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
 		}
+		x.setModes(opts)
 		return refreshOne(names[0], opts)
 	}
 
@@ -630,10 +663,8 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	cli := Client()
 	name := x.Positional.SnapDir
-	opts := &client.SnapOptions{
-		DevMode:  x.DevMode,
-		JailMode: x.JailMode,
-	}
+	opts := &client.SnapOptions{}
+	x.setModes(opts)
 
 	if name == "" {
 		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
@@ -655,6 +686,11 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	changeID, err := cli.Try(path, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
+		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+	}
 	if err != nil {
 		return err
 	}
@@ -764,7 +800,8 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := string(x.Positional.Snap)
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
+	opts := &client.SnapOptions{Revision: x.Revision}
+	x.setModes(opts)
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err

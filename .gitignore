@@ -2,8 +2,55 @@ share
 tags
 .coverage
 cmd/version_generated.go
+cmd/VERSION
 *~
 *.swp
 vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
+
+# snap-confine bits
+*.a
+*.o
+*~
+.*.swp
+.*.swp
+.dirstamp
+cmd/decode-mount-opts/decode-mount-opts
+cmd/libsnap-confine-private/unit-tests
+cmd/snap-update-ns/snap-update-ns
+cmd/snap-confine/snap-confine
+cmd/snap-confine/snap-confine-unit-tests
+cmd/snap-confine/snap-confine.apparmor
+cmd/snap-discard-ns/snap-discard-ns
+cmd/system-shutdown/system-shutdown
+cmd/system-shutdown/system-shutdown-unit-tests
+
+# manual pages
+cmd/*/*.[1-9]
+
+# test-driver
+*.log
+*.trs
+
+# Automake
+Makefile
+Makefile.in
+snap-confine-*.tar.gz
+.deps
+
+# Autoconf
+aclocal.m4
+autom4te.cache
+compile
+config.guess
+config.h
+config.h.in
+config.status
+config.sub
+configure
+depcomp
+install-sh
+missing
+stamp-h1
+test-driver

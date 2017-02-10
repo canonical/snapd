@@ -1,5 +1,11 @@
 summary: Check that `snap run` can actually run hooks
 
+environment:
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/reexec0: 0
+    SNAP_REEXEC/reexec1: 1
+
 prepare: |
     echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .

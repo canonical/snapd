@@ -1,6 +1,7 @@
 summary: Run snap sign to sign a model assertion
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
 
 prepare: |
     . "$TESTSLIB/mkpinentry.sh"
@@ -24,7 +25,7 @@ execute: |
       "architecture": "armhf",
       "gadget": "pi3",
       "kernel": "pi2-kernel",
-      "timestamp": "$(date -Iseconds --utc)"
+      "timestamp": "$(date --utc '+%FT%T%:z')"
     }
     EOF
     echo "Sign the model assertion with our key"
@@ -32,3 +33,7 @@ execute: |
 
     echo "Verify that the resulting model assertion is signed"
     grep "sign-key-sha3-384: $key" pi3.model
+
+restore: |
+    rm -f pi3.model
+    rm -f pi3-model.json

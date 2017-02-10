@@ -49,7 +49,6 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-support",
 			Interface: "docker-support",
@@ -103,7 +102,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)
@@ -129,7 +127,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)
@@ -155,7 +152,6 @@ plugs:
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
-	info.SideInfo = snap.SideInfo{Developer: "docker"}
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
 	err = s.iface.SanitizePlug(plug)

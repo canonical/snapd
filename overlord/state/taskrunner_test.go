@@ -187,7 +187,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		st.Lock()
 
 		// Delete previous changes.
-		st.Prune(1, 1)
+		st.Prune(1, 1, 1)
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)

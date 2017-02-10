@@ -3,10 +3,10 @@ summary: Check that install/remove of multiple snaps works
 execute: |
     echo "Install multiple snaps from the store"
     snap install test-snapd-tools test-snapd-control-consumer
-    snap list | grep test-snapd-tools
-    snap list | grep test-snapd-control-consumer
+    snap list | MATCH test-snapd-tools
+    snap list | MATCH test-snapd-control-consumer
 
     echo "Remove of multiple snaps works"
     snap remove test-snapd-tools test-snapd-control-consumer
-    snap list | grep -v test-snapd-tools
-    snap list | grep -v test-snapd-control-consumer
+    snap list | MATCH -v test-snapd-tools
+    snap list | MATCH -v test-snapd-control-consumer
