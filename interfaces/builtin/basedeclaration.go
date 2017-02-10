@@ -349,6 +349,8 @@ slots:
     allow-installation:
       slot-snap-type:
         - app
+    deny-connection: true
+    deny-auto-connection: true
   mir:
     allow-installation:
       slot-snap-type:

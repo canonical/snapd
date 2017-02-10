@@ -139,7 +139,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":         true,
 		"gsettings":               true,
-		"maliit-input-method":     true,
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
@@ -554,6 +553,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-control":        true,
 		"location-observe":        true,
 		"lxd":                     true,
+		"maliit-input-method":     true,
 		"mir":                     true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,

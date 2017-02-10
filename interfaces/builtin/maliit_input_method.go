@@ -27,7 +27,7 @@ import (
 )
 
 var maliitInputMethodPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as maliit server.
+# Description: Allow operating as a maliit server.
 
 # DBus accesses
 #include <abstractions/dbus-session>
@@ -35,17 +35,21 @@ var maliitInputMethodPermanentSlotAppArmor = []byte(`
 /usr/share/glib-2.0/schemas/ r,
 
 # maliit uses peer-to-peer dbus over a unix socket after address negotiation
+# each application has its own one-to-one communication channel with the maliit
+# server, over which all further communication happens.
 unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 `)
 
 var maliitInputMethodConnectedSlotAppArmor = []byte(`
-# Provide access to the maliit address service
+# Provides the maliit address service which assigns an individual unix socket
+# to each application
 dbus (send, receive)
     bus=session
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+# provide access to the peer-to-peer dbus socket assigned by the address service
 unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
@@ -55,13 +59,16 @@ var maliitInputMethodConnectedPlugAppArmor = []byte(`
 
 #include <abstractions/dbus-session>
 
-# Find the maliit input method socket
+# Allow applications to communicate with the maliit address service
+# which assigns an individual unix socket for all further communication
+# to happen over.
 dbus (send, receive)
     bus=session
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
     peer=(label=###SLOT_SECURITY_TAGS###),
 
+# provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
 `)
 
