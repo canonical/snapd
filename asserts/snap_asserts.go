@@ -699,17 +699,16 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	return nil
 }
 
-type snapDevDeveloper struct {
-	AccountID string
-	Since     time.Time
-	Until     time.Time
+type dateRange struct {
+	Since time.Time
+	Until time.Time
 }
 
 // SnapDeveloper holds a snap-developer assertion, defining the developers who
 // can collaborate on a snap while it's owned by a specific publisher.
 type SnapDeveloper struct {
 	assertionBase
-	developers []*snapDevDeveloper
+	developerRanges map[string][]*dateRange
 }
 
 // SnapID returns the snap id of the snap.
@@ -764,55 +763,55 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
-	developers, err := checkDevelopers(assert.headers, "developers")
+	developerRanges, err := checkDevelopers(assert.headers, "developers")
 	if err != nil {
 		return nil, err
 	}
 
 	return &SnapDeveloper{
-		assertionBase: assert,
-		developers:    developers,
+		assertionBase:   assert,
+		developerRanges: developerRanges,
 	}, nil
 }
 
-func checkDevelopers(headers map[string]interface{}, name string) ([]*snapDevDeveloper, error) {
+func checkDevelopers(headers map[string]interface{}, name string) (map[string][]*dateRange, error) {
 	// TODO:
 	// - reject overlapping date ranges?
 	value, ok := headers[name]
 	if !ok {
 		return nil, nil
 	}
-	list, ok := value.([]interface{})
+	developers, ok := value.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("%q must be a list of developer maps", name)
 	}
-	if len(list) == 0 {
+	if len(developers) == 0 {
 		return nil, nil
 	}
 
-	developers := make([]*snapDevDeveloper, len(list))
-	for i, item := range list {
-		v, ok := item.(map[string]interface{})
+	developerRanges := make(map[string][]*dateRange)
+	for i, item := range developers {
+		developer, ok := item.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("%q must be a list of developer maps", name)
 		}
-		accountID, err := checkNotEmptyStringWhat(v, "developer-id", "item")
+		accountID, err := checkNotEmptyStringWhat(developer, "developer-id", "item")
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
-		since, err := checkRFC3339DateWhat(v, "since", "item")
+		since, err := checkRFC3339DateWhat(developer, "since", "item")
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
-		until, err := checkRFC3339DateWithDefaultWhat(v, "until", "item", time.Time{})
+		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", "item", time.Time{})
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
 		if !until.IsZero() && since.After(until) {
 			return nil, fmt.Errorf(`%s[%d]'s "since" must be less than or equal to "until"`, name, i)
 		}
-		developers[i] = &snapDevDeveloper{accountID, since, until}
+		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})
 	}
 
-	return developers, nil
+	return developerRanges, nil
 }
