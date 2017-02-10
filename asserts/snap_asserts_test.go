@@ -1572,3 +1572,56 @@ func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 	err = db.Check(snapDev)
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
+
+func (sds *snapDevSuite) TestPrerequisitesNoDevelopers(c *C) {
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithDevelopers(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id3\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	// TODO(matt): this is unlikely to be stable
+	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id3"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithDeveloperRepeated(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2015-01-01T00:00:00.0Z\n    until: 2016-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithPublisherAsDeveloper(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id1\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+	})
+}

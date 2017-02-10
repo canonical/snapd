@@ -757,9 +757,23 @@ var _ consistencyChecker = (*SnapDeveloper)(nil)
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 	// TODO(matt):
-	// - account - developers and publisher
-	// - snap-declaration
-	return nil
+	// - snap-declaration (???)
+
+	// Capacity for the publisher and all developers.
+	refs := make([]*Ref, 0, 1+len(snapdev.developerRanges))
+
+	// the publisher
+	publisherID := snapdev.PublisherID()
+	refs = append(refs, &Ref{AccountType, []string{publisherID}})
+
+	// developers, but don't repeat the publisher's account
+	for developerID, _ := range snapdev.developerRanges {
+		if developerID != publisherID {
+			refs = append(refs, &Ref{AccountType, []string{developerID}})
+		}
+	}
+
+	return refs
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
