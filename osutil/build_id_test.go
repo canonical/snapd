@@ -51,3 +51,10 @@ func (s *buildIDSuite) TestGetBuildID(c *C) {
 		c.Assert(id.String(), Equals, t.expected, Commentf("executable: %s", t.fname))
 	}
 }
+
+func (s *buildIDSuite) TestGetBuildIDNoID(c *C) {
+	// The test file was processed to strip the section containing the build-id note
+	id, err := osutil.GetBuildID("true.noid.amd64")
+	c.Assert(err, Equals, osutil.ErrNoBuildID)
+	c.Assert(id, IsNil)
+}
