@@ -61,42 +61,40 @@ func (s *getSuite) SetUpTest(c *C) {
 
 var getTests = []struct {
 	args, stdout, error string
-}{
-	{
-		args:  "get",
-		error: ".*get which option.*",
-	},
-	{
-		args:  "get --foo",
-		error: ".*unknown flag.*foo.*",
-	}, {
-		args:  "get :foo bar",
-		error: ".*interface attributes can only be read during the execution of interface hooks.*",
-	}, {
-		args:   "get test-key1",
-		stdout: "test-value1\n",
-	}, {
-		args:   "get test-key2",
-		stdout: "2\n",
-	}, {
-		args:   "get missing-key",
-		stdout: "\n",
-	}, {
-		args:   "get -t test-key1",
-		stdout: "\"test-value1\"\n",
-	}, {
-		args:   "get -t test-key2",
-		stdout: "2\n",
-	}, {
-		args:   "get -t missing-key",
-		stdout: "null\n",
-	}, {
-		args:   "get -d test-key1",
-		stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
-	}, {
-		args:   "get test-key1 test-key2",
-		stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
-	}}
+}{{
+	args:  "get",
+	error: ".*get which option.*",
+}, {
+	args:  "get --foo",
+	error: ".*unknown flag.*foo.*",
+}, {
+	args:  "get :foo bar",
+	error: ".*interface attributes can only be read during the execution of interface hooks.*",
+}, {
+	args:   "get test-key1",
+	stdout: "test-value1\n",
+}, {
+	args:   "get test-key2",
+	stdout: "2\n",
+}, {
+	args:   "get missing-key",
+	stdout: "\n",
+}, {
+	args:   "get -t test-key1",
+	stdout: "\"test-value1\"\n",
+}, {
+	args:   "get -t test-key2",
+	stdout: "2\n",
+}, {
+	args:   "get -t missing-key",
+	stdout: "null\n",
+}, {
+	args:   "get -d test-key1",
+	stdout: "{\n\t\"test-key1\": \"test-value1\"\n}\n",
+}, {
+	args:   "get test-key1 test-key2",
+	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}}
 
 func (s *getSuite) TestGetTests(c *C) {
 	for _, test := range getTests {
