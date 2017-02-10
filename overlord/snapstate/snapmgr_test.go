@@ -1799,6 +1799,9 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := fakeOps{
+		// we just expect the "storesvc-list-refresh" op, we
+		// don't have a fakeOp for switchChannel because it has
+		// not a backend method, it just manipulates the state
 		{
 			op: "storesvc-list-refresh",
 			cand: store.RefreshCandidate{
@@ -1807,11 +1810,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				Revision: snap.R(7),
 				Epoch:    "",
 			},
-		},
-		{
-			op:      "switch-snap-channel",
-			name:    "some-snap",
-			channel: "channel-for-7",
 		},
 	}
 

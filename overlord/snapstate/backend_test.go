@@ -495,14 +495,6 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) SwitchSnapChannel(name, channel string) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "switch-snap-channel",
-		name:    name,
-		channel: channel,
-	})
-}
-
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),

@@ -1201,7 +1201,6 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.SideInfo.Channel != "" {
 		snapst.CurrentSideInfo().Channel = snapsup.Channel
 	}
-	m.backend.SwitchSnapChannel(snapsup.Name(), snapsup.Channel)
 
 	Set(st, snapsup.Name(), snapst)
 	return nil

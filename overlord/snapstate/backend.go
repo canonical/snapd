@@ -75,5 +75,4 @@ type managerBackend interface {
 	// testing helpers
 	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
-	SwitchSnapChannel(name, channel string)
 }
