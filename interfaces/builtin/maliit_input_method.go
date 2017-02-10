@@ -69,7 +69,7 @@ dbus (send, receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # provide access to the peer-to-peer dbus socket assigned by the address service
-unix (send, receive, connect) type=stream peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
+unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
 `)
 
 var maliitInputMethodPermanentSlotSecComp = []byte(`
