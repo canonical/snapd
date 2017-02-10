@@ -1505,6 +1505,58 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id1",
+		"display-name": "dev-id1",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id2",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
+
+	// There's no account for dev-id2 yet so it should fail.
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the publisher "dev-id2"`)
+
+	// But once the dev-id2 account is added the snap-developer is ok.
+	account, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id2",
+		"display-name": "dev-id2",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
+}
+
 func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
