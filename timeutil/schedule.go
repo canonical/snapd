@@ -27,29 +27,36 @@ import (
 	"time"
 )
 
-var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
+var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9]):?([0-5][0-9])?$`)
 
 type TimeOfDay struct {
 	Hour   int
 	Minute int
+	Second int
 }
 
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
 	m := validTime.FindStringSubmatch(s)
-	if len(m) < 3 {
+	if len(m) == 0 {
 		return t, fmt.Errorf("cannot parse %q", s)
 	}
-	hour, err := strconv.Atoi(m[1])
+	t.Hour, err = strconv.Atoi(m[1])
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
 	}
-	minute, err := strconv.Atoi(m[2])
+	t.Minute, err = strconv.Atoi(m[2])
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
 	}
-	return TimeOfDay{Hour: hour, Minute: minute}, nil
+	if m[3] != "" {
+		t.Second, err = strconv.Atoi(m[3])
+		if err != nil {
+			return t, fmt.Errorf("cannot parse %q: %s", m[3], err)
+		}
+	}
+	return t, nil
 }
 
 // Schedule defines a start and end time and an optional weekday in which

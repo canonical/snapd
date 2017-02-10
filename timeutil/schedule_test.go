@@ -49,10 +49,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon": not a valid day`},
 
 		// valid
-		{"9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"mon@9:00-11:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{&timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, &timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
-		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{&timeutil.Schedule{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, &timeutil.Schedule{Weekday: "wednesday", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
+		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
+		{"mon@9:00-11:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
+		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
+		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wednesday", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
@@ -67,16 +67,18 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 
 func (ts *timeutilSuite) TestParseTime(c *C) {
 	for _, t := range []struct {
-		timeStr      string
-		hour, minute int
-		errStr       string
+		timeStr              string
+		hour, minute, second int
+		errStr               string
 	}{
-		{"8:59", 8, 59, ""},
-		{"08:59", 8, 59, ""},
-		{"12:00", 12, 0, ""},
-		{"xx", 0, 0, `cannot parse "xx"`},
-		{"11:61", 0, 0, `cannot parse "11:61"`},
-		{"25:00", 0, 0, `cannot parse "25:00"`},
+		{"8:59", 8, 59, 0, ""},
+		{"8:59:12", 8, 59, 12, ""},
+		{"08:59", 8, 59, 0, ""},
+		{"12:00", 12, 0, 0, ""},
+		{"xx", 0, 0, 0, `cannot parse "xx"`},
+		{"11:61", 0, 0, 0, `cannot parse "11:61"`},
+		{"25:00", 0, 0, 0, `cannot parse "25:00"`},
+		{"11:59:61", 0, 0, 0, `cannot parse "11:59:61"`},
 	} {
 		ti, err := timeutil.ParseTime(t.timeStr)
 		if t.errStr != "" {
@@ -85,6 +87,7 @@ func (ts *timeutilSuite) TestParseTime(c *C) {
 			c.Check(err, IsNil)
 			c.Check(ti.Hour, Equals, t.hour)
 			c.Check(ti.Minute, Equals, t.minute)
+			c.Check(ti.Second, Equals, t.second)
 		}
 	}
 }
