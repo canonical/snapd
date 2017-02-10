@@ -488,11 +488,8 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// FIXME: what about different days?
-	// FIXME2: what about a schedule like "00:00-23:59"
-
 	// we already updated in this schedule window
-	if matchedSchedule.Matches(lastRefresh) {
+	if matchedSchedule.SameInterval(now, lastRefresh) {
 		return nil
 	}
 

@@ -3862,10 +3862,7 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 func makeTestRefreshConfig(st *state.State) {
 	now := time.Now()
 	tr := config.NewTransaction(st)
-	// FIXME: the code does not work correctly once intervals spread
-	//        multiple days so we doctor it here a bit
-	tr.Set("core", "refresh.last", time.Date(2009, 8, 13, 23, 59, 0, 0, now.Location()))
-
+	tr.Set("core", "refresh.last", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 	// setup an interval that will end very soon :)
 	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
 	tr.Commit()
@@ -3888,6 +3885,34 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	// nothing needs to be done, but refresh.last got updated
 	c.Check(s.state.Changes(), HasLen, 0)
 	s.verifyRefreshLast(c)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	now := time.Now()
+	fakeLastRefresh := now.Add(-1 * time.Hour)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", fakeLastRefresh)
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
+	s.state.Lock()
+
+	// nothing needs to be done and no refresh was run
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	var refreshLast time.Time
+	tr = config.NewTransaction(s.state)
+	tr.Get("core", "refresh.last", &refreshLast)
+	c.Check(refreshLast, DeepEquals, fakeLastRefresh)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
