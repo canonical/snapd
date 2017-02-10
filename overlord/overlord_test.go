@@ -48,12 +48,14 @@ type overlordSuite struct{}
 var _ = Suite(&overlordSuite{})
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 	dirs.SetRootDir("/")
 }
 

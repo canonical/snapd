@@ -68,6 +68,10 @@ func (s *setupSuite) TearDownTest(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
+	// we don't get real chattr
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
+
 	snapPath := makeTestSnap(c, helloYaml1)
 
 	si := snap.SideInfo{
@@ -110,6 +114,9 @@ func (s *setupSuite) TestSetupDoUndoKernelUboot(c *C) {
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	// nor real chattr
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 
 	testFiles := [][]string{
 		{"kernel.img", "kernel"},
@@ -154,6 +161,9 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	// nor real chattr
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 
 	testFiles := [][]string{
 		{"kernel.img", "kernel"},
@@ -203,6 +213,9 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	// nor real chattr
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 
 	testFiles := [][]string{
 		{"kernel.img", "kernel"},

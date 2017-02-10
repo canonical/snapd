@@ -223,6 +223,7 @@ func (s *State) Unlock() {
 			s.modified = false
 			return
 		}
+		logger.Noticef("cannot checkpoint; will retry in %s. Error was: %v", unlockCheckpointRetryInterval, err)
 		time.Sleep(unlockCheckpointRetryInterval)
 	}
 	logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)

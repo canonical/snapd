@@ -81,11 +81,34 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// link(2) returns EPERM on filesystems that don't support
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
-	if err := os.Link(s.path, targetPath); err == nil {
-		return nil
+	if err := os.Link(s.path, targetPath); err != nil {
+		err = osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+		if err != nil {
+			return err
+		}
 	}
 
-	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	fd, err := os.Open(targetPath)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	return osutil.ChAttr(fd, osutil.FS_IMMUTABLE_FL)
+}
+
+func (s *Snap) PreRemove() error {
+	fd, err := os.Open(s.path)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	if err := osutil.ChAttr(fd, -osutil.FS_IMMUTABLE_FL); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 var runCommandWithOutput = func(args ...string) ([]byte, error) {

@@ -44,6 +44,7 @@ type daemonSuite struct{}
 var _ = check.Suite(&daemonSuite{})
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
@@ -51,6 +52,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests

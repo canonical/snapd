@@ -75,8 +75,13 @@ func makeSnap(c *C, manifest, data string) *Snap {
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
+	os.Setenv("SNAPPY_SKIP_CHATTR_FOR_TESTS", "1")
 	err := os.Chdir(c.MkDir())
 	c.Assert(err, IsNil)
+}
+
+func (s *SquashfsTestSuite) TearDownTest(c *C) {
+	os.Unsetenv("SNAPPY_SKIP_CHATTR_FOR_TESTS")
 }
 
 func (s *SquashfsTestSuite) TestInstallSimple(c *C) {

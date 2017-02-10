@@ -72,5 +72,22 @@ func GetAttr(f *os.File) (int32, error) {
 
 // SetAttr sets the attributes of a file on a linux filesystem to the given value
 func SetAttr(f *os.File, attr int32) error {
+	if GetenvBool("SNAPPY_SKIP_CHATTR_FOR_TESTS") {
+		return nil
+	}
 	return ioctl(f, _FS_IOC_SETFLAGS, &attr)
+}
+
+// ChAttr adds (if positive) or removes (if negative) attributes of a file on a linux filesystem
+func ChAttr(f *os.File, attr int32) error {
+	before, err := GetAttr(f)
+	if err != nil {
+		return err
+	}
+	if attr < 0 {
+		before &^= -attr
+	} else {
+		before |= attr
+	}
+	return SetAttr(f, before)
 }
