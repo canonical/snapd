@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -1607,9 +1608,11 @@ func (sds *snapDevSuite) TestPrerequisitesNoDevelopers(c *C) {
 	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
-		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 	})
 }
 
@@ -1622,12 +1625,13 @@ func (sds *snapDevSuite) TestPrerequisitesWithDevelopers(c *C) {
 		1)
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	// TODO(matt): this is NOT stable
-	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
-		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id3"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 	})
 }
 
@@ -1640,10 +1644,12 @@ func (sds *snapDevSuite) TestPrerequisitesWithDeveloperRepeated(c *C) {
 		1)
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
-		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 	})
 }
 
@@ -1654,8 +1660,34 @@ func (sds *snapDevSuite) TestPrerequisitesWithPublisherAsDeveloper(c *C) {
 		1)
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
-		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 	})
+}
+
+type RefSlice []*asserts.Ref
+
+func (s RefSlice) Len() int {
+	return len(s)
+}
+
+func (s RefSlice) Less(i, j int) bool {
+	iref, jref := s[i], s[j]
+	if v := strings.Compare(iref.Type.Name, jref.Type.Name); v != 0 {
+		return v == -1
+	}
+	for n, ipk := range iref.PrimaryKey {
+		jpk := jref.PrimaryKey[n]
+		if v := strings.Compare(ipk, jpk); v != 0 {
+			return v == -1
+		}
+	}
+	return false
+}
+
+func (s RefSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
