@@ -15,6 +15,6 @@ execute: |
 
     echo "and so does docker run"
     docker run --rm hello-world > docker.out
-    cat docker.out | MATCHES "Hello from Docker!"
+    cat docker.out | MATCH "Hello from Docker!"
 
-    echo "FIXME: we also want armhf which needs a "armhf" prefix"
+    echo "FIXME: we also want to run this on armhf which needs a "armhf" prefix"
