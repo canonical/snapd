@@ -26,6 +26,7 @@ import (
 
 // TestSecurityBackend is a security backend intended for testing.
 type TestSecurityBackend struct {
+	BackendName interfaces.SecuritySystem
 	// SetupCalls stores information about all calls to Setup
 	SetupCalls []TestSetupCall
 	// RemoveCalls stores information about all calls to Remove
@@ -46,7 +47,7 @@ type TestSetupCall struct {
 
 // Name returns the name of the security backend.
 func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
-	return "test"
+	return b.BackendName
 }
 
 // Setup records information about the call and calls the setup callback if one is defined.

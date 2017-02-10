@@ -22,6 +22,7 @@ package state_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -670,7 +671,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Tasks() },
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
-		func() { st.Prune(time.Hour, time.Hour) },
+		func() { st.Prune(time.Hour, time.Hour, 100) },
 		func() { st.TaskCount() },
 	}
 
@@ -729,7 +730,7 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.Task(t5.ID()), IsNil)
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
 	c.Assert(st.Change(chg2.ID()), IsNil)
@@ -768,8 +769,115 @@ func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	chg := st.NewChange("abort", "...")
 	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
 
-	st.Prune(pruneWait, abortWait)
+	st.Prune(pruneWait, abortWait, 100)
 	c.Assert(st.Change(chg.ID()), IsNil)
+}
+
+func (ss *stateSuite) TestPruneMaxChangesHappy(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	// create 10 changes, chg0 is freshest, chg9 is oldest, but
+	// all changes are not old enough for pruneWait
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+		t.SetStatus(state.DoneStatus)
+
+		when := time.Duration(i) * time.Second
+		state.MockChangeTimes(chg, now.Add(-when), now.Add(-when))
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// and 5 more, all not ready
+	for i := 10; i < 15; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+	}
+
+	// test that nothing is done when we are within pruneWait and
+	// maxReadyChanges
+	maxReadyChanges := 100
+	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	c.Assert(st.Changes(), HasLen, 15)
+
+	// but with maxReadyChanges we remove the ready ones
+	maxReadyChanges = 5
+	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	c.Assert(st.Changes(), HasLen, 10)
+	remaining := map[string]bool{}
+	for _, chg := range st.Changes() {
+		remaining[chg.Kind()] = true
+	}
+	c.Check(remaining, DeepEquals, map[string]bool{
+		// ready and fresh
+		"chg0": true,
+		"chg1": true,
+		"chg2": true,
+		"chg3": true,
+		"chg4": true,
+		// not ready
+		"chg10": true,
+		"chg11": true,
+		"chg12": true,
+		"chg13": true,
+		"chg14": true,
+	})
+}
+
+func (ss *stateSuite) TestPruneMaxChangesSomeNotReady(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	// 10 changes, none ready
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "...")
+		t := st.NewTask("foo", "...")
+		chg.AddTask(t)
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// nothing can be pruned
+	maxChanges := 5
+	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	c.Assert(st.Changes(), HasLen, 10)
+}
+
+func (ss *stateSuite) TestPruneMaxChangesHonored(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	// 10 changes, none ready
+	for i := 0; i < 10; i++ {
+		chg := st.NewChange(fmt.Sprintf("chg%d", i), "not-ready")
+		t := st.NewTask("foo", "not-readly")
+		chg.AddTask(t)
+	}
+	c.Assert(st.Changes(), HasLen, 10)
+
+	// one extra change that just now entered ready state
+	chg := st.NewChange(fmt.Sprintf("chg99"), "so-ready")
+	t := st.NewTask("foo", "so-ready")
+	when := 1 * time.Second
+	state.MockChangeTimes(chg, time.Now().Add(-when), time.Now().Add(-when))
+	t.SetStatus(state.DoneStatus)
+	chg.AddTask(t)
+
+	// we have 11 changes in total, 10 not-ready, 1 ready
+	//
+	// this test we do not purge the freshly ready change
+	maxChanges := 10
+	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	c.Assert(st.Changes(), HasLen, 11)
 }
 
 func (ss *stateSuite) TestRequestRestart(c *C) {

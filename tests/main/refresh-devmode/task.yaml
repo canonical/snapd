@@ -16,8 +16,14 @@ environment:
     STORE_TYPE/remote: ${REMOTE_STORE}
 
 prepare: |
-    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        exit
+    if [ "$STORE_TYPE" = "fake" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
+            exit
+        fi
     fi
 
     echo "Given a snap is installed"
@@ -34,7 +40,11 @@ prepare: |
 
 restore: |
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
             exit
         fi
         . $TESTSLIB/store.sh
@@ -42,8 +52,14 @@ restore: |
     fi
 
 execute: |
-    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        exit
+    if [ "$STORE_TYPE" = "fake" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
+            exit
+        fi
     fi
 
     # FIXME: currently the --list from channel doesn't work

@@ -31,6 +31,6 @@
  * The function will also try to preserve the current working directory but if
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
-void sc_populate_mount_ns(const char *security_tag);
+void sc_populate_mount_ns(const char *snap_name);
 
 #endif

@@ -1,6 +1,6 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
-backends: [nested]
+systems: [ubuntu-16.04-64]
 
 environment:
     SSH_PORT: 8022
@@ -10,8 +10,6 @@ environment:
     WORK_DIR: /tmp/work-dir
     TAP_DEVICE: tap0
     VM_UNIT_COMMAND_SUFFIX: "-m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::${SSH_PORT}-:22 -drive file=${WORK_DIR}/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
-
-kill-timeout: 2h
 
 prepare: |
     . $TESTSLIB/nested.sh

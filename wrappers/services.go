@@ -182,6 +182,7 @@ ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 {{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
+{{if .App.ReloadCommand}}ExecReload={{.App.LauncherReloadCommand}}{{end}}
 {{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}

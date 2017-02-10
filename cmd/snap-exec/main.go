@@ -94,6 +94,8 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 		cmd = "/bin/bash"
 	case "stop":
 		cmd = app.StopCommand
+	case "reload":
+		cmd = app.ReloadCommand
 	case "post-stop":
 		cmd = app.PostStopCommand
 	case "":

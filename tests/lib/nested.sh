@@ -6,7 +6,7 @@ execute_remote(){
 prepare_ssh(){
     execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
 }
 
 wait_for_ssh(){
@@ -17,12 +17,12 @@ wait_for_ssh(){
             echo "Timed out waiting for ssh. Aborting!"
             exit 1
         fi
-        sleep 10
+        sleep 1
     done
 }
 
 set_vars(){
-        case "$NESTED_ARCH" in
+    case "$NESTED_ARCH" in
     amd64)
         model_file=pc.model
         vm_unit_command="$(which qemu-system-x86_64) ${VM_UNIT_COMMAND_SUFFIX}"

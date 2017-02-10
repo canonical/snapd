@@ -2,14 +2,14 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 get_common_syscalls >"$TMP"/tmpl
 cat >>"$TMP"/tmpl <<EOF
 getpriority
 EOF
 
-for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_ATMPVC AF_APPLETALK AF_PACKET AF_ALG AF_CAN ; do
+for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_ATMPVC AF_APPLETALK AF_PACKET AF_ALG AF_CAN PF_UNIX PF_LOCAL PF_INET PF_INET6 PF_IPX PF_NETLINK PF_X25 PF_AX25 PF_ATMPVC PF_APPLETALK PF_PACKET PF_ALG PF_CAN ; do
     cat "$TMP"/tmpl >"$TMP"/snap.name.app
     echo "socket $i" >>"$TMP"/snap.name.app
 

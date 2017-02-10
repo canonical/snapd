@@ -121,6 +121,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}
 
 	info := &snap.Info{
+		Architectures: []string{"all"},
 		SideInfo: snap.SideInfo{
 			RealName: strings.Split(spec.Name, ".")[0],
 			Channel:  spec.Channel,
@@ -193,7 +194,8 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 			DownloadInfo: snap.DownloadInfo{
 				DownloadURL: "https://some-server.com/some/path.snap",
 			},
-			Confinement: confinement,
+			Confinement:   confinement,
+			Architectures: []string{"all"},
 		}
 
 		var hit snap.Revision
@@ -298,7 +300,11 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
 	// naive emulation for now, always works
-	info := &snap.Info{SuggestedName: name, SideInfo: *si}
+	info := &snap.Info{
+		SuggestedName: name,
+		SideInfo:      *si,
+		Architectures: []string{"all"},
+	}
 	info.Type = snap.TypeApp
 	if name == "gadget" {
 		info.Type = snap.TypeGadget

@@ -156,7 +156,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 		switch {
 		case bytes.Equal(placeholder, placeholderVar):
-			return templateVariables(snapInfo)
+			return templateVariables(snapInfo, securityTag)
 		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
 		case bytes.Equal(placeholder, placeholderSnippets):

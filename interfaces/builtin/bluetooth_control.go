@@ -50,7 +50,6 @@ const bluetoothControlConnectedPlugSecComp = `
 #  because this gives privileged access to the system.
 # Usage: reserved
 bind
-getsockopt
 `
 
 func NewBluetoothControlInterface() interfaces.Interface {

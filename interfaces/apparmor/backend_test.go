@@ -316,6 +316,7 @@ type combineSnippetsScenario struct {
 const commonPrefix = `
 @{SNAP_NAME}="samba"
 @{SNAP_REVISION}="1"
+@{PROFILE_DBUS}="snap_2esamba_2esmbd"
 @{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{

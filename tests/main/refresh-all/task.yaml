@@ -11,6 +11,11 @@ environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
 
     echo "Given two snaps are installed"
@@ -22,10 +27,20 @@ prepare: |
     setup_fake_store $BLOB_DIR
 
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/store.sh
     init_fake_refreshes test-snapd-tools,test-snapd-python-webserver $BLOB_DIR
@@ -35,5 +50,5 @@ execute: |
 
     echo "Then the new versions are installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
-        snap list | grep -Pq "$snap.*?fake1"
+        snap list | MATCH "$snap.*fake1"
     done
