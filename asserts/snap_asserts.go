@@ -763,17 +763,16 @@ var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
-	// TODO(matt):
-	// - snap-declaration (???)
+	// Capacity for the snap-declation, the publisher and all developers.
+	refs := make([]*Ref, 0, 2+len(snapdev.developerRanges))
 
-	// Capacity for the publisher and all developers.
-	refs := make([]*Ref, 0, 1+len(snapdev.developerRanges))
+	// snap-declaration
+	// XXX: mediate getting current series through some context object? this gets the job done for now
+	refs = append(refs, &Ref{SnapDeclarationType, []string{release.Series, snapdev.SnapID()}})
 
-	// the publisher
+	// the publisher and developers
 	publisherID := snapdev.PublisherID()
 	refs = append(refs, &Ref{AccountType, []string{publisherID}})
-
-	// developers, but don't repeat the publisher's account
 	for developerID, _ := range snapdev.developerRanges {
 		if developerID != publisherID {
 			refs = append(refs, &Ref{AccountType, []string{developerID}})

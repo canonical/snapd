@@ -1608,6 +1608,7 @@ func (sds *snapDevSuite) TestPrerequisitesNoDevelopers(c *C) {
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 	})
 }
@@ -1621,8 +1622,9 @@ func (sds *snapDevSuite) TestPrerequisitesWithDevelopers(c *C) {
 		1)
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	// TODO(matt): this is unlikely to be stable
+	// TODO(matt): this is NOT stable
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id3"}},
@@ -1639,6 +1641,7 @@ func (sds *snapDevSuite) TestPrerequisitesWithDeveloperRepeated(c *C) {
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
 	})
@@ -1652,6 +1655,7 @@ func (sds *snapDevSuite) TestPrerequisitesWithPublisherAsDeveloper(c *C) {
 	assert, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Assert(assert.Prerequisites(), DeepEquals, []*asserts.Ref{
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
 		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
 	})
 }
