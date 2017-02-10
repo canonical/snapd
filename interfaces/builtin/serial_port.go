@@ -47,7 +47,9 @@ func (iface *SerialPortInterface) String() string {
 //  - ttyUSBX  (UART over USB devices)
 //  - ttyACMX  (ACM modem devices )
 //  - ttyXRUSBx  (Exar Corp. USB UART devices)
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[a-zA-Z0-9]+[0-9]+$")
+//  - ttySX (UART serial ports)
+//  - ttyOX (UART serial ports on ARM)
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]+[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
@@ -154,7 +156,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		if iface.hasUsbAttrs(slot) {
 			// This apparmor rule must match serialDeviceNodePattern
 			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/tty* rw,\n"), nil
+			return []byte("/dev/tty[A-Z]*[0-9] rw,\n"), nil
 		}
 
 		// Path to fixed device node (no udev tagging)
