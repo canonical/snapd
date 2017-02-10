@@ -3859,18 +3859,30 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	c.Check(time.Now().Year(), Equals, lastRefresh.Year())
 }
 
+func makeTestRefreshConfig(st *state.State) {
+	now := time.Now()
+	tr := config.NewTransaction(st)
+	// FIXME: the code does not work correctly once intervals spread
+	//        multiple days so we doctor it here a bit
+	tr.Set("core", "refresh.last", time.Date(2009, 8, 13, 23, 59, 0, 0, now.Location()))
+
+	// setup an interval that will end very soon :)
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
+	tr.Commit()
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", time.Time{})
-	tr.Commit()
+	makeTestRefreshConfig(s.state)
 
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// nothing needs to be done, but refresh.last got updated
@@ -3883,9 +3895,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", time.Time{})
-	tr.Commit()
+	makeTestRefreshConfig(s.state)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3900,10 +3910,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	// update for the "some-snap" in our fake store
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// verify we have an auto-refresh change scheduled now
-	c.Check(s.state.Changes(), HasLen, 1)
+	c.Assert(s.state.Changes(), HasLen, 1)
 	chg := s.state.Changes()[0]
 	c.Check(chg.Kind(), Equals, "auto-refresh")
 	c.Check(chg.IsReady(), Equals, false)
@@ -3938,6 +3949,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
 	// update for the "some-snap" in our fake store
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// verify that the disable works
@@ -3956,9 +3969,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", time.Time{})
-	tr.Commit()
+	makeTestRefreshConfig(s.state)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -3973,6 +3984,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	// update for the "some-snap" in our fake store
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
@@ -3997,9 +4010,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", time.Time{})
-	tr.Commit()
+	makeTestRefreshConfig(s.state)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -4017,6 +4028,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
 	// verify no additional change got generated
