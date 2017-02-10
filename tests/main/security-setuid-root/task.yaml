@@ -7,6 +7,9 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
+restore: |
+    echo "Cleanup the copied snap-confine"
+    rm -f snap-confine
 execute: |
     . $TESTSLIB/names.sh
     # NOTE: This has to run as the test user because the protection is only
