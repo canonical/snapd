@@ -603,6 +603,10 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	if len(r.plugSlots[plug]) == 0 {
 		delete(r.plugSlots, plug)
 	}
+	delete(r.attributes[plug], slot)
+	if len(r.attributes[plug]) == 0 {
+		delete(r.attributes, plug)
+	}
 	for i, plugRef := range slot.Connections {
 		if plugRef.Snap == plug.Snap.Name() && plugRef.Name == plug.Name {
 			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
