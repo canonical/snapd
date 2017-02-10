@@ -90,6 +90,34 @@ func (sched *Schedule) Matches(t time.Time) bool {
 	return false
 }
 
+// SameInterval returns true if the given times are within the same
+// interval. Same means that they are on the same day (if its a
+// schedule that runs on every day or the same week (if its a schedule
+// that is run only on a specific weekday).
+//
+// E.g. for a schedule of "9:00-11:00"
+//
+// t1="2017-01-01 9:10", t1="2017-01-01 9:30"
+// (same day) is the same interval
+//
+// t1="2017-01-01 9:10", t1="2017-01-02 9:30"
+// (different day) is the *not* same interval
+//
+func (sched *Schedule) SameInterval(t1, t2 time.Time) bool {
+	if !sched.Matches(t1) || !sched.Matches(t2) {
+		// FIXME: or return error here?
+		return false
+	}
+
+	if sched.Weekday != "" {
+		t1Year, t1Week := t1.ISOWeek()
+		t2Year, t2Week := t2.ISOWeek()
+		return t1Year == t2Year && t1Week == t2Week
+	}
+
+	return t1.Year() == t2.Year() && t1.Month() == t2.Month() && t1.Day() == t2.Day()
+}
+
 var weekdayMap = map[string]int{
 	"sun": 0, "sunday": 0,
 	"mon": 1, "monday": 1,
