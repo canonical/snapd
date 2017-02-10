@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -62,7 +63,13 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
-	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
+		// on classic it is ok to not seed any snaps
+		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+	}
+
+	seed, err := snap.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +122,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		tsAll = append(tsAll, ts)
 	}
 	if len(tsAll) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
 
 	ts := tsAll[len(tsAll)-1]
