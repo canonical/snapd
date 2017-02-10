@@ -798,18 +798,18 @@ func checkDevelopers(headers map[string]interface{}, name string) ([]*snapDevDev
 		}
 		accountID, err := checkNotEmptyStringWhat(v, "developer-id", "item")
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
 		since, err := checkRFC3339DateWhat(v, "since", "item")
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
 		until, err := checkRFC3339DateWithDefaultWhat(v, "until", "item", time.Time{})
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
+			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
 		}
 		if !until.IsZero() && since.After(until) {
-			return nil, fmt.Errorf(`%s[%d]: "since" must be less than or equal to "until"`, name, i)
+			return nil, fmt.Errorf(`%s[%d]'s "since" must be less than or equal to "until"`, name, i)
 		}
 		developers[i] = &snapDevDeveloper{accountID, since, until}
 	}

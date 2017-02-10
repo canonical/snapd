@@ -1393,14 +1393,14 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		{sds.developersLines, "developers: \n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers: foo\n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers:\n  foo: bar\n", `"developers" must be a list of developer maps`},
-		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `developers\[0\]: "developer-id" item is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n", `developers\[0\]: "since" item is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n", `developers\[0\]: "since" item should not be empty`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n", `developers\[0\]: "since" item is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n", `developers\[0\]: "until" item is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n", `developers\[0\]: "until" item is not a RFC3339 date.*`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n", `developers\[1\]: "developer-id" item is mandatory`},
-		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", `developers\[0\]: "since" must be less than or equal to "until"`},
+		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `developers\[0\]'s "developer-id" item is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n", `developers\[0\]'s "since" item is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n", `developers\[0\]'s "since" item should not be empty`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n", `developers\[0\]'s "since" item is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n", `developers\[0\]'s "until" item is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n", `developers\[0\]'s "until" item is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n", `developers\[1\]'s "developer-id" item is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", `developers\[0\]'s "since" must be less than or equal to "until"`},
 	}
 
 	for _, test := range invalidTests {
