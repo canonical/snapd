@@ -10,7 +10,7 @@ prepare_ssh(){
 }
 
 wait_for_ssh(){
-    retry=30
+    retry=300
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
