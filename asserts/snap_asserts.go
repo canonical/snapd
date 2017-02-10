@@ -796,15 +796,15 @@ func checkDevelopers(headers map[string]interface{}, name string) ([]*snapDevDev
 		if !ok {
 			return nil, fmt.Errorf("%q must be a list of developers", name)
 		}
-		accountID, err := checkNotEmptyString(v, "developer-id")
+		accountID, err := checkNotEmptyStringWhat(v, "developer-id", "item")
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
 		}
-		since, err := checkRFC3339Date(v, "since")
+		since, err := checkRFC3339DateWhat(v, "since", "item")
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
 		}
-		until, err := checkRFC3339DateWithDefault(v, "until", time.Time{})
+		until, err := checkRFC3339DateWithDefaultWhat(v, "until", "item", time.Time{})
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]: %s", name, i, err)
 		}
