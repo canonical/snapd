@@ -1557,6 +1557,36 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+		"developers": []interface{}{
+			map[string]interface{}{
+				"developer-id": "dev-id2",
+				"since":        "2017-01-01T00:00:00.0Z",
+			},
+		},
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the developer "dev-id2"`)
+}
+
 func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)

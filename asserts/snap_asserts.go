@@ -739,14 +739,21 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	}
 
 	// check there's an account for the publisher-id
-	_, err = db.Find(AccountType, map[string]string{
-		"account-id": snapdev.PublisherID(),
-	})
+	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
 	if err == ErrNotFound {
-		return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), snapdev.PublisherID())
+		return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
 	}
 
-	// TODO(matt): check each developer id has an acccount assertion.
+	// check there's an account for each developer
+	for developerID, _ := range snapdev.developerRanges {
+		if developerID == publisherID {
+			continue
+		}
+		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
+		if err == ErrNotFound {
+			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
+		}
+	}
 
 	return nil
 }
