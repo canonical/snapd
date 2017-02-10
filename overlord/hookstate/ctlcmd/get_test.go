@@ -39,8 +39,9 @@ type getSuite struct {
 }
 
 type getAttrSuite struct {
-	mockContext *hookstate.Context
-	mockHandler *hooktest.MockHandler
+	mockPlugHookContext *hookstate.Context
+	mockSlotHookContext *hookstate.Context
+	mockHandler         *hooktest.MockHandler
 }
 
 var _ = Suite(&getSuite{})
@@ -149,49 +150,136 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 
 	state := state.New(nil)
 	state.Lock()
-
 	ch := state.NewChange("mychange", "mychange")
 
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	attrs := make(map[string]interface{})
-	attrs["foo"] = "bar"
-	attrs["baz"] = []string{"a", "b"}
-	attrsTask.Set("plug-attrs", attrs)
-	attrsTask.Set("slot-attrs", make(map[string]interface{}))
-
-	hookTask := state.NewTask("run-hook", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
+	plugAttrs := make(map[string]interface{})
+	slotAttrs := make(map[string]interface{})
+	plugAttrs["aattr"] = "foo"
+	plugAttrs["baz"] = []string{"a", "b"}
+	slotAttrs["battr"] = "bar"
+	attrsTask.Set("plug-attrs", plugAttrs)
+	attrsTask.Set("slot-attrs", slotAttrs)
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(hookTask, setup, s.mockHandler)
+
+	// setup plug hook task
+	state.Lock()
+	plugHookTask := state.NewTask("run-hook", "my test task")
+	state.Unlock()
+	plugTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-plug-aplug"}
+	s.mockPlugHookContext, err = hookstate.NewContext(plugHookTask, plugTaskSetup, s.mockHandler)
 	c.Assert(err, IsNil)
 
-	s.mockContext.Lock()
-	s.mockContext.Set("attrs-task", attrsTask.ID())
-	defer s.mockContext.Unlock()
-	ch.AddTask(hookTask)
+	s.mockPlugHookContext.Lock()
+	s.mockPlugHookContext.Set("attrs-task", attrsTask.ID())
+	s.mockPlugHookContext.Unlock()
+	state.Lock()
+	ch.AddTask(plugHookTask)
+	state.Unlock()
+
+	// setup slot hook task
+	state.Lock()
+	slotHookTask := state.NewTask("run-hook", "my test task")
+	state.Unlock()
+	slotTaskSetup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "connect-slot-aplug"}
+	s.mockSlotHookContext, err = hookstate.NewContext(slotHookTask, slotTaskSetup, s.mockHandler)
+	c.Assert(err, IsNil)
+
+	s.mockSlotHookContext.Lock()
+	s.mockSlotHookContext.Set("attrs-task", attrsTask.ID())
+	s.mockSlotHookContext.Unlock()
+
+	state.Lock()
+	defer state.Unlock()
+	ch.AddTask(slotHookTask)
 }
 
-func (s *getAttrSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "foo"})
+func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "aattr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "baz"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
+
+	// The --plug parameter doesn't do anything if used on plug side
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "--plug", ":aplug", "aattr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestGetSlotAttributesInSlotHook(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "battr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "-d", ":aplug", "baz"})
+	// The --slot parameter doesn't do anything if used on slot side
+	stdout, stderr, err = ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--slot", ":bslot", "battr"})
 	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 }
 
-func (s *getAttrSuite) TestUnknownKey(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "x"})
+func (s *getAttrSuite) TestGetSlotAttributeInPlugHook(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", "--slot", ":aplug", "battr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "bar\n")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestGetPlugAttributeInSlotHook(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--plug", ":bslot", "aattr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestUnknownPlugAttribute(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown attribute "x"`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestUnknownSlotAttribute(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "x"})
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, `unknown attribute "x"`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestUsingPlugNameInSlotHookFails(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":aplug", "x"})
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, `unknown plug or slot "aplug"`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestUsingSlotNameInPlugHookFails(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":bslot", "x"})
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, `unknown plug or slot "bslot"`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestForcePlugOrSlotMutuallyExclusive(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--slot", "--plug", ":aplug", "x"})
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, `cannot use --plug and --slot together`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
