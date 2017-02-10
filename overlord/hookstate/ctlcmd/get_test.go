@@ -283,3 +283,10 @@ func (s *getAttrSuite) TestForcePlugOrSlotMutuallyExclusive(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *getAttrSuite) TestPlugOrSlotEmpty(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":", "foo"})
+	c.Check(err.Error(), Equals, "plug or slot name not provided")
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
