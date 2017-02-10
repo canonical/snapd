@@ -108,8 +108,8 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
+	release.OnClassic = true
+
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -124,6 +124,41 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	tasks := tsAll[0].Tasks()
 	c.Check(tasks, HasLen, 1)
 	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
+	release.OnClassic = true
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// only mark seeded
+	c.Check(tsAll, HasLen, 1)
+	tasks := tsAll[0].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "my-brand")
+	c.Check(ds.Model, Equals, "my-model-classic")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
