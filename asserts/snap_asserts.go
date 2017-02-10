@@ -747,7 +747,6 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), snapdev.PublisherID())
 	}
 
-	// TODO(matt): check that snap-decl's publisher is snap-dev's publisher? not sure about this.
 	// TODO(matt): check each developer id has an acccount assertion.
 
 	return nil
