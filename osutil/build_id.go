@@ -50,9 +50,15 @@ type noteHeader struct {
 	Type   uint32
 }
 
-// GetBuildID returns the GNU Build-ID of a given executable
+// GetBuildID returns the GNU Build-ID of a given executable.
 //
-// http://fedoraproject.org/wiki/Releases/FeatureBuildId
+// Note that not all executables will contain an embedded build-id (it can be
+// specifically stripped) and that golang executables built with plain "go
+// build" may not contain one. In such cases ErrNoBuildID is returned.
+//
+// When built with `go build -buildmode=pie` a Build-ID is present. C executables
+// seem to have this in all cases. The idea of Build-ID seems to have originated
+// from Fedora: http://fedoraproject.org/wiki/Releases/FeatureBuildId
 func GetBuildID(fname string) (*BuildID, error) {
 	const ELF_NOTE_GNU = "GNU\x00"
 	const NT_GNU_BUILD_ID uint32 = 3
