@@ -74,6 +74,12 @@ var getTests = []struct {
 	args:  "get",
 	error: ".*get which option.*",
 }, {
+	args:  "get --plug key",
+	error: "cannot use --plug or --slot without <snap>:<plug|slot> argument",
+}, {
+	args:  "get --slot key",
+	error: "cannot use --plug or --slot without <snap>:<plug|slot> argument",
+}, {
 	args:  "get --foo",
 	error: ".*unknown flag.*foo.*",
 }, {
