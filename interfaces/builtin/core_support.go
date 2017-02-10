@@ -57,6 +57,10 @@ const coreSupportConnectedPlugAppArmor = `
 /etc/systemd/logind.conf                            r,
 /etc/systemd/logind.conf.d/{,*}                     r,
 /etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
+
+# Allow modifying swapfile configuration for swapfile.service shipped in
+# the core snap, general mgmt of the service is handled via systemctl
+/etc/default/swapfile                            rw,
 `
 
 const coreSupportConnectedPlugSecComp = `
