@@ -727,7 +727,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	authorityID := snapdev.AuthorityID()
 	publisherID := snapdev.PublisherID()
 	if !db.IsTrustedAccount(authorityID) && (publisherID != authorityID) {
-		return fmt.Errorf("snap-developer must be signed by the publisher or a trusted authority: authority-id=%q, publisher-id=%q", authorityID, publisherID)
+		return fmt.Errorf("snap-developer must be signed by the publisher or a trusted authority but got authority %q and publisher %q", authorityID, publisherID)
 	}
 
 	_, err := db.Find(SnapDeclarationType, map[string]string{

@@ -1465,7 +1465,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
 
 	err = db.Check(snapDev)
-	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority: authority-id="dev-id1", publisher-id="dev-id2"`)
+	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority but got authority "dev-id1" and publisher "dev-id2"`)
 }
 
 func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
