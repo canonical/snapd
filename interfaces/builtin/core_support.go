@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,11 +24,39 @@ import (
 )
 
 const coreSupportConnectedPlugAppArmor = `
-# Description: Can control all aspects of systemd via the systemctl command. It
-# allows execution of the systemctl binary unconfined. As such, this gives device
-# ownership to the snap.
+# Description: Can control all aspects of systemd via the systemctl command,
+# update rsyslog configuration, update systemd-timesyncd configuration and
+# update/apply sysctl configuration. The interface allows execution of the
+# systemctl binary unconfined and modifying all sysctl configuration. As such,
+# this gives device ownership to the snap.
 
 /bin/systemctl Uxr,
+
+# Allow modifying rsyslog configuration for such things as remote logging. For
+# now, only allow modifying NN-snap*.conf and snap*.conf files.
+/etc/rsyslog.d/{,*}                     r,
+/etc/rsyslog.d/{,[0-9][0-9]-}snap*.conf w,
+
+# Allow modifying /etc/systemd/timesyncd.conf for adjusting systemd-timesyncd's
+# timeservers
+/etc/systemd/timesyncd.conf rw,
+
+# Allow modifying sysctl configuration and applying the changes. For now, allow
+# reading all sysctl files but only allow modifying NN-snap*.conf and
+# snap*.conf files in /etc/sysctl.d.
+/etc/sysctl.conf                       r,
+/etc/sysctl.d/{,*}                     r,
+/etc/sysctl.d/{,[0-9][0-9]-}snap*.conf w,
+/{,usr/}{,s}bin/sysctl                 ixr,
+@{PROC}/sys/{,**}                      r,
+@{PROC}/sys/**                         w,
+
+# Allow modifying logind configuration. For now, allow reading all logind
+# configuration but only allow modifying NN-snap*.conf and snap*.conf files
+# in /etc/systemd/logind.conf.d.
+/etc/systemd/logind.conf                            r,
+/etc/systemd/logind.conf.d/{,*}                     r,
+/etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
 `
 
 const coreSupportConnectedPlugSecComp = `

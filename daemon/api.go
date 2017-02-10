@@ -843,12 +843,12 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 
 	switch len(updated) {
 	case 0:
-		// not really needed but be paranoid
 		if len(inst.Snaps) != 0 {
-			return "", nil, nil, fmt.Errorf("internal error: when asking for a refresh of %s no update was found but no error was generated", strutil.Quoted(inst.Snaps))
+			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
+		} else {
+			msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 		}
-		// FIXME: instead don't generated a change(?) at all
-		msg = fmt.Sprintf(i18n.G("Refresh all snaps: no updates"))
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
 	default:
@@ -1120,6 +1120,16 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 
 	// the developer asked us to do this with a trusted snap dir
 	info, err := unsafeReadSnapInfo(trydir)
+	if _, ok := err.(snap.NotSnapError); ok {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNotSnap,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	}
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}

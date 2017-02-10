@@ -98,3 +98,15 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str)
 	// return the new size
 	return strlen(dst);
 }
+
+void sc_string_init(char *buf, size_t buf_size)
+{
+	errno = 0;
+	if (buf == NULL) {
+		die("cannot initialize string, buffer is NULL");
+	}
+	if (buf_size == 0) {
+		die("cannot initialize string, buffer is too small");
+	}
+	buf[0] = '\0';
+}

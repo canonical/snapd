@@ -117,6 +117,11 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
+	// TODO: might make sense to support this later
+	if model.Classic() {
+		return fmt.Errorf("cannot prepare image of a classic model")
+	}
+
 	local, err := localSnaps(opts)
 	if err != nil {
 		return err

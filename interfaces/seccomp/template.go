@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,53 +20,25 @@
 package seccomp
 
 // defaultTemplate contains default seccomp template.
-//
 // It can be overridden for testing using MockTemplate().
-//
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/templates/ubuntu-core/16.04/default
 var defaultTemplate = []byte(`
 # Description: Allows access to app-specific directories and basic runtime
-# Usage: common
 #
+# The default seccomp policy is default deny with a whitelist of allowed
+# syscalls. The default policy is intended to be safe for any application to
+# use and should be evaluated in conjunction with other security backends (eg
+# AppArmor). For example, a few particularly problematic syscalls that are left
+# out of the default policy are (non-exhaustive):
+# - kexec_load
+# - create_module, init_module, finit_module, delete_module (kernel modules)
+# - name_to_handle_at (history of vulnerabilities)
+# - open_by_handle_at (history of vulnerabilities)
+# - ptrace (can be used to break out of sandbox with <4.8 kernels)
+# - add_key, keyctl, request_key (kernel keyring)
 
-# Dangerous syscalls that we don't ever want to allow.
-# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
-# if/when we conditionally deny these in the future.
-
-# kexec
-#@deny kexec_load
-
-# kernel modules
-#@deny create_module
-#@deny init_module
-#@deny finit_module
-#@deny delete_module
-
-# these have a history of vulnerabilities, are not widely used, and
-# open_by_handle_at has been used to break out of docker containers by brute
-# forcing the handle value: http://stealth.openwall.net/xSports/shocker.c
-#@deny name_to_handle_at
-#@deny open_by_handle_at
-
-# Explicitly deny ptrace since it can be abused to break out of the seccomp
-# sandbox
-#@deny ptrace
-
-# Explicitly deny capability mknod so apps can't create devices
-#@deny mknod
-#@deny mknodat
-
-# Explicitly deny (u)mount so apps can't change mounts in their namespace
-#@deny mount
-#@deny umount
-#@deny umount2
-
-# Explicitly deny kernel keyring access
-#@deny add_key
-#@deny keyctl
-#@deny request_key
-
-# end dangerous syscalls
+#
+# Allowed accesses
+#
 
 access
 faccessat
@@ -109,6 +81,10 @@ clock_gettime
 clock_nanosleep
 clone
 close
+
+# needed by ls -l
+connect
+
 creat
 dup
 dup2
@@ -187,7 +163,10 @@ inotify_rm_watch
 
 # TIOCSTI allows for faking input (man tty_ioctl)
 # TODO: this should be scaled back even more
-ioctl - !TIOCSTI
+#ioctl - !TIOCSTI
+# FIXME: replace this with the filter of TIOCSTI once snap-confine can read this syntax
+# See LP:#1662489 for context.
+ioctl
 
 io_cancel
 io_destroy
@@ -405,9 +384,10 @@ sigsuspend
 sigtimedwait
 sigwaitinfo
 
-# needed by ls -l
+# AppArmor mediates AF_UNIX/AF_LOCAL via 'unix' rules and all other AF_*
+# domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
+# we can allow 'socket' for any domain and let AppArmor handle the rest.
 socket
-connect
 
 # needed by snapctl
 getsockopt

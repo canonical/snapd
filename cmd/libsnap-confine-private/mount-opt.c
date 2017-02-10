@@ -17,18 +17,20 @@
 
 #include "mount-opt.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
 
-#include "../libsnap-confine-private/utils.h"
+#include "utils.h"
+#include "string-utils.h"
 
-const char *sc_mount_opt2str(unsigned long flags)
+const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
-	static char buf[1000];
 	unsigned long used = 0;
-	strcpy(buf, "");
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { strcat(buf, #TEXT ","); flags ^= (FLAG); } while (0)
+	sc_string_init(buf, buf_size);
+#define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
@@ -41,10 +43,10 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_NODIRATIME, nodiratime);
 	if (flags & MS_BIND) {
 		if (flags & MS_REC) {
-			strcat(buf, "rbind,");
+			sc_string_append(buf, buf_size, "rbind,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "bind,");
+			sc_string_append(buf, buf_size, "bind,");
 		}
 		flags ^= MS_BIND;
 	}
@@ -57,28 +59,28 @@ const char *sc_mount_opt2str(unsigned long flags)
 	F(MS_UNBINDABLE, unbindable);
 	if (flags & MS_PRIVATE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rprivate,");
+			sc_string_append(buf, buf_size, "rprivate,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "private,");
+			sc_string_append(buf, buf_size, "private,");
 		}
 		flags ^= MS_PRIVATE;
 	}
 	if (flags & MS_SLAVE) {
 		if (flags & MS_REC) {
-			strcat(buf, "rslave,");
+			sc_string_append(buf, buf_size, "rslave,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "slave,");
+			sc_string_append(buf, buf_size, "slave,");
 		}
 		flags ^= MS_SLAVE;
 	}
 	if (flags & MS_SHARED) {
 		if (flags & MS_REC) {
-			strcat(buf, "rshared,");
+			sc_string_append(buf, buf_size, "rshared,");
 			used |= MS_REC;
 		} else {
-			strcat(buf, "shared,");
+			sc_string_append(buf, buf_size, "shared,");
 		}
 		flags ^= MS_SHARED;
 	}
@@ -105,13 +107,137 @@ const char *sc_mount_opt2str(unsigned long flags)
 	// Render any flags that are unaccounted for.
 	if (flags) {
 		char of[128];
-		sprintf(of, "%#lx", flags);
-		strcat(buf, of);
+		sc_must_snprintf(of, sizeof of, "%#lx", flags);
+		sc_string_append(buf, buf_size, of);
 	}
 	// Chop the excess comma from the end.
-	size_t len = strlen(buf);
+	size_t len = strnlen(buf, buf_size);
 	if (len > 0 && buf[len - 1] == ',') {
 		buf[len - 1] = 0;
 	}
+	return buf;
+}
+
+const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const char
+			 *target, const char *fs_type, unsigned long mountflags, const
+			 void *data)
+{
+	sc_string_init(buf, buf_size);
+	sc_string_append(buf, buf_size, "mount");
+
+	// Add filesysystem type if it's there and doesn't have the special value "none"
+	if (fs_type != NULL && strncmp(fs_type, "none", 5) != 0) {
+		sc_string_append(buf, buf_size, " -t ");
+		sc_string_append(buf, buf_size, fs_type);
+	}
+	// Check for some special, dedicated options, that aren't represented with
+	// the generic mount option argument (mount -o ...), by collecting those
+	// options that we will display as command line arguments in
+	// used_special_flags. This is used below to filter out these arguments
+	// from mount_flags when calling sc_mount_opt2str().
+	int used_special_flags = 0;
+
+	// Bind-ounts (bind)
+	if (mountflags & MS_BIND) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --rbind");
+			used_special_flags |= MS_REC;
+		} else {
+			sc_string_append(buf, buf_size, " --bind");
+		}
+		used_special_flags |= MS_BIND;
+	}
+	// Moving mount point location (move)
+	if (mountflags & MS_MOVE) {
+		sc_string_append(buf, buf_size, " --move");
+		used_special_flags |= MS_MOVE;
+	}
+	// Shared subtree operations (shared, slave, private, unbindable).
+	if (MS_SHARED & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rshared");
+			used_special_flags |= MS_REC;
+		} else {
+			sc_string_append(buf, buf_size, " --make-shared");
+		}
+		used_special_flags |= MS_SHARED;
+	}
+
+	if (MS_SLAVE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rslave");
+			used_special_flags |= MS_REC;
+		} else {
+			sc_string_append(buf, buf_size, " --make-slave");
+		}
+		used_special_flags |= MS_SLAVE;
+	}
+
+	if (MS_PRIVATE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-rprivate");
+			used_special_flags |= MS_REC;
+		} else {
+			sc_string_append(buf, buf_size, " --make-private");
+		}
+		used_special_flags |= MS_PRIVATE;
+	}
+
+	if (MS_UNBINDABLE & mountflags) {
+		if (mountflags & MS_REC) {
+			sc_string_append(buf, buf_size, " --make-runbindable");
+			used_special_flags |= MS_REC;
+		} else {
+			sc_string_append(buf, buf_size, " --make-unbindable");
+		}
+		used_special_flags |= MS_UNBINDABLE;
+	}
+	// If regular option syntax exists then use it.
+	if (mountflags & ~used_special_flags) {
+		char opts_buf[1000];
+		sc_mount_opt2str(opts_buf, sizeof opts_buf, mountflags &
+				 ~used_special_flags);
+		sc_string_append(buf, buf_size, " -o ");
+		sc_string_append(buf, buf_size, opts_buf);
+	}
+	// Add source and target locations
+	if (source != NULL && strncmp(source, "none", 5) != 0) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, source);
+	}
+	if (target != NULL && strncmp(target, "none", 5) != 0) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, target);
+	}
+
+	return buf;
+}
+
+const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
+			  int flags)
+{
+	sc_string_init(buf, buf_size);
+	sc_string_append(buf, buf_size, "umount");
+
+	if (flags & MNT_FORCE) {
+		sc_string_append(buf, buf_size, " --force");
+	}
+
+	if (flags & MNT_DETACH) {
+		sc_string_append(buf, buf_size, " --lazy");
+	}
+	if (flags & MNT_EXPIRE) {
+		// NOTE: there's no real command line option for MNT_EXPIRE
+		sc_string_append(buf, buf_size, " --expire");
+	}
+	if (flags & UMOUNT_NOFOLLOW) {
+		// NOTE: there's no real command line option for UMOUNT_NOFOLLOW
+		sc_string_append(buf, buf_size, " --no-follow");
+	}
+	if (target != NULL) {
+		sc_string_append(buf, buf_size, " ");
+		sc_string_append(buf, buf_size, target);
+	}
+
 	return buf;
 }

@@ -120,7 +120,8 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *group_name = getenv("SNAP_NAME");
+			const char *snap_name = getenv("SNAP_NAME");
+			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
 			}
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
 			sc_lock_ns_mutex(group);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(security_tag);
+				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_unlock_ns_mutex(group);
