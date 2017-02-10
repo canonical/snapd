@@ -794,7 +794,7 @@ func checkDevelopers(headers map[string]interface{}, name string) ([]*snapDevDev
 	for i, item := range list {
 		v, ok := item.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("%q must be a list of developers", name)
+			return nil, fmt.Errorf("%q must be a list of developer maps", name)
 		}
 		accountID, err := checkNotEmptyStringWhat(v, "developer-id", "item")
 		if err != nil {
