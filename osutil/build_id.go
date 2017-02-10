@@ -17,15 +17,18 @@
  *
  */
 
-// package build_id allows to read the GNU Build ID note from ELF exectuables.
-package build_id
+package osutil
 
 import (
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 )
+
+// ErrNoBuildID is returned when an executable does not contain a Build-ID
+var ErrNoBuildID = errors.New("executable does not contain GNU Build-Id")
 
 // BuildID is an array of bytes that identify a given build of an executable.
 type BuildID []byte
@@ -47,57 +50,64 @@ type noteHeader struct {
 	Type   uint32
 }
 
-// BuildID returns the GNU Build-ID of a given executable
+// GetBuildID returns the GNU Build-ID of a given executable
 //
 // http://fedoraproject.org/wiki/Releases/FeatureBuildId
-func GetBuildID(fname string) (BuildID, error) {
+func GetBuildID(fname string) (*BuildID, error) {
 	const ELF_NOTE_GNU = "GNU\x00"
 	const NT_GNU_BUILD_ID uint32 = 3
-	var id BuildID
 
 	// Open the designated ELF file
 	f, err := elf.Open(fname)
 	if err != nil {
-		return id, err
+		return nil, err
 	}
 	defer f.Close()
 
 	const specialSectionName = ".note.gnu.build-id"
 
-	// Find the section that holds the build-id note
-	section := f.Section(specialSectionName)
-	if section == nil {
-		return id, fmt.Errorf("cannot find section %q, build with -buildmode=pie", specialSectionName)
-	}
-	if section.Type != elf.SHT_NOTE {
-		return id, fmt.Errorf("section %q has unexpected type (wanted SHT_NOTE, got %s)", section.Name, section.Type)
-	}
+	for _, section := range f.Sections {
 
-	// NOTE: this is a ReadSeeker so no need to close it
-	sr := section.Open()
-	sr.Seek(0, os.SEEK_SET)
+		// We are looking for note sections
+		if section.Type != elf.SHT_NOTE {
+			continue
+		}
 
-	// Read the ELF Note header
-	nHdr := new(noteHeader)
-	if err := binary.Read(sr, f.ByteOrder, nHdr); err != nil {
-		return id, err
-	}
-	if nHdr.Type != NT_GNU_BUILD_ID {
-		return id, fmt.Errorf("note has unexpected type (wanted NT_GNU_BUILD_ID, got %d)", nHdr.Type)
-	}
+		// NOTE: this is a ReadSeeker so no need to close it
+		sr := section.Open()
+		sr.Seek(0, os.SEEK_SET)
 
-	// Read note name
-	noteName := make([]byte, nHdr.Namesz)
-	if err := binary.Read(sr, f.ByteOrder, noteName); err != nil {
-		return id, err
-	}
-	if string(noteName) != ELF_NOTE_GNU {
-		return id, fmt.Errorf("note has unexpected name (wanted GNU, got %q)", string(noteName))
-	}
+		// Read the ELF Note header
+		nHdr := new(noteHeader)
+		if err := binary.Read(sr, f.ByteOrder, nHdr); err != nil {
+			return nil, err
+		}
 
-	noteData := make([]byte, nHdr.Descsz)
-	if err := binary.Read(sr, f.ByteOrder, noteData); err != nil {
-		return id, err
+		// We are looking for a specific type of note
+		if nHdr.Type != NT_GNU_BUILD_ID {
+			continue
+		}
+
+		// Read note name
+		noteName := make([]byte, nHdr.Namesz)
+		if err := binary.Read(sr, f.ByteOrder, noteName); err != nil {
+			return nil, err
+		}
+
+		// We are only interested in GNU build IDs
+		if string(noteName) != ELF_NOTE_GNU {
+			continue
+		}
+
+		// Read note data
+		noteData := make([]byte, nHdr.Descsz)
+		if err := binary.Read(sr, f.ByteOrder, noteData); err != nil {
+			return nil, err
+		}
+
+		// Return the first build-id we manage to find
+		id := BuildID(noteData)
+		return &id, nil
 	}
-	return BuildID(noteData), nil
+	return nil, ErrNoBuildID
 }

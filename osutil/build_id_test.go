@@ -17,28 +17,23 @@
  *
  */
 
-package build_id_test
+package osutil_test
 
 import (
-	"testing"
-
-	bi "github.com/snapcore/snapd/osutil/build_id"
+	"github.com/snapcore/snapd/osutil"
 
 	. "gopkg.in/check.v1"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
 
 type buildIDSuite struct{}
 
 var _ = Suite(&buildIDSuite{})
 
 func (s *buildIDSuite) TestString(c *C) {
-	id1 := bi.BuildID([]byte{0xef, 0xbf, 0xc, 0xe8, 0xdd, 0x96, 0x17, 0xc8, 0x90, 0xa0, 0x54, 0x7c, 0xe5, 0xa1, 0xa6, 0x7, 0x3f, 0x58, 0x67, 0xaf})
+	id1 := osutil.BuildID([]byte{0xef, 0xbf, 0xc, 0xe8, 0xdd, 0x96, 0x17, 0xc8, 0x90, 0xa0, 0x54, 0x7c, 0xe5, 0xa1, 0xa6, 0x7, 0x3f, 0x58, 0x67, 0xaf})
 	c.Assert(id1.String(), Equals, "BuildID[sha1]=efbf0ce8dd9617c890a0547ce5a1a6073f5867af")
 
-	id2 := bi.BuildID([]byte{0xde, 0xad, 0xbe, 0xef})
+	id2 := osutil.BuildID([]byte{0xde, 0xad, 0xbe, 0xef})
 	c.Assert(id2.String(), Equals, "BuildID[???]=deadbeef")
 }
 
@@ -50,7 +45,7 @@ func (s *buildIDSuite) TestGetBuildID(c *C) {
 		{"true.arm64", "BuildID[sha1]=8b65339d7fa0c4cdc87ed9c8020626aa10fb521b"},
 		{"true.armhf", "BuildID[sha1]=c80229c22d4b6b30b71ab1b1b5a1de6b86b6aadf"},
 	} {
-		id, err := bi.GetBuildID(t.fname)
+		id, err := osutil.GetBuildID(t.fname)
 		c.Assert(err, IsNil)
 		c.Assert(id.String(), Equals, t.expected, Commentf("executable: %s", t.fname))
 	}
