@@ -202,9 +202,6 @@ repack: |
         tar c current.delta >&4
     fi
 
-# on some systems the top-level prepare takes longer
-kill-timeout: 1h
-
 prepare: |
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -239,7 +236,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        backends: [-nested]
         systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -281,7 +277,6 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        backends: [-nested]
         systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
