@@ -93,35 +93,72 @@ func (ts *timeutilSuite) TestParseTime(c *C) {
 }
 
 func (ts *timeutilSuite) TestScheduleMatches(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
 	for _, t := range []struct {
 		schedStr string
-		timeStr  string
-		weekday  string
+		fakeNow  string
 		matches  bool
 	}{
-		{"9:00-11:00", "8:59", "", false},
-		{"9:00-11:00", "9:00", "", true},
-		{"9:00-11:00", "11:00", "", true},
-		{"9:00-11:00", "11:01", "", false},
-		{"mon@9:00-11:00", "9:00", "mon", true},
-		{"mon@9:00-11:00", "9:00", "tue", false},
+		// 2017-02-05 is a Sunday
+		{"9:00-11:00", "2017-02-05 8:59", false},
+		{"9:00-11:00", "2017-02-05 9:00", true},
+		{"9:00-11:00", "2017-02-05 11:00", true},
+		{"9:00-11:00", "2017-02-05 11:01", false},
+		// 2017-02-06 is a Monday
+		{"mon@9:00-11:00", "2017-02-06 9:00", true},
+		// 2017-02-07 is a Tuesday
+		{"mon@9:00-11:00", "2017-02-07 9:00", false},
 	} {
+		fakeNow, err := time.Parse(shortForm, t.fakeNow)
+
 		sched, err := timeutil.ParseSchedule(t.schedStr)
 		c.Assert(err, IsNil)
 		c.Assert(sched, HasLen, 1)
 
-		ti, err := timeutil.ParseTime(t.timeStr)
+		c.Check(sched[0].Matches(fakeNow), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.fakeNow, t.matches, sched[0].Matches(fakeNow)))
+	}
+}
+
+func (ts *timeutilSuite) TestScheduleSameInterval(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
+	for _, t := range []struct {
+		schedStr string
+
+		t1       string
+		t2       string
+		expected bool
+	}{
+		// not matched intervals are always false
+		{"9:00-11:00", "2017-02-05 8:59", "2017-02-05 8:59", false},
+
+		// same day, same interval
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 9:20", true},
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
+
+		// different days
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-06 10:59", false},
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-17 09:00", false},
+
+		// weekly schedule, matching day
+		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
+
+		// weekly schedule, not matching day
+		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-07 10:59", false},
+		// different weeks
+		{"sun@9:00-11:00", "2017-02-12 9:00", "2017-02-05 10:59", false},
+	} {
+		t1, err := time.Parse(shortForm, t.t1)
+		c.Assert(err, IsNil)
+		t2, err := time.Parse(shortForm, t.t2)
 		c.Assert(err, IsNil)
 
-		day := 5
-		switch t.weekday {
-		case "mon":
-			day = 6
-		case "tue":
-			day = 7
-		}
-		d := time.Date(2017, 02, day, ti.Hour, ti.Minute, 0, 0, time.UTC)
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+		c.Assert(sched, HasLen, 1)
 
-		c.Check(sched[0].Matches(d), Equals, t.matches, Commentf("invalid match for %q with time %q (%s), expected %v, got %v", t.schedStr, t.timeStr, t.weekday, t.matches, sched[0].Matches(d)))
+		res := sched[0].SameInterval(t1, t2)
+		c.Check(res, Equals, t.expected, Commentf("SameInterval(%q,%q) for %q returned %v, expected %v", t.t1, t.t2, t.schedStr, res, t.expected))
 	}
 }
