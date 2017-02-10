@@ -136,10 +136,6 @@ var bluezPermanentSlotSecComp = []byte(`
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -149,10 +145,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-socketpair
-socket
 `)
 
 var bluezConnectedPlugSecComp = []byte(`
@@ -161,14 +154,11 @@ var bluezConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 # Can communicate with DBus system service
-connect
-getsockname
 recv
 recvmsg
 send
 sendto
 sendmsg
-socket
 `)
 
 var bluezPermanentSlotDBus = []byte(`

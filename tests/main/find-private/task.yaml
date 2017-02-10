@@ -23,7 +23,8 @@ execute: |
     ! snap find test-snapd-private --private | MATCH "test-snapd-private +[0-9]+\.[0-9]+"
 
     echo "Given account store credentials are available"
-    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
+    # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ] && [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "And the user has logged in"
         expect -f successful_login.exp
 

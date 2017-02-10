@@ -106,7 +106,6 @@ dbus (receive)
 
 const dbusPermanentSlotSecComp = `
 # Description: Allow owning a name on DBus public bus
-getsockname
 recvmsg
 sendmsg
 sendto
@@ -185,7 +184,6 @@ dbus (receive, send)
 `
 
 const dbusConnectedPlugSecComp = `
-getsockname
 recvmsg
 sendmsg
 sendto

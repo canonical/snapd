@@ -85,14 +85,11 @@ capability sys_time,
 `
 const timeControlConnectedPlugSecComp = `
 # dbus
-connect
-getsockname
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `
 
 // The type for the rtc interface

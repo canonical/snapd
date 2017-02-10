@@ -152,8 +152,6 @@ fchown32
 fchownat
 lchown
 lchown32
-getsockname
-setsockopt
 mount
 recv
 recvfrom
@@ -167,7 +165,6 @@ umount2
 `
 
 const udisks2ConnectedPlugSecComp = `
-getsockname
 recv
 recvfrom
 recvmsg

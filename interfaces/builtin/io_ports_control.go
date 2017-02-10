@@ -32,7 +32,7 @@ const ioPortsControlConnectedPlugAppArmor = `
 
 capability sys_rawio, # required by iopl
 
-/dev/ports rw,
+/dev/port rw,
 `
 
 const ioPortsControlConnectedPlugSecComp = `
@@ -105,7 +105,7 @@ func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
-		const udevRule = `KERNEL=="ports", TAG+="%s"`
+		const udevRule = `KERNEL=="port", TAG+="%s"`
 		for appName := range plug.Apps {
 			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 			tagSnippet.WriteString(fmt.Sprintf(udevRule, tag))
