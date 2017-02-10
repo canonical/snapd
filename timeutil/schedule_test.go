@@ -119,3 +119,46 @@ func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 		c.Check(sched[0].Matches(fakeNow), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.fakeNow, t.matches, sched[0].Matches(fakeNow)))
 	}
 }
+
+func (ts *timeutilSuite) TestScheduleSameInterval(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
+	for _, t := range []struct {
+		schedStr string
+
+		t1       string
+		t2       string
+		expected bool
+	}{
+		// not matched intervals are always false
+		{"9:00-11:00", "2017-02-05 8:59", "2017-02-05 8:59", false},
+
+		// same day, same interval
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 9:20", true},
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
+
+		// different days
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-06 10:59", false},
+		{"9:00-11:00", "2017-02-05 9:00", "2017-02-17 09:00", false},
+
+		// weekly schedule, matching day
+		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
+
+		// weekly schedule, not matching day
+		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-07 10:59", false},
+		// different weeks
+		{"sun@9:00-11:00", "2017-02-12 9:00", "2017-02-05 10:59", false},
+	} {
+		t1, err := time.Parse(shortForm, t.t1)
+		c.Assert(err, IsNil)
+		t2, err := time.Parse(shortForm, t.t2)
+		c.Assert(err, IsNil)
+
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+		c.Assert(sched, HasLen, 1)
+
+		res := sched[0].SameInterval(t1, t2)
+		c.Check(res, Equals, t.expected, Commentf("SameInterval(%q,%q) for %q returned %v, expected %v", t.t1, t.t2, t.schedStr, res, t.expected))
+	}
+}
