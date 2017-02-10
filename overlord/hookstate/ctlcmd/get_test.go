@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -37,7 +38,14 @@ type getSuite struct {
 	mockHandler *hooktest.MockHandler
 }
 
+type getAttrSuite struct {
+	mockContext *hookstate.Context
+	mockHandler *hooktest.MockHandler
+}
+
 var _ = Suite(&getSuite{})
+
+var _ = Suite(&getAttrSuite{})
 
 func (s *getSuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
@@ -134,4 +142,56 @@ func (s *getSuite) TestGetTests(c *C) {
 func (s *getSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"})
 	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
+}
+
+func (s *getAttrSuite) SetUpTest(c *C) {
+	s.mockHandler = hooktest.NewMockHandler()
+
+	state := state.New(nil)
+	state.Lock()
+
+	ch := state.NewChange("mychange", "mychange")
+
+	attrsTask := state.NewTask("connect-task", "my connect task")
+	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
+	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
+	attrs := make(map[string]interface{})
+	attrs["foo"] = "bar"
+	attrs["baz"] = []string{"a", "b"}
+	attrsTask.Set("plug-attrs", attrs)
+	attrsTask.Set("slot-attrs", make(map[string]interface{}))
+
+	hookTask := state.NewTask("run-hook", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "prepare-plug-aplug"}
+	ch.AddTask(attrsTask)
+	state.Unlock()
+
+	var err error
+	s.mockContext, err = hookstate.NewContext(hookTask, setup, s.mockHandler)
+	c.Assert(err, IsNil)
+
+	s.mockContext.Lock()
+	s.mockContext.Set("attrs-task", attrsTask.ID())
+	defer s.mockContext.Unlock()
+	ch.AddTask(hookTask)
+}
+
+func (s *getAttrSuite) TestCommand(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "foo"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "bar\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"get", "-d", ":aplug", "baz"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *getAttrSuite) TestUnknownKey(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", ":aplug", "x"})
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, `unknown attribute "x"`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
 }
