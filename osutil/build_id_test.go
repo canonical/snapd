@@ -41,6 +41,7 @@ func (s *buildIDSuite) TestGetBuildID(c *C) {
 	for _, t := range []struct {
 		fname, expected string
 	}{
+		{"true.i386", "BuildID[sha1]=159364c90b873eb5def7431c2ee7d1385e58be51"},
 		{"true.amd64", "BuildID[sha1]=efbf0ce8dd9617c890a0547ce5a1a6073f5867af"},
 		{"true.arm64", "BuildID[sha1]=8b65339d7fa0c4cdc87ed9c8020626aa10fb521b"},
 		{"true.armhf", "BuildID[sha1]=c80229c22d4b6b30b71ab1b1b5a1de6b86b6aadf"},
