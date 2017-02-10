@@ -699,8 +699,7 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	return nil
 }
 
-// TODO(matt): consider renaming this ... Developer is a bit vague.
-type Developer struct {
+type snapDevDeveloper struct {
 	AccountID string
 	Since     time.Time
 	Until     time.Time
@@ -710,7 +709,7 @@ type Developer struct {
 // can collaborate on a snap while it's owned by a specific publisher.
 type SnapDeveloper struct {
 	assertionBase
-	developers []*Developer
+	developers []*snapDevDeveloper
 }
 
 // SnapID returns the snap id of the snap.
@@ -721,11 +720,6 @@ func (snapdev *SnapDeveloper) SnapID() string {
 // PublisherID returns the publisher's account id.
 func (snapdev *SnapDeveloper) PublisherID() string {
 	return snapdev.HeaderString("publisher-id")
-}
-
-// Developers returns the developers allowed to collaborate on the snap.
-func (snapdev *SnapDeveloper) Developers() []*Developer {
-	return snapdev.developers
 }
 
 func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
@@ -775,7 +769,7 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func checkDevelopers(headers map[string]interface{}, name string) ([]*Developer, error) {
+func checkDevelopers(headers map[string]interface{}, name string) ([]*snapDevDeveloper, error) {
 	// TODO:
 	// - reject overlapping date ranges?
 	value, ok := headers[name]
@@ -790,7 +784,7 @@ func checkDevelopers(headers map[string]interface{}, name string) ([]*Developer,
 		return nil, nil
 	}
 
-	developers := make([]*Developer, len(list))
+	developers := make([]*snapDevDeveloper, len(list))
 	for i, item := range list {
 		v, ok := item.(map[string]interface{})
 		if !ok {
@@ -811,7 +805,7 @@ func checkDevelopers(headers map[string]interface{}, name string) ([]*Developer,
 		if !until.IsZero() && since.After(until) {
 			return nil, fmt.Errorf(`%s[%d]: "since" must be less than or equal to "until"`, name, i)
 		}
-		developers[i] = &Developer{accountID, since, until}
+		developers[i] = &snapDevDeveloper{accountID, since, until}
 	}
 
 	return developers, nil
