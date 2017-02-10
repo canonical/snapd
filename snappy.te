@@ -1,5 +1,5 @@
 
-policy_module(snappy,0.0.11)
+policy_module(snappy,0.0.12)
 
 ########################################
 #
@@ -34,6 +34,9 @@ systemd_unit_file(snappy_unit_file_t)
 #
 # snappy local policy
 #
+
+# For development purposes, snappy_t domain is to be marked permissive
+permissive snappy_t;
 
 # Allow transitions from init_t to snappy for sockets
 gen_require(` type init_t; type var_run_t; ')
