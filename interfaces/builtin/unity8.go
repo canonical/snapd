@@ -22,6 +22,7 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -135,24 +136,25 @@ func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(unity8ConnectedPlugAppArmor, old, new, -1)
+		oldTags := []byte("###SLOT_SECURITY_TAGS###")
+		newTags := slotAppLabelExpr(slot)
+		snippet := bytes.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
 
-		old = []byte("###PLUG_DBUS_APPIDS###")
-		var appids bytes.Buffer
-		if len(plug.Apps) > 1 {
-			appids.WriteByte('{')
-		}
+		appidsOld := []byte("###PLUG_DBUS_APPIDS###")
+		var appidsNew bytes.Buffer
+		var appidsList []string
 		for _, app := range plug.Apps {
-			appids.Write(iface.dbusAppId(app))
-			appids.WriteByte(',')
+			appidsList = append(appidsList, string(iface.dbusAppId(app)))
 		}
-		appids.Truncate(appids.Len() - 1)
-		if len(plug.Apps) > 1 {
-			appids.WriteByte('}')
+		sort.Strings(appidsList) // makes tests reliable
+		if len(appidsList) == 1 {
+			appidsNew.WriteString(appidsList[0])
+		} else if len(appidsList) > 1 {
+			appidsNew.WriteByte('{')
+			appidsNew.WriteString(strings.Join(appidsList, ","))
+			appidsNew.WriteByte('}')
 		}
-		snippet = bytes.Replace(snippet, old, appids.Bytes(), -1)
+		snippet = bytes.Replace(snippet, appidsOld, appidsNew.Bytes(), -1)
 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
