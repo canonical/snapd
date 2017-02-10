@@ -184,6 +184,17 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	}
 	modelAssertion := a.(*asserts.Model)
 
+	classicModel := modelAssertion.Classic()
+	if release.OnClassic != classicModel {
+		var msg string
+		if classicModel {
+			msg = "cannot seed an all-snaps system with a classic model"
+		} else {
+			msg = "cannot seed a classic system with an all-snaps model"
+		}
+		return nil, fmt.Errorf(msg)
+	}
+
 	// set device,model from the model assertion
 	device.Brand = modelAssertion.BrandID()
 	device.Model = modelAssertion.Model()
