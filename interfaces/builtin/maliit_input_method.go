@@ -62,27 +62,26 @@ dbus (send, receive)
     path=/org/maliit/server/address
     peer=(label=###SLOT_SECURITY_TAGS###),
 
-unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###),
+unix (send, receive, connect) type=stream peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
 `)
 
 var maliitInputMethodPermanentSlotSecComp = []byte(`
-connect
+recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 listen
+accept
 accept4
 `)
 
 var maliitInputMethodConnectedPlugSecComp = []byte(`
-connect
+recvfrom
 recvmsg
 send
 sendto
 sendmsg
-socket
 `)
 
 type MaliitInputMethodInterface struct{}

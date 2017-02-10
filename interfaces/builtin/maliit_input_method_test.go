@@ -102,7 +102,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "connect\n")
+	c.Check(string(snippet), testutil.Contains, "recvfrom\n")
 }
 
 // The label uses short form when exactly one app is bound to the maliit-input-method slot
