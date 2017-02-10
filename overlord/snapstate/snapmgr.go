@@ -466,7 +466,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err != nil {
-		var err error
 		// FIXME: this will spam syslog :/
 		logger.Noticef("cannot use refresh.schedule: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
@@ -509,8 +508,11 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
-	endOfInterval := time.Date(now.Year(), now.Month(), now.Day(), matchedSchedule.End.Hour, matchedSchedule.End.Minute, 0, 0, now.Location())
+	endOfInterval := time.Date(now.Year(), now.Month(), now.Day(), matchedSchedule.End.Hour, matchedSchedule.End.Minute, matchedSchedule.End.Second, 0, now.Location())
 	timeToEndOfInterval := endOfInterval.Sub(now)
+	if timeToEndOfInterval <= 0 {
+		timeToEndOfInterval = 1 * time.Millisecond
+	}
 	when := time.Duration(rand.Int63n(int64(timeToEndOfInterval)))
 
 	m.nextRefresh = time.AfterFunc(when, func() { m.doAutoRefresh(updated, tasksets) })
@@ -519,6 +521,8 @@ func (m *SnapManager) ensureRefreshes() error {
 }
 
 func (m *SnapManager) doAutoRefresh(updated []string, tasksets []*state.TaskSet) error {
+	m.state.Lock()
+	defer m.state.Unlock()
 
 	// Do setLastRefresh() only if the store (in AutoRefresh) gave
 	// us no error. This means we retry on store errors every
