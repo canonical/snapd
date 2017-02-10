@@ -31,7 +31,6 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
-    NESTED_ARCH: "$(HOST: echo $SPREAD_NESTED_ARCH:-amd64)"
 
 backends:
     linode:
@@ -316,6 +315,8 @@ suites:
 
     tests/nested/:
         summary: Tests for nested images
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
         halt-timeout: 2h
         kill-timeout: 2h
         manual: true
