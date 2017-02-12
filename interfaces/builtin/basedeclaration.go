@@ -314,7 +314,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  linux-framebuffer:
+  framebuffer:
     allow-installation:
       slot-snap-type:
         - core
