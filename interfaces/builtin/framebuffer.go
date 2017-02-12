@@ -35,14 +35,6 @@ const framebufferConnectedPlugAppArmor = `
 /run/udev/data/c29:[0-9]* r,
 `
 
-func NewFramebufferInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "framebuffer",
-		connectedPlugAppArmor: framebufferConnectedPlugAppArmor,
-		reservedForOS:         true,
-	}
-}
-
 // The type for physical-memory-control interface
 type FramebufferInterface struct{}
 
