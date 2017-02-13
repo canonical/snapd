@@ -386,6 +386,15 @@ var defaultTemplate = []byte(`
   /sys/class/ r,
   /sys/class/**/ r,
 
+  # Workaround https://launchpad.net/bugs/359338 until upstream handles
+  # stacked filesystems generally.
+  # encrypted ~/.Private and old-style encrypted $HOME
+  @{HOME}/.Private/ r,
+  @{HOME}/.Private/** mrixwlk,
+  # new-style encrypted $HOME
+  @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+  @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+
 ###SNIPPETS###
 }
 `)
