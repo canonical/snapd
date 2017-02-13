@@ -26,7 +26,10 @@ execute: |
         if snap changes|grep -q "Done.*Auto-refresh snap"; then
             break
         fi
-        sleep 1
+        echo "Doing something that triggers ensure"
+        snap install test-snapd-python-webserver
+        snap remove test-snapd-python-webserver
+        sleep 10
     done
 
     echo "Ensure our snap got updated"
