@@ -146,13 +146,27 @@ func (cps connectPlugSpec) Complete(match string) []flags.Completion {
 		for snapName := range snaps {
 			for _, plug := range ifaces.Plugs {
 				if plug.Snap == snapName && strings.HasPrefix(plug.Name, plugPrefix) {
-					ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", plug.Snap, plug.Name)})
+					// TODO: in the future annotate plugs that can take
+					// multiple connection sensibly and don't skip those even
+					// if they have connections already.
+					if len(plug.Connections) == 0 {
+						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", plug.Snap, plug.Name)})
+					}
 				}
 			}
 		}
 	} else {
 		for snapName := range snaps {
-			ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+			for _, plug := range ifaces.Plugs {
+				if plug.Snap == snapName {
+					if len(plug.Connections) == 0 {
+						// TODO: in the future annotate plugs that can take
+						// multiple connection sensibly and don't skip those
+						// even if they have connections already.
+						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+					}
+				}
+			}
 		}
 	}
 
