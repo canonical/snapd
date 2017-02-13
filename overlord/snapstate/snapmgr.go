@@ -524,7 +524,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	when := time.Duration(rand.Int63n(int64(timeToEndOfInterval)))
 
 	m.nextRefresh = time.AfterFunc(when, func() { m.doAutoRefresh(updated, tasksets) })
-	logger.Debugf("schedule next refresh at %s", when)
+	logger.Debugf("schedule next refresh in %s", when)
 
 	return nil
 }
