@@ -18,6 +18,8 @@ def matches(name, s, r):
 def check(name, d, *a):
     ka = set()
     for k, op, *args in a:
+        if op == maybe:
+            d[k] = d.get(k,"")
         if k not in d:
             die("in %s expected to have a key %r" % (name, k))
         op(name+"."+k, d[k], *args)
@@ -28,6 +30,10 @@ def check(name, d, *a):
 
 def exists(name, d):
     pass
+
+def maybe(name, d):
+    pass
+
 
 verNotesRx = re.compile(r"^\w\S*\s+-$")
 def verRevNotesRx(s):
@@ -94,7 +100,9 @@ check("core", res[4],
       ("installed", exists),
       ("refreshed", exists),
       ("channels", exists),
-      ("contact", exists),
+      # contacts is set on classic but not on Ubuntu Core where we
+      # sideload "core"
+      ("contact", maybe),
 )
 
 check("error", res[5],
