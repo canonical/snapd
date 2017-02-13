@@ -27,8 +27,8 @@ import (
 )
 
 var networkManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 
 capability net_admin,
 capability net_bind_service,
@@ -182,8 +182,8 @@ dbus (receive, send)
 `)
 
 var networkManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-# privileged access to the NetworkManager service.
+# Description: Allow using NetworkManager service. This gives privileged access
+# to the NetworkManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -195,8 +195,8 @@ dbus (receive, send)
 `)
 
 var networkManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 accept
 accept4
 bind

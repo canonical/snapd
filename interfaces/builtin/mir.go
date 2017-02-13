@@ -26,8 +26,8 @@ import (
 )
 
 var mirPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the Mir server. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the Mir server. This gives privileged access
+# to the system.
 
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
@@ -42,8 +42,8 @@ network netlink raw,
 `)
 
 var mirPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the mir server. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the mir server. This gives privileged access
+# to the system.
 # Needed for server launch
 bind
 listen

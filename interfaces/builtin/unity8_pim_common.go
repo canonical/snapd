@@ -28,8 +28,8 @@ import (
 )
 
 const unity8PimCommonPermanentSlotAppArmor = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -83,8 +83,8 @@ dbus (receive, send)
 `
 
 const unity8PimCommonPermanentSlotSecComp = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 accept
 accept4
 bind

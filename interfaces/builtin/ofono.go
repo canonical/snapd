@@ -27,8 +27,8 @@ import (
 )
 
 const ofonoPermanentSlotAppArmor = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # to create ppp network interfaces
 capability net_admin,
@@ -109,8 +109,8 @@ dbus (receive, send)
 `
 
 const ofonoConnectedPlugAppArmor = `
-# Description: Allow using Ofono service. Reserved because this gives
-# privileged access to the Ofono service.
+# Description: Allow using Ofono service. This gives privileged access to the
+# Ofono service.
 
 #include <abstractions/dbus-strict>
 
@@ -132,8 +132,8 @@ dbus (receive, send)
 `
 
 const ofonoPermanentSlotSecComp = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # Communicate with DBus, netlink, rild
 accept
