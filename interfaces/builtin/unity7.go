@@ -297,7 +297,7 @@ dbus (receive)
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
 
-# notifications
+# app-indicators
 dbus (send)
     bus=session
     path=/StatusNotifierWatcher
@@ -337,6 +337,13 @@ dbus (send)
     member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    peer=(label=unconfined),
+
 dbus (send)
     bus=session
     path=/{StatusNotifierItem/menu,org/ayatana/NotificationItem/*/Menu}
@@ -351,6 +358,7 @@ dbus (receive)
     member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
 
+# notifications
 dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
@@ -435,7 +443,7 @@ dbus (receive)
 
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. <a href='https://pad.lv/1260491'>LP: #1260491</a>
+# safely deny. <a href='https://pad.lv/1260491'><a href='https://pad.lv/1260491'>LP: #1260491</a></a>
 deny /{,var/}{dev,run}/shm/lttng-ust-* r,
 `
 
