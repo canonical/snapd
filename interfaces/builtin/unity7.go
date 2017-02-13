@@ -436,6 +436,20 @@ dbus (receive)
     member="{GetAll,GetLayout}"
     peer=(label=unconfined),
 
+# Allow requesting interest in receiving media key events. This tells Gnome
+# settings that our application should be notified when key events we are
+# interested in are pressed.
+dbus (send)
+  bus=session
+  interface=org.gnome.SettingsDaemon.MediaKeys
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  peer=(label=unconfined),
+dbus (send)
+  bus=session
+  interface=org.freedesktop.DBus.Properties
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  member="Get{,All}"
+  peer=(label=unconfined),
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
