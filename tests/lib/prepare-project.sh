@@ -58,10 +58,10 @@ fi
 if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
-       snap install --devmode --edge test-snapbuild
        mkdir -p $GOPATH/bin
-       cp /snap/test-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
-       snap remove test-snapbuild
+       snap install --edge test-snapd-snapbuild
+       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
    snap set core refresh.disabled=true
