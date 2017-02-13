@@ -334,7 +334,7 @@ dbus (send)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
-    member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
+    member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
@@ -435,7 +435,7 @@ dbus (receive)
 
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
+# safely deny. <a href='https://pad.lv/1260491'>LP: #1260491</a>
 deny /{,var/}{dev,run}/shm/lttng-ust-* r,
 `
 
