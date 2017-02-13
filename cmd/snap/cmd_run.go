@@ -131,7 +131,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 		// failure other than non-existing symlink is fatal
 		if err != nil && !os.IsNotExist(err) {
 			// TRANSLATORS: %v the error message
-			return fmt.Errorf(i18n.G("Failed to read symlink: %v"), err)
+			return fmt.Errorf(i18n.G("cannot read symlink: %v"), err)
 		}
 		if currentSymlinkValue == wantedSymlinkValue {
 			break
@@ -144,7 +144,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf(i18n.G("Failed to update the 'current' symlink of %q: %v"), currentActiveSymlink, err)
+		return fmt.Errorf(i18n.G("cannot update the 'current' symlink of %q: %v"), currentActiveSymlink, err)
 	}
 	return nil
 }
