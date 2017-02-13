@@ -58,3 +58,7 @@ EOF
 cat <<EOF > ${PKG_BUILDDIR}/cmd/VERSION
 $v
 EOF
+
+cat <<EOF >${PKG_BUILDDIR}/data/info
+VERSION=$v
+EOF

@@ -364,7 +364,13 @@ func (mx modeMixin) validateMode() error {
 }
 
 func (mx modeMixin) asksForMode() bool {
-	return mx.DevMode || mx.JailMode
+	return mx.DevMode || mx.JailMode || mx.Classic
+}
+
+func (mx modeMixin) setModes(opts *client.SnapOptions) {
+	opts.DevMode = mx.DevMode
+	opts.JailMode = mx.JailMode
+	opts.Classic = mx.Classic
 }
 
 type cmdInstall struct {
@@ -409,7 +415,7 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		changeID, err = cli.Install(name, opts)
 	}
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, e.Message+"\n")
+		fmt.Fprintf(Stderr, i18n.G("snap %q is already installed, see \"snap refresh --help\"\n"), name)
 		return nil
 	}
 	if err != nil {
@@ -495,12 +501,10 @@ func (x *cmdInstall) Execute([]string) error {
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
 		Channel:   x.Channel,
-		DevMode:   x.DevMode,
-		JailMode:  x.JailMode,
-		Classic:   x.Classic,
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 	}
+	x.setModes(opts)
 
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
@@ -615,6 +619,12 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
+
+	if len(x.Positional.Snaps) == 0 && os.Getenv("SNAP_REFRESH_FROM_TIMER") == "1" {
+		fmt.Fprintf(Stdout, "Ignoring `snap refresh` from the systemd timer")
+		return nil
+	}
+
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
 		names[i] = string(name)
@@ -622,11 +632,10 @@ func (x *cmdRefresh) Execute([]string) error {
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
 			Channel:          x.Channel,
-			DevMode:          x.DevMode,
-			JailMode:         x.JailMode,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
 		}
+		x.setModes(opts)
 		return refreshOne(names[0], opts)
 	}
 
@@ -654,10 +663,8 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	cli := Client()
 	name := x.Positional.SnapDir
-	opts := &client.SnapOptions{
-		DevMode:  x.DevMode,
-		JailMode: x.JailMode,
-	}
+	opts := &client.SnapOptions{}
+	x.setModes(opts)
 
 	if name == "" {
 		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
@@ -679,6 +686,11 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	changeID, err := cli.Try(path, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
+		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+	}
 	if err != nil {
 		return err
 	}
@@ -788,7 +800,8 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := string(x.Positional.Snap)
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
+	opts := &client.SnapOptions{Revision: x.Revision}
+	x.setModes(opts)
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err

@@ -47,7 +47,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		}
 	}
 
-	if err := checkChangeConflict(st, snapsup.Name(), snapst); err != nil {
+	if err := CheckChangeConflict(st, snapsup.Name(), snapst); err != nil {
 		return nil, err
 	}
 
@@ -214,7 +214,20 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 	panic("internal error: snapstate.Configure is unset")
 }
 
-func checkChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
+// CheckChangeConflict ensures that for the given snapName no other
+// changes that alters the snap (like remove, install, refresh) are in
+// progress. It also ensures that snapst (if not nil) did not get
+// modified. If a conflict is detected an error is returned.
+func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		if chg.Kind() == "transition-ubuntu-core" {
+			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+		}
+	}
+
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
@@ -307,8 +320,12 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
-	snapInfo, err := snapInfo(st, name, channel, revision, userID, flags)
+	info, err := snapInfo(st, name, channel, revision, userID)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
 		return nil, err
 	}
 
@@ -316,8 +333,8 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &snapInfo.DownloadInfo,
-		SideInfo:     &snapInfo.SideInfo,
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
 	}
 
 	return doInstall(st, &snapst, snapsup)
@@ -404,9 +421,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		// get confinement preference from the snapstate
 		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
-			Channel: snapst.Channel,
-			DevMode: snapst.DevModeAllowed(),
-
+			Channel:  snapst.Channel,
 			SnapID:   snapInfo.SnapID,
 			Revision: snapInfo.Revision,
 			Epoch:    snapInfo.Epoch,
@@ -460,22 +475,78 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 	}
 
-	updated := make([]string, 0, len(updates))
-	tasksets := make([]*state.TaskSet, 0, len(updates))
-	for _, update := range updates {
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
 		snapst := stateByID[update.SnapID]
+		return snapst.Channel, snapst.Flags, snapst
+
+	}
+
+	return doUpdate(st, names, updates, params, userID)
+}
+
+func doUpdate(st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (channel string, flags Flags, snapst *SnapState), userID int) ([]string, []*state.TaskSet, error) {
+	tasksets := make([]*state.TaskSet, 0, len(updates))
+
+	refreshAll := len(names) == 0
+	var nameSet map[string]bool
+	if len(names) != 0 {
+		nameSet = make(map[string]bool, len(names))
+		for _, name := range names {
+			nameSet[name] = true
+		}
+	}
+
+	newAutoAliases, mustRetireAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reportUpdated := make(map[string]bool, len(updates))
+	var retiredAutoAliasesTs *state.TaskSet
+
+	if len(mustRetireAutoAliases) != 0 {
+		var err error
+		retiredAutoAliasesTs, err = applyAutoAliasesDelta(st, mustRetireAutoAliases, "retire", refreshAll, func(snapName string, _ *state.TaskSet) {
+			if nameSet[snapName] {
+				reportUpdated[snapName] = true
+			}
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		tasksets = append(tasksets, retiredAutoAliasesTs)
+	}
+
+	// wait for the auto-alias retire tasks as needed
+	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
+		if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[snapName] != nil || transferTargets[snapName]) {
+			ts.WaitAll(retiredAutoAliasesTs)
+		}
+		reportUpdated[snapName] = true
+	}
+
+	for _, update := range updates {
+		channel, flags, snapst := params(update)
+
+		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
+		}
 
 		snapsup := &SnapSetup{
-			Channel:      snapst.Channel,
+			Channel:      channel,
 			UserID:       userID,
-			Flags:        snapst.Flags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup)
 		if err != nil {
-			if len(names) == 0 {
+			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
 				continue
@@ -484,11 +555,123 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		}
 		ts.JoinLane(st.NewLane())
 
-		updated = append(updated, update.Name())
+		scheduleUpdate(update.Name(), ts)
 		tasksets = append(tasksets, ts)
 	}
 
+	if len(newAutoAliases) != 0 {
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "enable", refreshAll, scheduleUpdate)
+		if err != nil {
+			return nil, nil, err
+		}
+		tasksets = append(tasksets, addAutoAliasesTs)
+	}
+
+	updated := make([]string, 0, len(reportUpdated))
+	for name := range reportUpdated {
+		updated = append(updated, name)
+	}
+
 	return updated, tasksets, nil
+}
+
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+	applyTs := state.NewTaskSet()
+	for snapName, aliases := range delta {
+		ts, err := ResetAliases(st, snapName, aliases)
+		if err != nil {
+			if refreshAll {
+				// doing "refresh all", just skip this snap
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				continue
+			}
+			return nil, err
+		}
+		linkTs(snapName, ts)
+		applyTs.AddAll(ts)
+	}
+	return applyTs, nil
+}
+
+func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (new map[string][]string, mustRetire map[string][]string, transferTargets map[string]bool, err error) {
+	new, retired, err := AutoAliasesDelta(st, nil)
+	if err != nil {
+		if len(names) != 0 {
+			// not "refresh all", error
+			return nil, nil, nil, err
+		}
+		// log and continue
+		logger.Noticef("cannot find the delta for automatic aliases for some snaps: %v", err)
+	}
+
+	refreshAll := len(names) == 0
+
+	// retired alias -> snapName
+	retiringAliases := make(map[string]string, len(retired))
+	for snapName, aliases := range retired {
+		for _, alias := range aliases {
+			retiringAliases[alias] = snapName
+		}
+	}
+
+	// filter new considering only names if set:
+	// we add auto-aliases only for mentioned snaps
+	if !refreshAll && len(new) != 0 {
+		filteredNew := make(map[string][]string, len(new))
+		for _, name := range names {
+			if new[name] != nil {
+				filteredNew[name] = new[name]
+			}
+		}
+		new = filteredNew
+	}
+
+	// mark snaps that are sources or target of transfers
+	transferSources := make(map[string]bool, len(retired))
+	transferTargets = make(map[string]bool, len(new))
+	for snapName, aliases := range new {
+		for _, alias := range aliases {
+			if source := retiringAliases[alias]; source != "" {
+				transferTargets[snapName] = true
+				transferSources[source] = true
+			}
+		}
+	}
+
+	// snaps with updates
+	updating := make(map[string]bool, len(updates))
+	for _, info := range updates {
+		updating[info.Name()] = true
+	}
+
+	// add explicitly auto-aliases only for snaps that are not updated
+	for snapName := range new {
+		if updating[snapName] {
+			delete(new, snapName)
+		}
+	}
+
+	// retire explicitly auto-aliases only for snaps that are mentioned
+	// and not updated OR the source of transfers
+	mustRetire = make(map[string][]string, len(retired))
+	for snapName := range transferSources {
+		mustRetire[snapName] = retired[snapName]
+	}
+	if refreshAll {
+		for snapName, aliases := range retired {
+			if !updating[snapName] {
+				mustRetire[snapName] = aliases
+			}
+		}
+	} else {
+		for _, name := range names {
+			if !updating[name] && retired[name] != nil {
+				mustRetire[name] = retired[name]
+			}
+		}
+	}
+
+	return new, mustRetire, transferTargets, nil
 }
 
 // Update initiates a change updating a snap.
@@ -513,27 +696,48 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
-	info, err := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if !(flags.JailMode || flags.DevMode) {
+		flags.Classic = flags.Classic || snapst.Flags.Classic
+	}
+
+	var updates []*snap.Info
+	info, infoErr := infoForUpdate(st, &snapst, name, channel, revision, userID, flags)
+	if infoErr != nil {
+		if _, ok := infoErr.(*snap.NoUpdateAvailableError); !ok {
+			return nil, infoErr
+		}
+		// there may be some new auto-aliases
+	} else {
+		updates = append(updates, info)
+	}
+
+	params := func(update *snap.Info) (string, Flags, *SnapState) {
+		return channel, flags, &snapst
+	}
+
+	_, tts, err := doUpdate(st, []string{name}, updates, params, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	snapsup := &SnapSetup{
-		Channel:      channel,
-		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &info.DownloadInfo,
-		SideInfo:     &info.SideInfo,
+	if len(tts) == 0 && len(updates) == 0 {
+		// really nothing to do, return the original no-update-available error
+		return nil, infoErr
 	}
-
-	return doInstall(st, &snapst, snapsup)
+	flat := state.NewTaskSet()
+	for _, ts := range tts {
+		flat.AddAll(ts)
+	}
+	return flat, nil
 }
 
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, userID, flags)
+		info, err := updateInfo(st, snapst, channel, userID)
 		if err != nil {
+			return nil, err
+		}
+		if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
@@ -553,7 +757,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return snapInfo(st, name, channel, revision, userID, flags)
+		return snapInfo(st, name, channel, revision, userID)
 	}
 
 	// refresh-to-local
@@ -575,7 +779,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -586,9 +790,13 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), snapsup.Name(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
 
+	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.Name(), snapst.Current))
+	setupProfiles.Set("snap-setup", &snapsup)
+	setupProfiles.WaitFor(prepareSnap)
+
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.Name(), snapst.Current))
 	linkSnap.Set("snap-setup", &snapsup)
-	linkSnap.WaitFor(prepareSnap)
+	linkSnap.WaitFor(setupProfiles)
 
 	// setup aliases
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
@@ -599,7 +807,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	startSnapServices.Set("snap-setup", &snapsup)
 	startSnapServices.WaitFor(setupAliases)
 
-	return state.NewTaskSet(prepareSnap, linkSnap, setupAliases, startSnapServices), nil
+	return state.NewTaskSet(prepareSnap, setupProfiles, linkSnap, setupAliases, startSnapServices), nil
 }
 
 // Disable sets a snap to the inactive state
@@ -624,7 +832,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -646,13 +854,17 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
 	unlinkSnap.WaitFor(removeAliases)
 
-	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap), nil
+	removeProfiles := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profiles of snap %q"), snapsup.Name()))
+	removeProfiles.Set("snap-setup-task", stopSnapServices.ID())
+	removeProfiles.WaitFor(unlinkSnap)
+
+	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap, removeProfiles), nil
 }
 
 // canDisable verifies that a snap can be deactivated.
-func canDisable(st *snap.Info) bool {
+func canDisable(si *snap.Info) bool {
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == st.Type {
+		if importantSnapType == si.Type {
 			return false
 		}
 	}
@@ -661,18 +873,46 @@ func canDisable(st *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(si *snap.Info, active bool) bool {
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Pruning non active ones
-	// is acceptable.
-	if si.Type == snap.TypeGadget && active {
+func canRemove(si *snap.Info, snapst *SnapState, removeAll bool) bool {
+	// removing single revisions is generally allowed
+	if !removeAll {
+		return true
+	}
+
+	// required snaps cannot be removed
+	if snapst.Required {
 		return false
 	}
 
-	// You never want to remove an active kernel or OS
-	if (si.Type == snap.TypeKernel || si.Type == snap.TypeOS) && active {
+	// TODO: use Required for these too
+
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Do not remove their last
+	// revision left.
+	if si.Type == snap.TypeGadget {
 		return false
 	}
+
+	// Allow "ubuntu-core" removals here because we might have two
+	// core snaps installed (ubuntu-core and core). Note that
+	// ideally we would only allow the removal of "ubuntu-core" if
+	// we know that "core" is installed too and if we are part of
+	// the "ubuntu-core->core" transition. But this transition
+	// starts automatically on startup so the window of a user
+	// triggering this manually is very small.
+	//
+	// Once the ubuntu-core -> core transition has landed for some
+	// time we can remove the two lines below.
+	if si.Name() == "ubuntu-core" && si.Type == snap.TypeOS {
+		return true
+	}
+
+	// You never want to remove a kernel or OS. Do not remove their
+	// last revision left.
+	if si.Type == snap.TypeKernel || si.Type == snap.TypeOS {
+		return false
+	}
+
 	// TODO: on classic likely let remove core even if active if it's only snap left.
 
 	// never remove anything that is used for booting
@@ -696,18 +936,16 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	if err := checkChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, err
 	}
 
 	active := snapst.Active
 	var removeAll bool
 	if revision.Unset() {
-		removeAll = true
 		revision = snapst.Current
+		removeAll = true
 	} else {
-		removeAll = false
-
 		if active {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
@@ -722,6 +960,8 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		if !revisionInSequence(&snapst, revision) {
 			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
+
+		removeAll = len(snapst.Sequence) == 1
 	}
 
 	info, err := Info(st, name, revision)
@@ -730,7 +970,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(info, active) {
+	if !canRemove(info, &snapst, removeAll) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -774,7 +1014,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		addNext(state.NewTaskSet(stopSnapServices, removeAliases, unlink, removeSecurity))
 	}
 
-	if removeAll || len(snapst.Sequence) == 1 {
+	if removeAll {
 		seq := snapst.Sequence
 		for i := len(seq) - 1; i >= 0; i-- {
 			si := seq[i]
@@ -883,6 +1123,78 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		Flags:    flags.ForSnapSetup(),
 	}
 	return doInstall(st, &snapst, snapsup)
+}
+
+// TransitionCore transitions from an old core snap name to a new core
+// snap name. It is used for the ubuntu-core -> core transition (that
+// is not just a rename because the two snaps have different snapIDs)
+//
+// Note that this function makes some assumptions like:
+// - no aliases setup for both snaps
+// - no data needs to be copied
+// - all interfaces are absolutely identical on both new and old
+// Do not use this as a general way to transition from snap A to snap B.
+func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
+	var oldSnapst, newSnapst SnapState
+	err := Get(st, oldName, &oldSnapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !oldSnapst.HasCurrent() {
+		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
+	}
+
+	var userID int
+	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var all []*state.TaskSet
+	// install new core (if not already installed)
+	err = Get(st, newName, &newSnapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !newSnapst.HasCurrent() {
+		// start by instaling the new snap
+		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+			Channel:      oldSnapst.Channel,
+			DownloadInfo: &newInfo.DownloadInfo,
+			SideInfo:     &newInfo.SideInfo,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, tsInst)
+	}
+
+	// then transition the interface connections over
+	transIf := st.NewTask("transition-ubuntu-core", fmt.Sprintf(i18n.G("Transition security profiles from %q to %q"), oldName, newName))
+	transIf.Set("old-name", oldName)
+	transIf.Set("new-name", newName)
+	if len(all) > 0 {
+		transIf.WaitAll(all[0])
+	}
+	tsTrans := state.NewTaskSet(transIf)
+	all = append(all, tsTrans)
+
+	// FIXME: this is just here for the tests
+	transIf.Set("snap-setup", &SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: oldName,
+		},
+	})
+
+	// then remove the old snap
+	tsRm, err := Remove(st, oldName, snap.R(0))
+	if err != nil {
+		return nil, err
+	}
+	tsRm.WaitFor(transIf)
+	all = append(all, tsRm)
+
+	return all, nil
 }
 
 // State/info accessors
@@ -1001,11 +1313,13 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+func infosForTypes(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
+
+	var res []*snap.Info
 	for _, snapst := range stateMap {
 		if !snapst.HasCurrent() {
 			continue
@@ -1017,10 +1331,26 @@ func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
 		if typ != snapType {
 			continue
 		}
-		return snapst.CurrentInfo()
+		si, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, si)
 	}
 
-	return nil, state.ErrNoState
+	if len(res) == 0 {
+		return nil, state.ErrNoState
+	}
+
+	return res, nil
+}
+
+func infoForType(st *state.State, snapType snap.Type) (*snap.Info, error) {
+	res, err := infosForTypes(st, snapType)
+	if err != nil {
+		return nil, err
+	}
+	return res[0], nil
 }
 
 // GadgetInfo finds the current gadget snap's info.
@@ -1028,12 +1358,60 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeGadget)
 }
 
-// CoreInfo finds the current OS snap's info.
-func CoreInfo(st *state.State) (*snap.Info, error) {
-	return infoForType(st, snap.TypeOS)
-}
-
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
+}
+
+// AutoRefreshAssertions allows to hook fetching of important assertions
+// into the Autorefresh function.
+var AutoRefreshAssertions func(st *state.State, userID int) error
+
+// AutoRefresh is the wrapper that will do a refresh of all the installed
+// snaps on the system. In addition to that it will also refresh important
+// assertions.
+func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+	userID := 0
+
+	if AutoRefreshAssertions != nil {
+		if err := AutoRefreshAssertions(st, userID); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return UpdateMany(st, nil, userID)
+}
+
+// CoreInfo finds the current OS snap's info. If both
+// "core" and "ubuntu-core" is installed then "core"
+// is preferred. Different core names are not supported
+// currently and will result in an error.
+//
+// Once enough time has passed and everyone transitioned
+// from ubuntu-core to core we can simplify this again
+// and make it the same as the above "KernelInfo".
+func CoreInfo(st *state.State) (*snap.Info, error) {
+	res, err := infosForTypes(st, snap.TypeOS)
+	if err != nil {
+		return nil, err
+	}
+
+	// a single core: just return it
+	if len(res) == 1 {
+		return res[0], nil
+	}
+
+	// some systems have two cores: ubuntu-core/core
+	// we always return "core" in this case
+	if len(res) == 2 {
+		if res[0].Name() == "core" && res[1].Name() == "ubuntu-core" {
+			return res[0], nil
+		}
+		if res[0].Name() == "ubuntu-core" && res[1].Name() == "core" {
+			return res[1], nil
+		}
+		return nil, fmt.Errorf("unexpected cores %q and %q", res[0].Name(), res[1].Name())
+	}
+
+	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }

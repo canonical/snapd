@@ -6,7 +6,7 @@ environment:
 prepare: |
     mkdir -p $ROOT
     chown test:test $ROOT
-restore:
+restore: |
     rm -rf $ROOT
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
@@ -30,7 +30,7 @@ execute: |
     export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
 
     echo Running prepare-image as a user
-    su -c "snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $ROOT/model.assertion $ROOT" test
 
     echo Verifying the result
     ls -lR $IMAGE
@@ -52,7 +52,13 @@ execute: |
     echo Verify that we have valid looking seed.yaml
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
     # snap-id of core
-    grep -q "snap-id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776" $IMAGE/var/lib/snapd/seed/seed.yaml
+    if [ "$REMOTE_STORE" = staging ]; then
+        core_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+    else
+        core_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+    fi
+
+    grep -q "snap-id: $core_id" $IMAGE/var/lib/snapd/seed/seed.yaml
     for snap in pi2 pi2-kernel core; do
       grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done

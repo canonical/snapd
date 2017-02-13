@@ -41,6 +41,10 @@ type Flags struct {
 	// IgnoreValidation is set when the user requested as one-off
 	// to ignore refresh control validation.
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
+
+	// Required is set to mark that a snap is required
+	// and cannot be removed
+	Required bool `json:"required,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)

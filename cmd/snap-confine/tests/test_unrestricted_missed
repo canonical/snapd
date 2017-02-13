@@ -2,7 +2,7 @@
 
 set -e
 
-. "${srcdir:-.}/common.sh"
+. "${srcdir:-.}/snap-confine/tests/common.sh"
 
 cat >"$TMP/snap.name.app" <<EOF
 # super strict filter

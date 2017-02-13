@@ -1,0 +1,20 @@
+summary: Check that `snap run --command=reload` works
+
+kill-timeout: 3m
+execute: |
+    echo "When the service snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-service
+
+    echo "We can see it running"
+    systemctl status snap.test-snapd-service.test-snapd-service|grep "running"
+
+    echo "When we reload"
+    systemctl reload snap.test-snapd-service.test-snapd-service
+
+    echo "We see the reload command from the snap was run"
+    while true; do
+        if systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; then
+            break
+        fi
+    done

@@ -41,8 +41,8 @@ import (
 type Backend struct{}
 
 // Name returns the name of the backend.
-func (b *Backend) Name() string {
-	return "udev"
+func (b *Backend) Name() interfaces.SecuritySystem {
+	return interfaces.SecurityUDev
 }
 
 // snapRulesFileName returns the path of the snap udev rules file.
@@ -179,4 +179,8 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 	}
 
 	return combinedSnippets, nil
+}
+
+func (b *Backend) NewSpecification() interfaces.Specification {
+	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
 }

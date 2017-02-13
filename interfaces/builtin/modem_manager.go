@@ -47,6 +47,10 @@ var modemManagerPermanentSlotAppArmor = []byte(`
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
 
+# For {mbim,qmi}-proxy
+unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
+/sys/devices/**/usb**/descriptors r,
+
 include <abstractions/nameservice>
 
 # DBus accesses
@@ -138,10 +142,6 @@ var modemManagerPermanentSlotSecComp = []byte(`
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
 recv
 recvfrom
@@ -151,10 +151,7 @@ send
 sendmmsg
 sendmsg
 sendto
-setsockopt
 shutdown
-socketpair
-socket
 `)
 
 var modemManagerConnectedPlugSecComp = []byte(`
@@ -163,15 +160,12 @@ var modemManagerConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 # Can communicate with DBus system service
-connect
-getsockname
 recv
 recvmsg
 recvfrom
 send
 sendto
 sendmsg
-socket
 `)
 
 var modemManagerPermanentSlotDBus = []byte(`

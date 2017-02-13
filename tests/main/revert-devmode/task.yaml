@@ -1,39 +1,54 @@
 summary: Check that revert of a snap in devmode restores devmode
 environment:
     STORE_TYPE/fake: fake
-#    STORE_TYPE/staging: staging
-    STORE_TYPE/production: production
+    STORE_TYPE/remote: ${REMOTE_STORE}
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
-    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        exit
+    if [ "$STORE_TYPE" = "fake" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
+            exit
+        fi
     fi
 
-    if [ "$STORE_TYPE" = "fake" ]; then
-        echo "Given a snap is installed"
-        snap install --devmode test-snapd-tools
-    fi
-
-    . $TESTSLIB/store.sh
-    setup_store $STORE_TYPE $BLOB_DIR
+    echo "Given a snap is installed"
+    snap install --devmode test-snapd-tools
 
     if [ "$STORE_TYPE" = "fake" ]; then
+        . $TESTSLIB/store.sh
+        setup_fake_store $BLOB_DIR
+
         echo "And a new version of that snap put in the controlled store"
-        fakestore -dir $BLOB_DIR -make-refreshable test-snapd-tools
+        . $TESTSLIB/store.sh
+        init_fake_refreshes test-snapd-tools $BLOB_DIR
     fi
 
 restore: |
-    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        exit
+    if [ "$STORE_TYPE" = "fake" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
+            exit
+        fi
+        . $TESTSLIB/store.sh
+        teardown_fake_store $BLOB_DIR
     fi
 
-    . $TESTSLIB/store.sh
-    teardown_store $STORE_TYPE $BLOB_DIR
-
 execute: |
-    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
-        exit
+    if [ "$STORE_TYPE" = "fake" ]; then
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            exit
+        fi
+        if [ "$TRUST_TEST_KEYS" = "false" ]; then
+            echo "This test needs test keys to be trusted"
+            exit
+        fi
     fi
 
     echo "When a refresh is made"

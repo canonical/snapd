@@ -674,7 +674,7 @@ var statusesMatrix = []struct {
 	{"alias1", "", "reset", "", "-"},
 	{"alias1", "enabled", "reset", "", "rm"},
 	{"alias1", "disabled", "reset", "", "-"},
-	{"alias1", "auto", "reset", "auto", "-"},
+	{"alias1", "auto", "reset", "", "rm"}, // used to retire auto-aliases
 	{"alias5", "", "reset", "auto", "add"},
 	{"alias5", "enabled", "reset", "auto", "-"},
 	{"alias5", "disabled", "reset", "auto", "add"},
@@ -682,11 +682,11 @@ var statusesMatrix = []struct {
 	{"alias1gone", "", "reset", "", "-"},
 	{"alias1gone", "enabled", "reset", "", "-"},
 	{"alias1gone", "disabled", "reset", "", "-"},
-	{"alias1gone", "auto", "reset", "auto", "-"},
+	{"alias1gone", "auto", "reset", "", "-"},
 	{"alias5gone", "", "reset", "", "-"},
 	{"alias5gone", "enabled", "reset", "", "-"},
 	{"alias5gone", "disabled", "reset", "", "-"},
-	{"alias5gone", "auto", "reset", "auto", "-"},
+	{"alias5gone", "auto", "reset", "", "-"},
 }
 
 func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
@@ -707,7 +707,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -750,7 +750,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%#v: %v", scenario, chg.Err()))
 		var aliases []*backend.Alias
 		var rmAliases []*backend.Alias
-		beAlias := &backend.Alias{scenAlias, fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
+		beAlias := &backend.Alias{Name: scenAlias, Target: fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
 		switch scenario.mutation {
 		case "-":
 		case "add":
@@ -769,7 +769,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		}
 		// start with an easier-to-read error if this fails:
 		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops(), comm)
-		c.Assert(s.fakeBackend.ops, DeepEquals, expected, comm)
+		c.Check(s.fakeBackend.ops, DeepEquals, expected, comm)
 
 		var allAliases map[string]map[string]string
 		err = s.state.Get("aliases", &allAliases)
@@ -800,11 +800,11 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 
 	// alias1 is a non auto-alias
 	// alias5 is an auto-alias
-	// alias1lost is a non auto-alias and doesn't have an entry in the snap anymore
-	// alias5lost is an auto-alias and doesn't have an entry in the snap any
+	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
+	// alias5gone is an auto-alias and doesn't have an entry in the snap any
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5lost"}, nil
+		return []string{"alias5", "alias5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -858,7 +858,7 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 		c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("%#v: %v", scenario, chg.Err()))
 		var aliases []*backend.Alias
 		var rmAliases []*backend.Alias
-		beAlias := &backend.Alias{scenAlias, fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
+		beAlias := &backend.Alias{Name: scenAlias, Target: fmt.Sprintf("alias-snap.%s", cmds[scenAlias])}
 		switch scenario.mutation {
 		case "-":
 		case "add":
@@ -890,7 +890,164 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 		}
 		// start with an easier-to-read error if this fails:
 		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops(), comm)
-		c.Assert(s.fakeBackend.ops, DeepEquals, expected, comm)
+		c.Check(s.fakeBackend.ops, DeepEquals, expected, comm)
+
+		var allAliases map[string]map[string]string
+		err = s.state.Get("aliases", &allAliases)
+		c.Assert(err, IsNil)
+		if scenario.beforeStatus != "" {
+			c.Check(allAliases, DeepEquals, map[string]map[string]string{
+				"alias-snap": {scenAlias: scenario.beforeStatus},
+			}, comm)
+		} else {
+			c.Check(allAliases, HasLen, 0, comm)
+		}
+
+		s.fakeBackend.ops = nil
+	}
+}
+
+func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	// alias1 is a non auto-alias
+	// alias5 is an auto-alias
+	// alias1gone is a non auto-alias and doesn't have an entry in the current snap revision anymore
+	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias5", "alias5gone"}, nil
+	}
+
+	defer s.snapmgr.Stop()
+	for _, scenario := range statusesMatrix {
+		if scenario.action != "reset" {
+			// we reuse the scenarios but here want to test only reset i.e. ResetAliases for the disabled snap case (the other actions are still unsupported for disabled snaps)
+			continue
+		}
+
+		scenAlias := scenario.alias
+		if scenario.beforeStatus != "" {
+			s.state.Set("aliases", map[string]map[string]string{
+				"alias-snap": {
+					scenAlias: scenario.beforeStatus,
+				},
+			})
+		} else {
+			s.state.Set("aliases", nil)
+		}
+
+		chg := s.state.NewChange("scenario", "...")
+		var err error
+		var ts *state.TaskSet
+		targets := []string{scenAlias}
+		ts, err = snapstate.ResetAliases(s.state, "alias-snap", targets)
+		c.Assert(err, IsNil)
+
+		chg.AddAll(ts)
+
+		s.state.Unlock()
+		s.settle()
+		s.state.Lock()
+
+		c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%#v: %v", scenario, chg.Err()))
+
+		comm := Commentf("%#v", scenario)
+		// no mutation
+		c.Check(s.fakeBackend.ops, HasLen, 0, comm)
+
+		var allAliases map[string]map[string]string
+		err = s.state.Get("aliases", &allAliases)
+		c.Assert(err, IsNil)
+		if scenario.status != "" {
+			c.Check(allAliases, DeepEquals, map[string]map[string]string{
+				"alias-snap": {scenAlias: scenario.status},
+			}, comm)
+		} else {
+			c.Check(allAliases, HasLen, 0, comm)
+		}
+
+		s.fakeBackend.ops = nil
+	}
+}
+
+func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesTotalUndoRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	// alias1 is a non auto-alias
+	// alias5 is an auto-alias
+	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
+	// alias5gone is an auto-alias and doesn't have an entry in the snap any
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+		c.Check(info.Name(), Equals, "alias-snap")
+		return []string{"alias5", "alias5gone"}, nil
+	}
+
+	defer s.snapmgr.Stop()
+	for _, scenario := range statusesMatrix {
+		if scenario.action != "reset" {
+			// we reuse the scenarios but here want to test only reset i.e. ResetAliases for the disabled snap case (the other actions are still unsupported for disabled snaps)
+			continue
+		}
+
+		scenAlias := scenario.alias
+		if scenario.beforeStatus != "" {
+			s.state.Set("aliases", map[string]map[string]string{
+				"alias-snap": {
+					scenAlias: scenario.beforeStatus,
+				},
+			})
+		} else {
+			s.state.Set("aliases", nil)
+		}
+
+		chg := s.state.NewChange("scenario", "...")
+		var err error
+		var ts *state.TaskSet
+		targets := []string{scenAlias}
+
+		ts, err = snapstate.ResetAliases(s.state, "alias-snap", targets)
+		c.Assert(err, IsNil)
+
+		chg.AddAll(ts)
+
+		tasks := ts.Tasks()
+		last := tasks[len(tasks)-1]
+
+		terr := s.state.NewTask("error-trigger", "provoking total undo")
+		terr.WaitFor(last)
+		chg.AddTask(terr)
+
+		s.state.Unlock()
+		for i := 0; i < 3; i++ {
+			s.snapmgr.Ensure()
+			s.snapmgr.Wait()
+		}
+		s.state.Lock()
+
+		c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("%#v: %v", scenario, chg.Err()))
+
+		comm := Commentf("%#v", scenario)
+		// no mutation
+		c.Check(s.fakeBackend.ops, HasLen, 0, comm)
 
 		var allAliases map[string]map[string]string
 		err = s.state.Get("aliases", &allAliases)

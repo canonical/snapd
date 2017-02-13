@@ -28,17 +28,23 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
-
 	"github.com/jessevdk/go-flags"
 
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
+
+func init() {
+	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
+	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+}
 
 // Standard streams, redirected for testing.
 var (
@@ -280,7 +286,7 @@ func run() error {
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
-			if e.Type == flags.ErrHelp {
+			if e.Type == flags.ErrHelp || e.Type == flags.ErrCommandRequired {
 				if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
 					parser.Command.Active = nil
 				}

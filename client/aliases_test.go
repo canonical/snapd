@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestClientAliasCallsEndpoint(c *check.C) {
@@ -103,5 +105,40 @@ func (cs *clientSuite) TestClientResetAliases(c *check.C) {
 		"action":  "reset",
 		"snap":    "alias-snap",
 		"aliases": []interface{}{"alias1", "alias2"},
+	})
+}
+
+func (cs *clientSuite) TestClientAliasesCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.Aliases()
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
+}
+
+func (cs *clientSuite) TestClientAliases(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+                    "foo": {
+                        "foo0": {"app": "foo", "status": "auto"},
+                        "foo_reset": {"app": "foo.reset"}
+                    },
+                    "bar": {
+                        "bar_dump": {"app": "bar.dump", "status": "enabled"},
+                        "bar_dump.1": {"status": "disabled"}
+                    }
+
+		}
+	}`
+	allStatuses, err := cs.cli.Aliases()
+	c.Assert(err, check.IsNil)
+	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
+		"foo": {
+			"foo0":      {App: "foo", Status: "auto"},
+			"foo_reset": {App: "foo.reset", Status: ""},
+		},
+		"bar": {
+			"bar_dump":   {App: "bar.dump", Status: "enabled"},
+			"bar_dump.1": {App: "", Status: "disabled"},
+		},
 	})
 }

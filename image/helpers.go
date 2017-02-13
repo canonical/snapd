@@ -30,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 
 	"golang.org/x/net/context"
 )
@@ -45,7 +47,7 @@ type DownloadOptions struct {
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
-	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
+	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -66,7 +68,12 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, opts.DevMode, revision, opts.User)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  opts.Channel,
+		Revision: revision,
+	}
+	snap, err := sto.SnapInfo(spec, opts.User)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %v", name, err)
 	}
@@ -102,16 +109,28 @@ func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Datab
 }
 
 // FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
-func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) error {
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	// this assumes series "16"
 	if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
-		return fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
+		return nil, fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
 	}
 
 	// cross checks
-	return snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db)
+	if err := snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db); err != nil {
+		return nil, err
+	}
+
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": info.SnapID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.Name(), err)
+	}
+	return a.(*asserts.SnapDeclaration), nil
 }

@@ -8,6 +8,11 @@ environment:
     BAD_SNAP: test-snapd-tools
 
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
 
     echo "Given two snaps are installed"
@@ -16,15 +21,26 @@ prepare: |
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_store fake $BLOB_DIR
+    setup_fake_store $BLOB_DIR
 
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     . $TESTSLIB/store.sh
-    teardown_store fake $BLOB_DIR
+    teardown_fake_store $BLOB_DIR
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable $GOOD_SNAP,$BAD_SNAP -dir $BLOB_DIR
+    . $TESTSLIB/store.sh
+    init_fake_refreshes $GOOD_SNAP,$BAD_SNAP $BLOB_DIR
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> $BLOB_DIR/${BAD_SNAP}*fake1*.snap
@@ -42,6 +58,6 @@ execute: |
     snap list | MATCH -E "${BAD_SNAP}"| MATCH -v "fake"
 
     echo "Verify the snap change"
-    snap change 4 | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
-    snap change 4 | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
-    snap change 4 | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
+    snap change 5 | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+    snap change 5 | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
+    snap change 5 | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"

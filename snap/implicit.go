@@ -28,14 +28,17 @@ import (
 )
 
 var implicitSlots = []string{
+	"account-control",
 	"alsa",
 	"bluetooth-control",
 	"camera",
+	"core-support",
 	"dcdbas-control",
 	"docker-support",
 	"firewall-control",
 	"hardware-observe",
 	"home",
+	"io-ports-control",
 	"kernel-module-control",
 	"locale-control",
 	"log-observe",
@@ -48,6 +51,8 @@ var implicitSlots = []string{
 	"network-setup-observe",
 	"opengl",
 	"openvswitch-support",
+	"physical-memory-control",
+	"physical-memory-observe",
 	"ppp",
 	"process-control",
 	"raw-usb",
@@ -60,6 +65,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
+	"uhid",
 }
 
 var implicitClassicSlots = []string{

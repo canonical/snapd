@@ -1,12 +1,19 @@
 summary: Check that upgrade works
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 restore: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     rm -f /var/tmp/myevil.txt
 execute: |
+    if [ "$REMOTE_STORE" = staging ]; then
+        echo "skip upgrade tests while talking to the staging store"
+        exit 0
+    fi
     . "$TESTSLIB/apt.sh"
 
     echo Install previous version...
-    dpkg -l snapd snap-confine ubuntu-core-launcher || true
+    dpkg -l snapd snap-confine || true
     apt-get install -y snapd
 
     prevsnapdver=$(snap --version|grep "snapd ")
@@ -23,11 +30,11 @@ execute: |
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         # apt_install_local uses dpkg directly which happily downgrades
-        apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher*.deb ${GOPATH}/snapd*.deb
+        apt_install_local ${GOPATH}/snapd*.deb
     else
         # not using apt_install_local here as this will not have
         # --allow-downgrades
-        apt install -y --allow-downgrades ${GOPATH}/snapd*.deb ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher*.deb
+        apt install -y --allow-downgrades ${GOPATH}/snapd*.deb
     fi
 
     snapdver=$(snap --version|grep "snapd ")

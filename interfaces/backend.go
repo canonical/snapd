@@ -69,7 +69,7 @@ type ConfinementOptions struct {
 type SecurityBackend interface {
 	// Name returns the name of the backend.
 	// This is intended for diagnostic messages.
-	Name() string
+	Name() SecuritySystem
 
 	// Setup creates and loads security artefacts specific to a given snap.
 	// The snap can be in one of three kids onf confinement (strict mode,
@@ -84,4 +84,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called during the process of removing a snap.
 	Remove(snapName string) error
+
+	// NewSpecification returns a new specification associated with this backend.
+	NewSpecification() Specification
 }

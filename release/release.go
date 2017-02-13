@@ -52,6 +52,17 @@ func (os *OS) ForceDevMode() bool {
 		default:
 			return true
 		}
+	case "linuxmint":
+		// NOTE: mint uses "LinuxMint" (mixed capitalization) but this is
+		// normalized by readOSRelease.
+		switch os.VersionID {
+		case "18.1":
+			// Linux Mint 18.1 aka "serena" should use apparmor confinement
+			// given that it shares packages with Ubuntu 16.04.
+			return false
+		default:
+			return true
+		}
 	default:
 		// NOTE: Other distributions can move out of devmode by
 		// integrating with the interface security backends. This will
