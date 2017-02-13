@@ -443,7 +443,7 @@ dbus (receive)
 
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. <a href='https://pad.lv/1260491'><a href='https://pad.lv/1260491'>LP: #1260491</a></a>
+# safely deny. LP: #1260491
 deny /{,var/}{dev,run}/shm/lttng-ust-* r,
 `
 
