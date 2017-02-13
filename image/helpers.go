@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 
@@ -108,16 +109,28 @@ func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Datab
 }
 
 // FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
-func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) error {
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	// this assumes series "16"
 	if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
-		return fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
+		return nil, fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
 	}
 
 	// cross checks
-	return snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db)
+	if err := snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db); err != nil {
+		return nil, err
+	}
+
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": info.SnapID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: lost snap declaration for %q: %v", info.Name(), err)
+	}
+	return a.(*asserts.SnapDeclaration), nil
 }

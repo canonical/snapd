@@ -188,14 +188,12 @@ dbus (receive)
 `)
 
 var locationObservePermanentSlotSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto
 `)
 
 var locationObserveConnectedPlugSecComp = []byte(`
-getsockname
 recvmsg
 sendmsg
 sendto

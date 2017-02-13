@@ -332,6 +332,7 @@ func (s *attrConstraintsSuite) TestMissingCheck(c *C) {
 
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
+	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
 
 	err = cstrs.Check(attrs(`
 bar: baz
@@ -364,6 +365,7 @@ func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
 
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
+	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
 
 	err = cstrs.Check(attrs(`
 foo: foo
@@ -884,6 +886,50 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 	}
 }
 
+func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
+	combos := []struct {
+		subrule         string
+		attrConstraints []string
+	}{
+		{"allow-installation", []string{"plug-attributes"}},
+		{"deny-installation", []string{"plug-attributes"}},
+		{"allow-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"deny-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"allow-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"deny-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+	}
+
+	for _, combo := range combos {
+		for _, attrConstr := range combo.attrConstraints {
+			attrConstraintMap := map[string]interface{}{
+				"a":     "ATTR",
+				"other": []interface{}{"x", "y"},
+			}
+			ruleMap := map[string]interface{}{
+				combo.subrule: map[string]interface{}{
+					attrConstr: attrConstraintMap,
+				},
+			}
+
+			rule, err := asserts.CompilePlugRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, false, Commentf("%v", ruleMap))
+
+			attrConstraintMap["a"] = "$MISSING"
+			rule, err = asserts.CompilePlugRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
+
+			// covers also alternation
+			attrConstraintMap["a"] = []interface{}{"$SLOT(a)"}
+			rule, err = asserts.CompilePlugRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
+
+		}
+	}
+}
+
 func (s *plugSlotRulesSuite) TestCompileSlotRuleAllAllowDenyStanzas(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`iface:
   allow-installation:
@@ -1275,5 +1321,42 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		c.Assert(err, IsNil, Commentf(t.stanza))
 		_, err = asserts.CompileSlotRule("iface", m["iface"])
 		c.Check(err, ErrorMatches, t.err, Commentf(t.stanza))
+	}
+}
+
+func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
+	combos := []struct {
+		subrule         string
+		attrConstraints []string
+	}{
+		{"allow-installation", []string{"slot-attributes"}},
+		{"deny-installation", []string{"slot-attributes"}},
+		{"allow-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"deny-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"allow-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"deny-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+	}
+
+	for _, combo := range combos {
+		for _, attrConstr := range combo.attrConstraints {
+			attrConstraintMap := map[string]interface{}{
+				"a": "ATTR",
+			}
+			ruleMap := map[string]interface{}{
+				combo.subrule: map[string]interface{}{
+					attrConstr: attrConstraintMap,
+				},
+			}
+
+			rule, err := asserts.CompileSlotRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, false, Commentf("%v", ruleMap))
+
+			attrConstraintMap["a"] = "$PLUG(a)"
+			rule, err = asserts.CompileSlotRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
+
+		}
 	}
 }

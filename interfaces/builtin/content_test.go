@@ -24,12 +24,13 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type ContentSuite struct {
-	iface interfaces.Interface
+	iface *builtin.ContentInterface
 }
 
 var _ = Suite(&ContentSuite{
@@ -204,10 +205,12 @@ slots:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
-	c.Assert(string(content), Equals, expected)
+	spec := &mount.Specification{}
+	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
+	expectedSnippets := []string{
+		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
+	}
+	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 }
 
 // Check that sharing of read-only snap content is possible
@@ -228,14 +231,16 @@ slots:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
-	c.Assert(string(content), Equals, expected)
+	spec := &mount.Specification{}
+	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
+	expectedSnippets := []string{
+		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
+	}
+	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	expected = `
+	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
@@ -262,14 +267,16 @@ slots:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	expected := "/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0\n"
-	c.Assert(string(content), Equals, expected)
+	spec := &mount.Specification{}
+	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
+	expectedSnippets := []string{
+		"/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0",
+	}
+	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	expected = `
+	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
@@ -298,14 +305,16 @@ slots:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	expected := "/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0\n"
-	c.Assert(string(content), Equals, expected)
+	spec := &mount.Specification{}
+	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
+	expectedSnippets := []string{
+		"/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0",
+	}
+	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err = s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	expected = `
+	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these

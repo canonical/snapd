@@ -10,7 +10,10 @@ debug: |
 execute: |
     echo "Collect SNAP and XDG environment variables"
     test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
-    test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt 
+    test-snapd-tools.env | egrep '^EXTRA_' | sort > extra-vars.txt 
+    test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt
+    echo "Collect PATH and HOME environment variables"
+    test-snapd-tools.env | egrep '^(SNAP|PATH|HOME)=' | sort > misc-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
     egrep -q '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$' snap-vars.txt
@@ -29,3 +32,14 @@ execute: |
     echo "Enure that XDG environment variables are what we expect"
     egrep -q '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$' xdg-vars.txt
     test $(wc -l < xdg-vars.txt) -ge 1
+
+    echo "Enure that EXTRA environment variables are what we expect"
+    egrep -q '^EXTRA_GLOBAL=extra-global' extra-vars.txt
+    egrep -q '^EXTRA_LOCAL=extra-local' extra-vars.txt
+    test $(wc -l < extra-vars.txt) -eq 2
+
+    echo "Ensure that SNAP, PATH and HOME are what we expect"
+    egrep -q '^SNAP=/snap/test-snapd-tools/x1$' misc-vars.txt
+    egrep -q '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' misc-vars.txt
+    egrep -q '^HOME=/root/snap/test-snapd-tools/x1$' misc-vars.txt
+    test $(wc -l < misc-vars.txt) -eq 3
