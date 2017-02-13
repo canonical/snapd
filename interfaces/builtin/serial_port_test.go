@@ -39,7 +39,6 @@ type SerialPortInterfaceSuite struct {
 	testSlot4        *interfaces.Slot
 	testSlot5        *interfaces.Slot
 	testSlot6        *interfaces.Slot
-	testSlot7        *interfaces.Slot
 	missingPathSlot  *interfaces.Slot
 	badPathSlot1     *interfaces.Slot
 	badPathSlot2     *interfaces.Slot
@@ -79,20 +78,17 @@ slots:
         path: /dev/ttyS0
     test-port-2:
         interface: serial-port
-        path: /dev/ttyAMA2
+        path: /dev/ttyUSB927
     test-port-3:
         interface: serial-port
-        path: /dev/ttyUSB927
+        path: /dev/ttyS42
     test-port-4:
         interface: serial-port
-        path: /dev/ttyS42
+        path: /dev/ttyO0
     test-port-5:
         interface: serial-port
-        path: /dev/ttyO0
-    test-port-6:
-        interface: serial-port
         path: /dev/ttyACM0
-    test-port-7:
+    test-port-6:
         interface: serial-port
         path: /dev/ttyXRUSB0
     missing-path: serial-port
@@ -134,7 +130,6 @@ slots:
 	s.testSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-4"]}
 	s.testSlot5 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-5"]}
 	s.testSlot6 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-6"]}
-	s.testSlot7 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-7"]}
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["missing-path"]}
 	s.badPathSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-1"]}
 	s.badPathSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-2"]}
@@ -209,7 +204,7 @@ func (s *SerialPortInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6, s.testSlot7} {
+	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, IsNil)
 	}
@@ -298,51 +293,45 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-	expectedSnippet2 := []byte(`/dev/ttyAMA2 rw,
+	expectedSnippet2 := []byte(`/dev/ttyUSB927 rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot2, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
-	expectedSnippet3 := []byte(`/dev/ttyUSB927 rw,
+	expectedSnippet3 := []byte(`/dev/ttyS42 rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot3, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 
-	expectedSnippet4 := []byte(`/dev/ttyS42 rw,
+	expectedSnippet4 := []byte(`/dev/ttyO0 rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot4, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet4, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet4, snippet))
 
-	expectedSnippet5 := []byte(`/dev/ttyO0 rw,
+	expectedSnippet5 := []byte(`/dev/ttyACM0 rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet5, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet5, snippet))
 
-	expectedSnippet6 := []byte(`/dev/ttyACM0 rw,
+	expectedSnippet6 := []byte(`/dev/ttyXRUSB0 rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet6, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet6, snippet))
 
-	expectedSnippet7 := []byte(`/dev/ttyXRUSB0 rw,
+	expectedSnippet7 := []byte(`/dev/tty[A-Z]*[0-9] rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot7, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet7, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet7, snippet))
 
 	expectedSnippet8 := []byte(`/dev/tty[A-Z]*[0-9] rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet8, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet8, snippet))
-
-	expectedSnippet9 := []byte(`/dev/tty[A-Z]*[0-9] rw,
-`)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet9, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet9, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet8, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet8, snippet))
 }
