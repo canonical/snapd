@@ -23,7 +23,7 @@ execute: |
 
     echo "wait for auto-refresh to happen"
     for i in $(seq 120); do
-        if snap changes|grep -q "Done.*Refresh snap"; then
+        if snap changes|grep -q "Done.*Auto-refresh snap"; then
             break
         fi
         sleep 1
