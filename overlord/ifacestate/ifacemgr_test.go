@@ -283,8 +283,13 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
-// FIXME
 func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
+	var repoAttrs *interfaces.InterfaceAttrs
+	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		repoAttrs, _ = repo.InterfaceAttributes(interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+		return nil
+	}
+
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
@@ -327,15 +332,10 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that the backend received extra attributes
-	/*c.Assert(s.secBackend.SetupCalls, HasLen, 2)
-	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
-	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"], NotNil)
-	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"].Attrs, HasLen, 2)
-	c.Assert(s.secBackend.SetupCalls[0].SnapInfo.Slots["slot"].Attrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
-	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "consumer")
-	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"], NotNil)
-	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"].Attrs, HasLen, 2)
-	c.Assert(s.secBackend.SetupCalls[1].SnapInfo.Plugs["plug"].Attrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})*/
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(repoAttrs, NotNil)
+	c.Assert(repoAttrs.PlugAttrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
+	c.Assert(repoAttrs.SlotAttrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {

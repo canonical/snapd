@@ -483,6 +483,7 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 	if r.attributes[plug] == nil {
 		r.attributes[plug] = make(map[*Slot]*InterfaceAttrs)
 	}
+
 	r.attributes[plug][slot] = &InterfaceAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
 	return nil
 }

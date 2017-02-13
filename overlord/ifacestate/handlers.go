@@ -288,13 +288,16 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func getTaskHookAttributes(task *state.Task) (map[string]interface{}, error) {
-	var attrs map[string]interface{}
-	err := task.Get("attributes", &attrs)
-	if err == nil || err == state.ErrNoState {
-		return attrs, nil
+func getTaskHookAttributes(task *state.Task) (attrs interfaces.InterfaceAttrs, err error) {
+	attrs.PlugAttrs = make(map[string]interface{})
+	attrs.SlotAttrs = make(map[string]interface{})
+	if err = task.Get("plug-attrs", &attrs.PlugAttrs); err == nil {
+		err = task.Get("slot-attrs", &attrs.SlotAttrs)
 	}
-	return nil, err
+	if err != nil && err != state.ErrNoState {
+		return attrs, err
+	}
+	return attrs, err
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
@@ -345,9 +348,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 
-	var plugAttrs, slotAttrs map[string]interface{}
+	var attributes interfaces.InterfaceAttrs
 	// get attributes set by interface hooks and validate plug/slot
-	if attributes, err := getTaskHookAttributes(task); err == nil {
+	if attributes, err = getTaskHookAttributes(task); err == nil {
 		if slot.Interface != plug.Interface {
 			return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
 				plug.Snap.Name(), plug.Name, plug.Interface, slot.Snap.Name(), slot.Name, slot.Interface)
@@ -356,16 +359,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if iface == nil {
 			return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
 		}
-		var ok bool
-		if plugAttrs, ok = attributes[connRef.PlugRef.Snap].(map[string]interface{}); ok {
-			if err := iface.ValidatePlug(plug, plugAttrs); err != nil {
-				return err
-			}
+		if err := iface.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
+			return err
 		}
-		if slotAttrs, ok = attributes[connRef.SlotRef.Snap].(map[string]interface{}); ok {
-			if err := iface.ValidateSlot(slot, slotAttrs); err != nil {
-				return err
-			}
+		if err := iface.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
+			return err
 		}
 	} else {
 		return err
@@ -390,7 +388,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.repo.Connect(connRef, plugAttrs, slotAttrs)
+	err = m.repo.Connect(connRef, attributes.PlugAttrs, attributes.SlotAttrs)
 	if err != nil {
 		return err
 	}
@@ -414,7 +412,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface, PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
+	conns[connRef.ID()] = connState{Interface: plug.Interface, PlugAttrs: attributes.PlugAttrs, SlotAttrs: attributes.SlotAttrs}
 	setConns(st, conns)
 
 	return nil
