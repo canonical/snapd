@@ -29,6 +29,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"time"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -133,15 +135,32 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 			// TRANSLATORS: %v the error message
 			return fmt.Errorf(i18n.G("cannot read symlink: %v"), err)
 		}
+
 		if currentSymlinkValue == wantedSymlinkValue {
 			break
 		}
+
 		if !os.IsNotExist(err) {
-			_ = os.Remove(currentActiveSymlink)
+			// We may be racing with other instances of snap-run that try to do the same thing
+			// If the symlink is already removed then we can ignore this error and try again.
+			err = os.Remove(currentActiveSymlink)
+			if os.IsNotExist(err) {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			} else {
+				// abort with error
+				break
+			}
 		}
-		if err = os.Symlink(wantedSymlinkValue, currentActiveSymlink); err == nil {
+
+		err = os.Symlink(wantedSymlinkValue, currentActiveSymlink)
+		// error other than symlink already exists will abort and be propagated
+		if err == nil || !os.IsExist(err) {
 			break
 		}
+		// If we arrived here it means the symlink couldn't be created because it got created
+		// in the meantime by another instance, so we will try again.
+		time.Sleep(5 * time.Millisecond)
 	}
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot update the 'current' symlink of %q: %v"), currentActiveSymlink, err)
