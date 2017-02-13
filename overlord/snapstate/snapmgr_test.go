@@ -3912,7 +3912,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	var refreshLast time.Time
 	tr = config.NewTransaction(s.state)
 	tr.Get("core", "refresh.last", &refreshLast)
-	c.Check(refreshLast, DeepEquals, fakeLastRefresh)
+	c.Check(refreshLast.Equal(fakeLastRefresh), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
