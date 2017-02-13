@@ -37,14 +37,6 @@ const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 # Usage: common
 bind
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
 `
 

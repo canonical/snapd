@@ -42,9 +42,6 @@ const x11ConnectedPlugSecComp = `
 # eavesdropping or apps interfering with one another.
 # Usage: reserved
 
-recvfrom
-recvmsg
-sendmsg
 shutdown
 `
 

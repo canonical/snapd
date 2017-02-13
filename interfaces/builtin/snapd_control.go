@@ -31,25 +31,11 @@ const snapdControlConnectedPlugAppArmor = `
 /run/snapd.socket rw,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/snapd-control
-const snapdControlConnectedPlugSecComp = `
-# Description: Can use snapd.
-# Usage: reserved
-
-# Can communicate with snapd abstract socket
-recv
-recvmsg
-send
-sendto
-sendmsg
-`
-
 // NewSnapdControlInterface returns a new "snapd-control" interface.
 func NewSnapdControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "snapd-control",
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  snapdControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

@@ -187,18 +187,6 @@ dbus (receive)
     peer=(label=unconfined),
 `)
 
-var locationObservePermanentSlotSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationObserveConnectedPlugSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
 var locationObservePermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
@@ -239,8 +227,6 @@ func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return locationObserveConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObserveConnectedPlugSecComp, nil
 	default:
 		return nil, nil
 	}
@@ -252,8 +238,6 @@ func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationObservePermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return locationObservePermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObservePermanentSlotSecComp, nil
 	default:
 		return nil, nil
 	}

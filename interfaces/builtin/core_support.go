@@ -63,19 +63,11 @@ const coreSupportConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/hostnamectl           ixr,
 `
 
-const coreSupportConnectedPlugSecComp = `
-sendmsg
-recvmsg
-sendto
-recvfrom
-`
-
 // NewShutdownInterface returns a new "shutdown" interface.
 func NewCoreSupportInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "core-support",
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  coreSupportConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

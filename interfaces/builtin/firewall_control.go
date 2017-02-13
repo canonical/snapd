@@ -90,14 +90,6 @@ const firewallControlConnectedPlugSecComp = `
 
 # for connecting to xtables abstract socket
 bind
-recv
-recvfrom
-recvmsg
-recvmmsg
-send
-sendmmsg
-sendmsg
-sendto
 
 # for ping and ping6
 capset

@@ -137,28 +137,7 @@ accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`)
-
-var bluezConnectedPlugSecComp = []byte(`
-# Description: Allow using bluez service. Reserved because this gives
-#  privileged access to the bluez service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-recv
-recvmsg
-send
-sendto
-sendmsg
 `)
 
 var bluezPermanentSlotDBus = []byte(`
@@ -200,8 +179,6 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return bluezConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

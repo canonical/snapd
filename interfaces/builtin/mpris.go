@@ -139,18 +139,6 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
-var mprisPermanentSlotSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
-var mprisConnectedPlugSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
 type MprisInterface struct{}
 
 func (iface *MprisInterface) Name() string {
@@ -168,8 +156,6 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mprisConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -191,8 +177,6 @@ func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }
