@@ -47,12 +47,16 @@ func (os *OS) ForceDevMode() bool {
 		{"neon", ""},
 		{"ubuntu", ""},
 		{"ubuntu-core", ""},
+		// NOTE: elementary is "Elementary OS" but normalization
+		// applies
 		{"elementary", "0.4"},
 		// NOTE: mint uses "LinuxMint" (mixed capitalization)
 		// but this is normalized by readOSRelease.
 		{"linuxmint", "18.1"},
 		{"galliumos", "2.0"},
 		{"peppermint", "7.0"},
+		// NOTE: zorin is "Zorin OS" but normalization applies
+		{"zorin", "12"},
 	}
 
 	for _, s := range supported {

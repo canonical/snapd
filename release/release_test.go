@@ -145,6 +145,8 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{id: "galliumos", idVersion: "2.0", devmode: false},
 		{id: "peppermint", devmode: true},
 		{id: "peppermint", idVersion: "7.0", devmode: false},
+		{id: "zorin", idVersion: "", devmode: true},
+		{id: "zorin", idVersion: "12", devmode: false},
 	}
 	for _, distro := range distros {
 		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
