@@ -184,10 +184,6 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
-sendmsg
-sendto
-recvfrom
-recvmsg
 
 mount
 umount

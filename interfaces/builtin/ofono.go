@@ -140,28 +140,7 @@ accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`
-
-const ofonoConnectedPlugSecComp = `
-# Description: Allow using ofono service. Reserved because this gives
-# privileged access to the ofono service.
-
-# Can communicate with DBus system service
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
 `
 
 const ofonoPermanentSlotDBus = `
@@ -274,8 +253,6 @@ func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 			snippet = append(snippet, ofonoConnectedPlugAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(ofonoConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }

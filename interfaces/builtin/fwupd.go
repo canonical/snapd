@@ -164,10 +164,6 @@ var fwupdPermanentSlotSecComp = []byte(`
 # Usage: reserved
 # Can communicate with DBus system service
 bind
-recvfrom
-recvmsg
-sendmsg
-sendto
 `)
 
 var fwupdConnectedPlugSecComp = []byte(`
@@ -175,10 +171,6 @@ var fwupdConnectedPlugSecComp = []byte(`
 # privileged access to the fwupd service.
 # Usage: reserved
 bind
-recvfrom
-recvmsg
-sendmsg
-sendto
 `)
 
 // FwupdInterface type

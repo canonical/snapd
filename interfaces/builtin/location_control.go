@@ -122,18 +122,6 @@ dbus (receive)
     peer=(label=unconfined),
 `)
 
-var locationControlPermanentSlotSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationControlConnectedPlugSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
 var locationControlPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
@@ -169,8 +157,6 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return locationControlConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -181,8 +167,6 @@ func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationControlPermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return locationControlPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }

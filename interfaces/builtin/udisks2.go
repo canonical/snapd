@@ -153,24 +153,9 @@ fchownat
 lchown
 lchown32
 mount
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 shmctl
 umount
 umount2
-`
-
-const udisks2ConnectedPlugSecComp = `
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 `
 
 const udisks2PermanentSlotDBus = `
@@ -363,8 +348,6 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return []byte(udisks2ConnectedPlugDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2ConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }

@@ -204,14 +204,6 @@ accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 sethostname
 shutdown
 # Needed for keyfile settings plugin to allow adding settings
@@ -230,20 +222,6 @@ fchown32
 fchownat
 lchown
 lchown32
-`)
-
-var networkManagerConnectedPlugSecComp = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-#  privileged access to the NetworkManager service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
 `)
 
 var networkManagerPermanentSlotDBus = []byte(`
@@ -416,8 +394,6 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		}
 		snippet := bytes.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return networkManagerConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

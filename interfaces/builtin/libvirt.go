@@ -27,11 +27,6 @@ const libvirtConnectedPlugAppArmor = `
 `
 
 const libvirtConnectedPlugSecComp = `
-recv
-recvmsg
-send
-sendto
-sendmsg
 listen
 accept
 `

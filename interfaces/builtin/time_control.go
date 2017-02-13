@@ -83,14 +83,6 @@ capability sys_time,
 # device nodes.
 /sbin/hwclock ixr,
 `
-const timeControlConnectedPlugSecComp = `
-# dbus
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-`
 
 // The type for the rtc interface
 type TimeControlInterface struct{}
@@ -138,9 +130,6 @@ func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, s
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(timeControlConnectedPlugAppArmor), nil
-
-	case interfaces.SecuritySecComp:
-		return []byte(timeControlConnectedPlugSecComp), nil
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer

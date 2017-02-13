@@ -70,7 +70,6 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugSecComp = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
@@ -83,13 +82,6 @@ const systemObserveConnectedPlugSecComp = `
 # Note: may uncomment once ubuntu-core-launcher understands @deny rules and
 # if/when we conditionally deny this in the future.
 #@deny ptrace
-
-# for connecting to /org/freedesktop/hostname1 over DBus
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.

@@ -68,21 +68,12 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 `
-const timeserverControlConnectedPlugSecComp = `
-# dbus
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-`
 
 // NewTimeserverControlInterface returns a new "timeserver-control" interface.
 func NewTimeserverControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timeserver-control",
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

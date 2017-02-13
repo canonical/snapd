@@ -48,14 +48,8 @@ var mirPermanentSlotSecComp = []byte(`
 bind
 listen
 # Needed by server upon client connect
-send
-sendto
-sendmsg
 accept
 shmctl
-recv
-recvmsg
-recvfrom
 `)
 
 var mirConnectedSlotAppArmor = []byte(`
@@ -70,18 +64,6 @@ var mirConnectedPlugAppArmor = []byte(`
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
-`)
-
-var mirConnectedPlugSecComp = []byte(`
-# Description: Permit clients to use Mir
-# Usage: common
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-
 `)
 
 type MirInterface struct{}
@@ -101,8 +83,6 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mirConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

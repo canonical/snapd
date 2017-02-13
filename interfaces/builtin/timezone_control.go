@@ -69,21 +69,11 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const timezoneControlConnectedPlugSecComp = `
-# dbus
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-`
-
 // NewTimezoneControlInterface returns a new "timezone-control" interface.
 func NewTimezoneControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timezone-control",
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timezoneControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
