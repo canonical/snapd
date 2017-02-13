@@ -136,8 +136,6 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
-	Contact string
-
 	Environment map[string]string
 
 	LicenseAgreement string
