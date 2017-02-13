@@ -18,6 +18,8 @@ AC_LANG([C])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
+AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
+AC_CHECK_HEADERS([xfs/xqm.h],   [], [AC_MSG_ERROR(xfs/xqm.h unavailable)])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -168,6 +170,10 @@ AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_ERROR(["cannot find the rst2man too
 AC_PATH_PROG([HAVE_SHELLCHECK],[shellcheck])
 AM_CONDITIONAL([HAVE_SHELLCHECK], [test "x${HAVE_SHELLCHECK}" != "x"])
 AS_IF([test "x$HAVE_SHELLCHECK" = "x"], [AC_MSG_WARN(["cannot find the shellcheck tool, will not run syntax checks for shell code"])])
+
+AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
+AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
+AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

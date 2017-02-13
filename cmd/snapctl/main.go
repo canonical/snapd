@@ -26,7 +26,12 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
-var clientConfig client.Config
+var clientConfig = client.Config{
+	// snapctl should not try to read $HOME/.snap/auth.json, this will
+	// result in apparmor denials and configure task failures
+	// (LP: #1660941)
+	DisableAuth: true,
+}
 
 func main() {
 	stdout, stderr, err := run()

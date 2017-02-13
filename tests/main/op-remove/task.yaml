@@ -2,6 +2,7 @@ summary: Check snap remove operations.
 
 restore: |
     rm -f basic_1.0_all.snap
+    rm -f stderr.out
 
 execute: |
     snap_revisions(){

@@ -375,7 +375,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
@@ -482,7 +482,7 @@ func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
 
 func (s *DbusInterfaceSuite) TestConnectionFirst(c *C) {
