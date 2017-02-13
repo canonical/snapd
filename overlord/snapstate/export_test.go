@@ -90,11 +90,12 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 }
 
 var (
-	CheckSnap            = checkSnap
-	CanRemove            = canRemove
-	CanDisable           = canDisable
-	CachedStore          = cachedStore
-	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+	CheckSnap              = checkSnap
+	CanRemove              = canRemove
+	CanDisable             = canDisable
+	CachedStore            = cachedStore
+	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
+	DefaultRefreshSchedule = defaultRefreshSchedule
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
