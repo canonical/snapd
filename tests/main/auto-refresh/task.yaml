@@ -11,6 +11,7 @@ execute: |
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
     snap set core refresh.disabled=false
+    snap set core refresh.schedule="0:00-$(date +%H:%M:%S --date=30seconds)"
     
     systemctl stop snapd.{service,socket}
     echo "Modify the snap to track the edge channel"
