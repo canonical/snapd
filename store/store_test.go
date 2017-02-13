@@ -676,6 +676,48 @@ func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	restore := release.MockOnClassic(false)
+	defer restore()
+	altPath := c.MkDir()
+
+	scenarios := []struct {
+		env      string
+		classic  bool
+		exe      bool
+		expected bool
+	}{
+		{"", false, false, false},  // no env, not on classic, no executable => no delta
+		{"", false, true, false},   // no env, not on classic, executable => no delta
+		{"", true, false, false},   // no env, on classic, no executable => no delta
+		{"", true, true, true},     // no env, on classic, executable => DELTA!
+		{"0", false, false, false}, // env says NO, not classic, no executable => no delta
+		{"0", false, true, false},  // env says NO, not classic, executable => no delta
+		{"0", true, false, false},  // env says NO, classic, no executable => no delta
+		{"0", true, true, false},   // env says NO, classic, executable => no delta
+		{"1", false, false, false}, // env says YES, no classic, no executable => no delta
+		{"1", false, true, true},   // env says YES, no classic, executable => DELTA!
+		{"1", true, false, false},  // env says YES, classic, no executable => no delta
+		{"1", true, true, true},    // env says YES, classic, executable => DELTA!
+	}
+
+	for _, scenario := range scenarios {
+		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
+		release.MockOnClassic(scenario.classic)
+		if scenario.exe {
+			os.Setenv("PATH", origPath)
+		} else {
+			os.Setenv("PATH", altPath)
+		}
+
+		c.Check(useDeltas(), Equals, scenario.expected, Commentf("%#v", scenario))
+	}
+}
+
 type downloadBehaviour []struct {
 	url   string
 	error bool
@@ -2622,6 +2664,42 @@ var MockUpdatesWithDeltasJSON = `
     }
 }
 `
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+	for _, t := range []struct {
+		onClassic      bool
+		deltaFormatStr string
+	}{
+		{false, ""},
+		{true, "xdelta3"},
+	} {
+		restore := release.MockOnClassic(t.onClassic)
+		defer restore()
+
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, t.deltaFormatStr)
+		}))
+		defer mockServer.Close()
+
+		var err error
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		repo := New(&cfg, nil)
+		c.Assert(repo, NotNil)
+
+		repo.ListRefresh([]*RefreshCandidate{
+			{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(24),
+				Epoch:    "0",
+			},
+		}, nil)
+	}
+}
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")

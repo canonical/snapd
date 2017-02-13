@@ -67,6 +67,17 @@ func norm(path string) string {
 	return path
 }
 
+func maybePrintPrice(w io.Writer, snap *client.Snap, resInfo *client.ResultInfo) {
+	if resInfo == nil {
+		return
+	}
+	price, currency, err := getPrice(snap.Prices, resInfo.SuggestedCurrency)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "price:\t%s\n", formatPrice(price, currency))
+}
+
 func maybePrintType(w io.Writer, t string) {
 	// XXX: using literals here until we reshuffle snap & client properly
 	// (and os->core rename happens, etc)
@@ -195,7 +206,7 @@ func (x *infoCmd) Execute([]string) error {
 			noneOK = false
 			continue
 		}
-		remote, _, _ := cli.FindOne(snapName)
+		remote, resInfo, _ := cli.FindOne(snapName)
 		local, _, _ := cli.Snap(snapName)
 
 		both := coalesce(local, remote)
@@ -214,11 +225,13 @@ func (x *infoCmd) Execute([]string) error {
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", both.Contact)
 		}
+		maybePrintPrice(w, remote, resInfo)
 		// FIXME: find out for real
 		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
 		maybePrintType(w, both.Type)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
+
 		if x.Verbose {
 			fmt.Fprintln(w, "notes:\t")
 			fmt.Fprintf(w, "  private:\t%t\n", both.Private)

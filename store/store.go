@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -170,13 +171,6 @@ type Store struct {
 	suggestedCurrency string
 }
 
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(10*time.Second,
-	retry.Exponential{
-		Initial: 100 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
-
 func respToError(resp *http.Response, msg string) error {
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
@@ -205,8 +199,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+// Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	deltasDefault := release.OnClassic
+	// only xdelta3 is supported for now, so check the binary exists here
+	// TODO: have a per-format checker instead
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
 }
 
 func useStaging() bool {
@@ -602,10 +600,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		if attempt.Count() > 1 {
-			delta := time.Since(startTime) / time.Millisecond
-			logger.Debugf("Retyring %s, attempt %d, delta time=%v ms", reqOptions.URL, attempt.Count(), delta)
-		}
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 		if cancelled(ctx) {
 			return nil, ctx.Err()
 		}
@@ -641,17 +636,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		var status string
-		delta := time.Since(startTime) / time.Millisecond
-		if err != nil {
-			status = err.Error()
-		} else if resp != nil {
-			status = fmt.Sprintf("%d", resp.StatusCode)
-		}
-		logger.Debugf("The retry loop for %s finished after %d retries, delta time=%v ms, status: %s", reqOptions.URL, attempt.Count(), delta, status)
-	}
+	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
 
 	return resp, err
 }
@@ -1340,11 +1325,14 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	}
 
 	var finalErr error
+	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
 		reqOptions := &requestOptions{
 			Method: "GET",
 			URL:    storeURL,
 		}
+		maybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
+
 		h := crypto.SHA3_384.New()
 
 		if resume > 0 {
@@ -1498,7 +1486,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
-	deltaName := filepath.Base(deltaPath)
+	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
 	w, err := os.Create(deltaPath)
 	if err != nil {

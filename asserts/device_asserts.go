@@ -30,6 +30,7 @@ import (
 // about the properties of a device model.
 type Model struct {
 	assertionBase
+	classic          bool
 	requiredSnaps    []string
 	sysUserAuthority []string
 	timestamp        time.Time
@@ -58,6 +59,11 @@ func (mod *Model) DisplayName() string {
 // Series returns the series of the core software the model uses.
 func (mod *Model) Series() string {
 	return mod.HeaderString("series")
+}
+
+// Classic returns whether the model is a classic system.
+func (mod *Model) Classic() bool {
+	return mod.classic
 }
 
 // Architecture returns the archicteture the model is based on.
@@ -153,7 +159,10 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	return nil, fmt.Errorf("%q header must be '*' or a list of account ids", name)
 }
 
-var modelMandatory = []string{"architecture", "gadget", "kernel"}
+var (
+	modelMandatory       = []string{"architecture", "gadget", "kernel"}
+	classicModelOptional = []string{"architecture", "gadget"}
+)
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
@@ -166,8 +175,26 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	for _, mandatory := range modelMandatory {
-		if _, err := checkNotEmptyString(assert.headers, mandatory); err != nil {
+	classic, err := checkOptionalBool(assert.headers, "classic")
+	if err != nil {
+		return nil, err
+	}
+
+	if classic {
+		if _, ok := assert.headers["kernel"]; ok {
+			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+		}
+	}
+
+	checker := checkNotEmptyString
+	toCheck := modelMandatory
+	if classic {
+		checker = checkOptionalString
+		toCheck = classicModelOptional
+	}
+
+	for _, h := range toCheck {
+		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
 	}
@@ -209,6 +236,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
 		assertionBase:    assert,
+		classic:          classic,
 		requiredSnaps:    reqSnaps,
 		sysUserAuthority: sysUserAuthority,
 		timestamp:        timestamp,

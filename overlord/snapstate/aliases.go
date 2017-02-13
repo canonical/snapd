@@ -86,7 +86,7 @@ func Alias(st *state.State, snapName string, aliases []string) (*state.TaskSet, 
 	if !snapst.Active {
 		return nil, fmt.Errorf("enabling aliases for disabled snap %q not supported", snapName)
 	}
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet
 	if !snapst.Active {
 		return nil, fmt.Errorf("disabling aliases for disabled snap %q not supported", snapName)
 	}
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 
@@ -148,7 +148,7 @@ func ResetAliases(st *state.State, snapName string, aliases []string) (*state.Ta
 		return nil, err
 	}
 
-	if err := checkChangeConflict(st, snapName, nil); err != nil {
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
 		return nil, err
 	}
 

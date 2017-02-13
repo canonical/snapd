@@ -27,7 +27,6 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 type SnapOptions struct {
@@ -38,6 +37,29 @@ type SnapOptions struct {
 	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
+}
+
+func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
+	fields := []struct {
+		f string
+		b bool
+	}{
+		{"devmode", opts.DevMode},
+		{"classic", opts.Classic},
+		{"jailmode", opts.JailMode},
+		{"dangerous", opts.Dangerous},
+	}
+	for _, o := range fields {
+		if !o.b {
+			continue
+		}
+		err := mw.WriteField(o.f, "true")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type actionData struct {
@@ -175,8 +197,7 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	mw := multipart.NewWriter(buf)
 	mw.WriteField("action", "try")
 	mw.WriteField("snap-path", path)
-	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
-	mw.WriteField("jailmode", strconv.FormatBool(options.JailMode))
+	options.writeModeFields(mw)
 	mw.Close()
 
 	headers := map[string]string{
@@ -192,21 +213,28 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
 	}
-	errs := []error{
-		mw.WriteField("action", action.Action),
-		mw.WriteField("name", action.Name),
-		mw.WriteField("snap-path", action.SnapPath),
-		mw.WriteField("channel", action.Channel),
-		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
-		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
-		mw.WriteField("classic", strconv.FormatBool(action.Classic)),
-		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{"action", action.Action},
+		{"name", action.Name},
+		{"snap-path", action.SnapPath},
+		{"channel", action.Channel},
 	}
-	for _, err := range errs {
-		if err != nil {
+	for _, s := range fields {
+		if s.value == "" {
+			continue
+		}
+		if err := mw.WriteField(s.name, s.value); err != nil {
 			pw.CloseWithError(err)
 			return
 		}
+	}
+
+	if err := action.writeModeFields(mw); err != nil {
+		pw.CloseWithError(err)
+		return
 	}
 
 	fw, err := mw.CreateFormFile("snap", filepath.Base(snapPath))

@@ -156,7 +156,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 type appJSON struct {
 	Name    string   `json:"name"`
 	Daemon  string   `json:"daemon"`
-	Aliases []string `json:"aliases"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo

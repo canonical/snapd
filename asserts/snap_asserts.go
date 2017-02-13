@@ -117,6 +117,65 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	}
 }
 
+func compilePlugRules(plugs map[string]interface{}, compiled func(iface string, plugRule *PlugRule)) error {
+	for iface, rule := range plugs {
+		plugRule, err := compilePlugRule(iface, rule)
+		if err != nil {
+			return err
+		}
+		compiled(iface, plugRule)
+	}
+	return nil
+}
+
+func compileSlotRules(slots map[string]interface{}, compiled func(iface string, slotRule *SlotRule)) error {
+	for iface, rule := range slots {
+		slotRule, err := compileSlotRule(iface, rule)
+		if err != nil {
+			return err
+		}
+		compiled(iface, slotRule)
+	}
+	return nil
+}
+
+func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+	_, plugsOk := headers["plugs"]
+	_, slotsOk := headers["slots"]
+	if !(plugsOk || slotsOk) {
+		return 0, nil
+	}
+	formatnum = 1
+
+	plugs, err := checkMap(headers, "plugs")
+	if err != nil {
+		return 0, err
+	}
+	err = compilePlugRules(plugs, func(_ string, rule *PlugRule) {
+		if rule.feature(dollarAttrConstraintsFeature) {
+			formatnum = 2
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	slots, err := checkMap(headers, "slots")
+	if err != nil {
+		return 0, err
+	}
+	err = compileSlotRules(slots, func(_ string, rule *SlotRule) {
+		if rule.feature(dollarAttrConstraintsFeature) {
+			formatnum = 2
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return formatnum, nil
+}
+
 var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
@@ -150,12 +209,11 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}
 	if plugs != nil {
 		plugRules = make(map[string]*PlugRule, len(plugs))
-		for iface, rule := range plugs {
-			plugRule, err := compilePlugRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			plugRules[iface] = plugRule
+		err := compilePlugRules(plugs, func(iface string, rule *PlugRule) {
+			plugRules[iface] = rule
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -165,12 +223,11 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}
 	if slots != nil {
 		slotRules = make(map[string]*SlotRule, len(slots))
-		for iface, rule := range slots {
-			slotRule, err := compileSlotRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			slotRules[iface] = slotRule
+		err := compileSlotRules(slots, func(iface string, rule *SlotRule) {
+			slotRules[iface] = rule
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -554,12 +611,11 @@ func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 	}
 	if plugs != nil {
 		plugRules = make(map[string]*PlugRule, len(plugs))
-		for iface, rule := range plugs {
-			plugRule, err := compilePlugRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			plugRules[iface] = plugRule
+		err := compilePlugRules(plugs, func(iface string, rule *PlugRule) {
+			plugRules[iface] = rule
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -570,12 +626,11 @@ func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 	}
 	if slots != nil {
 		slotRules = make(map[string]*SlotRule, len(slots))
-		for iface, rule := range slots {
-			slotRule, err := compileSlotRule(iface, rule)
-			if err != nil {
-				return nil, err
-			}
-			slotRules[iface] = slotRule
+		err := compileSlotRules(slots, func(iface string, rule *SlotRule) {
+			slotRules[iface] = rule
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 

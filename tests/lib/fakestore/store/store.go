@@ -233,15 +233,16 @@ type searchReplyJSON struct {
 }
 
 type detailsReplyJSON struct {
-	SnapID          string `json:"snap_id"`
-	PackageName     string `json:"package_name"`
-	Developer       string `json:"origin"`
-	DeveloperID     string `json:"developer_id"`
-	AnonDownloadURL string `json:"anon_download_url"`
-	DownloadURL     string `json:"download_url"`
-	Version         string `json:"version"`
-	Revision        int    `json:"revision"`
-	DownloadDigest  string `json:"download_sha3_384"`
+	Architectures   []string `json:"architecture"`
+	SnapID          string   `json:"snap_id"`
+	PackageName     string   `json:"package_name"`
+	Developer       string   `json:"origin"`
+	DeveloperID     string   `json:"developer_id"`
+	AnonDownloadURL string   `json:"anon_download_url"`
+	DownloadURL     string   `json:"download_url"`
+	Version         string   `json:"version"`
+	Revision        int      `json:"revision"`
+	DownloadDigest  string   `json:"download_sha3_384"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -281,6 +282,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	details := detailsReplyJSON{
+		Architectures:   []string{"all"},
 		SnapID:          essInfo.SnapID,
 		PackageName:     essInfo.Name,
 		Developer:       essInfo.DevelName,
@@ -413,6 +415,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			}
 
 			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
+				Architectures:   []string{"all"},
 				SnapID:          essInfo.SnapID,
 				PackageName:     essInfo.Name,
 				Developer:       essInfo.DevelName,

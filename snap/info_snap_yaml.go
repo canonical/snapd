@@ -57,6 +57,7 @@ type appYaml struct {
 	Daemon string `yaml:"daemon"`
 
 	StopCommand     string          `yaml:"stop-command,omitempty"`
+	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 
@@ -230,6 +231,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
+			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,

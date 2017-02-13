@@ -27,8 +27,8 @@
 #include <sys/apparmor.h>
 #endif				// ifdef HAVE_APPARMOR
 
-#include "cleanup-funcs.h"
-#include "utils.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/utils.h"
 
 // NOTE: Those constants map exactly what apparmor is returning and cannot be
 // changed without breaking apparmor functionality.
