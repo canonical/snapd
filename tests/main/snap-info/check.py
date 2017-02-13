@@ -94,6 +94,7 @@ check("core", res[4],
       ("installed", exists),
       ("refreshed", exists),
       ("channels", exists),
+      ("contact", exists),
 )
 
 check("error", res[5],
