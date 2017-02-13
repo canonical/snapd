@@ -29,9 +29,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type interfaceAttrs struct {
-	plugAttrs map[string]interface{}
-	slotAttrs map[string]interface{}
+// InterfaceAttrs is a container for plug and slot attributes of given connection
+type InterfaceAttrs struct {
+	PlugAttrs map[string]interface{}
+	SlotAttrs map[string]interface{}
 }
 
 // Repository stores all known snappy plugs and slots and ifaces.
@@ -49,7 +50,7 @@ type Repository struct {
 	backends  map[SecuritySystem]SecurityBackend
 	// attributes of plugs and slots; the attributes include attribute values from
 	// the yaml and provided at runtime via interface hooks.
-	attributes map[*Plug]map[*Slot]*interfaceAttrs
+	attributes map[*Plug]map[*Slot]*InterfaceAttrs
 }
 
 // NewRepository creates an empty plug repository.
@@ -61,7 +62,7 @@ func NewRepository() *Repository {
 		slotPlugs:  make(map[*Slot]map[*Plug]bool),
 		plugSlots:  make(map[*Plug]map[*Slot]bool),
 		backends:   make(map[SecuritySystem]SecurityBackend),
-		attributes: make(map[*Plug]map[*Slot]*interfaceAttrs),
+		attributes: make(map[*Plug]map[*Slot]*InterfaceAttrs),
 	}
 }
 
@@ -478,10 +479,11 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
 
+	// Store interface attributes
 	if r.attributes[plug] == nil {
-		r.attributes[plug] = make(map[*Slot]*interfaceAttrs)
+		r.attributes[plug] = make(map[*Slot]*InterfaceAttrs)
 	}
-	r.attributes[plug][slot] = &interfaceAttrs{plugAttrs: plugAttrs, slotAttrs: slotAttrs}
+	r.attributes[plug][slot] = &InterfaceAttrs{PlugAttrs: plugAttrs, SlotAttrs: slotAttrs}
 	return nil
 }
 
@@ -525,6 +527,28 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	}
 	r.disconnect(plug, slot)
 	return nil
+}
+
+// InterfaceAttributes returns interface attributes of given connection.
+func (r *Repository) InterfaceAttributes(plugRef PlugRef, slotRef SlotRef) (*InterfaceAttrs, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	plug := r.plugs[plugRef.Snap][plugRef.Name]
+	if plug == nil {
+		return nil, fmt.Errorf("snap %q has no plug named %q", plugRef.Snap, plugRef.Name)
+	}
+	slot := r.slots[slotRef.Snap][slotRef.Name]
+	if slot == nil {
+		return nil, fmt.Errorf("snap %q has no slot named %q", slotRef.Snap, slotRef.Name)
+	}
+
+	attrs := r.attributes[plug][slot]
+	if attrs == nil {
+		return nil, fmt.Errorf("cannot get attributes of %s:%s %s:%s connection",
+			plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	}
+	return attrs, nil
 }
 
 // Connected returns references for all connections that are currently
@@ -717,7 +741,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		// Add connection-specific snippet specific to each plug
 		for plug := range r.slotPlugs[slot] {
 			attrs := r.attributes[plug][slot]
-			snippet, err := iface.ConnectedSlotSnippet(plug, attrs.plugAttrs, slot, attrs.slotAttrs, securitySystem)
+			snippet, err := iface.ConnectedSlotSnippet(plug, attrs.PlugAttrs, slot, attrs.SlotAttrs, securitySystem)
 			if err != nil {
 				return nil, err
 			}
@@ -737,7 +761,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		// Add connection-specific snippet specific to each slot
 		for slot := range r.plugSlots[plug] {
 			attrs := r.attributes[plug][slot]
-			snippet, err := iface.ConnectedPlugSnippet(plug, attrs.plugAttrs, slot, attrs.slotAttrs, securitySystem)
+			snippet, err := iface.ConnectedPlugSnippet(plug, attrs.PlugAttrs, slot, attrs.SlotAttrs, securitySystem)
 			if err != nil {
 				return nil, err
 			}

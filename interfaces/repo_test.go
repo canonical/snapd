@@ -1147,6 +1147,48 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 	})
 }
 
+// Tests for Repository.InterfaceAttributes
+
+// TestInterfaceAttributesFailsWithoutPlugOrSlot fails if plug or slot doesn't exist
+func (s *RepositorySuite) TestInterfaceAttributesFailsWithoutPlugOrSlot(c *C) {
+	_, err := s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Check(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	_, err = s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Check(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
+}
+
+// TestInterfaceAttributesFailsIfNotConnected fails if there is no connection
+func (s *RepositorySuite) TestInterfaceAttributesFailsIfNotConnected(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	_, err := s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Check(err, ErrorMatches, `cannot get attributes of consumer:plug producer:slot connection`)
+}
+
+func (s *RepositorySuite) TestInterfaceAttributesSucceeds(c *C) {
+	plugAttrs := map[string]interface{}{"foo": "bar"}
+	slotAttrs := map[string]interface{}{"foo": "baz"}
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	c.Assert(s.testRepo.Connect(ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}, plugAttrs, slotAttrs), IsNil)
+	attrs, err := s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Assert(err, IsNil)
+	c.Check(attrs.PlugAttrs, DeepEquals, plugAttrs)
+	c.Check(attrs.SlotAttrs, DeepEquals, slotAttrs)
+}
+
+func (s *RepositorySuite) TestInterfaceAttributesRemovedOnDisconnect(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	c.Assert(s.testRepo.Connect(ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}, nil, nil), IsNil)
+	_, err := s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, s.slot.Snap.Name(), s.slot.Name), IsNil)
+	_, err = s.testRepo.InterfaceAttributes(s.plug.Ref(), s.slot.Ref())
+	c.Check(err, ErrorMatches, `cannot get attributes of consumer:plug producer:slot connection`)
+}
+
 // Tests for Repository.Connected
 
 // Connected fails if snap name is empty and there's no core snap around
