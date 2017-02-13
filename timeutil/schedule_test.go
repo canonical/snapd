@@ -111,6 +111,7 @@ func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 		{"mon@9:00-11:00", "2017-02-07 9:00", false},
 	} {
 		fakeNow, err := time.Parse(shortForm, t.fakeNow)
+		c.Assert(err, IsNil)
 
 		sched, err := timeutil.ParseSchedule(t.schedStr)
 		c.Assert(err, IsNil)
