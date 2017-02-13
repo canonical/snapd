@@ -47,7 +47,7 @@ slots:
   test-framebuffer:
     interface: framebuffer
 `, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["framebuffer"]}
+	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-framebuffer"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -96,7 +96,7 @@ func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # gives privileged access to the console framebuffer.
 
 /dev/fb[0-9]* rw,
-/dev/graphics/fb[0-9] rw,
+/dev/graphics/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
 `)
 	expectedSnippet2 := []byte(`KERNEL=="fb[0-9]*", TAG+="snap_client-snap_app-accessing-framebuffer"
