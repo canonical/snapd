@@ -1,13 +1,21 @@
 summary: Check that the docker snap works
 
-systems: [ubuntu-*-64, ubuntu-*-amd64, ubuntu-*-armhf]
+systems: [ubuntu-16.04-64, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf]
 
 # manual for now to ensure we do not pollute the download statistics
 manual: true
 
 prepare: |
+    if apt show linux-image-extra-$(uname -r); then
+        apt install -y linux-image-extra-$(uname -r)
+    fi
+    modprobe aufs
+
     # FIXME Need a way not to pollute the download statistics.
     snap install docker
+
+restore: |
+    apt remove -y linux-image-extra-$(uname -r)-generic || true
 
 debug: |
     cat /var/log/syslog
@@ -25,5 +33,5 @@ execute: |
         "ubuntu-*-i386")
             prefix=i386/
         ;;
-    fi
+    esac
     docker run --rm ${prefix}hello-world | MATCH "Hello from Docker!"
