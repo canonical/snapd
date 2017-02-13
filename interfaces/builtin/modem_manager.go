@@ -27,8 +27,8 @@ import (
 )
 
 var modemManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
 
 # To check present devices
 /run/udev/data/* r,
@@ -100,8 +100,8 @@ dbus (receive, send)
 `)
 
 var modemManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using ModemManager service. Reserved because this gives
-# privileged access to the ModemManager service.
+# Description: Allow using ModemManager service. This gives privileged access
+# to the ModemManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -133,8 +133,8 @@ dbus (receive, send)
 `)
 
 var modemManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
 
 # TODO: add ioctl argument filters when seccomp arg filtering is implemented
 accept

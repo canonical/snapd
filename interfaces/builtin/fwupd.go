@@ -26,8 +26,8 @@ import (
 )
 
 var fwupdPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the fwupd service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the fwupd service. This gives privileged
+# access to the system.
 
   # Allow read/write access for old efivars sysfs interface
   capability sys_admin,
@@ -86,8 +86,8 @@ var fwupdPermanentSlotAppArmor = []byte(`
 `)
 
 var fwupdConnectedPlugAppArmor = []byte(`
-# Description: Allow using fwupd service. Reserved because this gives
-# privileged access to the fwupd service.
+# Description: Allow using fwupd service. This gives # privileged access to the
+# fwupd service.
 
   #Can access the network
   #include <abstractions/nameservice>
@@ -111,8 +111,8 @@ var fwupdConnectedPlugAppArmor = []byte(`
 `)
 
 var fwupdConnectedSlotAppArmor = []byte(`
-# Description: Allow firmware update using fwupd service. Reserved because this gives
-# privileged access to the fwupd service.
+# Description: Allow firmware update using fwupd service. This gives privileged
+# access to the fwupd service.
 
   # Allow traffic to/from org.freedesktop.DBus for fwupd service
   dbus (receive, send)
@@ -156,8 +156,8 @@ var fwupdPermanentSlotDBus = []byte(`
 `)
 
 var fwupdPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the fwupd service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the fwupd service. This gives privileged
+# access to the system.
 # Can communicate with DBus system service
 bind
 `)
