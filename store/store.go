@@ -90,6 +90,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Contact = d.Contact
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -114,9 +115,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Screenshots = screenshots
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
-	if info.Contact != "" {
-		info.Contact = d.Contact
-	} else {
+	if info.Contact == "" {
 		info.Contact = d.SupportURL
 	}
 

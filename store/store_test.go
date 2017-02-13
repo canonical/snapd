@@ -1443,6 +1443,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
+	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch, Equals, "0")
