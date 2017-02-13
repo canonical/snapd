@@ -28,12 +28,12 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 )
 
 type backendSuite struct {
-	backendtest.BackendSuite
+	ifacetest.BackendSuite
 }
 
 var _ = Suite(&backendSuite{})
@@ -61,7 +61,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 
 // Tests for Setup() and Remove()
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "dbus")
+	c.Check(s.Backend.Name(), Equals, interfaces.SecurityDBus)
 }
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
@@ -70,7 +70,7 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was created
 		_, err := os.Stat(profile)
@@ -88,7 +88,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.HookYaml, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
 
 		// Verify that "snap.foo.hook.configure.conf" was created
@@ -104,7 +104,7 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was removed
@@ -122,7 +122,7 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.HookYaml, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
 
@@ -138,8 +138,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, opts, backendtest.SambaYamlV1WithNmbd, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1WithNmbd, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was created
 		_, err := os.Stat(profile)
@@ -157,8 +157,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, opts, backendtest.SambaYamlWithHook, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlWithHook, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was created
@@ -174,8 +174,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1WithNmbd, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1WithNmbd, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was removed
 		_, err := os.Stat(profile)
@@ -193,8 +193,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		return []byte("<policy/>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlWithHook, 0)
-		snapInfo = s.UpdateSnap(c, snapInfo, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlWithHook, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was removed
@@ -212,7 +212,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 		return []byte("<policy>...</policy>"), nil
 	}
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)
@@ -226,7 +226,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 	for _, opts := range testedConfinementOpts {
-		snapInfo := s.InstallSnap(c, opts, backendtest.SambaYamlV1, 0)
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		_, err := os.Stat(profile)
 		// Without any snippets, there the .conf file is not created.

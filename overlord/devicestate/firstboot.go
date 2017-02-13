@@ -48,7 +48,8 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	}
 
 	// ack all initial assertions
-	if err := importAssertionsFromSeed(st); err != nil {
+	model, err := importAssertionsFromSeed(st)
+	if err != nil {
 		return nil, err
 	}
 
@@ -57,13 +58,25 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, err
 	}
 
+	var required map[string]bool
+	reqSnaps := model.RequiredSnaps()
+	if len(reqSnaps) > 0 {
+		required = make(map[string]bool, len(reqSnaps))
+		for _, snap := range reqSnaps {
+			required[snap] = true
+		}
+	}
+
 	tsAll := []*state.TaskSet{}
 	for i, sn := range seed.Snaps {
-
 		var flags snapstate.Flags
 		if sn.DevMode {
 			flags.DevMode = true
 		}
+		if required[sn.Name] {
+			flags.Required = true
+		}
+
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
 
 		var sideInfo snap.SideInfo
@@ -113,22 +126,17 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 	return batch.AddStream(f)
 }
 
-func importAssertionsFromSeed(st *state.State) error {
+func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	device, err := auth.Device(st)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// set device,model from the model assertion
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return fmt.Errorf("cannot read assert seed dir: %s", err)
-	}
-
-	// FIXME: remove this check once asserts are mandatory
-	if len(dc) == 0 {
-		return nil
+		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
 
 	// collect
@@ -138,12 +146,12 @@ func importAssertionsFromSeed(st *state.State) error {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		refs, err := readAsserts(fn, batch)
 		if err != nil {
-			return fmt.Errorf("cannot read assertions: %s", err)
+			return nil, fmt.Errorf("cannot read assertions: %s", err)
 		}
 		for _, ref := range refs {
 			if ref.Type == asserts.ModelType {
 				if modelRef != nil && modelRef.Unique() != ref.Unique() {
-					return fmt.Errorf("cannot add more than one model assertion")
+					return nil, fmt.Errorf("cannot add more than one model assertion")
 				}
 				modelRef = ref
 			}
@@ -151,16 +159,16 @@ func importAssertionsFromSeed(st *state.State) error {
 	}
 	// verify we have one model assertion
 	if modelRef == nil {
-		return fmt.Errorf("need a model assertion")
+		return nil, fmt.Errorf("need a model assertion")
 	}
 
 	if err := batch.Commit(st); err != nil {
-		return err
+		return nil, err
 	}
 
 	a, err := modelRef.Resolve(assertstate.DB(st).Find)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
+		return nil, fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
 	}
 	modelAssertion := a.(*asserts.Model)
 
@@ -168,8 +176,8 @@ func importAssertionsFromSeed(st *state.State) error {
 	device.Brand = modelAssertion.BrandID()
 	device.Model = modelAssertion.Model()
 	if err := auth.SetDevice(st, device); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return modelAssertion, nil
 }

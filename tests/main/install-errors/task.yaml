@@ -4,6 +4,10 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 environment:
     SNAP_NAME: test-snapd-tools
+    # Ensure that running purely from the deb (without re-exec) works
+    # correctly
+    SNAP_REEXEC/noreexec: 0
+    SNAP_REEXEC/withreexec: 1
 
 prepare: |
     echo "Given a snap with a failing command is installed"

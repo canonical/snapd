@@ -8,7 +8,13 @@ environment:
     # a different go in gccgo tests)
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
-    SNAP_REEXEC: 0
+    SNAPPY_TESTING: 1
+    # we run the entire suite with re-exec on (the default) and modify
+    # the core snap so that it contains our new code.  So we run new
+    # snapd from the deb that re-execs into new snapd in core.  To
+    # test purely from the deb, set "export SPREAD_SNAP_REEXEC=0"
+    SNAP_REEXEC: "$(HOST: echo ${SPREAD_SNAP_REEXEC:-})"
+    MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
@@ -16,11 +22,15 @@ environment:
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
-    TRUST_TEST_KEYS: "true"
+    TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
-    # slight abuse
-    GENERATE_14_04: "$(HOST: ./generate-packaging-dir ubuntu 14.04)"
+    KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
+    REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
+    SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
+    DELTA_REF: 2.17
+    DELTA_PREFIX: snapd-$DELTA_REF/
+    SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
 
 backends:
     linode:
@@ -82,6 +92,12 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            - ubuntu-14.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-14.04-i386:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -142,6 +158,12 @@ path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
+    - cmd/snap/snap
+    - cmd/snapd/snapd
+    - cmd/snapctl/snapctl
+    - cmd/snap-exec/snap-exec
+    - "*.o"
+    - "*.a"
 
 prepare-each: |
     # systemd on 14.04 does not know about --rotate
@@ -159,139 +181,57 @@ debug-each: |
     journalctl -u snapd
     dmesg | grep DENIED || true
 
+rename:
+    # Move content into a directory, so that deltas computed by repack benefit
+    # from the content looking similar to codeload.github.com.
+    - s,^,$DELTA_PREFIX,S
+
+repack: |
+    # For Linode, compute a delta based on a known git reference that can be
+    # obtained directly from GitHub. There's nothing special about that reference,
+    # other than it will often be in the local repository's history already.
+    # The more recent the reference, the smaller the delta.
+    if ! echo $SPREAD_BACKENDS | grep linode; then
+        cat <&3 >&4
+    elif ! git show-ref $DELTA_REF > /dev/null; then
+        cat <&3 >&4
+    else
+        trap "rm -f delta-ref.tar current.delta" EXIT
+        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        xdelta3 -s delta-ref.tar <&3 > current.delta
+        tar c current.delta >&4
+    fi
+
 prepare: |
-    # this indicates that the server got reused, nothing to setup
-    [ "$REUSE_PROJECT" != 1 ] || exit 0
-    # check that we are not updating
-    . "$TESTSLIB/boot.sh"
-    if [ "$(bootenv snap_mode)" = "try" ]; then
-        echo "Ongoing reboot upgrade process, please try again when finished"
-        exit 1
-    fi
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
-    EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
-
-    if [ "$SPREAD_BACKEND" = external ]; then
-        # build test binaries
-        if [ ! -f $GOPATH/bin/snapbuild ]; then
-            mkdir -p $GOPATH/bin
-            snap install --devmode --edge classic
-            classic "sudo apt update && apt install -y git golang-go build-essential"
-            classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
-            snap remove classic
-        fi
-        # stop and disable autorefresh
-        systemctl disable --now snapd.refresh.timer
-        exit 0
-    fi
-
-    if [ "$SPREAD_BACKEND" = qemu ]; then
-        # treat APT_PROXY as a location of apt-cacher-ng to use
-        if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
-            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
-        fi
-    fi
-
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt-get update
-
-    # XXX: This seems to be required. Otherwise package build
-    # fails with unmet dependency on "build-essential:native"
-    apt-get install -y build-essential
-
-    apt-get install -y software-properties-common
-
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-         if [ ! -d debian-ubuntu-14.04 ]; then
-             echo "no debian-ubuntu-14.04/ directory "
-             echo "broken test setup"
-             exit 1
-         fi
-
-         # 14.04 has its own packaging
-         rm -rf debian
-         mv debian-ubuntu-14.04 debian
-
-         echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
-         apt-get update
-
-         add-apt-repository ppa:snappy-dev/image
-         apt-get update
-         apt-get install -y --install-recommends linux-generic-lts-xenial
-         apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
-
+    # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
+    # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
+    if [ -f current.delta ]; then
+        tf=$(mktemp)
+        # poor-man's "quiet"
+        apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
+        apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
+        rm -f "$tf"
+        curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
+        rm -f delta-ref.tar current.delta
+    elif [ -d $DELTA_PREFIX ]; then
+        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir $DELTA_PREFIX
     fi
 
-    apt-get purge -y snapd snap-confine ubuntu-core-launcher
-    apt-get update
-    # utilities
-    apt-get install -y curl devscripts expect gdebi-core jq rng-tools git
-
-    # in 16.04: apt build-dep -y ./
-    apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
-
-    # update vendoring
-    if [ "$(which govendor)" = "" ]; then
-        rm -rf $GOPATH/src/github.com/kardianos/govendor
-        go get -u github.com/kardianos/govendor
-    fi
-    govendor sync
-
-    # increment version so upgrade can work
-    dch -i "testing build"
-
-    if ! id test >& /dev/null; then
-        # manually setting the UID and GID to 12345 because we need to
-        # know the numbers match for when we set up the user inside
-        # the all-snap, which has its own user & group database.
-        # Nothing special about 12345 beyond it being high enough it's
-        # unlikely to ever clash with anything, and easy to remember.
-        addgroup --quiet --gid 12345 test
-        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
-    fi
-
-    owner=$( stat -c "%U:%G" /home/test )
-    if [ "$owner" != "test:test" ]; then
-        echo "expected /home/test to be test:test but it's $owner"
-        exit 1
-    fi
-    unset owner
-
-    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-    chown test.test -R ..
-    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
-    # put our debs to a safe place
-    cp ../*.deb $GOPATH
-
-    # Build snapbuild.
-    apt-get install -y git
-    go get ./tests/lib/snapbuild
-
-    # Build fakestore.
-    go get ./tests/lib/fakestore/cmd/fakestore
-    # Build fakedevicesvc.
-    go get ./tests/lib/fakedevicesvc
+    . "$TESTSLIB/prepare-project.sh"
 
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        systemctl enable --now snapd.refresh.timer
+        snap config set core refresh.disabled=false
     fi
+
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
 
 suites:
     tests/main/:
@@ -304,13 +244,17 @@ suites:
             else
                 prepare_classic
             fi
-        restore: |
-            $TESTSLIB/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
-            fi
-        restore-each: |
+        prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh --store
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd
+            fi
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -322,18 +266,51 @@ suites:
             else
                 prepare_classic
             fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd 
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme]
-        restore:
-            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        restore: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
+            apt-get purge -y snapd
         restore-each: |
+            if [ "$REMOTE_STORE" = staging ]; then
+                echo "skip upgrade tests while talking to the staging store"
+                exit 0
+            fi
             $TESTSLIB/reset.sh
+
+    tests/unit/:
+        summary: Suite to run non-go unit tests and go unit tests for other runtimes
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh --store
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+
+# vim:ts=4:sw=4:et

@@ -138,6 +138,10 @@ authority-id: canonical
 series: 16
 revision: 0
 plugs:
+  core-support:
+    allow-installation:
+      plug-snap-type:
+        - core
   docker-support:
     allow-installation: false
     deny-auto-connection: true
@@ -151,6 +155,11 @@ plugs:
     allow-installation: false
     deny-auto-connection: true
 slots:
+  account-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   alsa:
     allow-installation:
       slot-snap-type:
@@ -195,9 +204,19 @@ slots:
       slot-snap-type:
         - app
         - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
+  core-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   cups-control:
     allow-installation:
       slot-snap-type:
@@ -278,6 +297,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - gadget
+        - core
+    deny-auto-connection: true
+  io-ports-control:
+    allow-installation:
+      slot-snap-type:
         - core
     deny-auto-connection: true
   kernel-module-control:
@@ -404,6 +428,16 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  physical-memory-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  physical-memory-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   ppp:
     allow-installation:
       slot-snap-type:
@@ -487,14 +521,39 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  uhid:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   unity7:
     allow-installation:
       slot-snap-type:
         - core
+  unity8-calendar:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+  unity8-contacts:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
+  ubuntu-download-manager:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   upower-observe:
     allow-installation:
       slot-snap-type:
         - core
+        - app
+    deny-connection:
+      on-classic: false
   x11:
     allow-installation:
       slot-snap-type:

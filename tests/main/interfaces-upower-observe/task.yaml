@@ -1,7 +1,7 @@
 summary: Ensure that the upower-observe interface works.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history
@@ -21,8 +21,8 @@ prepare: |
 
 restore: |
     rm -f upower.error
-    apt-get remove -y upower
-    apt-get autoremove -y
+    apt-get remove --purge -y upower
+    apt-get autoremove --purge -y
 
 execute: |
     . "$TESTSLIB/names.sh"

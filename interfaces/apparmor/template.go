@@ -119,6 +119,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/expr ixr,
   /{,usr/}bin/false ixr,
   /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
@@ -127,6 +128,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/hostname ixr,
   /{,usr/}bin/id ixr,
   /{,usr/}bin/igawk ixr,
+  /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{,usr/}bin/less{,file,pipe} ixr,
@@ -141,6 +143,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/mktemp ixr,
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
+  /{,usr/}bin/nice ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
@@ -242,6 +245,10 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/@{pid}/comm r,
 
+  # Per man(5) proc, the kernel enforces that a thread may only modify its comm
+  # value or those in its thread group.
+  owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
   # Miscellaneous accesses
   /dev/{,u}random w,
   /etc/machine-id r,
@@ -251,6 +258,7 @@ var defaultTemplate = []byte(`
   @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
+  /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
@@ -270,6 +278,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
@@ -301,6 +310,10 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
+  # Read-only install directory for other revisions to help with bugs like
+  # LP: #1616650 and LP: #1655992
+  @{INSTALL_DIR}/@{SNAP_NAME}/**  mrkix,
+
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
@@ -326,6 +339,8 @@ var defaultTemplate = []byte(`
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
+  # Also allow app-specific access for sem_open()
+  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
@@ -334,6 +349,11 @@ var defaultTemplate = []byte(`
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
   unix peer=(label=snap.@{SNAP_NAME}.*),
+
+  # Allow apps from the same package to communicate with each other via DBus.
+  # Note: this does not grant access to the DBus sockets of well known buses
+  # (will still need to use an appropriate interface for that).
+  dbus (receive, send) peer=(label=snap.@{SNAP_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,

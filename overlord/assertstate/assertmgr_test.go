@@ -83,8 +83,8 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return a, nil
 }
 
-func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.Snap not expected")
+func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.SnapInfo not expected")
 }
 
 func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
@@ -272,6 +272,9 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 }
 
 func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
 	batch := assertstate.NewBatch()
 
 	var a asserts.Assertion
@@ -293,7 +296,7 @@ func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
 	})()
 
 	err := batch.Add(a)
-	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 1 is latest supported`)
+	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 111 is latest supported`)
 }
 
 func fakeSnap(rev int) []byte {
@@ -997,4 +1000,26 @@ func (s *assertMgrSuite) TestAutoAliases(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(aliases, DeepEquals, []string{"alias1", "alias2"})
+}
+
+func (s *assertMgrSuite) TestPublisher(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	acct, err := assertstate.Publisher(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
+	c.Check(acct.Username(), Equals, "developer1")
 }

@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
+	unix "syscall"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
@@ -32,6 +35,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -174,6 +178,41 @@ func logit(handler http.Handler) http.Handler {
 	})
 }
 
+// getListener tries to get a listener for the given socket path from
+// the listener map, and if it fails it tries to set it up directly.
+func getListener(socketPath string, listenerMap map[string]net.Listener) (net.Listener, error) {
+	if listener, ok := listenerMap[socketPath]; ok {
+		return listener, nil
+	}
+
+	if c, err := net.Dial("unix", socketPath); err == nil {
+		c.Close()
+		return nil, fmt.Errorf("socket %q already in use", socketPath)
+	}
+
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	address, err := net.ResolveUnixAddr("unix", socketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	runtime.LockOSThread()
+	oldmask := unix.Umask(0111)
+	listener, err := net.ListenUnix("unix", address)
+	unix.Umask(oldmask)
+	runtime.UnlockOSThread()
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("socket %q was not activated; listening", socketPath)
+
+	return listener, nil
+}
+
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
@@ -183,28 +222,33 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	listenerMap := make(map[string]net.Listener)
+	listenerMap := make(map[string]net.Listener, len(listeners))
 
 	for _, listener := range listeners {
 		listenerMap[listener.Addr().String()] = listener
 	}
 
 	// The SnapdSocket is required-- without it, die.
-	if listener, ok := listenerMap[dirs.SnapdSocket]; ok {
+	if listener, err := getListener(dirs.SnapdSocket, listenerMap); err == nil {
 		d.snapdListener = &ucrednetListener{listener}
 	} else {
-		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
+		return fmt.Errorf("when trying to listen on %s: %v", dirs.SnapdSocket, err)
 	}
 
-	// Note that the SnapSocket listener does not use ucrednet. We use the lack
-	// of remote information as an indication that the request originated with
-	// this socket. This listener may also be nil if that socket wasn't among
-	// the listeners, so check it before using it.
-	d.snapListener = listenerMap[dirs.SnapSocket]
+	if listener, err := getListener(dirs.SnapSocket, listenerMap); err == nil {
+		// Note that the SnapSocket listener does not use ucrednet. We use the lack
+		// of remote information as an indication that the request originated with
+		// this socket. This listener may also be nil if that socket wasn't among
+		// the listeners, so check it before using it.
+		d.snapListener = listener
+	} else {
+		logger.Debugf("cannot get listener for %q: %v", dirs.SnapSocket, err)
+	}
 
 	d.addRoutes()
 
 	logger.Debugf("init done in %s", time.Now().Sub(t0))
+	logger.Noticef("started %v.", httputil.UserAgent())
 
 	return nil
 }

@@ -21,6 +21,7 @@ package patch
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -141,6 +142,8 @@ func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
 	return &snapsup, nil
 }
 
+var errNoSnapState = errors.New("no snap state")
+
 func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4SnapState, error) {
 	var snapst patch4SnapState
 
@@ -152,11 +155,11 @@ func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4
 	var snaps map[string]*json.RawMessage
 	err = task.State().Get("snaps", &snaps)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get snaps state: %v", err)
+		return nil, nil, errNoSnapState
 	}
 	raw, ok := snaps[snapsup.Name()]
 	if !ok {
-		return nil, nil, fmt.Errorf("cannot get snap state for %q: %v", snapsup.Name(), err)
+		return nil, nil, errNoSnapState
 	}
 	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
@@ -224,6 +227,16 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 
 func (p4 patch4T) mangle(task *state.Task) error {
 	snapsup, snapst, err := p4.snapSetupAndState(task)
+	if err == errNoSnapState {
+		change := task.Change()
+		if change.Kind() != "install-snap" {
+			return fmt.Errorf("cannot get snap state for task %s (%s) of change %s (%s != install-snap)", task.ID(), task.Kind(), change.ID(), change.Kind())
+		}
+		// we expect pending/in-progress install changes
+		// possibly not to have reached link-sanp yet and so
+		// have no snap state yet, nothing to do
+		return nil
+	}
 	if err != nil {
 		return err
 	}

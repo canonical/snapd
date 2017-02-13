@@ -1,0 +1,6 @@
+name: test-snapd-classic-confinement
+version: 1.0
+confinement: classic
+apps:
+    test-snapd-classic-confinement:
+        command: bin/classic-confinement

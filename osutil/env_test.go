@@ -36,11 +36,13 @@ func (s *envSuite) TestGetenvBoolTrue(c *check.C) {
 	os.Unsetenv(key)
 
 	for _, s := range []string{
-		"1", "t", "TRUE", // etc
+		"1", "t", "TRUE",
 	} {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
 		c.Check(osutil.GetenvBool(key), check.Equals, true, check.Commentf(s))
+		c.Check(osutil.GetenvBool(key, false), check.Equals, true, check.Commentf(s))
+		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
 	}
 }
 
@@ -50,10 +52,33 @@ func (s *envSuite) TestGetenvBoolFalse(c *check.C) {
 	c.Assert(osutil.GetenvBool(key), check.Equals, false)
 
 	for _, s := range []string{
-		"", "0", "f", "FALSE", // etc
+		"", "0", "f", "FALSE", "potato",
 	} {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
 		c.Check(osutil.GetenvBool(key), check.Equals, false, check.Commentf(s))
+		c.Check(osutil.GetenvBool(key, false), check.Equals, false, check.Commentf(s))
+	}
+}
+
+func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
+	key := "__XYZZY__"
+	os.Unsetenv(key)
+	c.Assert(osutil.GetenvBool(key), check.Equals, false)
+
+	for _, s := range []string{
+		"0", "f", "FALSE",
+	} {
+		os.Setenv(key, s)
+		c.Assert(os.Getenv(key), check.Equals, s)
+		c.Check(osutil.GetenvBool(key, true), check.Equals, false, check.Commentf(s))
+	}
+
+	for _, s := range []string{
+		"", "potato", // etc
+	} {
+		os.Setenv(key, s)
+		c.Assert(os.Getenv(key), check.Equals, s)
+		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
 	}
 }

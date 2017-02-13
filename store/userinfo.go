@@ -27,10 +27,12 @@ import (
 	"time"
 
 	"gopkg.in/retry.v1"
+
+	"github.com/snapcore/snapd/httputil"
 )
 
 var (
-	httpClient = newHTTPClient(&httpClientOpts{
+	httpClient = httputil.NewHTTPClient(&httputil.ClientOpts{
 		Timeout:    10 * time.Second,
 		MayLogBody: true,
 	})

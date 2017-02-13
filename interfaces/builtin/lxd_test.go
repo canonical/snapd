@@ -48,7 +48,6 @@ var _ = Suite(&LxdInterfaceSuite{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
 				SuggestedName: "lxd",
-				SideInfo:      snap.SideInfo{Developer: "canonical"},
 			},
 			Name:      "lxd",
 			Interface: "lxd",

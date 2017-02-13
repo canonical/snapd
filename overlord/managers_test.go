@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -120,7 +121,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
-	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
+	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevdev", map[string]interface{}{
 		"account-id": "devdevdev",
 	}, "")
 	err = ms.storeSigning.Add(ms.devAcct)
@@ -495,12 +496,15 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
-	c.Check(info.Developer, Equals, "bar")
 	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
+
+	pubAcct, err := assertstate.Publisher(st, info.SnapID)
+	c.Assert(err, IsNil)
+	c.Check(pubAcct.AccountID(), Equals, "devdevdev")
+	c.Check(pubAcct.Username(), Equals, "devdevdev")
 
 	snapRev42, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": digest,
@@ -542,7 +546,6 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(50))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
 
 	snapRev50, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
@@ -574,11 +577,9 @@ apps:
 	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
 
 	si := &snap.SideInfo{
-		RealName:    "foo",
-		SnapID:      fooSnapID,
-		Revision:    snap.R(55),
-		DeveloperID: "devdevdevID",
-		Developer:   "devdevdev",
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
 	}
 
 	st := ms.o.State()
@@ -609,8 +610,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(info.Revision, Equals, snap.R(55))
 	c.Check(info.SnapID, Equals, fooSnapID)
-	c.Check(info.DeveloperID, Equals, "devdevdevID")
-	c.Check(info.Developer, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.5")
 
 	// ensure that the binary wrapper file got generated with the right
@@ -648,11 +647,9 @@ slots:
 	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
 
 	si := &snap.SideInfo{
-		RealName:    "foo",
-		SnapID:      fooSnapID,
-		Revision:    snap.R(55),
-		DeveloperID: "devdevdevID",
-		Developer:   "devdevdev",
+		RealName: "foo",
+		SnapID:   fooSnapID,
+		Revision: snap.R(55),
 	}
 
 	st := ms.o.State()
@@ -1323,6 +1320,166 @@ apps:
 	dest, err = os.Readlink(app2Alias)
 	c.Assert(err, IsNil)
 	c.Check(dest, Equals, "foo.app2")
+}
+
+func (ms *mgrsSuite) TestHappyOrthogonalRefreshAutoAliases(c *C) {
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "foo",
+		"auto-aliases": []interface{}{"app1"},
+	}, map[string]interface{}{
+		"snap-name": "bar",
+	})
+
+	fooYaml := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+  aliases: [app1]
+ app2:
+  command: bin/app2
+  aliases: [app2]
+`
+
+	barYaml := `name: bar
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+  aliases: [app1]
+ app3:
+  command: bin/app3
+  aliases: [app3]
+`
+
+	fooPath, _ := ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.0", -1), "10")
+	ms.serveSnap(fooPath, "10")
+
+	barPath, _ := ms.makeStoreTestSnap(c, strings.Replace(barYaml, "@VERSION@", "2.0", -1), "20")
+	ms.serveSnap(barPath, "20")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	ts, err = snapstate.Install(st, "bar", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg = st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(10))
+	c.Check(info.Version, Equals, "1.0")
+
+	info, err = snapstate.CurrentInfo(st, "bar")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(20))
+	c.Check(info.Version, Equals, "2.0")
+
+	var allAliases map[string]map[string]string
+	err = st.Get("aliases", &allAliases)
+	c.Check(err, IsNil)
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"foo": {
+			"app1": "auto",
+		},
+	})
+
+	// foo gets a new version/revision and a change of auto-aliases
+	// bar gets only the latter
+	// app1 is transferred from foo to bar
+	// UpdateMany after a snap-declaration refresh handles all of this
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "foo",
+		"auto-aliases": []interface{}{"app2"},
+		"revision":     "1",
+	}, map[string]interface{}{
+		"snap-name":    "bar",
+		"auto-aliases": []interface{}{"app1", "app3"},
+		"revision":     "1",
+	})
+
+	// new foo version/revision
+	fooPath, _ = ms.makeStoreTestSnap(c, strings.Replace(fooYaml, "@VERSION@", "1.5", -1), "15")
+	ms.serveSnap(fooPath, "15")
+
+	// refresh all
+	err = assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	updated, tss, err := snapstate.UpdateMany(st, nil, 0)
+	c.Assert(err, IsNil)
+	sort.Strings(updated)
+	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
+	c.Assert(tss, HasLen, 3)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+	chg.AddAll(tss[1])
+	chg.AddAll(tss[2])
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(15))
+	c.Check(info.Version, Equals, "1.5")
+
+	allAliases = nil
+	err = st.Get("aliases", &allAliases)
+	c.Check(err, IsNil)
+	c.Check(allAliases, DeepEquals, map[string]map[string]string{
+		"foo": {
+			"app2": "auto",
+		},
+		"bar": {
+			"app1": "auto",
+			"app3": "auto",
+		},
+	})
+
+	app2Alias := filepath.Join(dirs.SnapBinariesDir, "app2")
+	dest, err := os.Readlink(app2Alias)
+	c.Assert(err, IsNil)
+	c.Check(dest, Equals, "foo.app2")
+
+	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
+	dest, err = os.Readlink(app1Alias)
+	c.Assert(err, IsNil)
+	c.Check(dest, Equals, "bar.app1")
+	app3Alias := filepath.Join(dirs.SnapBinariesDir, "app3")
+	dest, err = os.Readlink(app3Alias)
+	c.Assert(err, IsNil)
+	c.Check(dest, Equals, "bar.app3")
 }
 
 type authContextSetupSuite struct {

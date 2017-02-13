@@ -1,0 +1,2388 @@
+snapd (2.23~14.04) UNRELEASED; urgency=medium
+
+  * New upstream release, LP: #xxx
+    - ...
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Jan 2017 15:04:26 +0100
+
+snapd (2.22.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - cherry pick fix for sched_setscheduler regression
+      (LP: #1661265)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Feb 2017 17:13:51 +0100
+
+snapd (2.22.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - cherry pick fix for snapctl auth.json handling
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 01 Feb 2017 17:10:39 +0100
+
+snapd (2.22~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1659522
+    - many: make ubuntu-core-launcher mostly go
+    - interfaces/builtin: add account-control interface
+    - interfaces/builtin: add missing syscalls to core-support needed
+      for systemctl
+    - interfaces/builtin: rework core-support to only allow full access
+      to systemctl
+    - debian/tests: drop stale autopkgtest dependencies.
+    - tests: make the debugging of c-unit-tests more useful
+    - store: retry auth-related requests
+    - tests: integration test for system reload
+    - snap: be more helpful in the `snap install <already-installed>`
+      error message
+    - tests: set SNAPPY_USE_STAGING_STORE in su call
+    - tests: use test snap
+    - spread: set SNAPD_DEBUG=1 in the core snap as well
+    - tests: add extra debugging to security-setuid-root test
+    - cmd,snap,wrappers: systemd reload command support
+    - interfaces: builtin: mir: Allow recv and send
+    - overlord/ifacestate: use ParseConnRef
+    - overlord/snapstate,overlord/ifacestate: add automatic ubuntu-core
+      -> core transition
+    - debian: remove aliases as well in snapd.postrm
+    - many: change interfaces.ParseID to return value
+    - interfaces/opengl: allow access to the nvidia abstract socket
+    - overlord, daemon: flag failures feature fancy forms.
+    - many: add --classic support to try and revert, and make missing
+      these things a little harder
+    - interfaces: allow reading non-PCI-attached usb devices via raw-usb
+    - many: rename snap-alter-ns to snap-update-ns
+    - interfaces/builtin: add core-support
+    - store: increase the retry.LimitTime()
+    - debian: move the packaging out into package/$id-$version_id
+    - overlord/stapstate: don't use unkeyed fields
+    - many: add stub implementation of snap-alter-ns
+    - asserts: improve error message when key is not valid at the given
+      time
+    - snapstate, ifacestate: add snapstate.CheckChangeConflict() to
+      ifacestate.{Connect,Disconnect}
+    - debian: remove trusty specific bits
+    - docs: Add a note about building snapd.
+    - interfaces: miscellaneous updates for default and network-control
+    - daemon: bubble out store.ErrSnapNotFound in the findOne codepath
+    - store: add retry logging into download as well
+    - snap: show price in `snap info`
+    - cmd: add fault injection support code
+    - interfaces: network-manager: allow rw access to /etc/netplan
+    - debian: move systemd files out of ./debian and into ./data/systemd
+    - asserts: implement SuggestFormat to help avoid specifying the
+      wrong format iteration for an assertion
+    - many: detect potentially insecure use of snap-confine
+    - interfaces: allow querying added security backends
+    - cmd: ensure that all .c files have a -test.c file
+    - asserts: don't use 'context' for the path of attributes, want to
+      reuse the concept for something else
+    - interfaces: abbreviate ConnRef construction
+    - tests: ensure systemd override directory is available before using
+      it
+    - cmd: more build system cleanups and a small fix
+    - tests: increase retries for service up
+    - cmd: move seccomp cleanup function to seccomp-support
+    - many: auto-connect plugs and slots symmetrically
+    - overlord: use a ticker for the pruning
+    - interfaces/builtin: add uhid interface
+    - cmd/snap-confine: add shutdown helper
+    - tests: fix path used when debugging
+    - cmd: switch to non-recursive make
+    - overlord/ifacestate: setup security of snaps affected by auto-
+      connection
+    - spread: refresh apt cache before first install
+    - overlord: allow max 500 changes in "ready" state to avoid growing
+      changes for 24h
+    - snap: add {Plug,Slot}Info.SecurityTags
+    - cmd: move snap-discard-ns to dedicated directory
+    - tests: skip i18n test when no "snappy.mo" file is available
+    - interfaces,overlord/ifacestate: small refactor around reference
+      methods
+    - tests: remove the snapd dirs last (should fix random test errors)
+    - interfaces: mm: permissions for protocol proxies
+    - interfaces/builtin: add evolution interfaces
+    - many: extract the logging http client and user-agent handling for
+      use in devicestate
+    - interfaces: unity8-download-manager is the chosen name for this
+      interface.
+    - tests: add "quiet" wrapper function that only prints output on
+      failure
+    - tests: fix failing snapd-reexec test
+    - docs: simplify HACKING.md that snapd itself supports setting up
+      the sockets
+    - overlord: flag required-snaps from model as required and prevent
+      removing them
+    - spread: exclude .o and .a files
+    - tests: parameterize remote store
+    - cmd: fix hardcoded paths to rst2man and support rst2man.py
+    - tests: improve debug output when reexec is used
+    - tests: disable ipv6 before unpacking delta
+    - interfaces: add new interface API
+    - tests: change TRUST_TEST_KEYS to be controlled from the host
+    - spread: add boilerplate for Linode delta uploads
+    - wrappers: add support for the X-Ayatana-Desktop-Shortcuts=
+      extension
+    - partition: add support for native grubenv read/write and use it
+    - tests: add test ensuring manual pages are shipped
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 27 Jan 2017 23:25:49 +0100
+
+snapd (2.21~14.04.2) trusty; urgency=medium
+
+  * New upstream release, LP: #1656382:
+    - trusty backport
+    - remove debian/tests/control golang-golang-x-net-dev dependency
+      to make autopkgtests work
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Jan 2017 11:42:00 +0100
+
+snapd (2.21~14.04.1) trusty; urgency=medium
+
+  * New upstream release, LP: #1656382:
+    - trusty backport
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 16 Jan 2017 07:46:23 +0100
+
+snapd (2.21) xenial; urgency=medium
+
+  * New upstream release, LP: #1656382
+    - daemon: re-enable reexec
+    - interfaces: allow reading installed files from previous revisions
+      by default
+    - daemon: make activation optional
+    - tests: run all snap-confine tests in c-unit-tests task
+    - many: fix abbreviated forms of disconnect
+    - tests: switch more tests to MATCH
+    - store: export userAgent. daemon: print store.UserAgent() on
+      startup.
+    - tests: test classic confinement `snap list` and  `snap info`
+      output
+    - debian: skip snap-confine unit tests on nocheck
+    - overlord/snapstate: share code between Update and UpdateMany, so
+      that it deals with auto-aliases correctly
+    - interfaces: upower-observe: refactor to allow snaps to provide a
+      slot
+    - tests: add end-to-end store test for classic confinement
+    - overlord,overlord/snapstate: have UpdateMany retire/enable auto-
+      aliases even without new revision
+    - interfaces/browser-support: add @{PROC}/@{pid}/fd/[0-9] w and misc
+      /run/udev
+    - interfaces/builtin: add physical-memory-* and io-ports-control
+    - interfaces: allow getsockopt by default since it is so commonly
+      used
+    - cmd/snap, daemon, overlord/snapstate: tests and fixes for "snap
+      refresh" of a classic snap
+    - interfaces: allow read/write access of real-time clock with time-
+      control interface
+    - store: request no CDN via a header using SNAPPY_STORE_NO_CDN
+      envvar
+    - snap: add information about tracking channel (not just actual
+      channel)
+    - interfaces: use fewer dot imports
+    - overlord/snapstate: remove restrictions on ResetAliases
+    - overlord, store: move confinement filtering to the overlord (from
+      The Store)
+    - many: move interface test helpers to ifacetest package
+    - many: implement 'snap aliases'
+    - vet: fix for unkeyed fields error on aliases_test.go
+    - interfaces: miscellaneous policy updates for network-control,
+      unity7, pulseaudio, default and home
+    - tests: test for auto-aliases
+    - interface hooks: connect plug slot hooks (step 2)
+    - cmd/snap: fix internal naming in snap connect
+    - snap: use "size" as the json tag in snap.ChannelSnapInfo
+    - tests: restore the missing initialization of iface manager causing
+      race
+    - snap: fix missing sizes in `snap info <remote-snap>`
+    - tests: improve cleanup for c-unit-tests
+    - cmd/snap-confine: build non-installed libsnap-confine-private.a
+    - cmd/snap-confine: small tweaks to seccomp support code
+    - interfaces/docker-support: allow /run/shm/aufs.xeno for 14.04
+    - many: obtain installed snaps developer/publisher username through
+      assertions
+    - store: setting of fields for details endpoint
+    - cmd/snap-confine: check for rst2man on configure
+    - snap: show `snap --help` output when just running `snap`
+    - interface/builtin: drop the obsolete checks in udisks2
+      SanitizeSlot
+    - cmd/snap: remove currency switch following UX review
+    - spread: find top-level directory before running generate-
+      packaging-dir
+    - interface hooks: prepare plug slot hooks (step 1)
+    - i18n: use github.com/mvo5/gettext.go (pure go) for i18n to avoid
+      cgo
+    - many: put a marker in the User-Agent sent by snapd/snap when under
+      testingThe User-Agent will look like:
+    - tests: fix -reuse and -resend when govendor is missing
+    - snap: provide friendlier `snap find` message when no snaps are
+      found
+    - tests: fix mkversions.sh failure on zesty
+    - spread: install build-essential unconditionally
+    - spread: improve qemu ubuntu-14.04-{32,64} support
+    - overlord/snapstate,daemon: implement GET /v2/aliases handling
+    - store: retry user info request
+    - tests: port more snap-confine regression tests
+    - tests: cancel the scheduled reboot on ubuntu-core-upgrade-no-gc
+      and restore state
+    - tests: debug zesty autopkgtest failures
+    - overlord/snapstate: use keyed fields on literals
+    - tests: use MATCH in install-remove-multi
+    - tests: increase wait time for service to be up
+    - tests: make debug-each succeed if DENIED doesn't match
+    - tests: skip packaging dir generation for non-git based autopkgtest
+      runs
+    - tests: port refresh-all-undo to MATCH
+    - tests: improve snap connect test
+    - tests: port additional snap-confine regression tests
+    - tests: show --version when it matches unknown
+    - tests: optionally use apt proxy for qemu
+    - tests: add hello-classic test
+    - many: behave more consistently when pointed to staging and
+      possibly the fake store
+    - overlord/ifacestate: remove stale comments
+    - interfaces/apparmor: ignore snippets in classic confinement
+    - tests: port first regression test from snap-confine
+    - cmd/snap-confine: disable old tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Jan 2017 19:39:51 +0100
+
+snapd (2.20.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - first trusty backport
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Dec 2016 22:30:50 +0100
+
+snapd (2.20.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - tests: enable the ppc64el tests again
+    - tests: add classic confinement test
+    - tests: run snap confine tests in debian/rules already
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Dec 2016 11:53:29 +0100
+
+snapd (2.20) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - many: implement  "snap alias --reset" using snapstate.ResetAliases
+    - debian: use a packaging branch for 14.04
+    - store: retry downloads on io.Copy errors and sha3 checksum errors
+    - snap: show apps in `snap info`
+    - store: send an explicit X-Ubuntu-Classic header to the store
+    - overlord/snapstate: implement snapstate.ResetAliases
+    - interfaces/builtin: add dbus interface
+    - tests: fix tests on 17.04
+    - store: use mocked retry strategy to make store tests faster
+    - overlord: apply auto-aliases information from the snap-declaration
+      on install or refresh
+    - many: prepare landing on trusty
+    - many: implement snap unalias using snapstate.Unalias
+    - overlord/snapstate: fixing the placement/grouping of some
+      functions
+    - interfaces: support network namespaces via 'ip netns' in network-
+      control
+    - interfaces/builtin: fix pulseaudio apparmor rules
+    - interfaces/builtin: add iio interface
+    - tests: update custom core snap with the freshly build snap-confine
+    - interfaces: use sysd.{Disable,Stop} instead of sysd.DisableNow()
+    - overlord,overlord/snapstate: implement snapstate.Unalias by
+      generalizing the "alias" task
+    - interfaces: misc openstack snap enablement
+    - cmd/snap: mock terminal.ReadPassword instead of using /dev/ptmx
+    - notifications, daemon: kill the unsupported events endpoint
+    - client: only allow Dangerous option in InstallPath
+    - overlord/ifacestate: no interface checks if no snap id
+    - many: implement alias command
+    - snap: tweak snap install output as designed by Mark
+    - debian: fix Pre-Depends on dpkg
+    - tests: check if snap-confine --version is unknown
+    - cmd/snap-confine: allow content interface mounts
+    - tests: remove ppa:snappy-dev/image again
+    - interfaces/apparmor: allow access to core snap
+    - tests: remove snap-confine/ubuntu-core-launcher after the tests
+    - overlord,overlord/snapstate: implement snapstate.Alias
+    - cmd/snap: reject "snap disconnect foo"
+    - debian: add split ubuntu-core-launcher and snap-confine packages
+    - cmd: fix mkversion.sh and add regression test
+    - overlord/snapstate: setup/remove aliases as we link/unlink snaps
+    - cmd/snap,tests: alias support in snap run
+    - snap/snapenv: don't obscure HOME if snap uses classic confinement
+    - store: decode response.Body json inside retry loops
+    - cmd/snap-confine: fix compilation on platforms with gcc < 4.9.0
+    - vendor: update tomb package fixing context support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Dec 2016 22:07:08 +0100
+
+snapd (2.19) xenial; urgency=medium
+
+  * New upstream release, LP: #1648520
+    - cmd/snap-confine: disable support for XDG_RUNTIME_DIR
+    - cmd/snap-confine/tests: fix stale path after move to snapd
+    - cmd/snap-confine: don't use __attribute__((nonull))
+    - snap: add description to `snap info`
+    - snap: show last refresh time
+    - store: switch default delta format from xdelta to xdelta3
+    - interfaces: fix system-observe interface to work with ps_mem
+    - debian: add missing ca-certificates dependency
+    - cmd/snap-confine: add support for classic confinement
+    - snapstate/backend: add backend methods to manage aliases
+    - tests: re-enable snap-confine unit tests via spread
+    - many: merge snap-confine into snapd
+    - many: add support for classic confinement
+    - snap: abort install with ctrl+c
+    - cmd/snap: change terms accept URL following UX review
+    - interfaces/apparmor: use distinct apparmor template for classic
+    - snap: add snap size to `snap info`
+    - interfaces: add unconfined access to modem-manager
+    - snap: support for parsing and exposing on snap.Info aliases
+    - debian: disable autopkgtests on ppc64el
+    - snap: disable support for socket activation
+    - tests: fix incorrect restore of the current symlink
+    - asserts: introduce auto-aliases header in snap-declaration
+    - interfaces/seccomp: add support for classic confinement
+    - tests: do not use external snaps
+    - daemon: close the dup()ed file descriptor to not leak it
+    - overlord, daemon, progress: enable building snapd without CGO
+    - daemon, store: let snap info find things in any channel
+    - store: retry tweaks and logging
+    - snap: Improve `snap --help` output as designed by Mark
+    - interfaces/builtin: fix incorrect udev rule in i2c
+    - overlord: increase test timeout and improve failure message
+    - snap: remove unused experimental command
+    - debian: remove unneeded conflict against the "snappy" package
+    - daemon, strutil: move daemon.quotedNames to strutil.Quoted
+    - docs: document SNAP_DEBUG_HTTP in HACKING.md
+    - cmd/snap: have some completers
+    - snap: support "daemon: notify" in snap.yaml
+    - snap: fix try command when daemon linie is added
+    - interfaces: apparmor support for classic confinement
+    - debian/rules: build with -buildoptions=pie
+    - tests: include /boot in saved state (including bootenv and any
+      kernels)
+    - daemon: ensure `snap try` installs core if it's missing
+    - tests: save/restore /snap/core/current symlink
+    - tests: decrease the number of expected featured apps
+    - tests: add set -e to the prepare ssh script
+    - cmd/snap: add tests for section completion; fix bugs.
+    - cmd/snap: document 'snap list --all'
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 08 Dec 2016 16:16:04 +0100
+
+snapd (2.18.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - daemon: fix crash when `snap refresh` contains a single update
+    - fix unhandled error from io.Copy() in download()
+    - interfaces/builtin: fix incorrect udev rule in i2c
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 05 Dec 2016 15:04:13 +0100
+
+snapd (2.18) xenial; urgency=medium
+
+  * New upstream release, LP: #1644625
+    - store: retry on io.EOF
+    - tests: skip pty tests on ppc64el and powerpc
+    - client, cmd/snap: introducing "snap info"
+    - snap: do exit 0 on install/remove if that snap is already
+      installed or already removed
+    - snap: add `snap watch <change-id>` to attach to a running change
+    - store: retry downloads using retry loop
+    - snap: try doesn't require snap-dir when run in snap's directory
+    - daemon: show what will change in the "refresh-all" changes
+    - tests: disable autorefresh for the external backend
+    - snap: add `snap list -a` to show all snaps (even inactive ones)
+    - many: unify boolean env var handling
+    - overlord/ifacestate: don't setup jailmode snaps with devmode
+      confinement
+    - snapstate: do not garbage collect the snaps used by the bootenv
+    - debian: drop hard xdelta dependency for now
+    - snap: make `snap login` ask for email if not given as argument
+    - osutil: fix build on armhf (arm in go-arch) and powerpc (ppc in
+      go-arch)
+    - many: rename DevmodeConfinement to DevModeConfinement
+    - store: resp.Body.Close() missing in ReadyToBuy
+    - many: use ConfinementOptions instead of ConfinementType
+    - snap, daemon, store: fake the channel map in the REST API
+    - misc: run github.com/gordonklaus/ineffassign as part of the static
+      checks
+    - docs: add goreportcard badge and remove coveralls badge
+    - tests: force gofmt -s in static checks
+    - many: run gofmt -s -w on all the code
+    - store: DRY actual retry code
+    - many: fix various errors uncovered by goreportcard.com
+    - interfaces/builtin: allow additional shared memory for webkit
+    - many: some more missing snapState->snapst
+    - asserts: introduce an optional freeform display-name for model
+    - interfaces/builtin: rename usb-raw to raw-usb
+    - progress: init pbar with correct total value
+    - daemon/api.go: add quotedNames() helper
+    - interfaces: add ConfinementOptions type
+    - tests: add a test about the extra bits that prepare-device can
+      specify for device registration
+    - tests: check that gpio device nodes are exported after reboot
+    - tests: parameterize core channel with env var for classic too
+    - many: rename variable "ss" to "snapsup" or "snapst" or "st"
+      (depending on context)
+    - tests: do not use external snaps in spread
+    - store: retry buy request
+    - store: retry store.Find
+    - store: retry assertion store call
+    - store: retry call for snap details
+    - many: use snap.ConfinementType rather than bool devmode
+    - daemon: if a bad snap is posted it is not an internal error but a
+      bad request
+    - client: add "Snap.Screenshots" to the client API
+    - interfaces: update base declaration documentation and policy for
+      on-classic and snap-type
+    - store: check payment method before TOS for a better UX
+    - interfaces: allow sched_setaffinity in process-control
+    - tests: parameterize core channel with env var
+    - tests: ensure that the XDG_ env contains at least XDG_RUNTIME_DIR
+    - interfaces: fcitx also listens on the session bus for Qt apps
+    - store: retry ListRefresh
+    - snap: use "Password of <email>:" in the `snap login`
+    - many: reshuffle how we load/inject tests keys so image doesn't
+      need assertstate anymore
+    - store: use range requests if we have a local file already
+    - dirs,interfaces,overlord,snap,snapenv,test: export per-snap
+      XDG_RUNTIME_DIR per user
+    - osutil: make RealUser only look at SUDO_USER when uid==0
+    - tests: do not use the ppa:snappy-dev/image in the tests
+    - store: retry readyToBuy request
+    - tests: increase `expect` timeouts
+    - static tests: add spell check
+    - tests: add debug to all flaky expect tests
+    - systemd: correct the mount arguments when mounting with squashfuse
+    - interfaces: add avahi-observe
+    - store: bring delta downloads back
+    - interfaces: add alsa
+    - interfaces/builtin: fix a broken test that snuck into master
+    - osutil: add chattr funcs
+    - image: init "snap_mode" on image creation time to avoid ugly
+      messages
+    - tests: test-snapd-fuse-consumer needs python-fuse as a build-
+      package
+    - interfaces/builtin: add i2c interface
+    - interfaces: add ofono interface
+    - tests: do not use hello-world in our tests
+    - snap: add support for classic confinement
+    - interfaces: remove LegacyAutoConnect() from the interfaces
+    - interfaces: miscellaneous policy updates
+    - tests: run autopkgtests in the autopkgtest.ubuntu.com
+      infrastructure
+    - Implement lxd-client interface exposing the lxd snap
+    - asserts: validate optional account username
+    - many: remove unnecessary snap name parameter from buying endpoint
+    - tests: do not hardcode the size of /dev/ram0
+    - tests: add test that ensures the right content for /etc/os-release
+    - spread tests: fix snap mode check
+    - docs: fix path for source files location in HACKING.md
+    - interfaces/builtin/mir: allow slot to make recvfrom syscalls
+    - store: sections/featured snaps store support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 24 Nov 2016 19:43:08 +0100
+
+snapd (2.17.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1637215:
+    - release: os-release on core has changed
+    - tests: /dev/ptmx does not work on powerpc, skip here
+    - docs: moved to github.com/snapcore/snapd/wiki (#2258)
+    - debian: golang is not installable on powerpc, use golang-any
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Nov 2016 18:13:10 +0200
+
+snapd (2.17) xenial; urgency=medium
+
+  * New upstream release, LP: #1637215:
+    - overlord/ifacestate: add unit tests for undo of setup-snap-
+      security (#2243)
+    - daemon,overlord,snap,tests: download to .partial in final dir
+      (#2237)
+    - overlord/state: marshaling tests for lanes (#2245)
+    - overlord/state: introduce state lanes (#2241)
+    - overlord/snapstate: fix revert+refresh (#2224)
+    - interfaces/sytemd: enable/disable generated service units (#2229)
+    - many: fix incorrect security files generation on undo
+    - overlord/snapstate: add dynamic snapdX.Y assumes (#2227)
+    - interfaces: network-manager: give slot full read-write access to
+      /run/NetworkManager
+    - docs: update the name of the command for the cross-build
+    - overlord/snapstate: fix missing argument to Noticef
+    - snapstate: ensure gadget/core/kernel can not be disabled (#2218)
+    - asserts: limit to 1y only if len(models) == 0 (#2219)
+    - debian: only install share/locale if available (missing on
+      powerpc)
+    - overlrod/snapstate: fix revert followed by refresh to old-current
+      (#2214)
+    - interfaces/builtin: network-manager and bluez can change hostname
+      (#2204)
+    - snap: switch the auto-import dir to /run/snapd/auto-import
+    - docs: less details about cloud.cfg as requested in trello (#2206)
+    - spread.yaml: Ensure ubuntu user has passwordless sudo for
+      autopkgtests (#2201)
+    - interfaces/builtin: add dcdbas-control interface
+    - boot: do not set boot to try mode if the revision is unchanged
+    - interfaces: add shutdown interface (#2162)
+    - interfaces: add system-power-control interface
+    - many: use the new systemd backend for configuring GPIOs
+    - overlord/ifacestate: setup security for slots before plugs
+    - snap: spool assertion candidates if snapd is not up yet
+    - store,daemon,overlord: download things to a partials dir
+    - asserts,daemon: implement system-user-authority header/concept
+    - interfaces/builtin: home base declaration rule using on-classic
+      for its policy
+    - interfaces/builtin: finish decl based checks
+    - asserts: bump snap-declaration to allow signing with new-style
+      plugs and slots
+    - overlord: checks for kernel installation/refresh based on model
+      assertion and previous kernel
+    - tests/lib/fakestore: fix logic to distinguish assertion not found
+      errors
+    - client: add a few explicit error types (around the request cycle)
+    - tests/lib/fakestore/cmd/fakestore: make it log, and fix a typo
+    - overlord/snapstate: two bugs for one
+    - snappy: disable auto-import of assertions on classic (#2122)
+    - overlord/snapstate: move trash cleanup to a cleanup handler
+      (#2173)
+    - daemon: make create-user --known fail on classic without --force-
+      managed (#2123)
+    - asserts,interfaces/policy: implement on-classic plug/slot
+      constraints
+    - overlord: check that the first installed gadget matches the model
+      assertion
+    - tests: use the snapd-control-consumer snap from the store
+    - cmd/snap: make snap run not talk to snapd for finding the revision
+    - snap/squashfs: try to hard link instead of copying. Also, switch
+      to osutil.CopyFile for cp invocation.
+    - store: send supported max-format when retrieving assertions
+    - snapstate, devicestate: do not remove seed
+    - boot,image,overlord,partition: read/write boot variables in single
+      operation
+    - tests: reenable ubuntu-core tests on qemu
+    - asserts,interfaces/policy: allow OR-ing of subrule constraints in
+      plug/slot rules
+    - many: move from flags as ints to flags as structs-of-bools (#2156)
+    - many: add supports for keeping and finding assertions with
+      different format iterations
+    - snap: stop using ubuntu-core-launcher, use snap-confine
+    - many: introduce an assertion format iteration concept, refuse to
+      add unsupported assertion
+    - interfaces: tweak wording and comment
+    - spread.yaml: dump apparmor denials on spread failure
+    - tests: unflake ubuntu-core-reboot (#2150)
+    - cmd/snap: tweak unknown command error message (#2139)
+    - client,daemon,cmd: add payment-declined error kind (#2107)
+    - cmd/snap: update remove command help (#2145)
+    - many: removed frameworks target and fixed service files (#2138)
+    - asserts,snap: validate attributes to a JSON-compatible type subset
+      (#2140)
+    - asserts: remove unused serial-proof type
+    - tests: skip auto-import tests on systems without test keys (#2142)
+    - overlord/devicestate: don't spam the debug log on classic (#2141)
+    - cmd/snap: simplify auto-import mountinfo parsing (#2135)
+    - tests: run ubuntu-core upgrades on isolated machine (#2137)
+    - overlord/devicestate: recover seeding from old external approach
+      (#2134)
+    - overlord: merge overlord/boot pkg into overlord/devicestate
+      (#2118)
+    - daemon: add postCreateUserSuite test suite (#2124)
+    - tests: abort tests if an update process is scheduled (#2119)
+    - snapstate: avoid reboots if nothing in the boot setup has changed
+      (#2117)
+    - cmd/snap: do not auto-import from loop or non-dev devices (#2121)
+    - tests: add spread test for `snap auto-import` (#2126)
+    - tests: add test for auto-mount assertion import (#2127)
+    - osutil: add missing unit tests for IsMounted (#2133)
+    - tests: check for failure creating user on managed ubuntu-core
+      systems (#2096)
+    - snap: ignore /dev/loop addings from udev (#2111)
+    - tests: remove snapd.boot-ok reference (#2109)
+    - tests: enable tests related to the home interface in all-snaps
+      (#2106)
+    - snapstate: only import defaults from gadget on install (#2105)
+    - many: move firstboot code into the snapd daemon (#2033)
+    - store: send correct JSON type of string for expected payment
+      amount (#2103)
+    - cmd/snap: rename is-managed to managed and tune (#2102)
+    - interfaces,overlord/ifacestate: initial cleaning up of no arg
+      AutoConnect related bits (#2090)
+    - client, cmd: prompt for password when buying (#2086)
+    - snapstate: fix hanging `snap remove` if snap is no longer mounted
+    - image: support gadget specific cloud.conf file (#2101)
+    - cmd/snap,ctlcmd: fix behavior of snap(ctl) get (#2093)
+    - store: local users download from the anonymous url (#2100)
+    - docs/hooks.md: fix typos (#2099)
+    - many: check installation of slots and plugs against declarations
+    - docs: fix missing "=" in the systemd-active docs
+    - store: do not set store auth for local users (#2092)
+    - interfaces,overlord/ifacestate: use declaration-based checking for
+      auto-connect (#2071)
+    - overlord, daemon, snap: support gadget config defaults (#2082)The
+      main semantic changes are:
+    - tests: fix snap-disconnect tests after core rename (#2088)
+    - client,daemon,overlord,cmd: add /v2/users and create-user on auto-
+      import (#2074)
+    - many: abbreviated forms of disconnect (#2066)
+    - asserts: require lowercase model until insensitive matching is
+      ready (#2076)
+    - cmd/snap: add version command, same as --version (#2075)
+    - all: use "core" by default but allow "ubuntu-core" still (#2070)
+    - overlord/devicestate, docs/hooks.md: nest prepare-device
+      configuration options
+    - daemon: fix login API to return local macaroons (#2078)
+    - daemon: do not hardcode UID in userLookup (#2080)
+    - client, cmd: connect fixes (#2026)
+    - many: preparations for switching most of autoconnect to use the
+      declarationsfor now:
+    - overlord/auth: update CheckMacaroon to verify local snapd
+      macaroons (#2069)
+    - cmd/snap: trivial auto-import and download tweaks (#2067)
+    - interfaces: add repo.ResolveConnect that handles name resolution
+    - interfaces/policy: introduce InstallCandidate and its checks
+    - interfaces/policy,overlord: check connection requests against the
+      declarations in ifacestate
+    - many: setup snapd macaroon for local users (#2051)Next step: do
+      snapd macaroons verification.
+    - interfaces/policy: implement snap-id/publisher-id checks
+    - many: change Connect to take ConnRef instead of strings (#2060)
+    - snap: auto mount block devices and import assertions (#2047)
+    - daemon: add `snap create-user --force-managed` support (#2041)
+    - docs: remove references to removed buying features (#2057)
+    - interfaces,docs: allow sharing SNAP{,_DATA,_COMMON} via content
+      iface (#2063)
+    - interfaces: add Plug/Slot/Connection reference helpers (#2056)
+    - client,daemon,cmd/snap: improve create-user APIs (#2054)
+    - many: introduce snap refresh --ignore-validation <snap> to
+      override refresh validation (#2052)
+    - daemon: add support for `snap create-user --known` (#2040)
+    - interfaces/policy: start of interface policy checking code based
+      on declarations (#2050)
+    - overlord/configstate: support nested configuration (#2039)
+    - asserts,interfaces/builtin,overlord/assertstate: introduce base-
+      declaration (#2037)
+    - interfaces: builtin: Allow writing DHCP lease files to
+      /run/NetworkManager/dhcp (#2049)
+    - many: remove all traces of the /v2/buy/methods endpoint (#2045)
+    - tests: add external spread backend (#1918)
+    - asserts: parse the slot rules in snap-declarations (#2035)
+    - interfaces: allow read of /etc/ld.so.preload by default for armhf
+      on series 16 (#2048)
+    - store: change purchase to order and store clean up first pass
+      (#2043)
+    - daemon, store: switch to new store APIs in snapd (#2036)
+    - many: add email to UserState (#2038)
+    - asserts: support parsing the plugs stanza i.e. plug rules in snap-
+      declarations (#2027)
+    - store: apply deltas if explicitly enabled (#2031)
+    - tests: fix create-key/snap-sign test isolation (#2032)
+    - snap/implicit: don't restrict the camera iface to classic (#2025)
+    - client, cmd: change buy command to match UX document (#2011)
+    - coreconfig: nuke it. Also, ignore po/snappy.pot. (#2030)
+    - store: download deltas if explicitly enabled (#2017)
+    - many: allow use of the system user assertion with create-user
+      (#1990)
+    - asserts,overlord,snap: add prepare-device hook for device
+      registration (#2005)
+    - debian: adjust packaging for trusty/deputy systemd (#2003)
+    - asserts: introduce AttributeConstraints (#2015)
+    - interface/builtin: access system bus on screen-inhibit-control
+    - tests: add firewall-control interface test (#2009)
+    - snapstate: pass errors from ListRefresh in updateInfo (#2018)
+    - README: add links to IRC, mailing list and social media (#2022)
+    - docs: add `configure` hook to hooks list (#2024)LP: #1596629
+    - cmd/snap,configstate: rename apply-config variables to configure.
+      (#2023)
+    - store: retry download on 500 (#2019)
+    - interfaces/builtin: support time and date settings via
+      'org.freedesktop.timedate1 (#1832)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 02 Nov 2016 01:17:36 +0200
+
+snapd (2.16) xenial; urgency=medium
+
+  * New upstream release, LP: #1628425
+    - overlord/state: prune old empty changes
+    - interfaces: ppp: load needed kernel module (#2007)
+    - interfaces/builtin: add missing rule to allow run-parts to
+      execute all resolvconf scripts
+    - many: rename apply-config hook to configure
+    - tests: use new spread `debug` feature
+    - many: finish `snap set` API.
+    - overlord: fix and simplify configstate.Transaction
+    - assertions: add system-user assertion
+    - snap: add `snap known --remote`
+    - tests: replace systemd-run with on-the-fly generation of units.
+    - overlord/boot: switch to using assertstate.Batch
+    - snap, daemon, store: pass through screenshots from store
+    - image: add meta/gadget.yaml infrastructure
+    - tests: add test benchmark script
+    - daemon: add the actual ssh keys that got added to the create-user
+      response
+    - daemon: add REST API behind `snap get`
+    - debian: re-add golang-github-gosexy-gettext-dev
+    - tests: added install_local function
+    - interfaces/builtin: fix resolvconf permissions for network-manager
+      interface
+    - tests: use apt as compatible with trusty
+    - many: discard preserved namespace after removing snap
+    - daemon, overlord, store: add ReadyToBuy API to snapd
+    - many: add support for installing/removing multiple snaps
+    - progress: use New64 and fix output newline
+    - interfaces/builtin: allow network-manager to access netplan conf
+      files
+    - tests: build once and install test snap from cache
+    - overlord/state: introduce cleanup support
+    - snap: move/clarify Info.Broken
+    - ctlcmd: add snapctl get.
+    - overlord,store: clean up serial-proof plumbing code
+    - interfaces/builtin: add network-setup-observe interface
+    - daemon,overlord/assertstate: support streams of assertions with
+      snap ack
+    - snapd: kmod backend
+    - tests: ensure HOME is also set correctly
+    - configstate,hookstate: add snapctl set
+    - tests: disable broken create-key test
+    - interfaces: adjust bluetooth-control to allow getsockopt (LP:
+      #1613572)
+    - tests: add a test for core about device initialization and device
+      registration and auth
+    - many: show snap name before the download progress bar
+    - interfaces/builtin: add rcvfrom for client connected plugs to mir
+      interface
+    - asserts: support for maps in assertions
+    - tests: increase timeout for key generation in create-key test
+    - many: validate refreshes against validation assertions by gating
+      snaps
+    - interfaces/apparmor: allow 'm' in default policy for snap-exec
+    - many: avoid snap.InfoFromSnapYaml in tests
+    - interfaces/builtin: allow /dev/net/tun with network-control
+    - tests: add spread test for snap create-key/snap sign
+    - tests: add missing quotes in security-device-cgroups/task.yaml
+    - interfaces: drop ErrUnknownSecurity
+    - store: add "ready to buy" method
+    - snap/snapenv, tests: use root's data dirs when running via sudo
+    - interfaces/builtin: add initial docker interface
+    - snap: remove extra newline after progress is done
+    - docs: fix formating of HACKING.md "Testing snapd"
+    - store : add requestOptions.ExtraHeaders so that individual
+      requests can customise headers.
+    - many: use unique plug/slot names in tests
+    - tests: add tests for the classic dimension
+    - many: add vendoring of dependencies by default
+    - tests: use in-tree snap{ctl,-exec} for all tests
+    - many: support snapctl -h
+    - tests: adjust regex after changes in stat output
+    - store,snap: initial support for delta downloads
+    - interfaces/builtin: add run/udev/data paths to mir interface
+    - snap: lessen annoyance of implicit interface tests
+    - tests: ensure http{,s}_proxy is defined inside the fake-store
+    - interfaces: allow xdg-open in unity7, unity7 cleanups
+    - daemon,store: move store login user logic to store
+    - tests: replace realpath with readlink -f for trusty support.
+    - tests: add https_proxy into environment as well
+    - interfaces/builtin: allow mmaping pulseaudio buffers
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 28 Sep 2016 11:09:27 +0200
+
+snapd (2.15.2ubuntu1) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - snap/snapenv, tests: use root's data dirs when running via sudo
+      (cherry pick PR: #1857)
+    - tests: add https_proxy into environment
+      (cherry pick PR: #1926)
+    - interfaces: allow xdg-open in unity7, unity7 cleanups
+      (cherry pick PR: #1946)
+    - tests: ensure http{,s}_proxy is defined inside the fake-store
+      (cherry pick PR: #1949)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 21 Sep 2016 17:21:12 +0200
+
+snapd (2.15.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - asserts: define a bit less terse Ref.String
+    - interfaces: disable auto-connect in libvirt interface
+    - asserts: check that validation assertions are signed by the
+      publisher of the gating snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Sep 2016 10:42:29 +0200
+
+snapd (2.15.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - image: ensure local snaps are put last in seed.yaml
+    - asserts: revert change that made the account-key's name mandatory.
+    - many: refresh all snap decls
+    - interfaces/apparmor: allow reading /etc/environment
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Sep 2016 09:19:44 +0200
+
+snapd (2.15) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - tests: disable prepare-image-grub test in autopkgtest
+    - interfaces: allow special casing for auto-connect until we have
+      assertions
+    - docs: add a little documentation on hooks.
+    - hookstate,daemon: don't mock HookRunner, mock command.
+    - tests: add http_proxy to /etc/environment in the autopkgtest
+      environment
+    - backends: first bits of kernel-module security backend
+    - tests: ensure openssh-server is installed in autopkgtest
+    - tests: make ubuntu-core tests more robust
+    - many: mostly work to support ABA upgrades
+    - cmd/snap: do runtime linting of descriptions
+    - spread.yaml: don't assume LANG is set
+    - snap: fix SNAP* environment merging in `snap run`
+    - CONTRIBUTING.md: remove integration-tests, include spread
+    - store: don't discard error body from request device session call
+    - docs: add create-user documentation
+    - cmd/snap: match UX document for message when buying without login
+    - firstboot: do not overwrite any existing netplan config
+    - tests: add debug output to ubuntu-core-update-rollback-
+      stresstest:
+    - tests/lib/prepare.sh: test that classic does not setting bootvars
+    - snap: run all tests with gpg2
+    - asserts: basic support for validation assertion and refresh-
+      control
+    - interfaces: miscellaneous policy updates for default, browser-
+      support and camera
+    - snap: (re)add --force-dangerous compat option
+    - tests: ensure SUDO_{USER,GID} is unset in the spread tests
+    - many: clean out left over references to integration tests
+    - overlord/auth,store: fix raciness in updating device/user in state
+      through authcontext and other issuesbonus fixes:
+    - tests: fix spread tests on yakkety
+    - store: refactor auth/refresh tests
+    - asserts: use gpg --fixed-list-mode to be compatible with both gpg1
+      and gpg2
+    - cmd/snap: i18n option descriptions
+    - asserts: required account key name header
+    - tests: add yakkety test host
+    - packaging: make sure debhelper-generated snippet is invoked on
+      postrm
+    - snap,store: capture newest digest from the store, make it
+      DownloadInfo only
+    - tests: add upower-observe spread test
+    - Merge github.com:snapcore/snapd
+    - tests: fixes to actually run the spread tests inside autopkgtest
+    - cmd/snap: make "snap find" error nicer.
+    - tests: get the gadget name from snap list
+    - cmd/snap: tweak help of 'snap download'
+    - cmd/snap,image: teach snap download to download also assertions
+    - interfaces/builtin: tweak opengl interface
+    - interfaces: serial-port use udevUsbDeviceSnippet
+    - store: ensure the payment methods method handles auth failure
+    - overlord/snapstate: support revert flags
+    - many: add snap configuration to REST API
+    - tests: use ubuntu-image for the ubuntu-core-16 image creation
+    - cmd/snap: serialise empty keys list as [] rather than null
+    - cmd/snap,client: add snap set and snap get commands
+    - asserts: update trusted account-key asserts with names
+    - overlord/snapstate: misc fixes/tweaks/cleanups
+    - image: have prepare-image set devmode correctly
+    - overlord/boot: have firstboot support assertion files with
+      multiple assertions
+    - daemon: bail from enable and disable if revision given, and from
+      multi-op if unsupported optons given
+    - osutil: call sync after cp if
+      requested.overlord/snapstate/backend: switch to use osutil instead
+      of another buggy call to cp
+    - cmd/snap: generate account-key-request "since" header in UTC
+    - many: use symlinks instead of wrappers
+    - tests: remove silly [Service] entry from snapd.socket.d/local.conf
+    - store: switch device session to use device-session-request
+      assertion
+    - snap: ensure that plug and slot names are unique
+    - cmd/snap: fix test suite (no Exit(0) on tests!)
+    - interfaces: add interface for hidraw devices
+    - tests: use the real model assertion when creating the core test
+      image
+    - interfaces/builtin: add udisks2 and removable-media interfaces
+    - interface: network_manager: enable resolvconf
+    - interfaces/builtin: usb serial-port support via udev
+    - interfaces/udev: support noneSecurityTag keyed snippets
+    - snap: switch to the new agreed regexp for snap names
+    - tests: adjust test setup after ubuntu user removal
+    - many: start services only after the snap is fully ready (link-snap
+      was run)
+    - asserts: don't have Add/Check panic in the face of unsupported no-
+      authority assertions
+    - asserts: initial support to generate/sign snap-build assertions
+    - asserts: support checking account-key-request assertions
+    - overlord: introduce AuthContext.DeviceSessionRequest with support
+      in devicestate
+    - overlord/state: fix for reloaded task/change crashing on Set if
+      checkpointed w. no custom data  yet
+    - snapd.refresh.service: require snap.socket and /snap/*/current.
+    - many: spell --force-dangerous as just --dangerous, devmode should
+      imply it
+    - overlord/devicestate: try to fetch/refresh the signing key of
+      serial (also in case is not there yet)
+    - image,overlord/boot,snap: metadata from asserts for image snaps
+    - many: automatically restart all-snap devices after os/kernel
+      updates
+    - interfaces: modem-manager: ignore camera
+    - firstboot: only configure en* and eth* interfaces by default
+    - interfaces: fix interface handling on no-app snaps
+    - snap: set user variables even if HOME is unset (like with systemd
+      services)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 16 Sep 2016 07:46:22 +0200
+
+snapd (2.14.2~16.04) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - tests: use the spread tests with the adhoc interface inside
+      autopkgtest
+    - interfaces: add fwupd interface
+    - asserts,cmd/snap: add "name" header to account-key(-request)
+    - client,cmd/snap: display os-release data only on classic
+    - asserts/tool,cmd/snap: introduce hidden "snap sign"
+    - many: when installing snap file derive metadata from assertions
+      unless --force-dangerous
+    - osutil: tweak the createUserTests a bit and extract common code
+    - debian: umount --lazy before rm on snapd.postrm
+    - interfaces: updates to default policy, browser-support, and x11
+    - store: set initial device session
+    - interfaces: add upower-observe interface (LP: #1595813)
+    - tests: use beta u-d-f in test by default
+    - interfaces/builtin: allow writing on /dev/vhci in bluetooth-
+      control
+    - interfaces/builtin: allow /dev/vhci on bluetooth-control
+    - tests: port integration tests to spread
+    - snapstate: use umount --lazy when removing the mount units
+    - spread: enable halt-timeout, tweak image selection
+    - tests: fix firstboot-assertions to actually be runnable on classic
+      again
+    - asserts: introduce device-session-request
+    - interfaces: add screen-inhibit-control interface (LP: #1604880)
+    - firstboot: change location of netplan config
+    - overlord/devicestate: some cleanups and solving a couple todos
+    - daemon,overlord: add subcommand handling to snapctl
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Sep 2016 18:52:05 +0200
+
+snapd (2.14.1) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - snap-exec: add support for commands with internal args in snap-
+      exec
+    - store: refresh expired device sessions
+    - debian: re-add ubuntu-core-snapd-units as a transitional package
+    - image: snap assertions into image
+    - overlord/assertstate,asserts/snapasserts: give snap assertions
+      helpers a package, introduce ReconstructSideInfo
+    - docs/interfaces: Add empty line after lxd-support title
+    - README: cover the new /run/snapd-snap.socket
+    - daemon: make socket split backward-compatible.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 30 Aug 2016 16:43:29 +0200
+
+snapd (2.14) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - cmd: enable SNAP_REEXEC only if it is set to SNAP_REEXEC=1
+    - osutil: fix create-user on classic
+    - firstboot: disable firstboot on classic for now
+    - cmd/snap: add export-key --account= option
+    - many: split public snapd REST API into separate socket.
+    - many: drop ubuntu-core-snapd-units package, use release.OnClassic
+      instead
+    - tests: add content-shareing binary test that excersises snap-
+      confine
+    - snap: use "up to date" instead of "up-to-date"
+    - asserts: add an account-key-request assertion
+    - asserts: fix GPG key generation parameters
+    - tests, integration-tests: implement the cups-control manual test
+      as a spread test
+    - many: clarify/tie down model assertion
+    - cmd/snap: add "snap download" command
+    - integration-tests: remove them in favour of the spread tests
+    - tests: test all snap ubuntu core upgrade
+    - many: support install and remove by revision
+    - overlord/state: prevent change ready => unready
+    - tests: fixes to make the ubuntu-core-16 image usable with
+      -keep/-reuse
+    - asserts: authority-id and brand-id of serial must match
+    - firstboot: generate netplan config rather than ifupdown
+    - store: request device session macaroon from store
+    - tests: add workaround for u-d-f to unblock all-snap image tests
+    - tests: the stable ubuntu-core snap has snap run support now
+    - many: use make StripGlobalRootDir public
+    - asserts: add some stricter checks around format
+    - many: have AuthContext expose device store-id, serial and serial-
+      proof signing to the store
+    - tests: fix "tests/main/ack" to not break if asserts are alreay
+      there
+    - tests/main/ack: fix test/style
+    - snap: add key management commands
+    - firstboot: add firstboot assertions importing
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 29 Aug 2016 17:07:20 +0200
+
+snapd (2.13) xenial; urgency=medium
+
+  * New upstream release: LP: #1616157
+    - many: respect dirs.SnapSnapsDir in tests
+    - tests: update listing test for latest stable image
+    - many: hook in start of code to fetch/check assertions when
+      installing snap from store
+    - boot: add missing udevadm mock to fix FTBFS
+    - interfaces: add lxd-support interface
+    - dirs,snap: handle empty root directory in SetRootDir
+    - dirs,snap: define methods for SNAP_USER_DATA and SNAP_USER_COMMON
+    - tests: spread all-snap test cleanup
+    - tests: add all-snap spread image tests
+    - store,tests: have just one envvar SNAPPY_USE_STAGING_STORE to
+      control talking to staging
+    - overlord/hookstate: use snap run posix parameters.
+    - interfaces/builtin: allow bind in the network interface
+    - asserts,overlord/devicestate: simplify private key/key pairs APIs,
+      they take just key ids
+    - dependencies: update godeps
+    - boot: add support for "devmode: {true,false}" in seed.yaml
+    - many: teach prepare-image to copy the model assertion (and
+      prereqs) into the seed area of the image
+    - tests: start teaching the fakestore about assertions
+    - asserts/sysdb: embed the new format official root/trusted
+      assertions
+    - overlord/devicestate: first pass at device registration logic
+    - tests: add process-control interface spread test
+    - tests: disable unity test
+    - tests: adapt to new spread version
+    - asserts: add serial-proof device assertion
+    - client, cmd/snap: use the new multi-refresh endpoint
+    - many: preparations for image code to fetch model prereqs
+    - debian: add extra checks when debian/snapd.postrm purge is run
+    - overlord/snapstate, daemon: support for multi-snap refresh
+    - tests: do not leave "squashfs-root" around
+    - snap-exec: Fix broken `snap run --shell` and add test
+    - overlord/snapstate: check changes to SnapState for conflicts also.
+    - docs/interfaces: change snappy command to snap
+    - tests: test `snap run --hook` using in-tree snap-exec.
+    - partition: ensure that snap_{kernel,core} is not overridden with an
+      empty value
+    - asserts,overlord/assertstate: introduce an assertstate task
+      handler to fetch snap assertions
+    - spread: disable re-exec to always test development tree.
+    - interfaces: implement a fuse interface
+    - interfaces/hardware-observe.go: re-add /run/udev/data
+    - overlord/assertstate,daemon: reorg how the assert manager exposes
+      the assertion db and adding to it
+    - release: Remove "UBUNTU_CODENAME" from the test data
+    - many: implement snapctl command.
+    - interfaces: mpris updates (fix unconfined introspection, add name
+      attribute)
+    - asserts: export DecodePublicKey
+    - asserts: introduce support for assertions with no authority,
+      implement serial-request
+    - interfaces: bluez: add a few more tests to verify interface
+      connection works
+    - interfaces: bluez: add missing mount security snippet case
+    - interfaces: add kernel-module interface for module insertion.
+    - integration-tests: look for ubuntu-device-flash on PATH before
+      calling sudo
+    - client, cmd, daemon, osutil: support --yaml and --sudoer flags for
+      create-user
+    - spread: use snap-confine from ppa:snappy-dev/image for the tests
+    - many: move to purely hash based key lookup and to new
+      key/signature format (v1)
+    - spread: Use /home/gopath in spread.yaml
+    - tests: base security spread tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 24 Aug 2016 14:48:28 +0200
+
+snapd (2.12) xenial; urgency=medium
+
+  * New upstream release: LP: #1612362
+    - many: do not require root for `snap prepare-image`
+    - tests: prevent restore error on test failure
+    - osutil: change escaping for create-user's sudoers
+    - docs: private flag doesn't exist on /v2/find (it's select)
+    - snap: do not sort the result of `snap find`
+    - interfaces/builtin: add gpio interface
+    - partition: fix cleaning of the boot variables on the second good
+      boot
+    - tests: add udev rules spread test
+    - docs: fix references to refresh action
+    - interfaces/udev,osutil: avoid doubled rules and put all in a per
+      snap file
+    - store: minor store improvements from previous reviews
+    - many: support interactive payments in snapd, filter from command
+      line
+    - docs/interfaces.md: improve interfaces documentation
+    - overlord,store: set store device authorization header
+    - store: add device nonce API support
+    - many: various fixes around the `create-user` command
+    - client, osutil: chown the auth file
+    - interfaces/builtin: add transitional browser-support interface
+    - snap: don't load unsupported implicit hooks.
+    - cmd/snap,cmd/snap-exec: support hooks again.
+    - interfaces/builtin: improve pulseaudio interface
+    - asserts: make account-key's `until` optional to represent a never-
+      expiring key
+    - store: refactor newRequest/doRequest to take requestOptions
+    - tests: allow-downgrades on upgrade test to prevent version errors
+    - daemon: stop using group membership as succedaneous of running
+      things with sudo
+    - interfaces: add bluetooth-control interfaces
+    - many: remove integration-test coverage metrics
+    - daemon,docs: drop license docs and error kind
+    - tests: add network-control interface spread test
+    - tests: add hardware-observe spread test
+    - interfaces: add system-trace interface LP: #1600085
+    - boot: use `cp -aLv` instead of `cp -a` (no symlinks on vfat)
+    - store: soft-refresh discharge macaroon from store when required
+    - partition: clear snap_try_{kernel,core} on success
+    - tests: add snapd-control interface spread test
+    - tests: add locale-control write spread test
+    - store: fix buy method after some refactoring broke it
+    - interfaces/builtin: read perms for network devices in network-
+      observe
+    - interfaces: also allow rfkill in network_control
+    - snapstate: remove artifacts from a snap try dir that vanished
+    - client, cmd/snap: better errors for empty snap list result
+    - wrappers: set BAMF_DESKTOP_FILE_HINT for unity
+    - many: cleanup/update rest.md; improve auth errors
+    - interfaces: miscelleneous policy updates for default, log-observe,
+      mount-observe, opengl, pulseaudio, system-observe and unity7
+    - interfaces: add process-control interface (LP: #1598225)
+    - osutil: support both "nobody" and "nogroup" for grpnam tests
+    - cmd: support defaulting to the user's preferred payment method
+    - overlord: actually run hooks.
+    - overlord/state,overlord/ifacestate: define basic infrastructure
+      for and then setting up serialising of interface mgr tasks
+    - asserts: add Assertion.Prerequisites and SigningKey, Ref and
+      FindTrusted
+    - overlord/snapstate: ensure calls to store are done without the
+      state lock held
+    - asserts,client: switch snap-build and snap-revision to be indexed
+      by snap-sha3-384
+    - many: make seed.yaml on firstboot mandatory and include sideInfo
+    - asserts,many: start supporting structured headers using the new
+      parseHeaders
+    - many: update code for the new snap_mode
+    - tests: added spread find private test
+    - store: deal with 404 froms the SSO store properly
+    - snap: remove meta/kernel.yaml again
+    - daemon: always mock release info in tests
+    - snapstate: drop revisions after "current" on refresh
+    - asserts: introduce new parseHeadersThis introduces the new
+      parseHeaders returning map[string]interface{} and capable of
+      accepting:
+    - asserts: remove/disable comma separated lists and their uses
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Aug 2016 19:30:36 +0200
+
+snapd (2.11) xenial; urgency=medium
+
+  * New upstream release: LP: #1605303
+    - increase version number to reflect the nature of the update
+      better
+    - store, daemon, client, cmd/snap, docs/rest.md: adieu search
+      grammar
+    - debian: move snapd.refresh.timer into timers.target
+    - snapstate: add daemon-reload to fix autopkgtest on yakkety
+    - Interfaces: hardware-observe
+    - snap: rework the output after a snap operation
+    - daemon, cmd/snap: refresh --devmode
+    - store, daemon, client, cmd/snap: implement `snap find --private`
+    - tests: add network-observe interface spread test
+    - interfaces/builtin: allow getsockopt for connected x11 plugs
+    - osutil: check for nogrup instead of adm
+    - store: small cleanups (more needed)
+    - snap/squashfs: fix test not to hardcode snap size
+    - client,cmd/snap: cleanup cmd/snap test suite, add extra args
+      testThis cleans up the cmd/snap test suite:
+    - wrappers: map "never" restart condition to "no."
+    - wrappers: run update-desktop-database after add/remove of desktop
+      files
+    - release: work around elementary mistake
+    - many: remove all traces of channel from the buying codepath
+    - store: kill setUbuntuStoreHeaders
+    - docs: add payment methods documentation
+    - many: present user with a choice of payment backends
+    - asserts: add cross checks for snap asserts
+    - cmd/snap,cmd/snap-exec: support running hooks via snap-exec.
+    - tests: improve snap run symlink tests
+    - tests: add content sharing interface spread test
+    - store & many: a mechanical branch shortening store names
+    - snappy: remove old snappy pkg
+    - overlord/snapstate: kill flagscompat
+    - overlord/snapstate, daemon, client, cmd/snap: devmode override
+      (aka confined)
+    - tests: extend refresh test to talk to the staging and production
+      stores
+    - asserts,daemon: cross checks for account and account-key
+      assertions
+    - client: existing JSON fixtures uses tabs for indentation
+    - snap-exec: add proper integration test for snap-exec
+    - spread.yaml, tests: replace hello-world with test-snapd-tools
+    - tests: add locale-control interface spread test
+    - tests: add mount-observe interface spread test
+    - tests: add system-observe interface spread test
+    - many: add AuthContext to mediate user updates to the state
+    - store/auth: add helper for the macaroon refresh endpoint
+    - cmd: add buy command
+    - overlord: switch snapstate.Update to use ListRefresh (aka
+      /snaps/metadata)
+    - snap-exec: fix silly off-by-one error
+    - tests: stop using hello-world.echo in the tests
+    - tests: add env command to test-snapd-tools
+    - classic: remove (most of) "classic" mode, this is implemented as a
+      snap now
+    - many: remove snapstate.Candidate and other cleanups
+    - many: removed authenticator, store gets a user instead
+    - asserts: fix minor doc comment typo
+    - snap: ensure unknown arguments to `snap run` are ignored
+    - overlord/auth: add Device/SetDevice to persist device identity in
+      state
+    - overlord: make SyncBoot work again
+    - tests: add -y flag to apt autoremove command in unity task restore
+    - many: migrate SnapSetup and SideInfo to use RealName
+    - daemon: drop auther()
+    - client: improve error from client.do() on json decode failures
+    - tests: readd the fake store tests
+    - many: allow removal of broken snaps, add spread test
+    - overlord: implement &Retry{After: duration} support for handlers
+    - interface: add new interfaces.all.SecurityBackends
+    - integration-tests: remove login tests
+    - cmd,interfaces,snap: implement hook whitelist.
+    - daemon,overlord/auth,store: update macaroon authentication to use
+      the new endpoints
+    - daemon, overlord: add buy endpoint to REST API
+    - tests: use systemd-run for starting and stopping the unity app
+    - tests, integration-tests: port systemd service check test to
+      spread
+    - store: switch search to new snap-specific endpoint
+    - store, many: start using the new details endpoint
+    - tests, integration-tests: port unity test to spread
+    - tests: add spread test for tried snaps removal
+    - tests, integration-tests: port auth errors test to spread
+    - snapstate: rename OfficialName to RealName in the new tests
+    - many: rename SideInfo.OfficialName to SideInfo.RealName
+    - snapstate: use snapstate.Type in backend.RemoveSnapFiles
+    - many: add `snap enable/disable` commands
+    - tests, integration-tests: port refresh all test to spread
+    - snap: add `snap run --shell`
+    - tests: set yaml indentation to 4 spaces
+    - snapstate: cleanup downloaded temp snap files
+    - overlord: make patch1_test more robust
+    - debian: add snapd.postrm that purges
+    - integration-tests: drop already covered refresh app test
+    - many: add concept of "broken" snaps
+    - tests, integration-tests: port remove errors tests to spread
+    - tests, integration-tests: port revert test to spread
+    - debian: fix snapbuild path
+    - overlord: fix access to the state without lock in firstboot.go and
+      add test
+    - snapstate: add very simple garbage collection on upgrade
+    - asserts: introduce assertstest with helpers to test code involving
+      assertions
+    - tests, integration tests: port undone failed install test to
+      spread
+    - snap,store: switch to the new snaps/metadata endpoint, introduce
+      and start capturing DeveloperID
+    - tests, integration-tests: port the op remove retry test to spread
+    - po: remove snappy.pot from git, it will be generated at build time
+    - many: add some missing tests, clarify some things and nitpicks as
+      follow up to `snap revert`
+    - snapstate: when doing snapsate.Update|Install, talk to the store
+      early
+    - tests, integration-tests: port the op remove test to spread
+    - interfaces: allow /usr/bin/locale in default policy
+    - many: add `snap revert`
+    - overlord/auth,store: add macaroon serialization/deserialization
+      helpers
+    - many: embed main store trusted assertions in snapd, way to have
+      test ones, spread tests for ack and known
+    - overlord/snapstate,daemon: clarify active vs current, add
+      SnapState.HasCurrent,CurrentInfo
+    - tests: do not search for a specific snap (we hit 100 items) and
+      pagination kicks in
+    - tests: use printf instead of echo where we need portability
+    - tests: rename and generalize basic-binaries to test-snapd-tools
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 26 Jul 2016 15:49:04 +0200
+
+snapd (2.0.10) xenial; urgency=medium
+
+  *  New upstream release: LP: #1597329
+    - interfaces: also allow @{PROC}/@{pid}/mountinfo and
+      @{PROC}/@{pid}/mountstats
+    - interfaces: allow read access to /etc/machine-id and
+      @{PROC}/@{pid}/smaps
+    - interfaces: miscelleneous policy updates for default, log-observe
+      and system-observe
+    - snapstate: add logging after a successful doLinkSnap
+    - tests, integration-tests: port try tests to spread
+    - store, cmd/snapd: send a basic user-agent to the store
+    - store: add buy method
+    - client: retry on failed GETs
+    - tests: actual refresh test
+    - docs: REST API update
+    - interfaces: add mount support for hooks.
+    - interfaces: add udev support for hooks.
+    - interfaces: add dbus support for hooks.
+    - tests, integration-tests: port refresh test to spread
+    - tests, integration-tests: port change errors test to spread
+    - overlord/ifacestate: don't retry snap security setup
+    - integration-tests: remove unused file
+    - tests: manage the socket unit when reseting state
+    - overlord: improve organization of state patches
+    - tests: wait for snapd listening after reset
+    - interfaces/builtin: allow other sr*/scd* optical devices
+    - systemd: add support for squashfuse
+    - snap: make snaps vanishing less fatal for the system
+    - snap-exec: os.Exec() needs argv0 in the args[] slice too
+    - many: add new `create-user` command
+    - interfaces: auto-connect content interfaces with the same content
+      and developer
+    - snapstate: add Current revision to SnapState
+    - readme: tweak readme blurb
+    - integration-tests: wait for listening port instead of active
+      service reported by systemd
+    - many: rename Current -> {CurrentSideInfo,CurrentInfo}
+    - spread: fix home interface test after suite move
+    - many: name unversioned data.
+    - interfaces: add "content" interface
+    - overlord/snapstate: defaultBackend can go away now
+    - debian: comment to remember why the timer is setup like it is
+    - tests,spread.yaml: introduce an upgrade test, support/split into
+      two suites for this
+    - overlord,overlord/snapstate: ensure we keep snap type in snapstate
+      of each snap
+    - many: rework the firstboot support
+    - integration-tests: fix test failure
+    - spread: keep core on suite restore
+    - tests: temporary fix for state reset
+    - overlord: add infrastructure for simple state format/content
+      migrations
+    - interfaces: add seccomp support for hooks.
+    - interfaces: allow gvfs shares in home and temporarily allow
+      socketcall by default (LP: #1592901, LP: #1594675)
+    - tests, integration-tests: port network-bind interface tests to
+      spread
+    - snap,snap/snaptest: use PopulateDir/MakeTestSnapWithFiles directly
+      and remove MockSnapWithHooks
+    - interfaces: add mpris interface
+    - tests: enable `snap run` on i386
+    - tests, integration-tests: port network interface test to spread
+    - tests, integration-tests: port interfaces cli to spread
+    - tests, integration-tests: port leftover install tests to spread
+    - interfaces: add apparmor support for hooks.
+    - tests, integration-tests: port log-observe interface tests to
+      spread
+    - asserts: improve Decode doc comment about assertion format
+    - tests: moved snaps to lib
+    - many: add the camera interface
+    - many: add optical-drive interface
+    - interfaces: auto-connect home if running on classic
+    - spread: bump gccgo test timeout
+    - interfaces: use security tags to index security snippets.
+    - daemon, overlord/snapstate, store: send confinement header to the
+      store for install
+    - spread: run tests on 16.04 i386 concurrently
+    - tests,integration-tests: port install error tests to spread
+    - interfaces: add a serial-port interface
+    - tests, integration-tests, debian: port sideload install tests to
+      spread
+    - interfaces: add new bind security backend and refactor
+      backendtests
+    - snap: load and validate implicit hooks.
+    - tests: add a build/run test for gccgo in spread
+    - cmd/snap/cmd_login: Adjust message after adding support for wheel
+      group
+    - tests, integration-tests: ported install from store tests to
+      spread
+    - snap: make `snap change <taskid>` show task progress
+    - tests, integration-tests: port search tests to spread
+    - overlord/state,daemon: make abort proceed immediately, fix doc
+      comment, improve tests
+    - daemon: extend privileged access to users in "wheel" group
+    - snap: tweak `snap refresh` and `snap refresh --list` outputTiny
+      branch that does three things:
+    - interfaces: refactor auto-connection candidate check
+    - snap: add support for snap {install,refresh}
+      --{edge,beta,candidate,stable}
+    - release: don't force KDE Neon into devmode.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 Jun 2016 21:02:39 +0200
+
+snapd (2.0.9) xenial; urgency=medium
+
+  * New upstream release: LP: #1593201
+    - snap: add the magic redirect part of `snap run`
+    - tests, integration-tests: port server related tests to spread
+    - overlord/snapstate: log restarting in the task
+    - daemon: test restart wiring, fix setup/teardown
+    - cmd: don't show the price if a snap has already been purchased
+    - tests, integration-tests: port listing tests to spread
+    - integration-tests: do not try to kill ubuntu-clock-app.clock (no
+      longer a process)
+    - several: tie up overlord's restart handler into daemon; adjust
+      snap to cope
+    - tests, integration-tests: port abort tests to spread
+    - integration-tests: fix flaky TestRemoveBusyRetries
+    - testutils: refactor/mock exec
+    - snap,cmd: add hook support to snap run.
+    - overlord/snapstate: remove Download from backend
+    - store: use a custom logging transport
+    - overlord/hookstate: implement basic HookManager.
+    - spread: move the suite restore to restore-each
+    - asserts: turn model os into model core field, making it also more
+      like the kernel and gadget fields
+    - asserts: / is not allowed in primary key headers, follow the store
+      in this
+    - release: enable full confinement on Elementary 0.4
+    - integration-tests: fix another i386 autopkgtest failure.
+    - cmd/snap: create SNAP_USER_DATA and common dirs in `snap run`
+    - many: have the installation of the core snap request a restart (on
+      classic)
+    - asserts: allow to load also account assertions into the trusted
+      set
+    - many: install snaps in devmode on distributions without complete
+      apparmor and seccomp support
+    - spread: run on travis
+    - snapenv: do not hardcode amd64 in tests
+    - spread: initial harness and first test
+    - interfaces: miscelleneous policy updates for chromium, x86,
+      opengl, etc
+    - integration-tests: remove daemon to use the log-observe interface
+    - client: remove client.Revision and import snap.Revision instead
+    - integration-tests: wait for network-bind service in try test
+    - many: move over from snappy to snapstate/backend SetupSnap and
+      related code
+    - integration-tests: add interfaces cli tests
+    - snapenv: cleanup snapenv.{Basic,User}
+    - cmd/snap: also print slots that connect to the wanted snap (LP:
+      #1590704)
+    - asserts: error style, use "cannot" instead of "failed to"
+      following the main decided style
+    - integration-tests: wait until the network-bind service is up
+      before testing
+    - many: add new `snap run` command
+    - snappy: unexport snappy.Install and snappy.Overlord.{Un,}Install
+    - many: add some shared testing helpers to snap/snaptest and to
+      boot/boottest
+    - rest-api: support to send apps per snap (LP: #1564076)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 16 Jun 2016 13:56:12 +0200
+
+snapd (2.0.8.1) UNRELEASED; urgency=medium
+
+  * New upstream release
+    - Cherry pick four commits that show snaps as installed in devmode on
+    distributions without full confinement dependencies available:
+
+    25634d3364a46b5e9147e4466932c59b1b572d35
+    53f2e8d5f1b2d7ce13f5b50be4c09fa1de8cf1e0
+    38771f4cc324ad9dd4aa48b03108d13a2c361aad
+    c46e069351c61e45c338c98ab12689a319790bd5
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Tue, 14 Jun 2016 15:55:30 +0200
+
+snapd (2.0.8) xenial; urgency=medium
+
+  * New upstream release: LP: #1589534
+    - debian: make `snap refresh` times more random (LP: #1537793)
+    - cmd: ExecInCoreSnap looks in "core" snap first, and only in
+      "ubuntu-core" snap if rev>125.
+    - cmd/snap: have 'snap list' display helper message on stderr
+      (LP: #1587445)
+    - snap: make app names more restrictive.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Jun 2016 07:56:58 +0200
+
+snapd (2.0.7) xenial; urgency=medium
+
+  * New upstream release: LP: #1589534
+    - debian: do not ship  /etc/ld.so.conf.d/snappy.conf (LP: #1589006)
+    - debian: fix snapd.refresh.service install and usage (LP: #1588977)
+    - ovlerlord/state: actually support task setting themself as
+      done/undone
+    - snap: do not use "." import in revision_test.go, as this breaks
+      gccgo-6 (fix build failure on powerpc)
+    - interfaces: add fcitx and mozc input methods to unity7
+    - interfaces: add global gsettings interfaces
+    - interfaces: autoconnect home and doc updates (LP: #1588886)
+    - integration-tests: remove
+      abortSuite.TestAbortWithValidIdInDoingStatus
+    - many: adding backward compatible code to upgrade SnapSetup.Flags
+    - overlord/snapstate: handle sideloading over an old sideloaded snap
+      without panicing
+    - interfaces: add socketcall() to the network/network-bind
+      interfaces (LP: #1588100)
+    - overlord/snapstate,snappy: move over CanRemoveThis moves over the
+      CanRemove check to snapstate itself.overlord/snapstate
+    - snappy: move over CanRemove
+    - overlord/snapstate,snappy: move over CopyData and Remove*Data code
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 06 Jun 2016 16:35:50 +0200
+
+snapd (2.0.6) xenial; urgency=medium
+
+  * New upstream release: LP: #1588052:
+    - many: repository moved to snapcore/snapd
+    - debian: add transitional pkg for the github location change
+    - snap: ensure `snap try` work with relative paths
+    - debian: drop run/build dependency on lsb-release
+    - asserts/tool: gpg key pair manager
+    - many: add new snap-exec
+    - many: implement `snap refresh --list` and  `snap refresh`
+    - snap: add parsing support for hooks.
+    - many: add the cups interface
+    - interfaces: misc policy fixes (LP: #1583794)
+    - many: add `snap try`
+    - interfaces: allow using sysctl and scmp_sys_resolver for parsing
+      kernel logs
+    - debian: make snapd get its environ from /etc/environment
+    - daemon,client,snap: revisions are now strings
+    - interfaces: allow access to new ibus abstract socket path
+      LP: #1580463
+    - integration-tests: add remove tests
+    - asserts: stronger crypto choices and follow better latest designs
+    - snappy,daemon: hollow out more of snappy (either removing or not
+      exporting stuff on its way out), snappy/gadget.go is gone
+    - asserts: rename device-serial to serial
+    - asserts: rename identity to account (and username access)
+    - integration-tests: add changes tests
+    - backend: add tests for environment wrapper generation
+    - interfaces/builtin: add location-control interface
+    - overlord/snapstate: move over check snap logic from snappy
+    - release: use os-release instead of lsb-release for cross-distro
+      use
+    - asserts: allow empty snap-name for snap-declaration
+    - interfaces/builtin,docs,snap: add the pulseaudio interface
+    - many: add support for an environment map inside snap.yaml
+    - overlord/snapstate: increase robustness of doLinkSnap/undoLinkSnap
+      with sanity unit tests
+    - snap: parse epoch property
+    - snappy: do nothing in SetNextBoot when running on classic
+    - snap: validate snap type
+    - integration-tests: extend find command tests
+    - asserts: extend tests to cover mandatory and empty headers
+    - tests: stop the update-pot check in run-checks
+    - snap: parse confinement property.
+    - store: change applyUbuntuStoreHeaders to not take accept, and to
+      take a channel
+    - many: struct-based revisions, new representation
+    - interfaces: remove 'audit deny' rules from network_control.go
+    - interfaces: add  com.canonical.UrlLauncher.XdgOpen to unity7
+      interface
+    - interfaces: firewall-control can access xtables lock file
+    - interfaces: allow unity7 AppMenu
+    - interfaces: allow unity7 launcher API
+    - interfaces/builtin: add location-observe interface
+    - snap: fixed snap empty list text LP: #1587445
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Jun 2016 08:23:50 +0200
+
+snapd (2.0.5) xenial; urgency=medium
+
+  * New upstream release: LP: #1583085
+    - interfaces: add dbusmenu, freedesktop and kde notifications to
+      unity7 (LP: #1573188)
+    - daemon: make localSnapInfo return SnapState
+    - cmd: make snap list with no snaps not special
+    - debian: workaround for XDG_DATA_DIRS issues
+    - cmd,po: fix conflicts, apply review from #1154
+    - snap,store: load and store the private flag sent by the store in
+      SideInfo
+    - interfaces/apparmor/template.go: adjust /dev/shm to be more usable
+    - store: use purchase decorator in Snap and FindSnaps
+    - interfaces: first version of the networkmanager interface
+    - snap, snappy: implement the new (minmimal) kernel spec
+    - cmd/snap, debian: move manpage generation to depend on an environ
+      key; also, fix completion
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 May 2016 15:29:16 +0200
+
+snapd (2.0.4) xenial; urgency=medium
+
+  * New upstream release:
+    - interfaces: cleanup explicit denies
+    - integration-tests: remove the ancient integration daemon tests
+    - integration-tests: add network-bind interface test
+    - integration-tests: add actual checks for undoing install
+    - integration-tests: add store login test
+    - snap: add certain implicit slots only on classic
+    - integration-tests: add coverage flags to snapd.service ExecStart
+      setting when building from branch
+    - integration-tests: remove the tests for features removed in 16.04.
+    - daemon, overlord/snapstate: "(de)activate" is no longer a thing
+    - docs: update meta.md and security.md for current snappy
+    - debian: always start snapd
+    - integration-tests: add test for undoing failed install
+    - overlord: handle ensureNext being in the past
+    - overlord/snapstate,overlord/snapstate/backend,snappy: start
+      backend porting LinkSnap and UnlinkSnap
+    - debian/tests: add reboot capability to autopkgtest and execute
+      snapPersistsSuite
+    - daemon,snappy,progress: drop license agreement broken logic
+    - daemon,client,cmd/snap: nice access denied message
+      (LP: #1574829)
+    - daemon: add user parameter to all commands
+    - snap, store: rework purchase methods into decorators
+    - many: simplify release package and add OnClassic
+    - interfaces: miscellaneous policy updates
+    - snappy,wrappers: move desktop files handling to wrappers
+    - snappy: remove some obviously dead code
+    - interfaces/builtin: quote apparmor label
+    - many: remove the gadget yaml support from snappy
+    - snappy,systemd,wrappers: move service units generation to wrappers
+    - store: add method to determine if a snap must be bought
+    - store: add methods to read purchases from the store
+    - wrappers,snappy: move binary wrapper generation to new package
+      wrappers
+    - snap: add `snap help` command
+    - integration-tests: remove framework-test data and avoid using
+      config-snap for now
+    - add integration test to verify fix for LP: #1571721
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 May 2016 17:19:37 -0700
+
+snapd (2.0.3) xenial; urgency=medium
+
+  * New upstream micro release:
+    - integration-tests, debian/tests: add unity snap autopkg test
+    - snappy: introduce first feature flag for assumes: common-data-dir
+    - timeout,snap: add YAML unmarshal function for timeout.Timeout
+    - many: go into state.Retry state when unmounting a snap fails.
+      (LP: #1571721, #1575399)
+    - daemon,client,cmd/snap: improve output after snap
+      install/refresh/remove (LP: #1574830)
+    - integration-tests, debian/tests: add test for home interface
+    - interfaces,overlord: support unversioned data
+    - interfaces/builtin: improve the bluez interface
+    - cmd: don't include the unit tests when building with go test -c
+      for integration tests
+    - integration-tests: teach some new trick to the fake store,
+      reenable the app refresh test
+    - many: move with some simplifications test snap building to
+      snap/snaptest
+    - asserts: define type for revision related errors
+    - snap/snaptest,daemon,overlord/ifacestate,overlord/snapstate: unify
+      mocking snaps behind MockSnap
+    - snappy: fix openSnapFile's handling of sideInfo
+    - daemon: improve snap sideload form handling
+    - snap: add short and long description to the man-page
+      (LP: #1570280)
+    - snappy: remove unused SetProperty
+    - snappy: use more accurate test data
+    - integration-tests: add a integration test about remove removing
+      all revisions
+    - overlord/snapstate: make "snap remove" remove all revisions of a
+      snap (LP: #1571710)
+    - integration-tests: re-enable a bunch of integration tests
+    - snappy: remove unused dbus code
+    - overlord/ifacestate: fix setup-profiles to use new snap revision
+      for setup (LP: #1572463)
+    - integration-tests: add regression test for auth bug LP:#1571491
+    - client, snap: remove obsolete TypeCore which was used in the old
+      SystemImage days
+    - integration-tests: add apparmor test
+    - cmd: don't perform type assertion when we know error to be nil
+    - client: list correct snap types
+    - intefaces/builtin: allow getsockname on connected x11 plugs
+      (LP: #1574526)
+    - daemon,overlord/snapstate: read name out of sideloaded snap early,
+      improved change summary
+    - overlord: keep tasks unlinked from a change hidden, prune them
+    - integration-tests: snap list on fresh boot is good again
+    - integration-tests: add partial term to the find test
+    - integration-tests: changed default release to 16
+    - integration-tests: add regression test for snaps not present after
+      reboot
+    - integration-tests: network interface
+    - integration-tests: add proxy related environment variables to
+      snapd env file
+    - README.md: snappy => snap
+    - etc: trivial typo fix (LP:#1569892)
+    - debian: remove unneeded /var/lib/snapd/apparmor/additional
+      directory (LP: #1569577)
+    - builtin/unity7.go: allow using gmenu. LP: #1576287
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 03 May 2016 07:51:57 +0200
+
+snapd (2.0.2) xenial; urgency=medium
+
+  * New upstream release:
+    - systemd: add multi-user.target (LP: #1572125)
+    - release: our series is 16
+    - integration-tests: fix snapd binary path for mounting the daemon
+      built from branch
+    - overlord,snap: add firstboot state sync
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 19 Apr 2016 16:02:44 +0200
+
+snapd (2.0.1) xenial; urgency=medium
+
+  * client,daemon,overlord: fix authentication:
+    - fix incorrect authenication check (LP: #1571491)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Apr 2016 07:24:33 +0200
+
+snapd (2.0) xenial; urgency=medium
+
+  * New upstream release:
+    - debian: put snapd in /usr/lib/snapd/
+    - cmd/snap: minor polishing
+    - cmd,client,daemon: add snap abort command
+    - overlord: don't hold locks when callling backends
+    - release,store,daemon: no more default-channel, release=>series
+    - many: drop support for deprecated environment variables
+      (SNAP_APP_*)
+    - many: support individual ids in changes cmd
+    - overlord/state: use numeric change and task ids
+    - overlord/auth,daemon,client,cmd/snap: logout
+    - daemon: don't install ubuntu-core twice
+    - daemon,client,overlord/state,cmd: add changes command
+    - interfaces/dbus: drop superfluous backslash from template
+    - daemon, overlord/snapstate: updates are users too!
+    - cmd/snap,daemon,overlord/ifacestate: add support for developer
+      mode
+    - daemon,overlord/snapstate: on refresh use the remembered channel,
+      default to stable channel otherwise
+    - cmd/snap: improve UX of snap interfaces when there are no results
+    - overlord/state: include time in task log messages
+    - overlord: prune and abort old changes and tasks
+    - overlord/ifacestate: add implicit slots in setup-profiles
+    - daemon,overlord: setup authentication for store downloads
+    - daemon: macaroon-authed users are like root, and sudoers can login
+    - daemon,client,docs: send install options to daemon
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 16 Apr 2016 22:15:40 +0200
+
+snapd (1.9.4) xenial; urgency=medium
+
+  * New upstream release:
+    - etc: fix desktop file location
+    - overlord/snapstate: stop an update once download sees the revision
+      is already installed
+    - overlord: make SnapState.DevMode a method, store flags
+    - snappy: no more snapYaml in snappy.Snap
+    - daemon,cmd,dirs,lockfile: drop all lockfiles
+    - debian: use sudo in setup of the proxy environment
+    - snap/snapenv,snappy,systemd: expose SNAP_REVISION to app
+      environment
+    - snap: validate similarly to what we did with old snapYaml info
+      from squashfs snaps
+    - daemon,store: plug in authentication for store search/details
+    - overlord/snapstate: fix JSON name of SnapState.Candidate
+    - overlord/snapstate: start using revisions higher than 100000 for
+      local installs (sideloads)
+    - interfaces,overlorf/ifacestate: honor user choice and don't auto-
+      connect disconnected plugs
+    - overlord/auth,daemon,client: hide user ids again
+    - daemon,overlord/snapstate: back /snaps (and so snap list) using
+      state
+    - daemon,client,overlord/auth: rework state auth data
+    - overlord/snapstate: disable Activate and Deactivate
+    - debian: fix silly typo in autopkgtest setup
+    - overlord/ifacestate: remove connection state with discard-conns
+      task, on the removal of last snap
+    - daemon,client: rename API update action to refresh
+    - cmd/snap: rework login to be more resilient
+    - overlord/snapstate: deny two changes on one snap
+    - snappy: fix crash on certain snap.yaml
+    - systemd: use native systemctl enable instead of our own
+      implementation
+    - store: add workaround for misbehaving store
+    - debian: make autopkgtest use the right env vars
+    - state: log do/undo status too when a task is run
+    - docs: update rest.md with price information
+    - daemon: only include price property if the snap is non-free
+    - daemon, client, cmd/snap: connect/disconnect now async
+    - snap,snappy: allow snaps to require system features
+    - integration-tests: fix report of skips in SetUpTest method
+    - snappy: clean out major bits (still using Installed) now
+      unreferenced as cmd/snappy is gone
+    - daemon/api,overlord/auth: add helper to get UserState from a
+      client request
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Apr 2016 23:30:00 +0200
+
+snapd (1.9.3) xenial; urgency=medium
+
+  * New upstream release:
+    - many: prepare for opengl support on classic
+    - interfaces/apparmor: load all apparmor profiles on snap setup
+    - daemon,client: move async resource to change in meta
+    - debian: disable autopilot
+    - snap: add basic progress reporting
+    - client,cmd,daemon,snap,store: show the price of snaps in the cli
+    - state: add minimal taskrunner logging
+    - daemon,snap,overlord/snapstate: in the API get the snap icon using
+      state
+    - client,daemon,overlord: don't guess snap file vs. name
+    - overlord/ifacestate: reload snap connections when setting up
+      security for a given snap
+    - snappy: remove cmd/snappy (superseded in favour of cmd/snap)
+    - interfaecs/apparmor: remove all traces of old-security from
+      apparmor backend
+    - interfaces/builtin: add bluez interface
+    - overlord/ifacestate: don't crash if connection cannot be reloaded
+    - debian: add searchSuite to autopkgtest
+    - client, daemon, cmd/snap: no more tasks; everything is changes
+    - client: send authorization header in client requests
+    - client, daemon: marshal suggested currency over REST
+    - docs, snap: enumerate snap types correctly in docs and comments
+    - many: add store authenticator parameter
+    - overlord/ifacestate,daemon: setup security on conect and
+      disconnect
+    - interfaces/apparmor: remove unused apparmor variables
+    - snapstate: add missing "TaskProgressAdapter.Write()" for working
+      progress reporting
+    - many: clean out snap config related code not for OS
+    - daemon,client,cmd: return snap list from /v2/snaps
+    - docs: update `/v2/snaps` endpoint documentation
+    - interfaces: rename developerMode to devMode
+    - daemon,client,overlord: progress current => done
+    - daemon,client,cmd/snap: move query metadata to top-level doc
+    - interfaces: add TestSecurityBackend
+    - many: replace typographic quotes with ASCII
+    - client, daemon: rework rest changes to export "ready" and "err"
+    - overlord/snapstate,snap,store: track snap-id in side-info and
+      therefore in state
+    - daemon: improve mocking  of interfaces API tests
+    - integration-tests: remove origins in default snap names for udf
+      call
+    - integration-test: use "snap list" in GetCurrentVersion
+    - many: almost no more NewInstalledSnap reading manifest from
+      snapstate and backend
+    - daemon: auto install ubuntu-core if missing
+    - oauth,store: remove OAuth authentication logic
+    - overlord/ifacestate: simplify some tests with implicit manager
+      initialization
+    - store, snappy: move away from hitting details directly
+    - overlord/ifacestate: reload connections when restarting the
+      manager
+    - overlord/ifacestate: increase flexibility of unit tests
+    - overlord: use state to discover all installed snaps
+    - overlord/ifacestate: track connections in the state
+    - many: separate copy-data from unlinking of current snap
+    - overlord/auth,store/auth: add macaroon authenticator to UserState
+    - client: support for /v2/changes and /v2/changes/{id}
+    - daemon/api,overlord/auth: rework authenticated users information
+      in state
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 14 Apr 2016 23:29:43 +0200
+
+snapd (1.9.2) xenial; urgency=medium
+
+  * New upstream release:
+    - cmd/snap,daemon,store: rework login command to use daemon login
+      API
+    - store: cache suggested currency from the store
+    - overlord/ifacestate: modularize and extend tests
+    - integration-tests: reenable failure tests
+    - daemon: include progress in rest changes
+    - daemon, overlord/state: expose individual changes
+    - overlord/ifacestate: drop duplicate package comment
+    - overlord/ifacestate: allow tests to override security backends
+    - cmd/snap: install *.snap and *.snap.* as files too
+    - interfaces/apparmor: replace /var/lib/snap with /var/snap
+    - daemon,overlord/ifacestate: connect REST API to interfaces in the
+      overlord
+    - debian: remove unneeded dependencies from snapd
+    - overlord/state: checkpoint on final progress only
+    - osutil: introduce IsUIDInAny
+    - overlord/snapstate: rename GetSnapState to Get, SetSnapState to
+      Set
+    - daemon: add id to changes json
+    - overlord/snapstate: SetSnapState() needs locks
+    - overlord: fix broken tests
+    - overlord/snapstate,overlord/ifacestate: reimplement SnapInfo (as
+      Info) actually using the state
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 13 Apr 2016 17:27:00 +0200
+
+snapd (1.9.1.1) xenial; urgency=medium
+
+  * debian/tests/control:
+    - add git to make autopkgtest work
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 17:19:19 +0200
+
+snapd (1.9.1) xenial; urgency=medium
+
+  * Add warning about installing ubuntu-core-snapd-units on Desktop systems.
+  * Add ${misc:Depends} to ubuntu-core-snapd-units.
+  * interfaces,overlord: add support for auto-connecting plugs on
+    install
+  * fix sideloading snaps and (re)add tests for this
+  * add `ca-certificates` to the test-dependencies to fix autopkgtest
+    failure on armhf
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 14:39:57 +0200
+
+snapd (1.9) xenial; urgency=medium
+
+  * rename source and binary package to "snapd"
+  * update directory layout to final 16.04 layout
+  * use `snap` command instead of the previous `snappy`
+  * use `interface` based security
+  * use new state engine for install/update/remove
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 01:05:09 +0200
+
+ubuntu-snappy (1.7.3+20160310ubuntu1) xenial; urgency=medium
+
+    - debian: update versionized ubuntu-core-launcher dependency
+    - debian: tweak desktop file dir, ship Xsession.d snip for seamless
+      integration
+    - snappy: fix hw-assign to work with per-app udev tags
+    - snappy: use $snap.$app as per-app udev tag
+    - snap,snappy,systemd: %s/\<SNAP_ORIGIN\>/SNAP_DEVELOPER/g
+    - snappy: add mksquashfs --no-xattrs parameter
+    - snap,snappy,systemd: kill SNAP_FULLNAME
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 10 Mar 2016 09:26:20 +0100
+
+ubuntu-snappy (1.7.3+20160308ubuntu1) xenial; urgency=medium
+
+    - snappy,snap: move icon under meta/gui/
+    - debian: add snap.8 manpage
+    - debian: move snapd to /usr/lib/snappy/snapd
+    - snap,snappy,systemd: remove TMPDIR, TEMPDIR, SNAP_APP_TMPDIR
+    - snappy,dirs: add support to use desktop files from inside snaps
+    - daemon: snapd API events endpoint redux
+    - interfaces/builtin: add "network" interface
+    - overlord/state: do small fixes (typo, id clashes paranoia)
+    - overlord: add first pass of the logic in StateEngine itself
+    - overlord/state: introduce Status/SetStatus on Change
+    - interfaces: support permanent security snippets
+    - overlord/state: introduce Status/SetStatus and
+      Progress/SetProgress on Task
+    - overlord/state: introduce Task and Change.NewTask
+    - many: selectively swap semantics of plugs and slots
+    - client,cmd/snap: remove useless indirection in Interfaces
+    - interfaces: maintain Plug and Slot connection details
+    - client,daemon,cmd/snap: change POST /2.0/interfaces to work with
+      lists
+    - overlord/state: introduce Change and NewChange on state to create
+      them
+    - snappy: bugfix for snap.yaml parsing to be more consistent with
+      the spec
+    - snappy,systemd: remove "ports" from snap.yaml
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 08 Mar 2016 11:24:09 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu4) xenial; urgency=medium
+
+  * rename:
+    debian/golang-snappy-dev.install ->
+       debian/golang-github-ubuntu-core-snappy-dev.install:
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:29:16 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu3) xenial; urgency=medium
+
+  * really fix typo in dependency name
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:21:39 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu2) xenial; urgency=medium
+
+  * fix typo in dependency name
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:05:36 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu1) xenial; urgency=medium
+
+    - debian: update build-depends for MIR
+    - many: implement new REST API: GET /2.0/interfaces
+    - integration-tests: properly stop snapd from branch
+    - cmd/snap: update tests for go-flags changes
+    - overlord/state: implement Lock/Unlock with implicit checkpointing
+    - overlord: split out the managers and State to their own
+      subpackages of overlord
+    - snappy: rename "migration-skill" to "old-security" and use new
+      interface names instead of skills
+    - client,cmd/snap: clarify name ambiguity in Plug or Slot
+    - overlord: start working on state engine along spec v2, have the
+      main skeleton follow that
+    - classic, oauth: update tests for change in MakeRandomString()
+    - client,cmd/snap: s/add/install/:-(
+    - interfaces,daemon: specialize Name to either Plug or Slot
+    - interfaces,interfaces/types: unify security snippet functions
+    - snapd: close the listener on Stop, to force the http.Serve loop to
+      exit
+    - snappy,daemon,snap/lightweight,cmd/snappy,docs/rest.md: expose
+      explicit channel selection to rest api
+    - interfaces,daemon: rename package holding built-in interfaces
+    - integration-tests: add the first classic dimension tests
+    - client,deaemon,docs: rename skills to interfaces on the wire
+    - asserts: add identity assertion type
+    - integration-tests: add the no_proxy env var
+    - debian: update build-depends for new package names
+    - oauth: fix oauth & quoting in the oauth_signature
+    - integration-tests: remove unused field
+    - integration-tests: add the http proxy argument
+    - interfaces,interfaces/types,deamon: mass internal rename to
+      interfaces
+    - client,cmd/snap: rename skills to interfaces (part 2)
+    - arch: fix missing mapping for powerpc
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 11:00:19 +0100
+
+ubuntu-snappy (1.7.3+20160225ubuntu1) xenial; urgency=medium
+
+    - integration-tests: always use the built snapd when compiling
+      binaries from branch
+    - cmd/snap: rename skills to interfaces
+    - testutil,skills/types,skills,daemon: tweak discovery of know skill
+      types
+    - docs: add docs for arm64 cross building
+    - overlord: implement basic ReadState/WriteState
+    - overlord: implement Get/Set/Copy on State
+    - integration-tests: fix dd output check
+    - integration-tests: add fromBranch config field
+    - integration-tests: use cli pkg methods in hwAssignSuite
+    - debian: do not create the snappypkg user, we don't need it anymore
+    - arch: fix build failure on s390x
+    - classic: cleanup downloaded lxd tarball
+    - cmd/snap,client,integration-tests: rename snap subcmds
+      'assert'=>'ack', 'asserts'=>'known'
+    - skills: fix broken tests builds
+    - skills,skills/types: pass slot to SlotSecuritySnippet()
+    - skills/types: teach bool-file about udev security
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 25 Feb 2016 16:17:19 +0100
+
+ubuntu-snappy (1.7.2+20160223ubuntu1) xenial; urgency=medium
+
+  * New git snapshot:
+    - asserts: introduce snap-declaration
+    - cmd/snap: fix integration tests for the "cmd_asserts"
+    - integration-tests: fix fanctl output check
+    - cmd/snap: fix test failure after merging 23a64e6
+    - cmd/snap: replace skip-help with empty description
+    - docs: update security.md to match current migration-skill
+      semantics
+    - snappy: treat commands with 'daemon' field as services
+    - asserts: use more consistent names for receivers in
+      snap_asserts*.go
+    - debian: add missing golang-websocket-dev build-dependency
+    - classic: if classic fails to get created, undo the bind mounts
+    - snappy: never return nil in NewLocalSnapRepository()
+    - notifications: A simple notification system
+    - snappy: when using staging, authenticate there instead
+    - integration-tests/snapd: fix the start of the test snapd socket
+    - skills/types: use CamelCase for security names
+    - skills: add support for implicit revoke
+    - skills: add security layer
+    - integration-tests: use exec.Command wrapper for updates
+    - cmd/snap: add 'snap skills'
+    - cms/snap: add 'snap revoke'
+    - docs: add docs for skills API
+    - cmd/snap: add 'snap grant'
+    - cmd/snappy, coreconfig, daemon, snappy: move config to always be
+      bytes (in and out)
+    - overlord: start with a skeleton and stubs for Overlord,
+      StateEngine, StateJournal and managers
+    - integration-tests: skip tests affected by LP: #1544507
+    - skills/types: add bool-file
+    - po: refresh translation templates
+    - cmd/snap: add 'snap experimental remove-skill-slot'
+    - asserts: introduce device assertion
+    - cmd/snap: implemented add, remove, purge, refresh, rollback,
+      activate, deactivate
+    - cmd/snap: add 'snap experimental add-skill-slot'
+    - cmd/snap: add 'snap experimental remove-skill'
+    - cmd/snap: add tests for common skills code
+    - cmd/snap: add 'snap experimental add-skill'
+    - asserts: make assertion checkers used by db.Check modular and
+      pluggable
+    - cmd,client,daemon,caps,docs,po: remove capabilities
+    - scripts: move the script to get dependencies to a separate file
+    - asserts: make the disk layout compatible for storing more than one
+      revision
+    - cmd/snap: make the assert command options exported
+    - integration-tests: Remove the target release and channel
+    - asserts: introduce model assertion
+    - integration-tests: add exec.Cmd wrapper
+    - cmd/snap: add client test support methods
+    - cmd/snap: move key=value attribute parsing to commmon
+    - cmd/snap: apply new style consistency to "snap" commands.
+    - cmd/snap: support redirecting the client for testing
+    - cmd/snap: support testing command output
+    - snappy,daemon: remove the meta repositories abstractions
+    - cmd: add support for experimental commands
+    - cmd/snappy,daemon,snap,snappy: remove SetActive from parts
+    - cmd/snappy,daemon,snappy,snap: remove config from parts interface
+    - client: improve test data
+    - cmd: allow to construct a fresh parser
+    - cmd: don't treat help as an error
+    - cmd/snappy,snappy: remove "Details" from the repository interface
+    - asserts: check that primary keys are set when
+      Decode()ing/assembling assertions
+    - snap,snappy: refactor to remove "Install" from the Part interface
+    - client,cmd: make client.New() configurable
+    - client: enable retrieving asynchronous operation information with
+      `Client.Operation`.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 23 Feb 2016 11:28:18 +0100
+
+ubuntu-snappy (1.7.2+20160204ubuntu1) xenial; urgency=medium
+
+  * New git snapshot:
+    - integration-tests: fix the rollback error messages
+    - integration-test: use the common cli method when trying to install
+      an unexisting snap
+    - integration-tests: rename snap find test
+    - daemon: refactor makeErrorResponder()
+    - integration: add regression test for LP: #1541317
+    - integration-tests: reenable TestRollbackMustRebootToOtherVersion
+    - asserts: introduce "snap asserts" subcmd to show assertions in the
+      system db
+    - docs: fix parameter style
+    - daemon: use underscore in JSON interface
+    - client: add skills API
+    - asserts,docs/rest.md: change Encoder not to add extra newlines at
+      the end of the stream
+    - integration-tests: "snappy search" is no more, its "snap search"
+      now
+    - README, integration-tests/tests: chmod snapd.socket after manual
+      start.
+    - snappy: add default security profile if none is specified
+    - skills,daemon: add REST APIs for skills
+    - cmd/snap, cmd/snappy: move from `snappy search` to `snap find`.
+    - The first step towards REST world domination: search is now done
+      via
+    - debian: remove obsolete /etc/grub.d/09_snappy on upgrade
+    - skills: provide different security snippets for skill and slot
+      side
+    - osutil: make go vet happy again
+    - snappy,systemd: use Type field in systemd.ServiceDescription
+    - skills: add basic grant-revoke methods
+    - client,daemon,asserts: expose the ability to query assertions in
+      the system db
+    - skills: add basic methods for slot handling
+    - snappy,daemon,snap: move "Uninstall" into overlord
+    - snappy: move SnapFile.Install() into Overlord.Install()
+    - integration-tests: re-enable some failover tests
+    - client: remove snaps
+    - asserts: uniform searching across trusted (account keys) and main
+      backstore
+    - asserts: introduce Decoder to parse streams of assertions and
+      Encoder to build them
+    - client: filter snaps with a search query
+    - client: pass query as well as path in client internals
+    - skills: provide different security snippets for skill and slot
+      side
+    - snappy: refactor snapYaml to remove methods on snapYaml type
+    - snappy: remove unused variable from test
+    - skills: add basic methods for skill handing
+    - snappy: remove support for meta/package.yaml and implement new
+      meta/snap.yaml
+    - snappy: add new overlord type responsible for
+      Installed/Install/Uninstall/SetActive and stub it out
+    - skills: add basic methods for type handling
+    - daemon, snappy: add find (aka search)
+    - client: filter snaps by type
+    - skills: tweak valid names and error messages
+    - skills: add special skill type for testing
+    - cmd/snapd,daemon: filter snaps by type
+    - partition: remove obsolete uEnv.txt
+    - skills: add Type interface
+    - integration-tests: fix the bootloader path
+    - asserts: introduce a memory backed assertion backstore
+    - integration-tests: get name of OS snap from bootloader
+    - cmd/snapd,daemon: filter snaps by source
+    - asserts,daemon: bump some copyright years for things that have
+      been touched in the new year
+    - skills: add the initial Repository type
+    - skills: add a name validation function
+    - client: filter snaps by source
+    - snappy: unmount the squashfs snap again if it fails to install
+    - snap: make a copy of the search uri before mutating it
+      Closes: LP#1537005
+    - cmd/snap,client,daemon,asserts: introduce "assert " snap
+      subcommand
+    - cmd/snappy, snappy: fix failover handling of the "active"
+      kernel/os snap
+    - daemon, client, docs/rest.md, snapd integration tests: move to the
+      new error response
+    - asserts: change Backstore interface, backstores can now access
+      primary key names from types
+    - asserts: make AssertionType into a real struct exposing the
+      metadata Name and PrimaryKey
+    - caps: improve bool-file sanitization
+    - asserts: fixup toolbelt to use exposed key ID.
+    - client: return by reference rather than by value
+    - asserts: exported filesystem backstores + explicit backstores
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 04 Feb 2016 16:35:31 +0100
+
+ubuntu-snappy (1.7.2+20160113ubuntu1) xenial; urgency=medium
+
+  * New git snapshot
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 13 Jan 2016 11:25:40 +0100
+
+ubuntu-snappy (1.7.2ubuntu1) xenial; urgency=medium
+
+  * New upstream release:
+    - bin-path integration
+    - assertions/capability work
+    - fix squashfs based snap building
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Dec 2015 08:46:35 +0100
+
+ubuntu-snappy (1.7.1ubuntu1) xenial; urgency=medium
+
+  * New upstream release:
+    - fix dependencies
+    - fix armhf builds
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 02 Dec 2015 07:46:07 +0100
+
+ubuntu-snappy (1.7ubuntu1) xenial; urgency=medium
+
+  * New upstream release:
+    - kernel/os snap support
+    - squashfs snap support
+    - initial capabilities work
+    - initial assertitions work
+    - rest API support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 18 Nov 2015 19:59:51 +0100
+
+ubuntu-snappy (1.6ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Fix hwaccess for gpio (LP: #1493389, LP: #1488618)
+    - Fix handleAssets name normalization
+    - Run boot-ok job late (LP: #1476129)
+    - Add support for systemd socket files
+    - Add "snappy service" command
+    - Documentation improvements
+    - Many test improvements (unit and integration)
+    - Override sideload versions
+    - Go1.5 fixes
+    - Add i18n
+    - Add man-page
+    - Add .snapignore
+    - Run services that uses external ports only after the network is up
+    - Bufix in Synbootloader (LP: 1474125)
+    - Use uboot.env for boot state tracking
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 09 Sep 2015 14:20:22 +0200
+
+ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Use O_TRUNC when copying files
+    - Added path redefinition to include test's binaries location
+    - Don't run update-grub, instead use grub.cfg from the oem
+      package
+    - Do network configuration from first boot
+    - zero size systemd of new partition made executable to
+      prevent unrecoverable boot failure
+    - Close downloaded files
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Mon, 06 Jul 2015 15:14:37 -0300
+
+ubuntu-snappy (1.4ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Allow to run the integration tests using snappy from branch
+    - Add CopyFileOverwrite flag and behaviour to helpers.CopyFile
+    - add a bunch of missing i18n.G() now that we have gettext
+    - Generate only the translators comments that start with
+      TRANSLATORS
+    - Try both clickpkg and snappypkg when dropping privs
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 02 Jul 2015 16:21:53 -0300
+
+ubuntu-snappy (1.3ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - gettext support
+    - use snappypkg user for the installed snaps
+    - switch to system-image-3.x as the system-image backend
+    - more reliable developer mode detection
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 01 Jul 2015 10:37:05 +0200
+
+ubuntu-snappy (1.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Consider the root directory when installing and removing policies
+    - In the uboot TestHandleAssetsNoHardwareYaml, patch the cache dir
+      before creating the partition type
+    - In the PartitionTestSuite, remove the unnecessary patches for
+      defaultCacheDir
+    - Fix the help output of "snappy install -h"
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Wed, 17 Jun 2015 11:42:47 -0300
+
+ubuntu-snappy (1.1.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Remove compatibility for click-bin-path in generated exec-wrappers
+    - Release the readme.md after parsing it
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 11 Jun 2015 23:42:49 -0300
+
+ubuntu-snappy (1.1.1-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Set all app services to restart on failure
+    - Fixes the missing oauth quoting and makes the code a bit nicer
+    - Added integrate() to set Integration to default values needed for
+      integration
+    - Moved setActivateClick to be a method of SnapPart
+    - Make unsetActiveClick a method of SnapPart
+    - Check the package.yaml for the required fields
+    - Integrate lp:snappy/selftest branch into snappy itself
+    - API to record information about the image and to check if the kernel was
+      sideloaded.
+    - Factor out update from cmd
+    - Continue updating when a sideload error is returned
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Wed, 10 Jun 2015 15:54:12 -0300
+
+ubuntu-snappy (1.1-0ubuntu1) wily; urgency=low
+
+  * New wily upload with fix for go 1.4 syscall.Setgid() breakage
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 09 Jun 2015 10:02:04 +0200
+
+ubuntu-snappy (1.0.1-0ubuntu1) vivid; urgency=low
+
+  * fix symlink unpacking
+  * fix typo in apparmor rules generation
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 16:09:56 +0200
+
+ubuntu-snappy (1.0-0ubuntu1) vivid; urgency=low
+
+  * 15.04 archive upload
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 11:08:22 +0200
+
+ubuntu-snappy (0.1.2-0ubuntu1) vivid; urgency=medium
+
+  * initial ubuntu archive upload
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 13 Apr 2015 22:48:13 -0500
+
+ubuntu-snappy (0.1.1-0ubuntu1) vivid; urgency=low
+
+  * new snapshot
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Feb 2015 13:51:22 +0100
+
+ubuntu-snappy (0.1-0ubuntu1) vivid; urgency=medium
+
+  * Initial packaging
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Fri, 06 Feb 2015 02:25:43 -0200

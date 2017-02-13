@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type TimeControlTestInterfaceSuite struct {
@@ -34,7 +35,7 @@ type TimeControlTestInterfaceSuite struct {
 }
 
 var _ = Suite(&TimeControlTestInterfaceSuite{
-	iface: builtin.NewTimeControlInterface(),
+	iface: &builtin.TimeControlInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -42,14 +43,22 @@ var _ = Suite(&TimeControlTestInterfaceSuite{
 			Interface: "time-control",
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "time-control",
-			Interface: "time-control",
-		},
-	},
+	plug: nil,
 })
+
+func (s *TimeControlTestInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+plugs:
+  plug-for-time-control:
+    interface: time-control
+apps:
+  app-accessing-time-control:
+    command: foo
+    plugs: [plug-for-time-control]
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-time-control"]}
+}
 
 func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "time-control")
@@ -79,6 +88,8 @@ func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	expectedUDevSnippet := []byte(`KERNEL=="/dev/rtc0", TAG+="snap_client-snap_app-accessing-time-control"`)
+
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -87,4 +98,8 @@ func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	// connected plugs have a non-nil security snippet for udev
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedUDevSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedUDevSnippet, snippet))
 }

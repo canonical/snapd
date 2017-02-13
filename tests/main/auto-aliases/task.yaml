@@ -1,0 +1,15 @@
+summary: Check auto-aliases mechanism
+execute: |
+    echo "Install the snap with auto-aliases"
+    snap install test-snapd-auto-aliases
+
+    echo "Test the auto-aliases"
+    test -h /snap/bin/test_snapd_wellknown1
+    test -h /snap/bin/test_snapd_wellknown2
+    test_snapd_wellknown1|MATCH "ok wellknown 1"
+    test_snapd_wellknown2|MATCH "ok wellknown 2"
+
+    echo "Removing the snap should remove the aliases"
+    snap remove test-snapd-auto-aliases
+    test ! -e /snap/bin/test_snapd_wellknown1
+    test ! -e /snap/bin/test_snapd_wellknown2

@@ -27,8 +27,8 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/store"
 )
 
 func init() {
@@ -47,7 +47,7 @@ func main() {
 }
 
 func run() error {
-	store.SetUserAgentFromVersion(cmd.Version)
+	httputil.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
 	if err != nil {

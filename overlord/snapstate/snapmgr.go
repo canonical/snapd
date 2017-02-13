@@ -23,25 +23,62 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
+)
+
+// FIXME: what we actually want is a schedule spec that is user configurable
+// like:
+// """
+// tue
+// tue,thu
+// tue-thu
+// 9:00
+// 9:00,15:00
+// 9:00-15:00
+// tue,thu@9:00-15:00
+// tue@9:00;thu@15:00
+// mon,wed-fri@9:00-11:00,13:00-15:00
+// """
+// where 9:00 is implicitly taken as 9:00-10:00
+// and tue is implicitly taken as tue@<our current setting?>
+//
+// it is controlled via:
+// $ snap refresh --schedule=<time spec>
+// which is a shorthand for
+// $ snap set core refresh.schedule=<time spec>
+// and we need to validate the time-spec, ideally internally by
+// intercepting the set call
+var (
+	minRefreshInterval = 4 * time.Hour
+
+	// random interval on top of the minmum time between refreshes
+	defaultRefreshRandomness = 4 * time.Hour
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+
+	refreshRandomness  time.Duration
+	lastRefreshAttempt time.Time
 
 	runner *state.TaskRunner
 }
@@ -259,7 +296,7 @@ func Store(st *state.State) StoreService {
 	panic("internal error: needing the store before managers have initialized it")
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
+func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -275,9 +312,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel: channel,
-		DevMode: flags.DevModeAllowed(),
-
+		Channel:  channel,
 		SnapID:   curInfo.SnapID,
 		Revision: curInfo.Revision,
 		Epoch:    curInfo.Epoch,
@@ -293,17 +328,23 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	if len(res) == 0 {
 		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
 	}
+
 	return res[0], nil
 }
 
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  channel,
+		Revision: revision,
+	}
+	snap, err := theStore.SnapInfo(spec, user)
 	st.Lock()
 	return snap, err
 }
@@ -316,7 +357,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:   st,
 		backend: backend.Backend{},
 		runner:  runner,
+
+		refreshRandomness: time.Duration(rand.Int63n(int64(defaultRefreshRandomness))),
 	}
+	logger.Debugf("snapmgr refresh randomness %s", m.refreshRandomness)
 
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
@@ -381,10 +425,146 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
+var CanAutoRefresh func(st *state.State) bool
+
+// ensureRefreshes ensures that we refresh all installed snaps periodically
+func (m *SnapManager) ensureRefreshes() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// see if it even makes sense to try to refresh
+	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
+		return nil
+	}
+
+	tr := config.NewTransaction(m.state)
+
+	// allow disabling auto-refresh in the tests
+	if osutil.GetenvBool("SNAPD_DEBUG") {
+		var refreshDisabled bool
+		err := tr.Get("core", "refresh.disabled", &refreshDisabled)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if refreshDisabled {
+			return nil
+		}
+	}
+
+	var lastRefresh time.Time
+	err := tr.Get("core", "refresh.last", &lastRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	nextRefresh := lastRefresh.Add(minRefreshInterval).Add(m.refreshRandomness)
+	if time.Now().Before(nextRefresh) {
+		return nil
+	}
+
+	// check that there is no change in flight already
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			// change already in motion
+			return nil
+		}
+	}
+
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
+		return nil
+	}
+
+	// store attempts in memory so that we can backoff a
+	m.lastRefreshAttempt = time.Now()
+	updated, tasksets, err := AutoRefresh(m.state)
+	if err != nil {
+		return err
+	}
+
+	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// us no error.
+	setLastRefresh(m.state)
+
+	var msg string
+	switch len(updated) {
+	case 0:
+		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+		return nil
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+	case 2:
+	case 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+	}
+
+	chg := m.state.NewChange("auto-refresh", msg)
+	for _, ts := range tasksets {
+		chg.AddAll(ts)
+	}
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	return nil
+}
+
+// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// to the new "core" snap
+func (m *SnapManager) ensureUbuntuCoreTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var snapst SnapState
+	err := Get(m.state, "ubuntu-core", &snapst)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// check that there is no change in flight already, this is a
+	// precaution to ensure the core transition is safe
+	for _, chg := range m.state.Changes() {
+		if !chg.Status().Ready() {
+			// another change already in motion
+			return nil
+		}
+	}
+
+	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
+	if err != nil {
+		return err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
+	chg := m.state.NewChange("transition-ubuntu-core", msg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	// do not exit right away on error
+	err1 := m.ensureUbuntuCoreTransition()
+
+	err2 := m.ensureRefreshes()
+
 	m.runner.Ensure()
-	return nil
+
+	//FIXME: use firstErr helper
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
 
 // Wait implements StateManager.Wait.
@@ -494,7 +674,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err = theStore.Snap(snapsup.Name(), snapsup.Channel, snapsup.DevModeAllowed(), snapsup.Revision(), user)
+		spec := store.SnapSpec{
+			Name:     snapsup.Name(),
+			Channel:  snapsup.Channel,
+			Revision: snapsup.Revision(),
+		}
+		storeInfo, err = theStore.SnapInfo(spec, user)
 		if err != nil {
 			return err
 		}
@@ -848,6 +1033,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = snapsup.JailMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
+	if snapsup.Required { // set only on install and left alone on refresh
+		snapst.Required = true
+	}
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
@@ -1015,6 +1203,12 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.StartSnapServices(currentInfo, pb)
 	st.Lock()
 	return err
+}
+
+func setLastRefresh(st *state.State) {
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.last", time.Now())
+	tr.Commit()
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {

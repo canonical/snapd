@@ -72,6 +72,14 @@ var statePatch4JSON = []byte(`
 			"status": 2,
 			"data": {"snap-names": ["b"]},
 			"task-ids": ["10","11","12","13","14","15","16"]
+		},
+		"3": {
+			"id": "3",
+			"kind": "install-snap",
+			"summary": "install c snap",
+			"status": 0,
+			"data": {"snap-names": ["c"]},
+			"task-ids": ["17", "18"]
 		}
 	},
 	"tasks": {
@@ -186,6 +194,30 @@ var statePatch4JSON = []byte(`
 			"data": {"snap-setup-task": "10", "had-candidate": false},
 			"wait-tasks": ["15"],
 			"change": "2"
+		},
+
+                "17": {
+			"id": "17",
+			"kind": "prepare-snap",
+			"summary": "",
+			"status": 4,
+			"data": {
+			    "snap-setup": {
+				"side-info": {"revision": "1", "name": "c"}
+			    }
+			},
+			"halt-tasks": ["18"],
+			"change": "1"
+		}, "18": {
+			"id": "18",
+			"kind": "link-snap",
+			"summary": "make snap avaiblabla",
+			"status": 0,
+			"data": {
+			    "snap-setup-task": "17"
+			},
+			"wait-tasks": ["17"],
+			"change": "3"
 		}
 	}
 }

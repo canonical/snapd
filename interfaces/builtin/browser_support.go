@@ -72,6 +72,7 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /etc/mailcap r,
 /usr/share/applications/{,*} r,
 /var/lib/snapd/desktop/applications/{,*} r,
+owner @{PROC}/@{pid}/fd/[0-9]* w,
 
 # Various files in /run/udev/data needed by Chrome Settings. Leaks device
 # information.
@@ -123,11 +124,18 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /run/udev/data/+usb:[0-9]* r,
 
 # experimental
+/run/udev/data/b253:[0-9]* r,
+/run/udev/data/b259:[0-9]* r,
+/run/udev/data/c242:[0-9]* r,
+/run/udev/data/c243:[0-9]* r,
 /run/udev/data/c245:[0-9]* r,
 /run/udev/data/c246:[0-9]* r,
+/run/udev/data/c247:[0-9]* r,
 /run/udev/data/c248:[0-9]* r,
 /run/udev/data/c249:[0-9]* r,
+/run/udev/data/c250:[0-9]* r,
 /run/udev/data/c251:[0-9]* r,
+/run/udev/data/c254:[0-9]* r,
 
 /sys/bus/**/devices/ r,
 
@@ -194,6 +202,8 @@ setpriority
 const browserSupportConnectedPlugSecCompWithSandbox = `
 # Policy needed only when using the chrome/chromium setuid sandbox
 chroot
+sched_setscheduler
+
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setuid
