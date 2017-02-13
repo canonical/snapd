@@ -62,6 +62,12 @@ const unity7ConnectedPlugAppArmor = `
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
 
+# The snapcraft desktop part may look for schema files in various locations, so
+# allow reading system installed schemas.
+/usr/share/glib*/schemas/{,*}              r,
+/usr/share/gnome/glib*/schemas/{,*}        r,
+/usr/share/ubuntu/glib*/schemas/{,*}       r,
+
 # Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
@@ -440,20 +446,15 @@ const unity7ConnectedPlugSecComp = `
 # eavesdropping or apps interfering with one another.
 
 # X
-getpeername
 recvfrom
 recvmsg
 shutdown
-getsockopt
 
 # dbus
-connect
-getsockname
 recvmsg
 send
 sendto
 sendmsg
-socket
 `
 
 // NewUnity7Interface returns a new "unity7" interface.

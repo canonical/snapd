@@ -26,14 +26,11 @@ const openvswitchConnectedPlugAppArmor = `
 `
 
 const openvswitchConnectedPlugSecComp = `
-connect
 recv
 recvmsg
 send
 sendto
 sendmsg
-socket
-socketpair
 `
 
 func NewOpenvSwitchInterface() interfaces.Interface {
