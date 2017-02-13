@@ -42,11 +42,11 @@ type TestInterface struct {
 	// ValidateSlotCallback is the callback invoked inside ValidateSlot()
 	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
 	// SlotSnippetCallback is the callback invoked inside ConnectedSlotSnippet()
-	SlotSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
+	SlotSnippetCallback func(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
 	PermanentSlotSnippetCallback func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PlugSnippetCallback is the callback invoked inside ConnectedPlugSnippet()
-	PlugSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
+	PlugSnippetCallback func(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
 	PermanentPlugSnippetCallback func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error)
 
@@ -123,7 +123,7 @@ func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]int
 // Providers don't gain any extra permissions.
 func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PlugSnippetCallback != nil {
-		return t.PlugSnippetCallback(plug, slot, securitySystem)
+		return t.PlugSnippetCallback(plug, plugAttrs, slot, slotAttrs, securitySystem)
 	}
 	return nil, nil
 }
@@ -141,7 +141,7 @@ func (t *TestInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySyst
 // Consumers don't gain any extra permissions.
 func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.SlotSnippetCallback != nil {
-		return t.SlotSnippetCallback(plug, slot, securitySystem)
+		return t.SlotSnippetCallback(plug, plugAttrs, slot, slotAttrs, securitySystem)
 	}
 	return nil, nil
 }

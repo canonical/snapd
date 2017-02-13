@@ -1268,7 +1268,7 @@ var testInterface = &ifacetest.TestInterface{
 		}
 		return nil, nil
 	},
-	PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	PlugSnippetCallback: func(plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific plug snippet`), nil
 		}
@@ -1280,7 +1280,7 @@ var testInterface = &ifacetest.TestInterface{
 		}
 		return nil, nil
 	},
-	SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	SlotSnippetCallback: func(plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific slot snippet`), nil
 		}
@@ -1455,10 +1455,10 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippe
 	var testSecurity SecuritySystem = "security"
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
 		},
-		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for provider")
 		},
 	}
