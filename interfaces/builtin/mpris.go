@@ -30,7 +30,6 @@ import (
 
 var mprisPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as an MPRIS player.
-# Usage: common
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -109,7 +108,6 @@ dbus (receive)
 
 var mprisConnectedPlugAppArmor = []byte(`
 # Description: Allow connecting to an MPRIS player.
-# Usage: common
 
 #include <abstractions/dbus-session-strict>
 

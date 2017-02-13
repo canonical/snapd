@@ -28,7 +28,7 @@ import (
 var mirPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the Mir server. Reserved because this
 # gives privileged access to the system.
-# Usage: reserved
+
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
 /{dev,run}/shm/\#* rw,
@@ -55,13 +55,11 @@ shmctl
 
 var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: common
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,

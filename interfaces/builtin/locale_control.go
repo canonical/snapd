@@ -26,7 +26,6 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/locale-control
 const localeControlConnectedPlugAppArmor = `
 # Description: Can manage locales directly separate from 'config ubuntu-core'.
-# Usage: reserved
 
 # TODO: this won't work until snappy exposes this configurability
 /etc/default/locale rw,

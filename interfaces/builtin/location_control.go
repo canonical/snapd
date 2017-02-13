@@ -27,8 +27,7 @@ import (
 
 var locationControlPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# gives privileged access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -87,8 +86,7 @@ dbus (send)
 
 var locationControlConnectedPlugAppArmor = []byte(`
 # Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+# privileged access to the service.
 
 #include <abstractions/dbus-strict>
 

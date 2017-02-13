@@ -28,7 +28,6 @@ const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # Needed by 'ps'
 @{PROC}/tty/drivers r,
@@ -74,7 +73,6 @@ const systemObserveConnectedPlugSecComp = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,

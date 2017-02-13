@@ -28,7 +28,6 @@ const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Restricted because Unity 7 runs on X and
 # requires access to various DBus services and this environment does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>

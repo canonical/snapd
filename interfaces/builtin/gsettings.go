@@ -27,7 +27,6 @@ const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
 # gsettings and allows adjusting settings of other applications.
-# Usage: reserved
 
 #include <abstractions/dbus-session-strict>
 

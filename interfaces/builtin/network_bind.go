@@ -26,7 +26,6 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
-# Usage: common
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -62,7 +61,6 @@ const networkBindConnectedPlugAppArmor = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-bind
 const networkBindConnectedPlugSecComp = `
 # Description: Can access the network as a server.
-# Usage: common
 accept
 accept4
 bind
