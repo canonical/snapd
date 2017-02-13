@@ -155,7 +155,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	case interfaces.SecurityAppArmor:
 		if iface.hasUsbAttrs(slot) {
 			// This apparmor rule is an approximation of serialDeviceNodePattern
-			// specifically AARE does not support the '+' token for "one or more"
+			// (AARE is different than regex, so we must approximate).
 			// UDev tagging and device cgroups will restrict down to the specific device
 			return []byte("/dev/tty[A-Z]*[0-9] rw,\n"), nil
 		}
