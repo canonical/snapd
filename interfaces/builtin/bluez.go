@@ -27,8 +27,7 @@ import (
 
 var bluezPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the bluez service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# gives privileged access to the system.
 
   network bluetooth,
 
@@ -97,8 +96,7 @@ var bluezPermanentSlotAppArmor = []byte(`
 
 var bluezConnectedPlugAppArmor = []byte(`
 # Description: Allow using bluez service. Reserved because this gives
-#  privileged access to the bluez service.
-# Usage: reserved
+# privileged access to the bluez service.
 
 #include <abstractions/dbus-strict>
 
@@ -130,9 +128,7 @@ dbus (receive)
 
 var bluezPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the bluez service. Reserved because this
-# gives
-#  privileged access to the system.
-# Usage: reserved
+# gives privileged access to the system.
 accept
 accept4
 bind

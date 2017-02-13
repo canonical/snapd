@@ -25,8 +25,7 @@ import (
 
 var pppConnectedPlugAppArmor = []byte(`
 # Description: Allow operating ppp daemon. Reserved because this gives
-#  privileged access to the ppp daemon.
-# Usage: reserved
+# privileged access to the ppp daemon.
 
 # Needed for modem connections using PPP
 /usr/sbin/pppd ix,

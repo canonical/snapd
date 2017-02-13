@@ -31,7 +31,6 @@ const timeControlConnectedPlugAppArmor = `
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
 # gives full access to the RTC device nodes and relevant parts of sysfs.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 

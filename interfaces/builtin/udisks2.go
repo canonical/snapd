@@ -28,7 +28,6 @@ import (
 const udisks2PermanentSlotAppArmor = `
 # Description: Allow operating as the udisks2. Reserved because this
 # gives privileged access to the system.
-# Usage: reserved
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -93,7 +92,6 @@ umount /{,run/}media/**,
 var udisks2ConnectedSlotAppArmor = []byte(`
 # Allow connected clients to interact with the service. Reserved because this
 # gives privileged access to the system.
-# Usage: reserved
 
 dbus (send)
     bus=system
@@ -119,7 +117,6 @@ dbus (receive, send)
 var udisks2ConnectedPlugAppArmor = []byte(`
 # Description: Allow using udisks service. Reserved because this gives
 # privileged access to the service.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 

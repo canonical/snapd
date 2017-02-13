@@ -26,7 +26,6 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
-# Usage: reserved
 
 /run/snapd.socket rw,
 `

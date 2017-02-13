@@ -29,7 +29,6 @@ const timezoneControlConnectedPlugAppArmor = `
 # Can change timezone via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object, see:
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
