@@ -228,7 +228,7 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        snap config set core refresh.disabled=false
+        snap set core refresh.disabled=false
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
