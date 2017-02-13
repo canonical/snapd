@@ -131,54 +131,67 @@ var weekdayMap = map[string]int{
 	"sat": 6, "saturday": 6,
 }
 
-func parseWeekday(s string, sched *Schedule) (rest string, err error) {
+// parseWeekday gets an input like "mon@9:00-11:00" or "9:00-11:00"
+// and extracts the weekday of that schedule string (which can be
+// empty). It returns the remainder of the string, the weekday
+// and an error.
+func parseWeekday(s string) (rest, weekday string, err error) {
 	if !strings.Contains(s, "@") {
-		return s, nil
+		return s, "", nil
 	}
 
 	l := strings.SplitN(s, "@", 2)
-	weekday := strings.ToLower(l[0])
+	weekday = strings.ToLower(l[0])
 	_, ok := weekdayMap[weekday]
 	if !ok {
-		return "", fmt.Errorf("cannot parse %q: not a valid day", l[0])
+		return "", "", fmt.Errorf("cannot parse %q: not a valid day", l[0])
 	}
-	sched.Weekday = weekday
 	rest = l[1]
 
-	return rest, nil
+	return rest, weekday, nil
 }
 
-func parseTimeInterval(s string, sched *Schedule) error {
+// parseTimeInterval gets an input like "9:00-11:00"
+// and extracts the start and end of that schedule string and
+// returns them and any errors.
+func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
+	if strings.Contains(s, "@") {
+		return start, end, fmt.Errorf("cannot parse %q: contains invalid @", s)
+	}
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
-		return fmt.Errorf("cannot parse %q: not a valid interval", s)
+		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
 
-	var err error
-	sched.Start, err = ParseTime(l[0])
+	start, err = ParseTime(l[0])
 	if err != nil {
-		return fmt.Errorf("cannot parse %q: not a valid time", l[0])
+		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[0])
 	}
-	sched.End, err = ParseTime(l[1])
+	end, err = ParseTime(l[1])
 	if err != nil {
-		return fmt.Errorf("cannot parse %q: not a valid time", l[1])
+		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
 
-	return nil
+	return start, end, nil
 }
 
+// parseSingleSchedule parses a schedule string like "mon@9:00-11:00" or
+// "9:00-11:00" and returns a Schedule struct and an error.
 func parseSingleSchedule(s string) (*Schedule, error) {
-	var cur Schedule
-
-	rest, err := parseWeekday(s, &cur)
+	rest, weekday, err := parseWeekday(s)
 	if err != nil {
 		return nil, err
 	}
-	if err := parseTimeInterval(rest, &cur); err != nil {
+	start, end, err := parseTimeInterval(rest)
+	if err != nil {
 		return nil, err
 	}
 
-	return &cur, nil
+	return &Schedule{
+		Weekday: weekday,
+		Start:   start,
+		End:     end,
+	}, nil
 }
 
 // ParseSchedule takes a schedule string in the form of:
