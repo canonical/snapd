@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timeutil"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -4095,6 +4096,12 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
+	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 4)
 }
 
 type snapmgrQuerySuite struct {
