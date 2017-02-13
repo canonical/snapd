@@ -49,6 +49,7 @@ bind
 listen
 # Needed by server upon client connect
 accept
+accept4
 shmctl
 `)
 

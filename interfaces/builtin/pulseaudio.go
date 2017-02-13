@@ -100,6 +100,7 @@ personality
 setpriority
 bind
 listen
+accept
 accept4
 shmctl
 # Needed to set root as group for different state dirs
