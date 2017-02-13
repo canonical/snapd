@@ -40,7 +40,7 @@ prepare: |
 restore: |
     systemctl stop libvirtd.service
     systemctl stop virtlogd.socket
-    apt remove -y libvirt-bin qemu
+    apt remove -y --purge libvirt-bin qemu
 
     ip link delete tap100
 
