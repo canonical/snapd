@@ -193,6 +193,7 @@ const browserSupportConnectedPlugSecComp = `
 bind
 listen
 accept
+accept4
 
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
