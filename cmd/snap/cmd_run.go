@@ -142,7 +142,7 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 			// We may be racing with other instances of snap-run that try to do the same thing
 			// If the symlink is already removed then we can ignore this error.
 			err = os.Remove(currentActiveSymlink)
-			if !os.IsNotExist(err) {
+			if err != nil && !os.IsNotExist(err) {
 				// abort with error
 				break
 			}
