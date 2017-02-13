@@ -50,6 +50,17 @@ const coreSupportConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/sysctl                 ixr,
 @{PROC}/sys/{,**}                      r,
 @{PROC}/sys/**                         w,
+
+# Allow modifying logind configuration. For now, allow reading all logind
+# configuration but only allow modifying NN-snap*.conf and snap*.conf files
+# in /etc/systemd/logind.conf.d.
+/etc/systemd/logind.conf                            r,
+/etc/systemd/logind.conf.d/{,*}                     r,
+/etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
+
+# Allow managing the hostname with a core config option
+/etc/hostname                         rw,
+/{,usr/}{,s}bin/hostnamectl           ixr,
 `
 
 const coreSupportConnectedPlugSecComp = `

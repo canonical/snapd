@@ -34,17 +34,32 @@ func mountNsPath(snapName string) string {
 	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
 }
 
-func (b Backend) DiscardSnapNamespace(snapName string) error {
+// Run an internal tool on a given snap namespace, if one exists.
+func (b Backend) runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
-	// If there's a .mnt file that was created by snap-confine we should ask
-	// snap-confine to discard it appropriately.
 	if osutil.FileExists(mntFile) {
-		snapDiscardNs := filepath.Join(dirs.LibExecDir, "snap-discard-ns")
-		cmd := exec.Command(snapDiscardNs, snapName)
+		toolPath := filepath.Join(dirs.LibExecDir, toolName)
+		cmd := exec.Command(toolPath, snapName)
 		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, osutil.OutputErr(output, err))
-		}
+		return output, err
+	}
+	return nil, nil
+}
+
+// Discard the mount namespace of a given snap.
+func (b Backend) DiscardSnapNamespace(snapName string) error {
+	output, err := b.runNamespaceTool("snap-discard-ns", snapName)
+	if err != nil {
+		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+	}
+	return nil
+}
+
+// Update the mount namespace of a given snap.
+func (b Backend) UpdateSnapNamespace(snapName string) error {
+	output, err := b.runNamespaceTool("snap-update-ns", snapName)
+	if err != nil {
+		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
