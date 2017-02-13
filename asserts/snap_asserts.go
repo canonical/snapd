@@ -745,7 +745,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	}
 
 	// check there's an account for each developer
-	for developerID, _ := range snapdev.developerRanges {
+	for developerID := range snapdev.developerRanges {
 		if developerID == publisherID {
 			continue
 		}
@@ -773,7 +773,7 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 	// the publisher and developers
 	publisherID := snapdev.PublisherID()
 	refs = append(refs, &Ref{AccountType, []string{publisherID}})
-	for developerID, _ := range snapdev.developerRanges {
+	for developerID := range snapdev.developerRanges {
 		if developerID != publisherID {
 			refs = append(refs, &Ref{AccountType, []string{developerID}})
 		}
