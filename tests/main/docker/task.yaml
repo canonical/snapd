@@ -1,8 +1,12 @@
 summary: Check that the docker snap works
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-*-64, ubuntu-*-amd64, ubuntu-*-armhf]
+
+# manual for now to ensure we do not pollute the download statistics
+manual: true
 
 prepare: |
+    # FIXME Need a way not to pollute the download statistics.
     snap install docker
 
 debug: |
@@ -10,11 +14,16 @@ debug: |
     dmesg
 
 execute: |
-    echo "docker info works"
+    echo "Check that docker info and run basically work"
     docker info
 
-    echo "and so does docker run"
-    docker run --rm hello-world > docker.out
-    cat docker.out | MATCH "Hello from Docker!"
-
-    echo "FIXME: we also want to run this on armhf which needs a "armhf" prefix"
+    prefix=""
+    case "$SPREAD_SYSTEM" in
+        "ubuntu-*-armhf")
+            prefix=armhf/
+        ;;
+        "ubuntu-*-i386")
+            prefix=i386/
+        ;;
+    fi
+    docker run --rm ${prefix}hello-world | MATCH "Hello from Docker!"
