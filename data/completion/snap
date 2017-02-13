@@ -1,5 +1,6 @@
 # -*- sh -*-
 _complete() {
+    # TODO: add support for sourcing this function from the core snap.
     local cur prev words cword
     _init_completion -n : || return
 
