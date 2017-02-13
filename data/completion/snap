@@ -33,7 +33,7 @@ _complete() {
             _filedir -d
             ;;
         connect)
-            if [ -n "$COMPREPLY" -a -z "${COMPREPLY%%*:}" ]; then
+            if [[ "$COMPREPLY" == *: ]]; then
                 compopt -o nospace
             fi
     esac
