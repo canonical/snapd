@@ -88,8 +88,10 @@ void sc_free_mount_entry_list(struct sc_mount_entry *entry)
 
 void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp)
 {
-	sc_free_mount_entry_list(*entryp);
-	*entryp = NULL;
+	if (entryp != NULL) {
+		sc_free_mount_entry_list(*entryp);
+		*entryp = NULL;
+	}
 }
 
 struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
