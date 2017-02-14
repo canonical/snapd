@@ -107,6 +107,14 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow querying AppArmor
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="GetConnectionAppArmorSecurityContext"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const mediaHubConnectedPlugAppArmor = `
