@@ -223,7 +223,7 @@ func (x *infoCmd) Execute([]string) error {
 		// and additionally print developer if publisher != developer
 		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
 		if both.Contact != "" {
-			fmt.Fprintf(w, "contact:\t%s\n", both.Contact)
+			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
 		maybePrintPrice(w, remote, resInfo)
 		// FIXME: find out for real
