@@ -1,0 +1,70 @@
+summary: Check that systemd is accessible through an interface
+
+details: |
+    This test makes sure that a snap using the systemd-control interface
+    can access systemd properly.
+
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Given a snap declaring a plug on systemd-control is installed"
+    . $TESTSLIB/snaps.sh
+
+    # Copy dbus-send binary into the snap directory so we can use
+    # it from inside the snap.
+    mkdir -p $TESTSLIB/snaps/systemd-control-consumer/bin
+    cp /usr/bin/dbus-send $TESTSLIB/snaps/systemd-control-consumer/bin
+
+    install_local systemd-control-consumer
+
+    echo "And the systemd-control plug is connected"
+    . "$TESTSLIB/names.sh"
+    snap connect systemd-control-consumer:systemd-control ${core_name}
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    rm -f /etc/systemd/system/test-unit.service
+    systemctl daemon-reload
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    cat << EOF > /etc/systemd/system/test-unit.service
+    [Unit]
+    Description=Test Unit
+    [Service]
+    Type=oneshot
+    RemainAfterexit=yes
+    ExecStart=/bin/true
+    ExecStop=/bin/false
+    EOF
+    /bin/systemctl daemon-reload
+
+    # Ensure we can start, stop or restart a unit
+    /snap/bin/systemd-control-consumer.dbus-send --system --print-reply \
+        --dest=org.freedesktop.systemd1 \
+        /org/freedesktop/systemd1 \
+        org.freedesktop.systemd1.Manager.StartUnit \
+        string:"test-unit.service" string:"replace"
+    /snap/bin/systemd-control-consumer.dbus-send --system --print-reply \
+        --dest=org.freedesktop.systemd1 \
+        /org/freedesktop/systemd1 \
+        org.freedesktop.systemd1.Manager.StopUnit \
+        string:"test-unit.service" string:"replace"
+    /snap/bin/systemd-control-consumer.dbus-send --system --print-reply \
+        --dest=org.freedesktop.systemd1 \
+        /org/freedesktop/systemd1 \
+        org.freedesktop.systemd1.Manager.RestartUnit \
+        string:"test-unit.service" string:"replace"

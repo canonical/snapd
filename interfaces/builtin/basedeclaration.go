@@ -154,6 +154,11 @@ plugs:
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
+  systemd-control:
+    allow-installation:
+      plug-snap-type:
+        - core
+    deny-auto-connection: true
 slots:
   account-control:
     allow-installation:
@@ -491,6 +496,11 @@ slots:
         - core
     deny-auto-connection: true
   system-trace:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  systemd-control:
     allow-installation:
       slot-snap-type:
         - core

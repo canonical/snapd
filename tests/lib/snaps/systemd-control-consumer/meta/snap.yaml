@@ -1,0 +1,9 @@
+name: systemd-control-consumer
+version: 1.0
+summary: Basic systemd-control consumer snap
+description: A basic snap declaring a plug on a systemd-control slot
+
+apps:
+  dbus-send:
+    command: bin/dbus-send
+    plugs: [systemd-control]
