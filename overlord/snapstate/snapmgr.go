@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -44,8 +43,8 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-// FIXME: what we actually want is a schedule spec that is user configurable
-// like:
+// FIXME: what we actually want is a more flexible schedule spec that is
+// user configurable  like:
 // """
 // tue
 // tue,thu
@@ -434,18 +433,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	tr := config.NewTransaction(m.state)
-
-	// allow disabling auto-refresh in the tests
-	if osutil.GetenvBool("SNAPD_DEBUG") {
-		var refreshDisabled bool
-		err := tr.Get("core", "refresh.disabled", &refreshDisabled)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-		if refreshDisabled {
-			return nil
-		}
-	}
 
 	// already have a refresh timer
 	if m.nextRefresh != nil {
