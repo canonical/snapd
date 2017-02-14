@@ -25,9 +25,13 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type prepareHandler struct{}
+type prepareHandler struct {
+	context *hookstate.Context
+}
 
-type connectHandler struct{}
+type connectHandler struct {
+	context *hookstate.Context
+}
 
 func (h *prepareHandler) Before() error {
 	return nil
@@ -56,11 +60,11 @@ func (h *connectHandler) Error(err error) error {
 // setupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
 	prepareGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &prepareHandler{}
+		return &prepareHandler{context: context}
 	}
 
 	connectGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &connectHandler{}
+		return &connectHandler{context: context}
 	}
 
 	hookMgr.Register(regexp.MustCompile("^prepare-plug-[-a-z0-9]+$"), prepareGenerator)
