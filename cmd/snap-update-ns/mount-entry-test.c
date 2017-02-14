@@ -225,6 +225,31 @@ static void test_sc_clone_mount_entry_from_mntent()
 	g_assert_null(next);
 }
 
+static void test_sc_sort_mount_entries()
+{
+	struct sc_mount_entry *list;
+
+	// Sort an empty list, it should not blow up.
+	list = NULL;
+	sc_sort_mount_entries(&list);
+	g_assert(list == NULL);
+
+	// Create a list with two items in wrong order (backwards).
+	struct sc_mount_entry entry_1 = test_entry_1;
+	struct sc_mount_entry entry_2 = test_entry_2;
+	list = &entry_2;
+	entry_2.next = &entry_1;
+	entry_1.next = NULL;
+
+	// Sort the list
+	sc_sort_mount_entries(&list);
+
+	// Ensure that the linkage now follows the right order.
+	g_assert(list == &entry_1);
+	g_assert(entry_1.next == &entry_2);
+	g_assert(entry_2.next == NULL);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount-entry/sc_load_mount_profile",
@@ -237,4 +262,6 @@ static void __attribute__ ((constructor)) init()
 			test_sc_compare_mount_entry);
 	g_test_add_func("/mount-entry/test_sc_clone_mount_entry_from_mntent",
 			test_sc_clone_mount_entry_from_mntent);
+	g_test_add_func("/mount-entry/test_sort_mount_entries",
+			test_sc_sort_mount_entries);
 }
