@@ -121,20 +121,16 @@ func (cps connectPlugSpec) Complete(match string) []flags.Completion {
 	var ret []flags.Completion
 
 	var snapPrefix, plugPrefix string
-	switch len(parts) {
-	case 2:
-		// The user typed the colon, means they know the snap they
-		// want; go with that.
+	if len(parts) == 2 {
+		// The user typed the colon, means they know the snap they want;
+		// go with that.
 		plugPrefix = parts[1]
 		snaps[parts[0]] = true
-	case 1:
-		// The user started typing a snap name but didn't reach the
-		// colon yet. Offer plugs for snaps with names that start like
-		// that.
+	} else {
+		// The user is about to or has started typing a snap name but didn't
+		// reach the colon yet. Offer plugs for snaps with names that start
+		// like that.
 		snapPrefix = parts[0]
-		fallthrough
-	case 0:
-		// note "" prefixes any snap name :-)
 		for _, plug := range ifaces.Plugs {
 			if strings.HasPrefix(plug.Snap, snapPrefix) {
 				snaps[plug.Snap] = true
