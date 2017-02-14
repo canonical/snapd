@@ -22,7 +22,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -60,18 +59,6 @@ func NewTransaction(st *state.State) *Transaction {
 	return transaction
 }
 
-var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
-
-func parseKey(key string) (subkeys []string, err error) {
-	subkeys = strings.Split(key, ".")
-	for _, subkey := range subkeys {
-		if !validKey.MatchString(subkey) {
-			return nil, fmt.Errorf("invalid option name: %q", subkey)
-		}
-	}
-	return subkeys, nil
-}
-
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
@@ -95,7 +82,7 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 	}
 	raw := json.RawMessage(data)
 
-	subkeys, err := parseKey(key)
+	subkeys, err := ParseKey(key)
 	if err != nil {
 		return err
 	}
@@ -109,7 +96,7 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 			return err
 		}
 	}
-	_, err = patchConfig(snapName, subkeys, 0, config, &raw)
+	_, err = PatchConfig(snapName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err
 	}
@@ -128,12 +115,12 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	subkeys, err := parseKey(key)
+	subkeys, err := ParseKey(key)
 	if err != nil {
 		return err
 	}
 
-	err = getFromChange(snapName, subkeys, 0, t.changes[snapName], result)
+	err = GetFromChange(snapName, subkeys, 0, t.changes[snapName], result)
 	if IsNoOption(err) {
 		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], result)
 	}
@@ -173,81 +160,6 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 		return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 	}
 	return getFromPristine(snapName, subkeys, pos+1, configm, result)
-}
-
-func getFromChange(snapName string, subkeys []string, pos int, config map[string]interface{}, result interface{}) error {
-	value, ok := config[subkeys[pos]]
-	if !ok {
-		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
-	}
-
-	if pos+1 == len(subkeys) {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		err := json.Unmarshal([]byte(*raw), result)
-		if err != nil {
-			key := strings.Join(subkeys, ".")
-			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
-		}
-		return nil
-	}
-
-	configm, ok := value.(map[string]interface{})
-	if !ok {
-		raw, ok := value.(*json.RawMessage)
-		if !ok {
-			raw = jsonRaw(value)
-		}
-		err := json.Unmarshal([]byte(*raw), &configm)
-		if err != nil {
-			return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
-		}
-	}
-	return getFromChange(snapName, subkeys, pos+1, configm, result)
-}
-
-func patchConfig(snapName string, subkeys []string, pos int, config interface{}, value *json.RawMessage) (interface{}, error) {
-
-	switch config := config.(type) {
-	case nil:
-		// Missing update map. Create and nest final value under it.
-		configm := make(map[string]interface{})
-		_, err := patchConfig(snapName, subkeys, pos, configm, value)
-		if err != nil {
-			return nil, err
-		}
-		return configm, nil
-
-	case *json.RawMessage:
-		// Raw replaces pristine on commit. Unpack, update, and repack.
-		var configm map[string]interface{}
-		err := json.Unmarshal([]byte(*config), &configm)
-		if err != nil {
-			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
-		}
-		_, err = patchConfig(snapName, subkeys, pos, configm, value)
-		if err != nil {
-			return nil, err
-		}
-		return jsonRaw(configm), nil
-
-	case map[string]interface{}:
-		// Update map to apply against pristine on commit.
-		if pos+1 == len(subkeys) {
-			config[subkeys[pos]] = value
-			return config, nil
-		} else {
-			result, err := patchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value)
-			if err != nil {
-				return nil, err
-			}
-			config[subkeys[pos]] = result
-			return config, nil
-		}
-	}
-	panic(fmt.Errorf("internal error: unexpected configuration type %T", config))
 }
 
 // Commit applies to the state the configuration changes made in the transaction
