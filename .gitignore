@@ -18,11 +18,12 @@ po/snappy.pot
 .dirstamp
 cmd/decode-mount-opts/decode-mount-opts
 cmd/libsnap-confine-private/unit-tests
-cmd/snap-update-ns/snap-update-ns
 cmd/snap-confine/snap-confine
 cmd/snap-confine/snap-confine-unit-tests
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-discard-ns/snap-discard-ns
+cmd/snap-update-ns/snap-update-ns
+cmd/snap-update-ns/unit-tests
 cmd/system-shutdown/system-shutdown
 cmd/system-shutdown/system-shutdown-unit-tests
 
