@@ -26,41 +26,45 @@ static const char *test_entry_str_1 = "fsname-1 dir-1 type-1 opts-1 1 2";
 static const char *test_entry_str_2 = "fsname-2 dir-2 type-2 opts-2 3 4";
 
 static const struct sc_mount_entry test_entry_1 = {
-	.mnt_fsname = "fsname-1",
-	.mnt_dir = "dir-1",
-	.mnt_type = "type-1",
-	.mnt_opts = "opts-1",
-	.mnt_freq = 1,
-	.mnt_passno = 2,
+	.entry = {
+		  .mnt_fsname = "fsname-1",
+		  .mnt_dir = "dir-1",
+		  .mnt_type = "type-1",
+		  .mnt_opts = "opts-1",
+		  .mnt_freq = 1,
+		  .mnt_passno = 2,
+		  }
 };
 
 static void test_looks_like_test_entry_1(const struct sc_mount_entry *entry)
 {
-	g_assert_cmpstr(entry->mnt_fsname, ==, "fsname-1");
-	g_assert_cmpstr(entry->mnt_dir, ==, "dir-1");
-	g_assert_cmpstr(entry->mnt_type, ==, "type-1");
-	g_assert_cmpstr(entry->mnt_opts, ==, "opts-1");
-	g_assert_cmpint(entry->mnt_freq, ==, 1);
-	g_assert_cmpint(entry->mnt_passno, ==, 2);
+	g_assert_cmpstr(entry->entry.mnt_fsname, ==, "fsname-1");
+	g_assert_cmpstr(entry->entry.mnt_dir, ==, "dir-1");
+	g_assert_cmpstr(entry->entry.mnt_type, ==, "type-1");
+	g_assert_cmpstr(entry->entry.mnt_opts, ==, "opts-1");
+	g_assert_cmpint(entry->entry.mnt_freq, ==, 1);
+	g_assert_cmpint(entry->entry.mnt_passno, ==, 2);
 }
 
 static const struct sc_mount_entry test_entry_2 = {
-	.mnt_fsname = "fsname-2",
-	.mnt_dir = "dir-2",
-	.mnt_type = "type-2",
-	.mnt_opts = "opts-2",
-	.mnt_freq = 3,
-	.mnt_passno = 4,
+	.entry = {
+		  .mnt_fsname = "fsname-2",
+		  .mnt_dir = "dir-2",
+		  .mnt_type = "type-2",
+		  .mnt_opts = "opts-2",
+		  .mnt_freq = 3,
+		  .mnt_passno = 4,
+		  }
 };
 
 static void test_looks_like_test_entry_2(const struct sc_mount_entry *entry)
 {
-	g_assert_cmpstr(entry->mnt_fsname, ==, "fsname-2");
-	g_assert_cmpstr(entry->mnt_dir, ==, "dir-2");
-	g_assert_cmpstr(entry->mnt_type, ==, "type-2");
-	g_assert_cmpstr(entry->mnt_opts, ==, "opts-2");
-	g_assert_cmpint(entry->mnt_freq, ==, 3);
-	g_assert_cmpint(entry->mnt_passno, ==, 4);
+	g_assert_cmpstr(entry->entry.mnt_fsname, ==, "fsname-2");
+	g_assert_cmpstr(entry->entry.mnt_dir, ==, "dir-2");
+	g_assert_cmpstr(entry->entry.mnt_type, ==, "type-2");
+	g_assert_cmpstr(entry->entry.mnt_opts, ==, "opts-2");
+	g_assert_cmpint(entry->entry.mnt_freq, ==, 3);
+	g_assert_cmpint(entry->entry.mnt_passno, ==, 4);
 }
 
 static const struct mntent test_mnt_1 = {

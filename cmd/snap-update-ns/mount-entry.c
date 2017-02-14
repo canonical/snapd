@@ -44,24 +44,24 @@ static struct sc_mount_entry *sc_clone_mount_entry_from_mntent(const struct
 	if (result == NULL) {
 		die("cannot allocate memory");
 	}
-	result->mnt_fsname = strdup(entry->mnt_fsname ? : "");
-	if (result->mnt_fsname == NULL) {
+	result->entry.mnt_fsname = strdup(entry->mnt_fsname ? : "");
+	if (result->entry.mnt_fsname == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_dir = strdup(entry->mnt_dir ? : "");
-	if (result->mnt_dir == NULL) {
+	result->entry.mnt_dir = strdup(entry->mnt_dir ? : "");
+	if (result->entry.mnt_dir == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_type = strdup(entry->mnt_type ? : "");
-	if (result->mnt_type == NULL) {
+	result->entry.mnt_type = strdup(entry->mnt_type ? : "");
+	if (result->entry.mnt_type == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_opts = strdup(entry->mnt_opts ? : "");
-	if (result->mnt_opts == NULL) {
+	result->entry.mnt_opts = strdup(entry->mnt_opts ? : "");
+	if (result->entry.mnt_opts == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_freq = entry->mnt_freq;
-	result->mnt_passno = entry->mnt_passno;
+	result->entry.mnt_freq = entry->mnt_freq;
+	result->entry.mnt_passno = entry->mnt_passno;
 	return result;
 }
 
@@ -70,10 +70,10 @@ static struct sc_mount_entry *sc_get_next_and_free_mount_entry(struct
 							       *entry)
 {
 	struct sc_mount_entry *next = entry->next;
-	free(entry->mnt_fsname);
-	free(entry->mnt_dir);
-	free(entry->mnt_type);
-	free(entry->mnt_opts);
+	free(entry->entry.mnt_fsname);
+	free(entry->entry.mnt_dir);
+	free(entry->entry.mnt_type);
+	free(entry->entry.mnt_opts);
 	memset(entry, 0, sizeof *entry);
 	free(entry);
 	return next;
@@ -136,15 +136,7 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 
 	const struct sc_mount_entry *entry;
 	for (entry = first; entry != NULL; entry = entry->next) {
-		struct mntent mntent_entry;
-		mntent_entry.mnt_fsname = entry->mnt_fsname;
-		mntent_entry.mnt_dir = entry->mnt_dir;
-		mntent_entry.mnt_type = entry->mnt_type;
-		mntent_entry.mnt_opts = entry->mnt_opts;
-		mntent_entry.mnt_freq = entry->mnt_freq;
-		mntent_entry.mnt_passno = entry->mnt_passno;
-
-		if (addmntent(f, &mntent_entry) != 0) {
+		if (addmntent(f, &entry->entry) != 0) {
 			die("cannot add mount entry to %s", pathname);
 		}
 	}
