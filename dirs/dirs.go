@@ -108,7 +108,17 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	SnapMountDir = filepath.Join(rootdir, "/snap")
+	switch release.ReleaseInfo.ID {
+	case "fedora":
+		fallthrough
+	case "centos":
+		fallthrough
+	case "rhel":
+		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
+	default:
+		SnapMountDir = filepath.Join(rootdir, "/snap")
+	}
+
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
