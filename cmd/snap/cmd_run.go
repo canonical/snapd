@@ -176,13 +176,13 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 
 	cmd := []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 	}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.LibExecDir, "snap-exec"))
+	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)

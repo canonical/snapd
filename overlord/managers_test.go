@@ -116,7 +116,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
-	dirs.LibExecDir = ms.snapDiscardNs.BinDir()
+	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
