@@ -228,7 +228,7 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        systemctl enable --now snapd.refresh.timer
+        snap set core refresh.disabled=false
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
@@ -272,7 +272,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd 
+                apt-get purge -y snapd
             fi
 
     tests/upgrade/:
@@ -312,5 +312,20 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
+
+    tests/nested/:
+        summary: Tests for nested images
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+        halt-timeout: 2h
+        kill-timeout: 2h
+        manual: true
+        prepare: |
+            # apt update is hanging on security.ubuntu.com with IPv6.
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+            apt update && apt install -y snapd qemu genisoimage sshpass
+        restore: |
+            apt remove -y qemu genisoimage sshpass
 
 # vim:ts=4:sw=4:et

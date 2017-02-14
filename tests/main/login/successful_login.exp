@@ -1,3 +1,4 @@
+log_user 0
 spawn snap login $env(SPREAD_STORE_USER)
 
 expect "Password of "
