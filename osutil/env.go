@@ -22,7 +22,6 @@ package osutil
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -56,53 +55,36 @@ func GetenvBool(key string, dflt ...bool) bool {
 
 // SubstituteEnv takes a list of environment strings like:
 // - K1=BAR
-// - K2=$BAR
-// - K3=${BAZ}
-// and substitutes them using the os environment strings.
+// - K2=$K1
+// - K3=${K2}
+// and substitutes them top-down from the given environment
+// and from the os environment.
 //
-// Strings that do not have the form "k=v" will be dropped.
+// Input strings that do not have the form "k=v" will be dropped
+// from the output.
 //
-// The result will be sorted list of environment strings.
-//
-// Circular references (A=$B,B=$A) will result in empty A,B
-// (just like in shell)
+// The result will be a list of environment strings in the same
+// order as the input.
 func SubstituteEnv(env []string) []string {
 	envMap := map[string]string{}
+	out := make([]string, 0, len(env))
+
 	for _, s := range env {
 		l := strings.SplitN(s, "=", 2)
 		if len(l) < 2 {
 			continue
 		}
-		envMap[l[0]] = l[1]
-	}
-
-	// this always terminates, in each iteration of the loop we
-	// eliminate at least one value with a "$var"
-	for {
-		changed := false
-		for k, v := range envMap {
-			newV := os.Expand(v, func(k string) string {
-				if s, ok := envMap[k]; ok {
-					return s
-				}
-				return os.ExpandEnv(v)
-			})
-			if v != newV {
-				changed = true
+		k := l[0]
+		v := l[1]
+		v = os.Expand(v, func(k string) string {
+			if s, ok := envMap[k]; ok {
+				return s
 			}
-
-			envMap[k] = newV
-		}
-		if !changed {
-			break
-		}
+			return os.ExpandEnv(v)
+		})
+		out = append(out, fmt.Sprintf("%s=%s", k, v))
+		envMap[k] = v
 	}
 
-	allEnv := make([]string, 0, len(envMap))
-	for k, v := range envMap {
-		allEnv = append(allEnv, fmt.Sprintf("%s=%s", k, os.ExpandEnv(v)))
-	}
-	sort.Strings(allEnv)
-
-	return allEnv
+	return out
 }
