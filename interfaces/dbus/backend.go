@@ -173,13 +173,15 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte
 			if !ok {
 				continue
 			}
-			if bus != "session" && bus != "system" {
+			if bus != "session" {
 				continue
 			}
 			name, ok := slot.Attrs["name"].(string)
 			if !ok {
 				continue
 			}
+			// we check if its a service here so that we know
+			// if a dbus service file needs to get generated.
 			isService, ok := slot.Attrs["service"].(bool)
 			if !ok || !isService {
 				continue
