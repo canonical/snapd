@@ -56,21 +56,21 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name(), err)
 	}
 
-	if err := b.setupBusconfig(snapInfo, snippets); err != nil {
+	if err := b.setupBusConf(snapInfo, snippets); err != nil {
 		return err
 	}
-	if err := b.setupBusservices(snapInfo, snippets); err != nil {
+	if err := b.setupBusServ(snapInfo, snippets); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (b *Backend) setupBusconfig(snapInfo *snap.Info, snippets map[string][][]byte) error {
+func (b *Backend) setupBusConf(snapInfo *snap.Info, snippets map[string][][]byte) error {
 	snapName := snapInfo.Name()
 
 	// Get the files that this snap should have
-	content, err := b.combineSnippetsBusconfig(snapInfo, snippets)
+	content, err := b.combineSnippetsBusConf(snapInfo, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -90,16 +90,16 @@ func (b *Backend) setupBusconfig(snapInfo *snap.Info, snippets map[string][][]by
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	if err := b.removeBusconfig(snapName); err != nil {
+	if err := b.removeBusConf(snapName); err != nil {
 		return err
 	}
-	if err := b.removeBusservices(snapName); err != nil {
+	if err := b.removeBusServ(snapName); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *Backend) removeBusconfig(snapName string) error {
+func (b *Backend) removeBusConf(snapName string) error {
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
@@ -108,10 +108,10 @@ func (b *Backend) removeBusconfig(snapName string) error {
 	return nil
 }
 
-// combineSnippetsBusconfig combines security snippets collected from
+// combineSnippetsBusConf combines security snippets collected from
 // all the interfaces affecting a given snap into a content map
 // applicable to EnsureDirState.
-func (b *Backend) combineSnippetsBusconfig(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippetsBusConf(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
 		appSnippets := snippets[securityTag]
@@ -122,7 +122,7 @@ func (b *Backend) combineSnippetsBusconfig(snapInfo *snap.Info, snippets map[str
 			content = make(map[string]*osutil.FileState)
 		}
 
-		addContentBusconfig(securityTag, appSnippets, content)
+		addContentBusConf(securityTag, appSnippets, content)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
@@ -135,13 +135,13 @@ func (b *Backend) combineSnippetsBusconfig(snapInfo *snap.Info, snippets map[str
 			content = make(map[string]*osutil.FileState)
 		}
 
-		addContentBusconfig(securityTag, hookSnippets, content)
+		addContentBusConf(securityTag, hookSnippets, content)
 	}
 
 	return content, nil
 }
 
-func addContentBusconfig(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
+func addContentBusConf(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	buffer.Write(xmlHeader)
 	for _, snippet := range executableSnippets {
@@ -156,7 +156,7 @@ func addContentBusconfig(securityTag string, executableSnippets [][]byte, conten
 	}
 }
 
-func (b *Backend) setupBusservices(snapInfo *snap.Info, snippets map[string][][]byte) error {
+func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte) error {
 	snapName := snapInfo.Name()
 
 	content := map[string]*osutil.FileState{}
@@ -209,7 +209,7 @@ Exec=%s
 	return nil
 }
 
-func (b *Backend) removeBusservices(snapName string) error {
+func (b *Backend) removeBusServ(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSessionServicesFilesDir, glob, nil)
 	if err != nil {
