@@ -57,19 +57,11 @@ const openglConnectedPlugAppArmor = `
   /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-const openglConnectedPlugSecComp = `
-# Description: Can access opengl.
-# Usage: reserved
-
-getsockopt
-`
-
 // NewOpenglInterface returns a new "opengl" interface.
 func NewOpenglInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "opengl",
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugSecComp:  openglConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

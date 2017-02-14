@@ -74,3 +74,18 @@ func (ts *StatTestSuite) TestIsSymlink(c *C) {
 func (ts *StatTestSuite) TestIsSymlinkNoSymlink(c *C) {
 	c.Assert(IsSymlink(c.MkDir()), Equals, false)
 }
+
+func (ts *StatTestSuite) TestExecutableExists(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPath)
+	d := c.MkDir()
+	os.Setenv("PATH", d)
+	c.Check(ExecutableExists("xyzzy"), Equals, false)
+
+	fname := filepath.Join(d, "xyzzy")
+	c.Assert(ioutil.WriteFile(fname, []byte{}, 0644), IsNil)
+	c.Check(ExecutableExists("xyzzy"), Equals, false)
+
+	c.Assert(os.Chmod(fname, 0755), IsNil)
+	c.Check(ExecutableExists("xyzzy"), Equals, true)
+}

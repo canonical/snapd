@@ -36,6 +36,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -123,7 +124,9 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 	}
 
 	buffer.Write(defaultTemplate)
-	for _, snippet := range snippets[securityTag] {
+	snippetsForTag := snippets[securityTag]
+	sort.Sort(byByteContent(snippetsForTag))
+	for _, snippet := range snippetsForTag {
 		buffer.Write(snippet)
 		buffer.WriteRune('\n')
 	}
@@ -136,4 +139,12 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+}
+
+type byByteContent [][]byte
+
+func (x byByteContent) Len() int      { return len(x) }
+func (x byByteContent) Swap(a, b int) { x[a], x[b] = x[b], x[a] }
+func (x byByteContent) Less(a, b int) bool {
+	return bytes.Compare(x[a], x[b]) < 0
 }

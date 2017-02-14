@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -192,8 +193,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+// Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	deltasDefault := release.OnClassic
+	// only xdelta3 is supported for now, so check the binary exists here
+	// TODO: have a per-format checker instead
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
 }
 
 func useStaging() bool {
@@ -1475,7 +1480,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
-	deltaName := filepath.Base(deltaPath)
+	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
 	w, err := os.Create(deltaPath)
 	if err != nil {
