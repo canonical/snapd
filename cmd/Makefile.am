@@ -74,6 +74,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/privs.c \
+	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap.c \
@@ -89,9 +91,10 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
+	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
-	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
 	libsnap-confine-private/string-utils-test.c \
