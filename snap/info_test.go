@@ -296,8 +296,8 @@ apps:
 	env := info.Apps["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
-		"app-k=app-v\n",
-		"global-k=global-v\n",
+		"app-k=app-v",
+		"global-k=global-v",
 	})
 }
 
@@ -320,9 +320,9 @@ apps:
 	env := info.Apps["foo"].Env()
 	sort.Strings(env)
 	c.Check(env, DeepEquals, []string{
-		"app-k=app-v\n",
-		"global-and-local=local-v\n",
-		"global-k=global-v\n",
+		"app-k=app-v",
+		"global-and-local=local-v",
+		"global-k=global-v",
 	})
 }
 
