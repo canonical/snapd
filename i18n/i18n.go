@@ -56,11 +56,10 @@ func langpackResolver(baseRoot string, locale string, domain string) string {
 	for _, locale := range locales {
 		r := filepath.Join(locale, "LC_MESSAGES", fmt.Sprintf("%s.mo", domain))
 
-		// look into the core,ubuntu-core snaps first for
-		// translations, then the main system
+		// look into the core snaps first for translations,
+		// then the main system
 		candidateDirs := []string{
 			filepath.Join("/snap/core/current/", baseRoot),
-			filepath.Join("/snap/ubuntu-core/current/", baseRoot),
 			baseRoot,
 		}
 		for _, root := range candidateDirs {
