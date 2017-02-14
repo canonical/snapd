@@ -228,6 +228,11 @@ func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
 }
 
+// HomeDirBase returns the user-specific home directory base of the snap.
+func (s *Info) HomeDirBase(home string) string {
+	return filepath.Join(home, "snap", s.Name())
+}
+
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), "common")
