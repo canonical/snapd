@@ -109,6 +109,7 @@ const dbusPermanentSlotSecComp = `
 recvmsg
 sendmsg
 sendto
+recvfrom
 `
 
 const dbusPermanentSlotDBus = `
