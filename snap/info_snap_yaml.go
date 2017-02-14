@@ -84,7 +84,6 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
-	setEnvironmentFromSnapYaml(y, snap)
 
 	// Collect top-level definitions of plugs and slots
 	if err := setPlugsFromSnapYaml(y, snap); err != nil {
@@ -168,13 +167,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	sort.Strings(snap.Assumes)
 
 	return snap
-}
-
-func setEnvironmentFromSnapYaml(y snapYaml, snap *Info) {
-	// FIXME: use snap.Environment = *y.Environment.Copy()
-	for _, k := range y.Environment.Keys() {
-		snap.Environment.Set(k, y.Environment.Get(k))
-	}
 }
 
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
