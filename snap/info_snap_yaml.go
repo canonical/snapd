@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -42,7 +43,7 @@ type snapYaml struct {
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
-	Environment      map[string]string      `yaml:"environment,omitempty"`
+	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
@@ -67,7 +68,7 @@ type appYaml struct {
 
 	BusName string `yaml:"bus-name,omitempty"`
 
-	Environment map[string]string `yaml:"environment,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 }
 
 type hookYaml struct {
@@ -170,8 +171,9 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 }
 
 func setEnvironmentFromSnapYaml(y snapYaml, snap *Info) {
-	for k, v := range y.Environment {
-		snap.Environment[k] = v
+	// FIXME: use snap.Environment = *y.Environment.Copy()
+	for _, k := range y.Environment.Keys() {
+		snap.Environment.Set(k, y.Environment.Get(k))
 	}
 }
 
