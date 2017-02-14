@@ -178,7 +178,7 @@ slots:
         - core
         - gadget
     deny-auto-connection: true
-  boot-config:
+  boot-control:
     allow-installation:
       slot-snap-type:
         - gadget

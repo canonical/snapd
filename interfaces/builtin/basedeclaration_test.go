@@ -348,7 +348,7 @@ var (
 		// other
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
-		"boot-config":             {"gadget"},
+		"boot-control":            {"gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
 		"dbus":                    {"app"},
@@ -476,7 +476,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":                   true,
-		"boot-config":             true,
+		"boot-control":            true,
 		"docker":                  true,
 		"fwupd":                   true,
 		"location-control":        true,

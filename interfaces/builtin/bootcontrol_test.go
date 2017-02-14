@@ -28,47 +28,47 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type bootConfigInterfaceSuite struct {
+type bootControlInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&bootConfigInterfaceSuite{
-	iface: builtin.NewBootConfigInterface(),
+var _ = Suite(&bootControlInterfaceSuite{
+	iface: builtin.NewBootControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "pi2", Type: snap.TypeGadget},
-			Name:      "boot-config",
-			Interface: "boot-config",
+			Name:      "boot-control",
+			Interface: "boot-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "boot-config",
-			Interface: "boot-config",
+			Name:      "boot-control",
+			Interface: "boot-control",
 		},
 	},
 })
 
-func (s *bootConfigInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "boot-config")
+func (s *bootControlInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "boot-control")
 }
 
-func (s *bootConfigInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *bootControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, "/boot/uboot/config.txt")
 }
 
-func (s *bootConfigInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *bootControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 }
 
-func (s *bootConfigInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *bootControlInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }

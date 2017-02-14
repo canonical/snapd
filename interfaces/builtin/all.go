@@ -59,7 +59,7 @@ var allInterfaces = []interfaces.Interface{
 	NewAlsaInterface(),
 	NewAvahiObserveInterface(),
 	NewBluetoothControlInterface(),
-	NewBootConfigInterface(),
+	NewBootControlInterface(),
 	NewCameraInterface(),
 	NewCupsControlInterface(),
 	NewDcdbasControlInterface(),

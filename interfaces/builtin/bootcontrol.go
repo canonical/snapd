@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const bootConfigConnectedPlugAppArmor = `
+const bootControlConnectedPlugAppArmor = `
 # Description: Can access boot config files amd brick the system
 # Usage: reserved (very much so!)
 
@@ -31,9 +31,9 @@ const bootConfigConnectedPlugAppArmor = `
 owner /boot/uboot/config.txt rwk,
 `
 
-func NewBootConfigInterface() interfaces.Interface {
+func NewBootControlInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "boot-config",
-		connectedPlugAppArmor: bootConfigConnectedPlugAppArmor,
+		name: "boot-control",
+		connectedPlugAppArmor: bootControlConnectedPlugAppArmor,
 	}
 }
