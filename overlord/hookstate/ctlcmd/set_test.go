@@ -213,6 +213,23 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 	c.Check(attrs["foo"], Equals, "bar")
 }
 
+func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
+	c.Assert(err, IsNil)
+	st := s.mockPlugHookContext.State()
+	st.Lock()
+	defer st.Unlock()
+	attrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Check(attrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
+}
+
 func (s *setAttrSuite) TestSetSlotAttributesInSlotHook(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"set", ":bslot", "foo=bar"})
 	c.Check(err, IsNil)

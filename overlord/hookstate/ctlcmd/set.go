@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -114,6 +115,22 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
+func setInterfaceAttribute(context *hookstate.Context, attributes map[string]interface{}, key string, value interface{}) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
+	}
+	raw := json.RawMessage(data)
+
+	subkeys, err := config.ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, attributes, &raw)
+	return err
+}
+
 func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
@@ -159,7 +176,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attributes[parts[0]] = value
+		setInterfaceAttribute(context, attributes, parts[0], value)
 	}
 
 	attrsTask.Set(which, attributes)
