@@ -44,19 +44,19 @@ static struct sc_mount_entry *sc_clone_mount_entry_from_mntent(const struct
 	if (result == NULL) {
 		die("cannot allocate memory");
 	}
-	result->mnt_fsname = strdup(entry->mnt_fsname);
+	result->mnt_fsname = strdup(entry->mnt_fsname ? : "");
 	if (result->mnt_fsname == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_dir = strdup(entry->mnt_dir);
+	result->mnt_dir = strdup(entry->mnt_dir ? : "");
 	if (result->mnt_dir == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_type = strdup(entry->mnt_type);
+	result->mnt_type = strdup(entry->mnt_type ? : "");
 	if (result->mnt_type == NULL) {
 		die("cannot copy string");
 	}
-	result->mnt_opts = strdup(entry->mnt_opts);
+	result->mnt_opts = strdup(entry->mnt_opts ? : "");
 	if (result->mnt_opts == NULL) {
 		die("cannot copy string");
 	}
