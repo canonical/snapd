@@ -41,6 +41,7 @@ type SnapDeclaration struct {
 	plugRules      map[string]*PlugRule
 	slotRules      map[string]*SlotRule
 	autoAliases    []string
+	aliases        map[string]string
 	timestamp      time.Time
 }
 
@@ -85,8 +86,14 @@ func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
 }
 
 // AutoAliases returns the optional auto-aliases granted to this snap.
+// XXX: deprecated, will go away
 func (snapdcl *SnapDeclaration) AutoAliases() []string {
 	return snapdcl.autoAliases
+}
+
+// Aliases returns the optional explicit aliases granted to this snap.
+func (snapdcl *SnapDeclaration) Aliases() map[string]string {
+	return snapdcl.aliases
 }
 
 // Implement further consistency checks.
@@ -176,7 +183,53 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	return formatnum, nil
 }
 
-var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+var (
+	validAlias   = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+	validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+)
+
+func checkAliases(headers map[string]interface{}) (map[string]string, error) {
+	value, ok := headers["aliases"]
+	if !ok {
+		return nil, nil
+	}
+	aliasList, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`"aliases" header must be a list of alias maps`)
+	}
+	if len(aliasList) == 0 {
+		return nil, nil
+	}
+
+	aliasMap := make(map[string]string, len(aliasList))
+	for i, item := range aliasList {
+		aliasItem, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`"aliases" header must be a list of alias maps`)
+		}
+
+		what := fmt.Sprintf(`in "aliases" item %d`, i+1)
+		name, err := checkStringMatchesWhat(aliasItem, "name", what, validAlias)
+		if err != nil {
+			return nil, err
+		}
+
+		what = fmt.Sprintf(`for alias %q`, name)
+
+		target, err := checkStringMatchesWhat(aliasItem, "target", what, validAppName)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := aliasMap[name]; ok {
+			return nil, fmt.Errorf(`duplicated definition in "aliases" for alias %q`, name)
+		}
+
+		aliasMap[name] = target
+	}
+
+	return aliasMap, nil
+}
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
@@ -231,7 +284,13 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	// XXX: depracated, will go away later
 	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
+	if err != nil {
+		return nil, err
+	}
+
+	aliases, err := checkAliases(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +301,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		plugRules:      plugRules,
 		slotRules:      slotRules,
 		autoAliases:    autoAliases,
+		aliases:        aliases,
 		timestamp:      timestamp,
 	}, nil
 }
