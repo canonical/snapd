@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,7 +35,7 @@ type bootControlInterfaceSuite struct {
 }
 
 var _ = Suite(&bootControlInterfaceSuite{
-	iface: builtin.NewBootControlInterface(),
+	iface: builtin.NewBootControlhInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "pi2", Type: snap.TypeGadget},

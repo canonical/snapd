@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,10 +24,11 @@ import (
 )
 
 const bootControlConnectedPlugAppArmor = `
-# Description: Can access boot config files amd brick the system
-# Usage: reserved (very much so!)
+# Description: Can access and modify boot config files. This gives device
+# ownership to the snap.
 
-# Allow read/write access to the pi2 boot config.txt
+# Allow read/write access to the pi2 boot config.txt. WARNING: improperly
+# editing this file may render the system unbootable.
 owner /boot/uboot/config.txt rwk,
 `
 
