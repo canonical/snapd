@@ -111,8 +111,9 @@ EOF
         snap install --${CORE_CHANNEL} core
         snap list | grep core
 
-        # ensure no auto-refresh happens during the tests
-        snap set core refresh.disabled=true
+        # ensure no auto-refresh happens during the tests, we set the window
+        # forward two days
+        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
 
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
@@ -334,7 +335,7 @@ prepare_all_snap() {
     done
 
     # ensure no auto-refresh happens during the tests
-    snap set core refresh.disabled=true
+    snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
