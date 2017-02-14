@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -35,7 +37,7 @@ func Test(t *testing.T) { TestingT(t) }
 var mockLocalePo = []byte(`
 msgid ""
 msgstr ""
-"Project-Id-Version: snappy\n"
+"Project-Id-Version: snappy-test\n"
 "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
 "POT-Creation-Date: 2015-06-16 09:08+0200\n"
 "Language: en_DK\n"
@@ -128,20 +130,33 @@ func (s *i18nTestSuite) TestInvalidTextDomainDir(c *C) {
 	c.Assert(Gtest("singular"), Equals, "singular")
 }
 
-func (s *i18nTestSuite) TestLangpackResolver(c *C) {
+func (s *i18nTestSuite) TestLangpackResolverFromLangpack(c *C) {
 	root := c.MkDir()
-	err := os.MkdirAll(filepath.Join(root, "/usr/share/locale"), 0755)
+	localeDir := filepath.Join(root, "/usr/share/locale")
+	err := os.MkdirAll(localeDir, 0755)
 	c.Assert(err, IsNil)
 
-	langpackDir := filepath.Join(root, "/usr/share/locale-langpack")
-	err = os.MkdirAll(langpackDir, 0755)
-	c.Assert(err, IsNil)
-
-	makeMockTranslations(c, langpackDir)
-	bindTextDomain("snappy-test", langpackDir)
+	d := filepath.Join(root, "/usr/share/locale-langpack")
+	makeMockTranslations(c, d)
+	bindTextDomain("snappy-test", localeDir)
+	setLocale("")
 
 	// no G() to avoid adding the test string to snappy-pot
 	var Gtest = G
-	c.Assert(Gtest("singular"), Equals, "translated singular")
+	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
+}
 
+func (s *i18nTestSuite) TestLangpackResolverFromCore(c *C) {
+	origSnapMountDir := dirs.SnapMountDir
+	defer func() { dirs.SnapMountDir = origSnapMountDir }()
+	dirs.SnapMountDir = c.MkDir()
+
+	d := filepath.Join(dirs.SnapMountDir, "/core/current/usr/share/locale")
+	makeMockTranslations(c, d)
+	bindTextDomain("snappy-test", "/usr/share/locale")
+	setLocale("")
+
+	// no G() to avoid adding the test string to snappy-pot
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
 }

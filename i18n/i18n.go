@@ -33,6 +33,7 @@ import (
 	*/
 	"github.com/mvo5/gettext.go"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -59,7 +60,7 @@ func langpackResolver(baseRoot string, locale string, domain string) string {
 		// look into the core snaps first for translations,
 		// then the main system
 		candidateDirs := []string{
-			filepath.Join("/snap/core/current/", baseRoot),
+			filepath.Join(dirs.SnapMountDir, "/core/current/", baseRoot),
 			baseRoot,
 		}
 		for _, root := range candidateDirs {
