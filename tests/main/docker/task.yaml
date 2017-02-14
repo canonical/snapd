@@ -1,6 +1,6 @@
 summary: Check that the docker snap works
 
-systems: [ubuntu-16.04-64, ubuntu-16.04-amd64, ubuntu-16.04-i386, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf, ubuntu-14.04-64]
+systems: [ubuntu-16.04-64, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf, ubuntu-14.04-64]
 
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
@@ -35,4 +35,4 @@ execute: |
             prefix=i386/
         ;;
     esac
-    docker run --rm ${prefix}hello-world | MATCH "Hello from Docker!"
+    docker run --rm ${prefix}hello-world | MATCH "Hello from Docker"
