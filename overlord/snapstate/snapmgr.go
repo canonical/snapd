@@ -574,7 +574,7 @@ func (m *SnapManager) cleanupSnapConfineApparmor(currentSnapConfineProfilePath s
 		// not using apparmor.UnloadProfile() because it uses a
 		// different cachedir
 		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
-			logger.Noticef("cannot remove apparmor %s: %q", path, output)
+			logger.Noticef("cannot unload apparmor profile %s: %v", filepath.Base(path), osutil.OutputErr(output, err))
 		}
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return err
@@ -603,13 +603,13 @@ func (m *SnapManager) addSnapConfineApparmor(snapConfineInCore, apparmorProfileP
 
 	// /etc/apparmor.d is read/write OnClassic, so write out the
 	// new core's profile there
-	if err := ioutil.WriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644); err != nil {
+	if err := osutil.AtomicWriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644, 0); err != nil {
 		return err
 	}
 
 	// not using apparmor.LoadProfile() because it uses a different cachedir
 	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+		return fmt.Errorf("cannot replace snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
 	}
 
 	return nil
@@ -628,7 +628,8 @@ func (m *SnapManager) ensureSnapConfineApparmor() error {
 
 	root := filepath.Join(dirs.SnapMountDir, "/core/current/")
 	snapConfineInCore, err := filepath.EvalSymlinks(filepath.Join(root, "/usr/lib/snapd/snap-confine"))
-	// in flight
+	// We do not always have a "current" symlink currently. This may happen
+	// when the system has no snaps yet or during a `snap refresh core`
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -660,7 +661,8 @@ func (m *SnapManager) Ensure() error {
 
 	m.runner.Ensure()
 
-	// needs to run after the runner
+	// run after the runner so if we get a new core snap, we immediately
+	// generate the matching apparmor profile for snap-confine from core
 	if err := m.ensureSnapConfineApparmor(); err != nil {
 		// FIMXE: this will spam the world as ensure runs often
 		logger.Noticef("ensureSnapConfineApparmor failed with: %s", err)
