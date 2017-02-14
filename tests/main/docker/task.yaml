@@ -1,6 +1,6 @@
 summary: Check that the docker snap works
 
-systems: [ubuntu-16.04-64, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf]
+systems: [ubuntu-16.04-64, ubuntu-16.04-amd64, ubuntu-16.04-i386, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf]
 
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
@@ -29,6 +29,9 @@ execute: |
             prefix=armhf/
         ;;
         "ubuntu-*-i386")
+            prefix=i386/
+        ;;
+        "ubuntu-16.04-32")
             prefix=i386/
         ;;
     esac
