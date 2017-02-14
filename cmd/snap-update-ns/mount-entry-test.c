@@ -130,6 +130,14 @@ static void test_sc_load_mount_profile()
 	g_assert_null(entry->next);
 }
 
+static void test_sc_load_mount_profile__no_such_file()
+{
+	struct sc_mount_entry *fstab
+	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) = NULL;
+	fstab = sc_load_mount_profile("test.does-not-exist.fstab");
+	g_assert_null(fstab);
+}
+
 static void test_sc_save_mount_profile()
 {
 	struct sc_mount_entry entry_1 = test_entry_1;
@@ -183,6 +191,8 @@ static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount-entry/sc_load_mount_profile",
 			test_sc_load_mount_profile);
+	g_test_add_func("/mount-entry/sc_load_mount_profile/no_such_file",
+			test_sc_load_mount_profile__no_such_file);
 	g_test_add_func("/mount-entry/sc_save_mount_profile",
 			test_sc_save_mount_profile);
 	g_test_add_func("/mount-entry/test_sc_clone_mount_entry_from_mntent",
