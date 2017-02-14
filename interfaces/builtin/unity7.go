@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Restricted because Unity 7 runs on X and
 # requires access to various DBus services and this environment does not prevent
@@ -32,10 +33,6 @@ const unity7ConnectedPlugAppArmor = `
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 #include <abstractions/X>
-
-# This is needed by QtSystems on X. For details see:
-# https://bugs.launchpad.net/snapd/+bug/1663221/comments/3
-network netlink raw,
 
 #include <abstractions/fonts>
 /var/cache/fontconfig/   r,
