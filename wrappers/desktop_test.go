@@ -301,7 +301,7 @@ func (s *sanitizeDesktopFileSuite) TestIsValidDesktopLine(c *C) {
 		{"Name[foo=bar", false},
 		{"Icon[xx]=bar", false},
 		// dbus related
-		{"Activactable=true", false},
+		{"Activatable=true", false},
 		{"DBusActivatable=true", true},
 		{"DBusActivatable=false", true},
 	}

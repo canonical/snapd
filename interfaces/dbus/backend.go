@@ -173,15 +173,15 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte
 			if !ok {
 				continue
 			}
-			if bus != "session" {
+			if bus != "session" && bus != "system" {
 				continue
 			}
 			name, ok := slot.Attrs["name"].(string)
 			if !ok {
 				continue
 			}
-			isService := slot.Attrs["service"].(bool)
-			if !isService {
+			isService, ok := slot.Attrs["service"].(bool)
+			if !ok || !isService {
 				continue
 			}
 
@@ -200,7 +200,7 @@ Exec=%s
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	dir := dirs.SnapDBusSessionServicesFilesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for DBus service files %q: %s", dir, err)
+		return fmt.Errorf("cannot create directory for DBus service files: %s", err)
 	}
 	_, _, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
