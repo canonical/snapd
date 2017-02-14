@@ -55,6 +55,11 @@ func (s *orderedMapSuite) TestBasic(c *C) {
 
 	om2 := om.Copy()
 	c.Assert(om2.Keys(), DeepEquals, []string{"K1", "K0", "K9"})
+
+	// replaces existing value, inserted at the end
+	om.Set("K1", "newbar")
+	c.Assert(om.Keys(), DeepEquals, []string{"K0", "K9", "K1"})
+	c.Check(om.Get("K1"), Equals, "newbar")
 }
 
 func (s *orderedMapSuite) TestYamlTrivial(c *C) {
