@@ -1,5 +1,8 @@
 name: test-snapd-tools
 version: 1.0
+environment:
+  EXTRA_GLOBAL: extra-global
+  EXTRA_CACHE_DIR: $SNAP_USER_DATA/.cache
 apps:
     echo:
         command: bin/echo
@@ -15,6 +18,9 @@ apps:
         command: bin/head
     env:
         command: bin/env
+        environment:
+          EXTRA_LOCAL: extra-local
+          EXTRA_LOCAL_NESTED: ${EXTRA_GLOBAL}-nested
     sh:
         command: bin/sh
     cmd:

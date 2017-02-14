@@ -17,16 +17,17 @@ restore: |
 
 execute: |
     echo "When a snap is private it doesn't show up in the find without login and without specifying private search"
-    ! snap find test-snapd-private | grep -q "test-snapd-private +\d+\.\d+"
+    ! snap find test-snapd-private | MATCH "test-snapd-private +[0-9]+\.[0-9]+"
 
     echo "When a snap is private it doesn't show up in the find --private results without login"
-    ! snap find test-snapd-private --private | grep -q "test-snapd-private +\d+\.\d+"
+    ! snap find test-snapd-private --private | MATCH "test-snapd-private +[0-9]+\.[0-9]+"
 
     echo "Given account store credentials are available"
-    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
+    # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ] && [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "And the user has logged in"
         expect -f successful_login.exp
 
         echo "Then a private snap belonging to that user shows up in the find results"
-        snap find test-snapd-private --private | grep -q "test-snapd-private +\d+\.\d+"
+        snap find test-snapd-private --private | MATCH "test-snapd-private +[0-9]+\.[0-9]+"
     fi

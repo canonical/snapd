@@ -141,6 +141,11 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -174,6 +179,14 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+	// verify initial attributes are present in connect task
+	var attrs map[string]interface{}
+	err = task.Get("plug-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Assert(attrs["attr1"], Equals, "value1")
+	err = task.Get("slot-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Assert(attrs["attr2"], Equals, "value2")
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -311,25 +324,9 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
-	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:plug to producer:whatslot \(snap "producer" has no "whatslot" slot\)`)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
+	_ = s.state.NewChange("kind", "summary")
+	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
+	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "whatslot"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
@@ -339,26 +336,9 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
-	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 5)
-	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:whatplug to producer:slot \(snap "consumer" has no "whatplug" plug\).*`)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
+	_ = s.state.NewChange("kind", "summary")
+	_, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
+	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "whatplug"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
@@ -710,6 +690,7 @@ version: 1
 plugs:
  plug:
   interface: test
+  attr1: value1
  otherplug:
   interface: test2
 `
@@ -720,6 +701,7 @@ version: 1
 slots:
  slot:
   interface: test
+  attr2: value2
 `
 
 // The setup-profiles task will not auto-connect an plug that was previously
