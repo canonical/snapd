@@ -135,33 +135,33 @@ func (sched *Schedule) SameInterval(t1, t2 time.Time) bool {
 }
 
 var weekdayMap = map[string]int{
-	"sun": 0, "sunday": 0,
-	"mon": 1, "monday": 1,
-	"tue": 2, "tuesday": 2,
-	"wed": 3, "wednesday": 3,
-	"thu": 4, "thursday": 4,
-	"fri": 5, "friday": 5,
-	"sat": 6, "saturday": 6,
+	"sun": 0,
+	"mon": 1,
+	"tue": 2,
+	"wed": 3,
+	"thu": 4,
+	"fri": 5,
+	"sat": 6,
 }
 
 // parseWeekday gets an input like "mon@9:00-11:00" or "9:00-11:00"
 // and extracts the weekday of that schedule string (which can be
 // empty). It returns the remainder of the string, the weekday
 // and an error.
-func parseWeekday(s string) (rest, weekday string, err error) {
+func parseWeekday(s string) (weekday, rest string, err error) {
 	if !strings.Contains(s, "@") {
-		return s, "", nil
+		return "", s, nil
 	}
-
+	s = strings.ToLower(s)
 	l := strings.SplitN(s, "@", 2)
-	weekday = strings.ToLower(l[0])
+	weekday = l[0]
 	_, ok := weekdayMap[weekday]
 	if !ok {
-		return "", "", fmt.Errorf("cannot parse %q: not a valid day", l[0])
+		return "", "", fmt.Errorf(`cannot parse %q, want "mon", "tue", etc`, l[0])
 	}
 	rest = l[1]
 
-	return rest, weekday, nil
+	return weekday, rest, nil
 }
 
 // parseTimeInterval gets an input like "9:00-11:00"
@@ -194,7 +194,7 @@ func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
 // parseSingleSchedule parses a schedule string like "mon@9:00-11:00" or
 // "9:00-11:00" and returns a Schedule struct and an error.
 func parseSingleSchedule(s string) (*Schedule, error) {
-	rest, weekday, err := parseWeekday(s)
+	weekday, rest, err := parseWeekday(s)
 	if err != nil {
 		return nil, err
 	}

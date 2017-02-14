@@ -96,13 +96,13 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"11:00-09:00", nil, `cannot parse "11:00-09:00": not a valid interval`},
 		{"23:00-01:00", nil, `cannot parse "23:00-01:00": not a valid interval`},
 		// FIXME: error message sucks
-		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon": not a valid day`},
+		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon", want "mon", "tue", etc`},
 
 		// valid
 		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
 		{"mon@9:00-11:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
 		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
-		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wednesday", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
+		{"mon@9:00-11:00,Wed@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wed", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
