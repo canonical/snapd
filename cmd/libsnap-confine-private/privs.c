@@ -67,9 +67,12 @@ void sc_privs_drop()
 		die("cannot get real, effective and saved group identifiers");
 	}
 	if (euid == 0) {
-		// Drop extra group membership.
-		if (setgroups(0, NULL) < 0) {
-			die("cannot set supplementary group identifiers");
+		// Drop extra group membership if we can.
+		if (sc_has_capability("cap_setgid")) {
+			gid_t gid_list[1] = { rgid };
+			if (setgroups(1, gid_list) < 0) {
+				die("cannot set supplementary group identifiers");
+			}
 		}
 		// Switch to real group ID
 		if (setgid(rgid) < 0) {
