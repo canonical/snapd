@@ -54,10 +54,10 @@ void sc_privs_drop()
 		}
 		// Verify everything
 		if (rgid != 0 && (getuid() == 0 || geteuid() == 0)) {
-			die("cannot permanently drop permissions (gid still elevated)");
+			die("cannot permanently drop permissions (uid still elevated)");
 		}
 		if (ruid != 0 && (getgid() == 0 || getegid() == 0)) {
-			die("cannot permanently drop permissions (uid still elevated)");
+			die("cannot permanently drop permissions (gid still elevated)");
 		}
 		// XXX Should we verify supplementary groups?
 		debug("elevated permissions have been permanently dropped");
