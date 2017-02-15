@@ -34,38 +34,7 @@ type timeutilSuite struct{}
 
 var _ = Suite(&timeutilSuite{})
 
-func (ts *timeutilSuite) TestParseSchedule(c *C) {
-	for _, t := range []struct {
-		in       string
-		expected []*timeutil.Schedule
-		errStr   string
-	}{
-		// invalid
-		{"", nil, `cannot parse "": not a valid interval`},
-		{"invalid-11:00", nil, `cannot parse "invalid": not a valid time`},
-		{"9:00-11:00,invalid", nil, `cannot parse "invalid": not a valid interval`},
-		{"09:00-25:00", nil, `cannot parse "25:00": not a valid time`},
-		// FIXME: error message sucks
-		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon": not a valid day`},
-
-		// valid
-		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"mon@9:00-11:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"9:00-11:00,20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
-		{"mon@9:00-11:00,Wednesday@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wednesday", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
-	} {
-		schedule, err := timeutil.ParseSchedule(t.in)
-		if t.errStr != "" {
-			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", err))
-		} else {
-			c.Check(err, IsNil, Commentf("%q returned error: %s", t.in, err))
-			c.Check(schedule, DeepEquals, t.expected, Commentf("%q failed", t.in))
-		}
-
-	}
-}
-
-func (ts *timeutilSuite) TestParseTime(c *C) {
+func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 	for _, t := range []struct {
 		timeStr              string
 		hour, minute, second int
@@ -89,6 +58,60 @@ func (ts *timeutilSuite) TestParseTime(c *C) {
 			c.Check(ti.Minute, Equals, t.minute)
 			c.Check(ti.Second, Equals, t.second)
 		}
+	}
+}
+
+func (ts *timeutilSuite) TestOrderTimeOfDay(c *C) {
+	for _, t := range []struct {
+		t1, t2 string
+		isLess bool
+	}{
+		{"9:00", "10:00", true},
+		{"9:00", "9:01", true},
+		{"9:00:00", "9:00:01", true},
+		{"10:00", "9:00", false},
+		{"9:00", "9:00", false},
+	} {
+		t1, err := timeutil.ParseTime(t.t1)
+		c.Assert(err, IsNil)
+		t2, err := timeutil.ParseTime(t.t2)
+		c.Assert(err, IsNil)
+		c.Check(t1.Less(t2), Equals, t.isLess, Commentf("incorrect result for %#v", t))
+	}
+
+}
+
+func (ts *timeutilSuite) TestParseSchedule(c *C) {
+	for _, t := range []struct {
+		in       string
+		expected []*timeutil.Schedule
+		errStr   string
+	}{
+		// invalid
+		{"", nil, `cannot parse "": not a valid interval`},
+		{"invalid-11:00", nil, `cannot parse "invalid": not a valid time`},
+		{"9:00-11:00/invalid", nil, `cannot parse "invalid": not a valid interval`},
+		{"09:00-25:00", nil, `cannot parse "25:00": not a valid time`},
+		// moving backwards
+		{"11:00-09:00", nil, `cannot parse "11:00-09:00": not a valid interval`},
+		{"23:00-01:00", nil, `cannot parse "23:00-01:00": not a valid interval`},
+		// FIXME: error message sucks
+		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon", want "mon", "tue", etc`},
+
+		// valid
+		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
+		{"mon@9:00-11:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
+		{"9:00-11:00/20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
+		{"mon@9:00-11:00/Wed@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wed", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
+	} {
+		schedule, err := timeutil.ParseSchedule(t.in)
+		if t.errStr != "" {
+			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", err))
+		} else {
+			c.Check(err, IsNil, Commentf("%q returned error: %s", t.in, err))
+			c.Check(schedule, DeepEquals, t.expected, Commentf("%q failed", t.in))
+		}
+
 	}
 }
 
