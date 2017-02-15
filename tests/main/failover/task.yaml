@@ -1,12 +1,21 @@
-summary: check that the core snap rolls back corectly after a failed upgrade
+summary: check that the core and kernel snaps roll back corectly after a failed upgrade
 
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
 
 description: |
-    In this test we exercise different fail over scenarios encoded as two variants
+    This test ensures that the system can survive to a failed upgrade of a fundamental
+    snap, rolling back to the last good known version.
+
+    We exercise different fail over scenarios encoded as two variants
     (for the script for setting the failure condition and for setting the target
     fundamental snap whose rollback is going to be tested) with a key for each
     scenario.
+
+    The logic common to all the scenarios unpacks the target snap, injects the failure,
+    repacks and installs it. Then it checks that all is set for installed the snap with
+    the failure and executes a reboot. The test checks that after the reboot (in fact two
+    reboots, one for trying the upgrade and another for rolling back) the installed
+    fundamental snap is the good one and the boot environment variables are correctly set.
 
 environment:
     INJECT_FAILURE_SCRIPT/rclocalcrash: $TESTSLIB/failover/inject_rclocalcrash.sh
