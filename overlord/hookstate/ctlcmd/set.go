@@ -127,6 +127,12 @@ func setInterfaceAttribute(context *hookstate.Context, attributes map[string]int
 		return err
 	}
 
+	var existing interface{}
+	err = config.GetFromChange(context.SnapName(), subkeys, 0, context.Cached("protected-attrs").(map[string]interface{}), &existing)
+	if err == nil {
+		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
+	}
+
 	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, attributes, &raw)
 	return err
 }
@@ -155,13 +161,17 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		which = "slot-attrs"
 	}
 
-	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	context.Lock()
+	defer context.Unlock()
 
 	attributes := make(map[string]interface{})
 	if err := attrsTask.Get(which, &attributes); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	}
+
+	// if this is the first time 'set' is called, store and mark initial attributes as protected.
+	if context.Cached("protected-attrs") == nil {
+		context.Cache("protected-attrs", attributes)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -176,7 +186,10 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		setInterfaceAttribute(context, attributes, parts[0], value)
+		err = setInterfaceAttribute(context, attributes, parts[0], value)
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
+		}
 	}
 
 	attrsTask.Set(which, attributes)
