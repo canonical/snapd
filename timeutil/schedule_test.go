@@ -115,6 +115,85 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	}
 }
 
+func (ts *timeutilSuite) TestScheduleDistance(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
+	for _, t := range []struct {
+		schedStr string
+		timeStr  string
+		distance time.Duration
+	}{
+		// same interval
+		{"9:00-11:00", "2017-02-05 9:00", 0},
+		{"9:00-11:00", "2017-02-05 10:00", 0},
+		{"9:00-11:00", "2017-02-05 11:00", 0},
+		// same day
+		{"9:00-11:00", "2017-02-05 8:00", 1 * time.Hour},
+		// next day
+		{"9:00-11:00", "2017-02-05 12:00", 21 * time.Hour},
+		// same weekday
+		{"sun@9:00-11:00", "2017-02-05 8:00", 1 * time.Hour},
+		// tomorrow
+		{"mon@9:00-11:00", "2017-02-05 8:00", 25 * time.Hour},
+		{"mon@9:00-11:00", "2017-02-05 12:00", 21 * time.Hour},
+		// the day after tomorrow
+		{"tue@9:00-11:00", "2017-02-05 8:00", 49 * time.Hour},
+		{"tue@9:00-11:00", "2017-02-05 12:00", 45 * time.Hour},
+		// schedule on sunday, distance from monday
+		{"sun@9:00-11:00", "2017-02-06 8:00", 145 * time.Hour},
+	} {
+		ti, err := time.Parse(shortForm, t.timeStr)
+		c.Assert(err, IsNil)
+
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+		c.Assert(sched, HasLen, 1)
+
+		c.Check(sched[0].Distance(ti), Equals, t.distance, Commentf("invalid distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.distance, sched[0].Distance(ti)))
+	}
+
+}
+
+func doTestScheduleNext(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
+	for _, t := range []struct {
+		schedStr string
+		timeStr  string
+		minDist  time.Duration
+		maxDist  time.Duration
+	}{
+		// same interval
+		{"6:00-7:00/9:00-11:00", "2017-02-05 10:00", 0, 0},
+		// same day
+		{"6:00-7:00/9:00-11:00/14:00-15:00", "2017-02-05 8:00", 1 * time.Hour, 3 * time.Hour},
+		// next day
+		{"6:00-7:00/9:00-11:00", "2017-02-05 12:00", 18 * time.Hour, 20 * time.Hour},
+		// same weekday
+		{"sun@9:00-11:00/6:00-7:00", "2017-02-05 8:00", 1 * time.Hour, 3 * time.Hour},
+		// tomorrow
+		{"mon@9:00-11:00/wed@9:00-11:00", "2017-02-05 8:00", 25 * time.Hour, 27 * time.Hour},
+	} {
+		ti, err := time.Parse(shortForm, t.timeStr)
+		c.Assert(err, IsNil)
+
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+
+		next := timeutil.Next(sched, ti)
+		c.Check(next >= t.minDist, Equals, true, Commentf("invalid min distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.minDist, next))
+		c.Check(next <= t.maxDist, Equals, true, Commentf("invalid max distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.maxDist, next))
+	}
+
+}
+func (ts *timeutilSuite) TestScheduleNext(c *C) {
+	// part of the intervals are random, so ensure we run the test
+	// often enough
+	for i := 0; i < 1000; i++ {
+		doTestScheduleNext(c)
+	}
+}
+
 func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 	const shortForm = "2006-01-02 3:04"
 
