@@ -49,9 +49,10 @@ static void test_sc_privs_drop()
 		g_assert_cmpint(getegid(), !=, 0);
 
 		// We don't have any supplementary groups.
-		gid_t groups[1];
+		gid_t groups[2];
 		int num_groups = getgroups(1, groups);
-		g_assert_cmpint(num_groups, ==, 0);
+		g_assert_cmpint(num_groups, ==, 1);
+		g_assert_cmpint(groups[0], ==, getgid());
 
 		// All done.
 		return;
