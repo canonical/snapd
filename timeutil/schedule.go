@@ -109,6 +109,8 @@ func (sched *Schedule) Matches(t time.Time) bool {
 // Distance calculdates how long until this schedule can start.
 // A zero means "right-now". It is always positive, i.e. either
 // its now or at the next possible point in the future.
+//
+// A schedule can last a week, so the longest distance is 7*24h
 func (sched *Schedule) Distance(t time.Time) time.Duration {
 	if sched.Matches(t) {
 		return 0
@@ -134,8 +136,33 @@ func (sched *Schedule) Distance(t time.Time) time.Duration {
 	return d
 }
 
+// Duration returns the total length of the schedule window
+func (sched *Schedule) Duration() time.Duration {
+	start := time.Date(2017, 02, 15, sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
+	end := time.Date(2017, 02, 15, sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
+	return end.Sub(start)
+}
+
 func Next(schedule []*Schedule, last time.Time) time.Duration {
-	return 0
+	// 7*24h
+	shortestDistance, err := time.ParseDuration("168h")
+
+	if err != nil {
+		panic("cannot parse shortest distance")
+	}
+
+	now := time.Now()
+
+	for _, sched := range schedule {
+		d := sched.Distance(last)
+		if d < shortestDistance && !sched.SameInterval(last, now.Add(d)) {
+			shortestDistance = d
+		}
+	}
+
+	// FIXME: randomization to end of interval
+
+	return shortestDistance
 }
 
 // SameInterval returns true if the given times are within the same
