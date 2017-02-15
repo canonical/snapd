@@ -96,7 +96,6 @@ func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # gives privileged access to the console framebuffer.
 
 /dev/fb[0-9]* rw,
-/dev/graphics/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
 `)
 	expectedSnippet2 := []byte(`KERNEL=="fb[0-9]*", TAG+="snap_client-snap_app-accessing-framebuffer"

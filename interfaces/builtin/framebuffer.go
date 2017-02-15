@@ -31,7 +31,6 @@ const framebufferConnectedPlugAppArmor = `
 # gives privileged access to the console framebuffer.
 
 /dev/fb[0-9]* rw,
-/dev/graphics/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
 `
 
