@@ -61,7 +61,7 @@ void sc_privs_drop()
 	if (getresuid(&ruid, &euid, &suid) < 0) {
 		die("cannot get real, effective and saved user identifiers");
 	}
-	// Ditto for group identifiers 
+	// Ditto for group identifiers
 	gid_t rgid, egid, sgid;
 	if (getresgid(&rgid, &egid, &sgid) < 0) {
 		die("cannot get real, effective and saved group identifiers");
