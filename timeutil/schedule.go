@@ -213,16 +213,16 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 // ParseSchedule takes a schedule string in the form of:
 //
 // 9:00-15:00 (every day between 9am and 3pm)
-// 9:00-15:00,21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
+// 9:00-15:00/21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
 // thu@9:00-15:00 (only Thursday between 9am and 3pm)
-// fri@9:00-11:00,mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
-// fri@9:00-11:00,13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
+// fri@9:00-11:00/mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
+// fri@9:00-11:00/13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
 //
 // and returns a list of Schdule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
-	for _, s := range strings.Split(scheduleSpec, ",") {
+	for _, s := range strings.Split(scheduleSpec, "/") {
 		sched, err := parseSingleSchedule(s)
 		if err != nil {
 			return nil, err
