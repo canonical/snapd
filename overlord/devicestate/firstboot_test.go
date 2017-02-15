@@ -177,6 +177,7 @@ snaps:
  - name: foo
    file: %s
    devmode: true
+   contact: mailto:some.guy@example.com
  - name: local
    unasserted: true
    file: %s
@@ -229,6 +230,7 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SnapID, Equals, "snapidsnapid")
 	c.Assert(info.Revision, Equals, snap.R(128))
+	c.Assert(info.Contact, Equals, "mailto:some.guy@example.com")
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
