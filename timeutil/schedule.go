@@ -106,9 +106,41 @@ func (sched *Schedule) Matches(t time.Time) bool {
 	return false
 }
 
+// Distance calculdates how long until this schedule can start.
+// A zero means "right-now". It is always positive, i.e. either
+// its now or at the next possible point in the future.
+func (sched *Schedule) Distance(t time.Time) time.Duration {
+	if sched.Matches(t) {
+		return 0
+	}
+
+	// find the next weekday
+	nextDay := t
+	if sched.Weekday != "" {
+		wd := time.Weekday(weekdayMap[sched.Weekday])
+		for nextDay.Weekday() != wd {
+			nextDay = nextDay.Add(24 * time.Hour)
+		}
+	}
+
+	// find the next starting interval
+	schedStart := time.Date(t.Year(), t.Month(), nextDay.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, t.Location())
+	d := schedStart.Sub(t)
+	// in the past, so needs to happen on the next day
+	if d < 0 {
+		d = 24*time.Hour + d
+	}
+
+	return d
+}
+
+func Next(schedule []*Schedule, last time.Time) time.Duration {
+	return 0
+}
+
 // SameInterval returns true if the given times are within the same
 // interval. Same means that they are on the same day (if its a
-// schedule that runs on every day or the same week (if its a schedule
+// schedule that runs on every day or the same week (if ihts a schedule
 // that is run only on a specific weekday).
 //
 // E.g. for a schedule of "9:00-11:00"
