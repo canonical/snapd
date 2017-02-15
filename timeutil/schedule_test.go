@@ -154,6 +154,37 @@ func (ts *timeutilSuite) TestScheduleDistance(c *C) {
 
 }
 
+func (ts *timeutilSuite) TestScheduleNext(c *C) {
+	const shortForm = "2006-01-02 3:04"
+
+	for _, t := range []struct {
+		schedStr string
+		timeStr  string
+		distance time.Duration
+	}{
+		// same interval
+		{"6:00-7:00/9:00-11:00", "2017-02-05 11:00", 0},
+		// same day
+		{"6:00-7:00/9:00-11:00/14:00-15:00", "2017-02-05 8:00", 1 * time.Hour},
+		// next day
+		{"6:00-7:00/9:00-11:00", "2017-02-05 12:00", 18 * time.Hour},
+		// same weekday
+		{"sun@9:00-11:00/6:00-7:00", "2017-02-05 8:00", 1 * time.Hour},
+		// tomorrow
+		{"mon@9:00-11:00/wed@9:00-11:00", "2017-02-05 8:00", 25 * time.Hour},
+	} {
+		ti, err := time.Parse(shortForm, t.timeStr)
+		c.Assert(err, IsNil)
+
+		sched, err := timeutil.ParseSchedule(t.schedStr)
+		c.Assert(err, IsNil)
+
+		shortest := timeutil.Next(sched, ti)
+		c.Check(shortest, Equals, t.distance, Commentf("invalid distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.distance, shortest))
+	}
+
+}
+
 func (ts *timeutilSuite) TestScheduleMatches(c *C) {
 	const shortForm = "2006-01-02 3:04"
 
