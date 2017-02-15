@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,19 +27,54 @@ import (
 )
 
 const thumbnailerPermanentSlotAppArmor = `
-# Description: Allow use of aa_query_label API
+# Description: Allow use of aa_query_label API. This
+# discloses the AppArmor policy for all processes.
 
 /sys/module/apparmor/parameters/enabled r,
 @{PROC}/@{pid}/mounts                   r,
 /sys/kernel/security/apparmor/.access   rw,
+
+# Description: Allow owning the Thumbnailer bus name on the session bus
+
+#include <abstractions/dbus-session-strict>
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member={RequestName,ReleaseName,GetConnectionCredentials}
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (bind)
+    bus=session
+    name=com.canonical.Thumbnailer,
 `
 
 const thumbnailerConnectedSlotAppArmor = `
-# Description: Allow access to plug's data directory
+# Description: Allow access to plug's data directory.
 
 @{INSTALL_DIR}/###PLUG_SNAP_NAME###/**     r,
 owner @{HOME}/snap/###PLUG_SNAP_NAME###/** r,
 /var/snap/###PLUG_SNAP_NAME###/**          r,
+
+# Description: allow client snaps to access the thumbnailer service.
+dbus (receive, send)
+    bus=session
+    interface=com.canonical.Thumbnailer
+    path=/com/canonical/Thumbnailer
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
+const thumbnailerConnectedPlugAppArmor = `
+# Description: allow access to the thumbnailer D-Bus service.
+
+#include <abstractions/dbus-session-strict>
+
+dbus (receive, send)
+    bus=session
+    interface=com.canonical.Thumbnailer
+    path=/com/canonical/Thumbnailer
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type ThumbnailerInterface struct{}
@@ -53,6 +88,14 @@ func (iface *ThumbnailerInterface) PermanentPlugSnippet(plug *interfaces.Plug, s
 }
 
 func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		snippet := []byte(thumbnailerConnectedPlugAppArmor)
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet = bytes.Replace(snippet, old, new, -1)
+		return snippet, nil
+	}
 	return nil, nil
 }
 
@@ -72,6 +115,9 @@ func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, s
 		new := []byte(plug.Snap.Name())
 		snippet = bytes.Replace(snippet, old, new, -1)
 
+		old = []byte("###PLUG_SECURITY_TAGS###")
+		new = plugAppLabelExpr(plug)
+		snippet = bytes.Replace(snippet, old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil

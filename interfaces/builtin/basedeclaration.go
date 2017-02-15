@@ -500,6 +500,7 @@ slots:
       slot-snap-type:
         - app
     deny-auto-connection: true
+    deny-connection: true
   time-control:
     allow-installation:
       slot-snap-type:
