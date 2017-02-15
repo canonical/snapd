@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -131,13 +130,16 @@ func Prepare(opts *Options) error {
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
 	}
-	sto := makeStore(model)
-
-	if err := downloadUnpackGadget(sto, model, opts, local); err != nil {
+	tsto, err := NewToolingStoreFromModel(model)
+	if err != nil {
 		return err
 	}
 
-	return bootstrapToRootDir(sto, model, opts, local)
+	if err := downloadUnpackGadget(tsto, model, opts, local); err != nil {
+		return err
+	}
+
+	return bootstrapToRootDir(tsto, model, opts, local)
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -170,7 +172,7 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
+func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
 		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 	}
@@ -179,7 +181,7 @@ func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options, local 
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
 	}
-	snapFn, _, err := acquireSnap(sto, model.Gadget(), dlOpts, local)
+	snapFn, _, err := acquireSnap(tsto, model.Gadget(), dlOpts, local)
 	if err != nil {
 		return err
 	}
@@ -189,7 +191,7 @@ func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options, local 
 	return snap.Unpack("*", opts.GadgetUnpackDir)
 }
 
-func acquireSnap(sto Store, name string, dlOpts *DownloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
+func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
 	if info := local.Info(name); info != nil {
 		// local snap to install (unasserted only for now)
 		p := local.Path(name)
@@ -199,7 +201,7 @@ func acquireSnap(sto Store, name string, dlOpts *DownloadOptions, local *localIn
 		}
 		return dst, info, nil
 	}
-	return DownloadSnap(sto, name, snap.R(0), dlOpts)
+	return tsto.DownloadSnap(name, snap.R(0), dlOpts)
 }
 
 type addingFetcher struct {
@@ -207,13 +209,13 @@ type addingFetcher struct {
 	addedRefs []*asserts.Ref
 }
 
-func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addingFetcher {
+func makeFetcher(tsto *ToolingStore, dlOpts *DownloadOptions, db *asserts.Database) *addingFetcher {
 	var f addingFetcher
 	save := func(a asserts.Assertion) error {
 		f.addedRefs = append(f.addedRefs, a.Ref())
 		return nil
 	}
-	f.Fetcher = StoreAssertionFetcher(sto, dlOpts, db, save)
+	f.Fetcher = tsto.AssertionFetcher(db, save)
 	return &f
 
 }
@@ -249,7 +251,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
+func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
 		dirs.SetRootDir(opts.RootDir)
@@ -270,7 +272,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	if err != nil {
 		return err
 	}
-	f := makeFetcher(sto, &DownloadOptions{}, db)
+	f := makeFetcher(tsto, &DownloadOptions{}, db)
 
 	if err := f.Save(model); err != nil {
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
@@ -291,7 +293,6 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	dlOpts := &DownloadOptions{
 		TargetDir: snapSeedDir,
 		Channel:   opts.Channel,
-		DevMode:   false, // XXX: should this be true?
 	}
 
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
@@ -328,7 +329,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		}
 
-		fn, info, err := acquireSnap(sto, name, dlOpts, local)
+		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
 		if err != nil {
 			return err
 		}
@@ -499,11 +500,4 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
-}
-
-func makeStore(model *asserts.Model) Store {
-	cfg := store.DefaultConfig()
-	cfg.Architecture = model.Architecture()
-	cfg.StoreID = model.Store()
-	return store.New(cfg, nil)
 }
