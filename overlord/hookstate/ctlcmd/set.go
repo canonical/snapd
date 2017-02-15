@@ -115,7 +115,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
-func setInterfaceAttribute(context *hookstate.Context, attributes map[string]interface{}, key string, value interface{}) error {
+func setInterfaceAttribute(context *hookstate.Context, attributes map[string]interface{}, protectedAttrs map[string]interface{}, key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
@@ -128,7 +128,7 @@ func setInterfaceAttribute(context *hookstate.Context, attributes map[string]int
 	}
 
 	var existing interface{}
-	err = config.GetFromChange(context.SnapName(), subkeys, 0, context.Cached("protected-attrs").(map[string]interface{}), &existing)
+	err = config.GetFromChange(context.SnapName(), subkeys, 0, protectedAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
@@ -169,9 +169,21 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
-	// if this is the first time 'set' is called, store and mark initial attributes as protected.
-	if context.Cached("protected-attrs") == nil {
-		context.Cache("protected-attrs", attributes)
+	// If this is the first time 'set' is called, store and mark initial attributes as protected.
+	// Note, context cache doesn't make deep copies, so marshall protected attributes into json.
+	protectedAttrsRaw := context.Cached("protected-attrs")
+	if protectedAttrsRaw == nil {
+		marshalled, err := json.Marshal(attributes)
+		if err != nil {
+			panic(fmt.Sprintf("internal error: cannot marshal attributes %q", err))
+		}
+		protectedAttrsRaw = json.RawMessage(marshalled)
+		context.Cache("protected-attrs", protectedAttrsRaw)
+	}
+	var protectedAttrs map[string]interface{}
+	err = json.Unmarshal([]byte(protectedAttrsRaw.(json.RawMessage)), &protectedAttrs)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal attributes %q", err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -186,7 +198,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		err = setInterfaceAttribute(context, attributes, parts[0], value)
+		err = setInterfaceAttribute(context, attributes, protectedAttrs, parts[0], value)
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
 		}
