@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -94,6 +95,8 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 		cmd = "/bin/bash"
 	case "stop":
 		cmd = app.StopCommand
+	case "reload":
+		cmd = app.ReloadCommand
 	case "post-stop":
 		cmd = app.PostStopCommand
 	case "":
@@ -139,7 +142,7 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
-	env := append(os.Environ(), app.Env()...)
+	env := append(os.Environ(), osutil.SubstituteEnv(app.Env())...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)

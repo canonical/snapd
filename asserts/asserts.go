@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -94,11 +94,19 @@ var typeRegistry = map[string]*AssertionType{
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
 }
 
+// Type returns the AssertionType with name or nil
+func Type(name string) *AssertionType {
+	return typeRegistry[name]
+}
+
 var maxSupportedFormat = map[string]int{}
 
 func init() {
 	// register maxSupportedFormats while breaking initialisation loop
-	maxSupportedFormat[SnapDeclarationType.Name] = 1
+
+	// 1: plugs and slots
+	// 2: support for $SLOT()/$PLUG()/$MISSING
+	maxSupportedFormat[SnapDeclarationType.Name] = 2
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -109,9 +117,22 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 	}
 }
 
-// Type returns the AssertionType with name or nil
-func Type(name string) *AssertionType {
-	return typeRegistry[name]
+var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
+	SnapDeclarationType: snapDeclarationFormatAnalyze,
+}
+
+// SuggestFormat returns a minimum format that supports the features that would be used by an assertion with the given components.
+func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, body []byte) (formatnum int, err error) {
+	analyzer := formatAnalyzer[assertType]
+	if analyzer == nil {
+		// no analyzer, format 0 is all there is
+		return 0, nil
+	}
+	formatnum, err = analyzer(headers, body)
+	if err != nil {
+		return 0, fmt.Errorf("assertion %s: %v", assertType.Name, err)
+	}
+	return formatnum, nil
 }
 
 // Ref expresses a reference to an assertion.
@@ -704,6 +725,15 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 
 	if formatnum > assertType.MaxSupportedFormat() {
 		return nil, fmt.Errorf("cannot sign %q assertion with format %d higher than max supported format %d", assertType.Name, formatnum, assertType.MaxSupportedFormat())
+	}
+
+	suggestedFormat, err := SuggestFormat(assertType, finalHeaders, finalBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if suggestedFormat > formatnum {
+		return nil, fmt.Errorf("cannot sign %q assertion with format set to %d lower than min format %d covering included features", assertType.Name, formatnum, suggestedFormat)
 	}
 
 	revision, err := checkRevision(finalHeaders)

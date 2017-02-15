@@ -64,3 +64,26 @@ execute: |
 
     echo "Then the snap is able to access the network resource"
     network-consumer http://127.0.0.1:$PORT | grep -q "ok"
+
+    echo "====================================="
+    n=test-snapd-classic-confinement
+    s=$TESTSLIB/snaps/$n
+    echo "Given a buildable snap with classic confinement:"
+    echo " - you can't try it without --classic:"
+    snap try $s && exit 1 || true
+    snap try --jailmode $s && exit 1 || true
+    snap try --devmode $s && exit 1 || true
+
+    touch /tmp/lala
+
+    echo " - you can try it with --classic:"
+    snap try --classic $s
+    snap list $n | MATCH $n.*classic
+    $n | MATCH lala
+    snap remove $n
+
+    # SOON:
+    # echo " - you can also try it with --classic --jailmode:"
+    # snap try --classic --devmode $s
+    # snap list $n | MATCH "$n.*(classic,jailmode|jailmode,classic)"
+    # $n | MATCH lala

@@ -23,20 +23,20 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "classic.h"
+#include "../libsnap-confine-private/classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/secure-getenv.h"
+#include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/utils.h"
+#include "apparmor-support.h"
 #include "mount-support.h"
-#include "snap.h"
-#include "utils.h"
+#include "ns-support.h"
+#include "quirks.h"
 #ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
-#include "cleanup-funcs.h"
 #include "user-support.h"
-#include "ns-support.h"
-#include "quirks.h"
-#include "secure-getenv.h"
-#include "apparmor-support.h"
 
 int main(int argc, char **argv)
 {
@@ -90,6 +90,18 @@ int main(int argc, char **argv)
 #endif
 	struct sc_apparmor apparmor;
 	sc_init_apparmor_support(&apparmor);
+	if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE
+	    && getuid() != 0 && geteuid() == 0) {
+		// Refuse to run when this process is running unconfined on a system
+		// that supports AppArmor when the effective uid is root and the real
+		// id is non-root.  This protects against, for example, unprivileged
+		// users trying to leverage the snap-confine in the core snap to
+		// escalate privileges.
+		die("snap-confine has elevated permissions and is not confined"
+		    " but should be. Refusing to continue to avoid"
+		    " permission escalation attacks");
+	}
+	// TODO: check for similar situation and linux capabilities.
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
@@ -108,7 +120,8 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *group_name = getenv("SNAP_NAME");
+			const char *snap_name = getenv("SNAP_NAME");
+			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
 			}
@@ -118,7 +131,7 @@ int main(int argc, char **argv)
 			sc_lock_ns_mutex(group);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(security_tag);
+				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_unlock_ns_mutex(group);
@@ -131,7 +144,12 @@ int main(int argc, char **argv)
 			debug
 			    ("resetting PATH to values in sync with core snap");
 			setenv("PATH",
-			       "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
+			       "/usr/local/sbin:"
+			       "/usr/local/bin:"
+			       "/usr/sbin:"
+			       "/usr/bin:"
+			       "/sbin:"
+			       "/bin:" "/usr/games:" "/usr/local/games", 1);
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);

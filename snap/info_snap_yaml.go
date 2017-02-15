@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -42,7 +43,7 @@ type snapYaml struct {
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
-	Environment      map[string]string      `yaml:"environment,omitempty"`
+	Environment      strutil.OrderedMap     `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
@@ -57,6 +58,7 @@ type appYaml struct {
 	Daemon string `yaml:"daemon"`
 
 	StopCommand     string          `yaml:"stop-command,omitempty"`
+	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 
@@ -66,7 +68,7 @@ type appYaml struct {
 
 	BusName string `yaml:"bus-name,omitempty"`
 
-	Environment map[string]string `yaml:"environment,omitempty"`
+	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 }
 
 type hookYaml struct {
@@ -82,7 +84,6 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
-	setEnvironmentFromSnapYaml(y, snap)
 
 	// Collect top-level definitions of plugs and slots
 	if err := setPlugsFromSnapYaml(y, snap); err != nil {
@@ -168,12 +169,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	return snap
 }
 
-func setEnvironmentFromSnapYaml(y snapYaml, snap *Info) {
-	for k, v := range y.Environment {
-		snap.Environment[k] = v
-	}
-}
-
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
@@ -230,6 +225,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Daemon:          yApp.Daemon,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
+			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,

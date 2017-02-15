@@ -26,12 +26,14 @@ update_core_snap_for_classic_reexec() {
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
+    # also inject new version of snap-confine and snap-scard-ns
+    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
     cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
     cp /usr/bin/snap squashfs-root/usr/bin/snap
-
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -46,7 +48,7 @@ update_core_snap_for_classic_reexec() {
     mount "$snap" "$core"
 
     # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
         if ! cmp ${p} ${core}${p}; then
             echo "$p in tree and $p in core snap are unexpectedly not the same"
             exit 1
@@ -55,6 +57,7 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_each_classic() {
+    mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
         rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     else
@@ -67,7 +70,6 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snap-confine*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
     apt_install_local ${GOPATH}/snapd_*.deb
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
@@ -95,18 +97,22 @@ EOF
 StartLimitInterval=0
 EOF
 
+    if [ "$REMOTE_STORE" = staging ]; then
+        . $TESTSLIB/store.sh
+        setup_staging_store
+    fi
+
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        if [ "$REMOTE_STORE" = staging ]; then
-            . $TESTSLIB/store.sh
-            setup_staging_store
-        fi
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
         snap install --${CORE_CHANNEL} core
         snap list | grep core
+
+        # ensure no auto-refresh happens during the tests
+        snap set core refresh.disabled=true
 
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
@@ -138,7 +144,7 @@ EOF
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local ${GOPATH}/snapd_*.deb ${GOPATH}/snap-confine_*.deb ${GOPATH}/ubuntu-core-launcher_*.deb
+        apt_install_local ${GOPATH}/snapd_*.deb
         apt-get clean
 
         snap install --${CORE_CHANNEL} core
@@ -187,7 +193,6 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        dpkg-deb -x ${SPREAD_PATH}/../snap-confine_*.deb $UNPACKD
 
         # add gpio and iio slots
         cat >> $UNPACKD/meta/snap.yaml <<-EOF
@@ -216,7 +221,16 @@ EOF
         # when the snap uses confinement.
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
-        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # download pc-kernel snap for the specified channel
+        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
+                               --channel edge \
+                               --extra-snaps $IMAGE_HOME/core_*.snap \
+                               --extra-snaps $PWD/pc-kernel_*.snap \
+                               --output $IMAGE_HOME/$IMAGE
+        rm ./pc-kernel*
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
@@ -245,8 +259,8 @@ EOF
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
-ExecPreStart=/bin/touch /dev/iio:device0
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+ExecStartPre=/bin/touch /dev/iio:device0
 EOF
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
@@ -319,8 +333,8 @@ prepare_all_snap() {
         fi
     done
 
-    echo "Kernel has a store revision"
-    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
+    # ensure no auto-refresh happens during the tests
+    snap set core refresh.disabled=true
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then

@@ -62,7 +62,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
 		opts := confinementOptions(snapst.Flags)
-		if err := setupSnapSecurity(task, affectedSnapInfo, opts, m.repo); err != nil {
+		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts); err != nil {
 			return err
 		}
 	}
@@ -127,7 +127,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
 	affectedSet := make(map[string]bool)
@@ -182,7 +182,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	}
 
 	// Remove security artefacts of the snap.
-	if err := removeSnapSecurity(task, snapName); err != nil {
+	if err := m.removeSnapSecurity(task, snapName); err != nil {
 		// TODO: how long to wait?
 		return &state.Retry{}
 	}
@@ -250,8 +250,8 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	}
 	removed := make(map[string]connState)
 	for id := range conns {
-		var connRef interfaces.ConnRef
-		if err := connRef.ParseID(id); err != nil {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
 			return err
 		}
 		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
@@ -371,11 +371,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts); err != nil {
 		return err
 	}
 	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts); err != nil {
 		return err
 	}
 
@@ -430,7 +430,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
-		if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
+		if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 			return &state.Retry{}
 		}
 	}
@@ -440,4 +440,76 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	setConns(st, conns)
 	return nil
+}
+
+// transitionConnectionsCoreMigration will transition all connections
+// from oldName to newName. Note that this is only useful when you
+// know that newName supports everything that oldName supports,
+// otherwise you will be in a world of pain.
+func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+	// transition over, ubuntu-core has only slots
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.SlotRef.Snap == oldName {
+			connRef.SlotRef.Snap = newName
+			conns[connRef.ID()] = conns[id]
+			delete(conns, id)
+		}
+	}
+	setConns(st, conns)
+
+	// The reloadConnections() just modifies the repository object, it
+	// has no effect on the running system, i.e. no security profiles
+	// on disk are rewriten. This is ok because core/ubuntu-core have
+	// exactly the same profiles and nothing in the generated policies
+	// has the slot-name encoded.
+	if err := m.reloadConnections(oldName); err != nil {
+		return err
+	}
+	if err := m.reloadConnections(newName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *InterfaceManager) doTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}
+
+func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// symmetrical to the "do" method, just reverse them again
+	var oldName, newName string
+	if err := t.Get("old-name", &oldName); err != nil {
+		return err
+	}
+	if err := t.Get("new-name", &newName); err != nil {
+		return err
+	}
+
+	return m.transitionConnectionsCoreMigration(st, newName, oldName)
 }

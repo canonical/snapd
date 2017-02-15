@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,11 +28,13 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -106,6 +109,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
+	snapstate.CanAutoRefresh = nil
 	s.reset()
 }
 
@@ -177,6 +181,19 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 	c.Assert(kinds, DeepEquals, expected)
 }
 
+func verifyRemoveTasks(c *C, ts *state.TaskSet) {
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+		"clear-snap",
+		"discard-snap",
+		"clear-aliases",
+		"discard-conns",
+	})
+}
+
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
 	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
 		{Revision: snap.R(7)},
@@ -192,7 +209,7 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 
 	// if a snap is devmode, you can't install it without --devmode
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap not found`)
+	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 
 	// if a snap is devmode, you *can* install it with --devmode
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-devmode", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
@@ -209,7 +226,7 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 
 	// if a snap is classic, you can't install it without --classic
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap not found`)
+	c.Assert(err, ErrorMatches, `.* requires classic or confinement override`)
 
 	// if a snap is classic, you *can* install it with --classic
 	_, err = snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
@@ -231,7 +248,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
-func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
+func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -245,7 +262,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{})
+	ts, err := snapstate.Revert(s.state, "some-snap", flags)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -261,6 +278,35 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		"start-snap-services",
 		"run-hook",
 	})
+
+	chg := s.state.NewChange("revert", "revert snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Flags, Equals, flags)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
+	s.testRevertTasks(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksDevMode(c *C) {
+	s.testRevertTasks(snapstate.Flags{DevMode: true}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
+	s.testRevertTasks(snapstate.Flags{JailMode: true}, c)
+}
+
+func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
+	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
@@ -549,6 +595,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
+		"setup-profiles",
 		"link-snap",
 		"setup-aliases",
 		"start-snap-services",
@@ -575,6 +622,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-snap",
+		"remove-profiles",
 	})
 }
 
@@ -800,7 +848,7 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 	// updated snap is devmode, refresh without --devmode, do nothing
 	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, ErrorMatches, `.* requires devmode or confinement override`)
 
 	// updated snap is devmode, refresh with --devmode
 	_, err = snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{DevMode: true})
@@ -822,7 +870,7 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	// updated snap is classic, refresh without --classic, do nothing
 	// TODO: better error message here
 	_, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+	c.Assert(err, ErrorMatches, `.* requires classic or confinement override`)
 
 	// updated snap is classic, refresh with --classic
 	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
@@ -991,16 +1039,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"stop-snap-services",
-		"remove-aliases",
-		"unlink-snap",
-		"remove-profiles",
-		"clear-snap",
-		"discard-snap",
-		"clear-aliases",
-		"discard-conns",
-	})
+	verifyRemoveTasks(c, ts)
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -3636,6 +3675,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "candidate",
 			sinfo: si,
 		},
@@ -3703,6 +3747,11 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3800,6 +3849,214 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
+	var lastRefresh time.Time
+
+	tr := config.NewTransaction(s.state)
+	tr.Get("core", "refresh.last", &lastRefresh)
+	c.Check(time.Now().Year(), Equals, lastRefresh.Year())
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// nothing needs to be done, but refresh.last got updated
+	c.Check(s.state.Changes(), HasLen, 0)
+	s.verifyRefreshLast(c)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify we have an auto-refresh change scheduled now
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.IsReady(), Equals, false)
+	s.verifyRefreshLast(c)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	// can only be disabled in debug mode
+	oldEnv := os.Getenv("SNAPD_DEBUG")
+	defer func() { os.Setenv("SNAPD_DEBUG", oldEnv) }()
+	os.Setenv("SNAPD_DEBUG", "1")
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Set("core", "refresh.disabled", true)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify that the disable works
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	// and no last refresh got updated
+	var lastRefresh time.Time
+	tr = config.NewTransaction(s.state)
+	tr.Get("core", "refresh.last", &lastRefresh)
+	c.Check(lastRefresh.IsZero(), Equals, true)
+
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// Ensure() also runs ensureRefreshes() and our test setup has an
+	// update for the "some-snap" in our fake store
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	terr := s.state.NewTask("error-trigger", "simulate an error")
+	tasks := chg.Tasks()
+	for _, t := range tasks[:len(tasks)-2] {
+		terr.WaitFor(t)
+	}
+	chg.AddTask(terr)
+
+	// run the changes
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+
+	s.verifyRefreshLast(c)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// simulate an in-flight change
+	chg := s.state.NewChange("auto-refresh", "...")
+	chg.SetStatus(state.DoStatus)
+	c.Check(s.state.Changes(), HasLen, 1)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// verify no additional change got generated
+	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.last", time.Time{})
+	tr.Commit()
+
+	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
+	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
+
+	// simulate failure in snapstate.AutoRefresh()
+	autoRefreshAssertionsCalled := 0
+	snapstate.AutoRefreshAssertions = func(st *state.State, userID int) error {
+		autoRefreshAssertionsCalled++
+		return fmt.Errorf("simulate store error")
+	}
+
+	// check that no change got created and that autoRefreshAssertins
+	// got called once
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+
+	// run Ensure() again and check that AutoRefresh() did not run
+	// again because to test that lastRefreshAttempt backoff is working
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(autoRefreshAssertionsCalled, Equals, 1)
 }
 
 type snapmgrQuerySuite struct {
@@ -3979,6 +4236,65 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 	}
 }
 
+func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	for testNr, t := range []struct {
+		expectedSnap string
+		snapNames    []string
+		errMatcher   string
+	}{
+		// nothing
+		{"", []string{}, state.ErrNoState.Error()},
+		// single
+		{"core", []string{"core"}, ""},
+		{"ubuntu-core", []string{"ubuntu-core"}, ""},
+		{"hard-core", []string{"hard-core"}, ""},
+		// unrolled loop to ensure we don't pass because
+		// the order is randomly right
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []string{"core", "ubuntu-core"}, ""},
+		// unknown combination
+		{"", []string{"duo-core", "single-core"}, `unexpected cores.*`},
+		// multi-core is not supported
+		{"", []string{"core", "ubuntu-core", "multi-core"}, `unexpected number of cores, got 3`},
+	} {
+		// clear snapstate
+		st.Set("snaps", map[string]*json.RawMessage{})
+
+		for _, snapName := range t.snapNames {
+			sideInfo := &snap.SideInfo{
+				RealName: snapName,
+				Revision: snap.R(1),
+			}
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snapstate.Set(st, snapName, &snapstate.SnapState{
+				SnapType: string(snap.TypeOS),
+				Active:   true,
+				Sequence: []*snap.SideInfo{sideInfo},
+				Current:  sideInfo.Revision,
+			})
+		}
+
+		info, err := snapstate.CoreInfo(st)
+		if t.errMatcher != "" {
+			c.Assert(err, ErrorMatches, t.errMatcher)
+		} else {
+			c.Assert(info, NotNil)
+			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.Type, Equals, snap.TypeOS)
+		}
+	}
+}
+
 func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	st := s.st
 	st.Lock()
@@ -4057,6 +4373,20 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestTrySetsTryModeDevMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+}
+
+func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -4068,7 +4398,7 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), snapstate.Flags{})
+	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4081,10 +4411,40 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.TryMode, Equals, true)
+
+	flags.TryMode = true
+	c.Check(snapst.Flags, DeepEquals, flags)
+
+	c.Check(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"prepare-snap",
+		"mount-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"set-auto-aliases",
+		"setup-aliases",
+		"start-snap-services",
+		"run-hook",
+	})
+
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{}, c)
+}
+
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesDevMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{DevMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
+}
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
+	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
+}
+
+func (s *snapmgrTestSuite) testTryUndoRemovesTryFlag(flags snapstate.Flags, c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -4096,12 +4456,13 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 			Revision: snap.R(23),
 		},
 	}
+	snapst.Flags = flags
 	snapst.Current = snap.R(23)
 	snapstate.Set(s.state, "foo", &snapst)
 	c.Check(snapst.TryMode, Equals, false)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), snapstate.Flags{})
+	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -4118,7 +4479,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	// verify snap is not in try mode, the state got undone
 	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.TryMode, Equals, false)
+	c.Check(snapst.Flags, DeepEquals, flags)
 }
 
 type snapStateSuite struct{}
@@ -4843,6 +5204,381 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	c.Assert(runHook.Kind(), Equals, "run-hook")
 	err = runHook.Get("hook-context", &m)
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasksNoUbuntuCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	_, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, ErrorMatches, `cannot transition snap "ubuntu-core": not installed`)
+}
+
+func verifyTransitionConnectionsTasks(c *C, ts *state.TaskSet) {
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"transition-ubuntu-core",
+	})
+
+	transIf := ts.Tasks()[0]
+	var oldName, newName string
+	err := transIf.Get("old-name", &oldName)
+	c.Assert(err, IsNil)
+	c.Check(oldName, Equals, "ubuntu-core")
+
+	err = transIf.Get("new-name", &newName)
+	c.Assert(err, IsNil)
+	c.Check(newName, Equals, "core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 3)
+	// 1. install core
+	verifyInstallUpdateTasks(c, 0, 0, tsl[0], s.state)
+	// 2 transition-connections
+	verifyTransitionConnectionsTasks(c, tsl[1])
+	// 3 remove-ubuntu-core
+	verifyRemoveTasks(c, tsl[2])
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+
+	c.Assert(tsl, HasLen, 2)
+	// 1. transition connections
+	verifyTransitionConnectionsTasks(c, tsl[0])
+	// 2. remove ubuntu-core
+	verifyRemoveTasks(c, tsl[1])
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+	for _, ts := range tsl {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		name: "core",
+		// the transition has no user associcated with it
+		macaroon: "",
+	}})
+	expected := fakeOps{
+		{
+			op:    "storesvc-snap",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "core",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: "/var/lib/snapd/snaps/core_11.snap",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "/var/lib/snapd/snaps/core_11.snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data",
+			name: "/snap/core/11",
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "core",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/core/11",
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:   "start-snap-services",
+			name: "/snap/core/11",
+		},
+		{
+			op:   "transition-ubuntu-core:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "stop-snap-services",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-common-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-snap-files",
+			name:  "/snap/ubuntu-core/1",
+			stype: "os",
+		},
+		{
+			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "discard-conns:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "core",
+			revno: snap.R(11),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+	for _, ts := range tsl {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(s.fakeStore.downloads, HasLen, 0)
+	expected := fakeOps{
+		{
+			op:    "storesvc-snap",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:   "transition-ubuntu-core:Doing",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "stop-snap-services",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:   "remove-snap-common-data",
+			name: "/snap/ubuntu-core/1",
+		},
+		{
+			op:    "remove-snap-files",
+			name:  "/snap/ubuntu-core/1",
+			stype: "os",
+		},
+		{
+			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "discard-conns:Doing",
+			name: "ubuntu-core",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	chg := s.state.NewChange("unrelated-change", "unfinished change blocks core transition")
+	chg.SetStatus(state.DoStatus)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "unrelated-change")
+}
+
+func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// if we have a ubuntu-core -> core transition
+	chg := s.state.NewChange("transition-ubuntu-core", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// other tasks block until the transition is done
+	_, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, "ubuntu-core to core transition in progress, no other changes allowed until this is done")
+
+	// and when the transition is done, other tasks run
+	chg.SetStatus(state.DoneStatus)
+	ts, err := snapstate.Install(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+	c.Check(ts, NotNil)
 }
 
 type canDisableSuite struct{}

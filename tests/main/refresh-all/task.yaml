@@ -50,5 +50,5 @@ execute: |
 
     echo "Then the new versions are installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
-        snap list | grep -Pq "$snap.*?fake1"
+        snap list | MATCH "$snap.*fake1"
     done

@@ -47,6 +47,7 @@ ExecStart=/usr/bin/snap run snap.app
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
@@ -73,6 +74,7 @@ ExecStart=/usr/bin/snap run xkcd-webserver
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver
+ExecReload=/usr/bin/snap run --command=reload xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
@@ -89,6 +91,7 @@ apps:
     app:
         command: bin/start
         stop-command: bin/stop
+        reload-command: bin/reload
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: simple
@@ -140,6 +143,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start",
 		StopCommand:     "bin/foo stop",
+		ReloadCommand:   "bin/foo reload",
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "forking",
@@ -160,6 +164,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start\n",
 		StopCommand:     "bin/foo stop",
+		ReloadCommand:   "bin/foo reload",
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "simple",

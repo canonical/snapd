@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -136,7 +137,7 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
-	Environment map[string]string
+	Environment strutil.OrderedMap
 
 	LicenseAgreement string
 	LicenseVersion   string
@@ -226,6 +227,11 @@ func (s *Info) DataDir() string {
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+}
+
+// HomeDirBase returns the user-specific home directory base of the snap.
+func (s *Info) HomeDirBase(home string) string {
+	return filepath.Join(home, "snap", s.Name())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
@@ -357,6 +363,7 @@ type AppInfo struct {
 	Daemon          string
 	StopTimeout     timeout.Timeout
 	StopCommand     string
+	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
 
@@ -368,7 +375,7 @@ type AppInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 
-	Environment map[string]string
+	Environment strutil.OrderedMap
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -426,6 +433,11 @@ func (app *AppInfo) LauncherStopCommand() string {
 	return app.launcherCommand("--command=stop")
 }
 
+// LauncherReloadCommand returns the launcher command line to use when invoking the app stop command binary.
+func (app *AppInfo) LauncherReloadCommand() string {
+	return app.launcherCommand("--command=reload")
+}
+
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
@@ -441,24 +453,15 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
-func copyEnv(in map[string]string) map[string]string {
-	out := make(map[string]string)
-	for k, v := range in {
-		out[k] = v
-	}
-
-	return out
-}
-
 // Env returns the app specific environment overrides
 func (app *AppInfo) Env() []string {
 	env := []string{}
-	appEnv := copyEnv(app.Snap.Environment)
-	for k, v := range app.Environment {
-		appEnv[k] = v
+	appEnv := app.Snap.Environment.Copy()
+	for _, k := range app.Environment.Keys() {
+		appEnv.Set(k, app.Environment.Get(k))
 	}
-	for k, v := range appEnv {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	for _, k := range appEnv.Keys() {
+		env = append(env, fmt.Sprintf("%s=%s", k, appEnv.Get(k)))
 	}
 	return env
 }
@@ -474,9 +477,9 @@ func (hook *HookInfo) SecurityTag() string {
 // Env returns the hook-specific environment overrides
 func (hook *HookInfo) Env() []string {
 	env := []string{}
-	hookEnv := copyEnv(hook.Snap.Environment)
-	for k, v := range hookEnv {
-		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	hookEnv := hook.Snap.Environment.Copy()
+	for _, k := range hookEnv.Keys() {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, hookEnv.Get(k)))
 	}
 	return env
 }

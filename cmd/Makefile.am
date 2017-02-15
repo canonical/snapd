@@ -6,6 +6,8 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-update-ns
+
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
 check: check-syntax-c check-syntax-sh check-unit-tests
@@ -15,7 +17,7 @@ check: check-syntax-c check-syntax-sh check-unit-tests
 check-syntax-c:
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
-	for f in $(foreach dir,snap-confine snap-discard-ns system-shutdown,$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
+	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
 	       indent -linux "$$f" -o "$$out"; \
@@ -33,15 +35,18 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests
-	./snap-confine/snap-confine-unit-tests
+check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests snap-update-ns/unit-tests
+	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
+	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
 .PHONY: fmt
-fmt: $(foreach dir,snap-confine snap-discard-ns system-shutdown,$(wildcard $(srcdir)/$(dir)/*.[ch]))
+fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	indent -linux $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
@@ -53,18 +58,51 @@ hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 
 ##
-## lib-snap-confine-private.a
+## libsnap-confine-private.a
 ##
 
 noinst_LIBRARIES += libsnap-confine-private.a
 
 libsnap_confine_private_a_SOURCES = \
-	snap-confine/error.h \
-	snap-confine/error.c \
-	snap-confine/utils.h \
-	snap-confine/utils.c \
-	snap-confine/secure-getenv.c \
-	snap-confine/secure-getenv.h
+	libsnap-confine-private/classic.c \
+	libsnap-confine-private/classic.h \
+	libsnap-confine-private/cleanup-funcs.c \
+	libsnap-confine-private/cleanup-funcs.h \
+	libsnap-confine-private/error.c \
+	libsnap-confine-private/error.h \
+	libsnap-confine-private/mount-opt.c \
+	libsnap-confine-private/mount-opt.h \
+	libsnap-confine-private/mountinfo.c \
+	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/secure-getenv.c \
+	libsnap-confine-private/secure-getenv.h \
+	libsnap-confine-private/snap.c \
+	libsnap-confine-private/snap.h \
+	libsnap-confine-private/string-utils.c \
+	libsnap-confine-private/string-utils.h \
+	libsnap-confine-private/utils.c \
+	libsnap-confine-private/utils.h
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += libsnap-confine-private/unit-tests
+libsnap_confine_private_unit_tests_SOURCES = \
+	libsnap-confine-private/classic-test.c \
+	libsnap-confine-private/cleanup-funcs-test.c \
+	libsnap-confine-private/error-test.c \
+	libsnap-confine-private/mount-opt-test.c \
+	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/secure-getenv-test.c \
+	libsnap-confine-private/snap-test.c \
+	libsnap-confine-private/string-utils-test.c \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	libsnap-confine-private/unit-tests.h \
+	libsnap-confine-private/utils-test.c
+libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
+libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
+endif
 
 ##
 ## decode-mount-opts
@@ -73,9 +111,8 @@ libsnap_confine_private_a_SOURCES = \
 noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 
 decode_mount_opts_decode_mount_opts_SOURCES = \
-	decode-mount-opts/decode-mount-opts.c \
-	snap-confine/mount-opt.c \
-	snap-confine/mount-opt.h
+	decode-mount-opts/decode-mount-opts.c
+decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
 
 ##
 ## snap-confine
@@ -87,7 +124,9 @@ all_tests = \
     snap-confine/tests/test_bad_seccomp_filter_args_null \
     snap-confine/tests/test_bad_seccomp_filter_args_prctl \
     snap-confine/tests/test_bad_seccomp_filter_args_prio \
+    snap-confine/tests/test_bad_seccomp_filter_args_quotactl \
     snap-confine/tests/test_bad_seccomp_filter_args_socket \
+    snap-confine/tests/test_bad_seccomp_filter_args_termios \
     snap-confine/tests/test_bad_seccomp_filter_length \
     snap-confine/tests/test_bad_seccomp_filter_missing_trailing_newline \
     snap-confine/tests/test_complain \
@@ -99,7 +138,9 @@ all_tests = \
     snap-confine/tests/test_restrictions_working_args_clone \
     snap-confine/tests/test_restrictions_working_args_prctl \
     snap-confine/tests/test_restrictions_working_args_prio \
+    snap-confine/tests/test_restrictions_working_args_quotactl \
     snap-confine/tests/test_restrictions_working_args_socket \
+    snap-confine/tests/test_restrictions_working_args_termios \
     snap-confine/tests/test_unrestricted \
     snap-confine/tests/test_unrestricted_missed \
     snap-confine/tests/test_whitelist
@@ -117,31 +158,23 @@ endif
 endif
 
 snap_confine_snap_confine_SOURCES = \
-	snap-confine/snap-confine.c \
-	snap-confine/snap.c \
-	snap-confine/snap.h \
-	snap-confine/classic.c \
-	snap-confine/classic.h \
-	snap-confine/mount-support.c \
-	snap-confine/mount-support.h \
+	snap-confine/apparmor-support.c \
+	snap-confine/apparmor-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
-	snap-confine/cleanup-funcs.c \
-	snap-confine/cleanup-funcs.h \
+	snap-confine/mount-support.c \
+	snap-confine/mount-support.h \
+	snap-confine/ns-support.c \
+	snap-confine/ns-support.h \
+	snap-confine/quirks.c \
+	snap-confine/quirks.h \
+	snap-confine/snap-confine-args.c \
+	snap-confine/snap-confine-args.h \
+	snap-confine/snap-confine.c \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
 	snap-confine/user-support.c \
-	snap-confine/user-support.h \
-	snap-confine/quirks.c \
-	snap-confine/quirks.h \
-	snap-confine/mount-opt.c \
-	snap-confine/mount-opt.h \
-	snap-confine/mountinfo.c \
-	snap-confine/mountinfo.h \
-	snap-confine/ns-support.c \
-	snap-confine/ns-support.h \
-	snap-confine/apparmor-support.c \
-	snap-confine/apparmor-support.h
+	snap-confine/user-support.h
 
 snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -170,23 +203,16 @@ endif
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
 snap_confine_snap_confine_unit_tests_SOURCES = \
-	snap-confine/unit-tests-main.c \
-	snap-confine/classic.c \
-	snap-confine/classic.h \
-	snap-confine/quirks.c \
-	snap-confine/quirks.h \
-	snap-confine/unit-tests.c \
-	snap-confine/unit-tests.h \
-	snap-confine/utils-test.c \
-	snap-confine/cleanup-funcs-test.c \
-	snap-confine/mount-support-test.c \
-	snap-confine/verify-executable-name-test.c \
-	snap-confine/mountinfo-test.c \
-	snap-confine/ns-support-test.c \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	libsnap-confine-private/unit-tests.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
-	snap-confine/mount-opt-test.c \
-	snap-confine/error-test.c
+	snap-confine/mount-support-test.c \
+	snap-confine/ns-support-test.c \
+	snap-confine/quirks.c \
+	snap-confine/quirks.h \
+	snap-confine/snap-confine-args-test.c
 snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
@@ -225,17 +251,9 @@ endif
 ## ubuntu-core-launcher
 ##
 
-dist_man_MANS += ubuntu-core-launcher/ubuntu-core-launcher.1
-CLEANFILES += ubuntu-core-launcher/ubuntu-core-launcher.1
-EXTRA_DIST += ubuntu-core-launcher/ubuntu-core-launcher.rst
-
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
-
-ubuntu-core-launcher/%.1: ubuntu-core-launcher/%.rst
-	mkdir -p ubuntu-core-launcher
-	$(HAVE_RST2MAN) $^ > $@
 
 ##
 ## snappy-app-dev
@@ -272,10 +290,6 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-confine/ns-support.h \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
-	snap-confine/cleanup-funcs.c \
-	snap-confine/cleanup-funcs.h \
-	snap-confine/mountinfo.c \
-	snap-confine/mountinfo.h \
 	snap-discard-ns/snap-discard-ns.c
 snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
@@ -297,22 +311,51 @@ snap-discard-ns/%.5: snap-discard-ns/%.rst
 libexec_PROGRAMS += system-shutdown/system-shutdown
 
 system_shutdown_system_shutdown_SOURCES = \
-	snap-confine/mountinfo.c \
-	snap-confine/mountinfo.h \
 	system-shutdown/system-shutdown-utils.c \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
-system-shutdown: CFLAGS := $(filter-out -fPIE -pie,$(CFLAGS)) -static
-system-shutdown: LDFLAGS := $(filter-out -fPIE -pie,$(LDFLAGS)) -static
+system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
+system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += system-shutdown/system-shutdown-unit-tests
 system_shutdown_system_shutdown_unit_tests_SOURCES = \
-	snap-confine/unit-tests.c \
-	snap-confine/unit-tests-main.c \
-	snap-confine/mountinfo.c \
-	snap-confine/mountinfo.h \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
+system_shutdown_system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
-system_shutdown_system_shutdown_unit_tests_LDADD =  $(GLIB_LIBS)
+system_shutdown_system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
+endif
+
+##
+## snap-update-ns
+##
+
+libexec_PROGRAMS += snap-update-ns/snap-update-ns
+dist_man_MANS += snap-update-ns/snap-update-ns.5
+CLEANFILES += snap-update-ns/snap-update-ns.5
+EXTRA_DIST += snap-update-ns/snap-update-ns.rst
+
+snap_update_ns_snap_update_ns_LDADD = libsnap-confine-private.a
+
+snap_update_ns_snap_update_ns_SOURCES = \
+	snap-update-ns/snap-update-ns.c \
+	snap-update-ns/mount-entry.h \
+	snap-update-ns/mount-entry.c
+
+snap-update-ns/%.5: snap-update-ns/%.rst
+	mkdir -p snap-update-ns
+	$(HAVE_RST2MAN) $^ > $@
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += snap-update-ns/unit-tests
+snap_update_ns_unit_tests_SOURCES = \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	snap-update-ns/mount-entry-test.c
+snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
+snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif

@@ -24,8 +24,6 @@
 // no longer found writable.
 bool umount_all();
 
-bool streq(const char *a, const char *b);
-
 __attribute__ ((noreturn))
 void die(const char *msg);
 __attribute__ ((format(printf, 1, 2)))

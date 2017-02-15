@@ -1,5 +1,46 @@
 #!/bin/bash
 
+create_test_user(){
+   if ! id test >& /dev/null; then
+        # manually setting the UID and GID to 12345 because we need to
+        # know the numbers match for when we set up the user inside
+        # the all-snap, which has its own user & group database.
+        # Nothing special about 12345 beyond it being high enough it's
+        # unlikely to ever clash with anything, and easy to remember.
+        addgroup --quiet --gid 12345 test
+        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+    fi
+
+    owner=$( stat -c "%U:%G" /home/test )
+    if [ "$owner" != "test:test" ]; then
+        echo "expected /home/test to be test:test but it's $owner"
+        exit 1
+    fi
+    unset owner
+
+    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+    chown test.test -R ..
+}
+
+build_deb(){
+    # Use fake version to ensure we are always bigger than anything else
+    dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
+
+    quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    # put our debs to a safe place
+    cp ../*.deb $GOPATH
+}
+
+download_from_ppa(){
+    local ppa_version="$1"
+
+    for pkg in snapd; do
+        file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
+        curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
+    done
+}
+
 # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
 [ "$REUSE_PROJECT" != 1 ] || exit 0
 echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
@@ -18,13 +59,12 @@ if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
-       snap install --devmode --edge classic
-       classic "sudo apt update && apt install -y git golang-go build-essential"
-       classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
-       snap remove classic
+       snap install --edge test-snapd-snapbuild
+       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   systemctl disable --now snapd.refresh.timer
+   snap set core refresh.disabled=true
    exit 0
 fi
 
@@ -35,18 +75,19 @@ if [ "$SPREAD_BACKEND" = qemu ]; then
    fi
 fi
 
+create_test_user
+
 quiet apt-get update
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-    if [ ! -d debian-ubuntu-14.04 ]; then
-        echo "no debian-ubuntu-14.04/ directory "
+    if [ ! -d packaging/ubuntu-14.04 ]; then
+        echo "no packaging/ubuntu-14.04/ directory "
         echo "broken test setup"
         exit 1
     fi
 
     # 14.04 has its own packaging
-    rm -rf debian
-    mv debian-ubuntu-14.04 debian
+    ./generate-packaging-dir
 
     quiet apt-get install -y software-properties-common
 
@@ -58,7 +99,7 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd snap-confine ubuntu-core-launcher
+quiet apt-get purge -y snapd
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"
@@ -69,38 +110,16 @@ quiet apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
 # update vendoring
 if [ "$(which govendor)" = "" ]; then
-   rm -rf $GOPATH/src/github.com/kardianos/govendor
-   go get -u github.com/kardianos/govendor
+    rm -rf $GOPATH/src/github.com/kardianos/govendor
+    go get -u github.com/kardianos/govendor
 fi
 quiet govendor sync
 
-# increment version so upgrade can work, use "zzz" as version
-# component to ensure that its higher than any "ubuntuN" version
-# that might also be in the archive
-dch -lzzz "testing build"
-
-if ! id test >& /dev/null; then
-   # manually setting the UID and GID to 12345 because we need to
-   # know the numbers match for when we set up the user inside
-   # the all-snap, which has its own user & group database.
-   # Nothing special about 12345 beyond it being high enough it's
-   # unlikely to ever clash with anything, and easy to remember.
-   addgroup --quiet --gid 12345 test
-   adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+if [ -z "$SNAPD_PPA_VERSION" ]; then
+    build_deb
+else
+    download_from_ppa "$SNAPD_PPA_VERSION"
 fi
-
-owner=$( stat -c "%U:%G" /home/test )
-if [ "$owner" != "test:test" ]; then
-   echo "expected /home/test to be test:test but it's $owner"
-   exit 1
-fi
-unset owner
-
-echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-chown test.test -R ..
-quiet su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
-# put our debs to a safe place
-cp ../*.deb $GOPATH
 
 # Build snapbuild.
 go get ./tests/lib/snapbuild

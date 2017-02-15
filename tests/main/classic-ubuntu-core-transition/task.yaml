@@ -1,0 +1,60 @@
+summary: Ensure that the ubuntu-core -> core transition works
+
+# we never test on core because the transition can only happen on "classic"
+# we disable on ppc64el because the downloads are very slow there
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
+
+warn-timeout: 1m
+kill-timeout: 5m
+execute: |
+    wait_for_service() {
+        local service_name="$1"
+        local state="${2:-active}"
+        while ! systemctl show -p ActiveState $service_name | grep -q "ActiveState=$state"; do systemctl status $service_name || true; sleep 1; done
+    }
+    curl() {
+        local url="$1"
+        # sadly systemd active means not that its really ready so we wait
+        # here for the socket to be available
+        while ! netstat -t -l -n|grep :80; do
+            netstat -l -l -n
+            sleep 1
+        done
+        python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
+    }
+
+    . "$TESTSLIB/apt.sh"
+    echo "Ensure core is gone and we have ubuntu-core instead"
+    dpkg --purge snapd
+    apt_install_local ${GOPATH}/snapd_*.deb
+    snap install --${CORE_CHANNEL} ubuntu-core
+    snap install test-snapd-python-webserver
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+
+    echo "Ensure the webserver is working"
+    wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
+    curl http://localhost | MATCH "XKCD rocks"
+
+    echo "Start/stop snapd so that the transition is triggered"
+    systemctl stop snapd.service snapd.socket
+    systemctl start snapd.service snapd.socket
+
+    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
+        snap changes
+        snap change 3||true
+        sleep 1
+    done
+
+    if snap list|grep ubuntu-core; then
+        echo "ubuntu-core still installed, transition failed"
+        exit 1
+    fi
+    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    echo "Ensure the webserver is still working"
+    wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
+    curl http://localhost | MATCH "XKCD rocks"
+
+    systemctl restart snap.test-snapd-python-webserver.test-snapd-python-webserver
+    wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
+    echo "Ensure the webserver is working after a snap restart"
+    curl http://localhost | MATCH "XKCD rocks"

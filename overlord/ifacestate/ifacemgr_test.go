@@ -20,6 +20,7 @@
 package ifacestate_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,7 @@ type interfaceManagerSuite struct {
 	privateMgr      *ifacestate.InterfaceManager
 	privateHookMgr  *hookstate.HookManager
 	extraIfaces     []interfaces.Interface
+	extraBackends   []interfaces.SecurityBackend
 	secBackend      *ifacetest.TestSecurityBackend
 	restoreBackends func()
 	mockSnapCmd     *testutil.MockCmd
@@ -86,7 +88,11 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.privateHookMgr = nil
 	s.privateMgr = nil
 	s.extraIfaces = nil
+	s.extraBackends = nil
 	s.secBackend = &ifacetest.TestSecurityBackend{}
+	// TODO: transition this so that we don't load real backends and instead
+	// just load the test backend here and this is nicely integrated with
+	// extraBackends above.
 	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
 }
 
@@ -102,8 +108,9 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces)
+		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
+		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
 	}
 	return s.privateMgr
@@ -134,6 +141,11 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -167,6 +179,14 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+	// verify initial attributes are present in connect task
+	var attrs map[string]interface{}
+	err = task.Get("plug-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Assert(attrs["attr1"], Equals, "value1")
+	err = task.Get("slot-attrs", &attrs)
+	c.Assert(err, IsNil)
+	c.Assert(attrs["attr2"], Equals, "value2")
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
@@ -179,6 +199,38 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
+}
+
+func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName},
+	})
+	chg.AddTask(t)
+
+	_, err := f(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`snap "%s" has changes in progress`, snapName))
+}
+
+func (s *interfaceManagerSuite) TestConnectConflictsPugSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestConnectConflictsSlotSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer")
+}
+
+func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer")
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -272,25 +324,9 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
-	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:plug to producer:whatslot \(snap "producer" has no "whatslot" slot\)`)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
+	_ = s.state.NewChange("kind", "summary")
+	_, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
+	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "whatslot"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
@@ -300,26 +336,9 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
-	c.Assert(err, IsNil)
-	c.Assert(ts.Tasks(), HasLen, 5)
-	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer",
-		},
-	})
-
-	change.AddAll(ts)
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Connect consumer:whatplug to producer:slot \(snap "consumer" has no "whatplug" plug\).*`)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
+	_ = s.state.NewChange("kind", "summary")
+	_, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
+	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "whatplug"`)
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
@@ -671,6 +690,7 @@ version: 1
 plugs:
  plug:
   interface: test
+  attr1: value1
  otherplug:
   interface: test2
 `
@@ -681,6 +701,7 @@ version: 1
 slots:
  slot:
   interface: test
+  attr2: value2
 `
 
 // The setup-profiles task will not auto-connect an plug that was previously
@@ -1613,6 +1634,7 @@ slots:
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.mockSnapDecl(c, "producer", "producer-publisher", map[string]interface{}{
+		"format": "1",
 		"slots": map[string]interface{}{
 			"test": "true",
 		},
@@ -1717,4 +1739,106 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+var ubuntuCoreYaml = `name: ubuntu-core
+version: 1
+type: os
+`
+
+var coreYaml = `name: ubuntu-core
+version: 1
+type: os
+`
+
+var httpdSnapYaml = `name: httpd
+version: 1
+plugs:
+ network:
+  interface: network
+`
+
+func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
+	s.mockSnap(c, ubuntuCoreYaml)
+	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, httpdSnapYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("conns", map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	task := s.state.NewTask("transition-ubuntu-core", "...")
+	task.Set("old-name", "ubuntu-core")
+	task.Set("new-name", "core")
+	change := s.state.NewChange("test-migrate", "")
+	change.AddTask(task)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+	s.state.Lock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// ensure the connection went from "ubuntu-core" to "core"
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"httpd:network core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
+	s.mockSnap(c, ubuntuCoreYaml)
+	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, httpdSnapYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("conns", map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	t := s.state.NewTask("transition-ubuntu-core", "...")
+	t.Set("old-name", "ubuntu-core")
+	t.Set("new-name", "core")
+	change := s.state.NewChange("test-migrate", "")
+	change.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	change.AddTask(terr)
+
+	s.state.Unlock()
+	for i := 0; i < 10; i++ {
+		mgr.Ensure()
+		mgr.Wait()
+	}
+	mgr.Stop()
+	s.state.Lock()
+
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// ensure the connection have not changed (still ubuntu-core)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"httpd:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
 }

@@ -37,15 +37,11 @@ const snapdControlConnectedPlugSecComp = `
 # Usage: reserved
 
 # Can communicate with snapd abstract socket
-connect
-getsockname
 recv
 recvmsg
 send
 sendto
 sendmsg
-socket
-socketpair
 `
 
 // NewSnapdControlInterface returns a new "snapd-control" interface.
