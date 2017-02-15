@@ -103,7 +103,9 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
 libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS += $(LIBCAP_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
+libsnap_confine_private_unit_tests_LDADD += $(LIBCAP_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 endif
 

@@ -22,10 +22,37 @@
 #include <unistd.h>
 
 #include <grp.h>
+#include <stdbool.h>
+#include <sys/capability.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "utils.h"
+
+static bool sc_has_capability(const char *cap_name)
+{
+	// Lookup capability with the given name.
+	cap_value_t cap;
+	if (cap_from_name(cap_name, &cap) < 0) {
+		die("cannot resolve capability name %s", cap_name);
+	}
+	// Get the capability state of the current process.
+	cap_t caps;
+	if ((caps = cap_get_proc()) == NULL) {
+		die("cannot obtain capability state (cap_get_proc)");
+	}
+	// Read the effective value of the flag we're dealing with
+	cap_flag_value_t cap_flags_value;
+	if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_flags_value) < 0) {
+		die("cannot obtain value of capability flag (cap_get_flag)");
+	}
+	// Free the representation of the capability state of the current process.
+	if (cap_free(caps) < 0) {
+		die("cannot free capability flag (cap_free)");
+	}
+	// Check if the effective bit of the capability is set.
+	return cap_flags_value == CAP_SET;
+}
 
 void sc_privs_drop()
 {
