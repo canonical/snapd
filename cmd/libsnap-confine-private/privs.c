@@ -53,6 +53,11 @@ void sc_privs_drop()
 			die("cannot set user identifier to %d", ruid);
 		}
 		// Verify everything
+		//
+		// With the above, this should never happen but be paranoid to help
+		// future-proof code changes. Specifically, if our real gid was not
+		// root, but one of uid/euid still are root, die(). Same for if our
+		// real uid was not root, but one of gid/egid are root, die().
 		if (rgid != 0 && (getuid() == 0 || geteuid() == 0)) {
 			die("cannot permanently drop permissions (uid still elevated)");
 		}
