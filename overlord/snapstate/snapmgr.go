@@ -67,7 +67,7 @@ import (
 // intercepting the set call
 
 var (
-	defaultRefreshSchedule = "00:00-04:59,5:00-10:59,11:00-16:59,17:00-23:59"
+	defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
