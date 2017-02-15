@@ -3076,7 +3076,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	// TODO: attributes
+
 	c.Assert(repo.Connect(connRef, nil, nil), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
