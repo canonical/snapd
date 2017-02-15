@@ -61,6 +61,10 @@ const coreSupportConnectedPlugAppArmor = `
 # Allow managing the hostname with a core config option
 /etc/hostname                         rw,
 /{,usr/}{,s}bin/hostnamectl           ixr,
+
+# Allow read/write access to the pi2 boot config.txt. WARNING: improperly
+# editing this file may render the system unbootable.
+owner /boot/uboot/config.txt rwk,
 `
 
 const coreSupportConnectedPlugSecComp = `
