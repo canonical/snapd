@@ -51,7 +51,7 @@ type Response interface {
 type resp struct {
 	Status int          `json:"status-code"`
 	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result"`
+	Result interface{}  `json:"result,omitempty"`
 	*Meta
 }
 
