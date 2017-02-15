@@ -588,13 +588,13 @@ func (m *SnapManager) cleanupSnapConfineApparmor(currentSnapConfineProfilePath s
 }
 
 func (m *SnapManager) addSnapConfineApparmor(snapConfineInCore, apparmorProfilePath string) error {
-	root := filepath.Join(dirs.SnapMountDir, "/core/current/")
+	coreRoot := filepath.Join(dirs.SnapMountDir, "/core/current/")
 
 	// FIXME: make this more generic once we start supporting more
 	//        distros with apparmor around snap-confine, i.e.
 	//        ship `snap-confine.apparmor.in` and use that as the base
 	//        because core is ubuntu and classic host might be anything
-	apparmorProfile, err := ioutil.ReadFile(filepath.Join(root, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
 	if err != nil {
 		return err
 	}
@@ -623,6 +623,11 @@ func (m *SnapManager) ensureSnapConfineApparmor() error {
 	// snap-confine from the latest core snap.  As such, nothing
 	// to do when not OnClassic
 	if !release.OnClassic {
+		return nil
+	}
+	// On releases that do not support apparmor there is no need to
+	// write an apparmor profile for snap-confine
+	if release.ReleaseInfo.ForceDevMode() {
 		return nil
 	}
 
