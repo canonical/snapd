@@ -429,6 +429,15 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    SC_HOSTFS_DIR);
 		}
 	}
+	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
+	// created the directory as the user who first ran a snap on a given
+	// system and the group identity of that user is visilbe on disk.
+	// This was LP:#1665004
+	if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+		die("cannot change user/group owner of %s to root",
+		    SC_HOSTFS_DIR);
+	};
+
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
 	// has a number of undocumented requirements and one of them is that the
