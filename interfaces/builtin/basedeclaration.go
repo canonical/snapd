@@ -397,6 +397,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  network-setup-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   network-setup-observe:
     allow-installation:
       slot-snap-type:
