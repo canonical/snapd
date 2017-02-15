@@ -345,9 +345,11 @@ EXTRA_DIST += snap-update-ns/snap-update-ns.rst
 snap_update_ns_snap_update_ns_LDADD = libsnap-confine-private.a
 
 snap_update_ns_snap_update_ns_SOURCES = \
-	snap-update-ns/snap-update-ns.c \
+	snap-update-ns/mount-entry-change.c \
+	snap-update-ns/mount-entry-change.h \
+	snap-update-ns/mount-entry.c \
 	snap-update-ns/mount-entry.h \
-	snap-update-ns/mount-entry.c
+	snap-update-ns/snap-update-ns.c
 
 snap-update-ns/%.5: snap-update-ns/%.rst
 	mkdir -p snap-update-ns
@@ -358,6 +360,7 @@ noinst_PROGRAMS += snap-update-ns/unit-tests
 snap_update_ns_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
+	snap-update-ns/mount-entry-change-test.c \
 	snap-update-ns/mount-entry-test.c \
 	snap-update-ns/test-data.c \
 	snap-update-ns/test-data.h \
