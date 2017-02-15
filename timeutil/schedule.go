@@ -21,6 +21,8 @@ package timeutil
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -143,24 +145,25 @@ func (sched *Schedule) Duration() time.Duration {
 	return end.Sub(start)
 }
 
-func Next(schedule []*Schedule, last time.Time) time.Duration {
-	// 7*24h
-	shortestDistance, err := time.ParseDuration("168h")
+func randDur(dur time.Duration) time.Duration {
+	return time.Duration(rand.Int63n(int64(dur)))
+}
 
-	if err != nil {
-		panic("cannot parse shortest distance")
-	}
+// Next will return the duration until a random time in the next
+// schedule window.
+func Next(schedule []*Schedule, last time.Time) time.Duration {
+	shortestDistance := time.Duration(math.MaxInt64)
 
 	now := time.Now()
-
 	for _, sched := range schedule {
 		d := sched.Distance(last)
 		if d < shortestDistance && !sched.SameInterval(last, now.Add(d)) {
+			if d > 0 {
+				d = d + randDur(sched.Duration())
+			}
 			shortestDistance = d
 		}
 	}
-
-	// FIXME: randomization to end of interval
 
 	return shortestDistance
 }
