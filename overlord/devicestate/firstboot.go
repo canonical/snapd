@@ -92,6 +92,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
+			sideInfo.Contact = sn.Contact
 		}
 
 		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)

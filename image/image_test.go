@@ -343,6 +343,7 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 
 	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
+	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
 	s.addSystemSnapAssertions(c, "required-snap1", "other")
 }
 
@@ -395,6 +396,8 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 			File:   fn,
 		})
 	}
+	c.Check(seed.Snaps[3].Name, Equals, "required-snap1")
+	c.Check(seed.Snaps[3].Contact, Equals, "foo@example.com")
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
 	brandPubKey, err := s.brandSigning.PublicKey("")

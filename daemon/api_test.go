@@ -390,6 +390,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"trymode":          false,
 			"apps":             []appJSON{},
 			"broken":           "",
+			"contact":          "",
 		},
 		Meta: meta,
 	}
