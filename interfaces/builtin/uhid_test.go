@@ -81,7 +81,7 @@ func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "/dev/uhid rw,\n")
@@ -92,7 +92,7 @@ func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := []byte(`KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"
 `)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }

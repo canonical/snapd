@@ -400,7 +400,7 @@ func (iface *NetworkManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug
 	return nil, nil
 }
 
-func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
 		return nil, nil
@@ -434,7 +434,7 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 	return nil, nil
 }
 
-func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -443,6 +443,14 @@ func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error 
 }
 
 func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *NetworkManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *NetworkManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

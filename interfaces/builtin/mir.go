@@ -94,7 +94,7 @@ func (iface *MirInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 	return nil, nil
 }
 
-func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -119,7 +119,7 @@ func (iface *MirInterface) PermanentSlotSnippet(
 	return nil, nil
 }
 
-func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -135,6 +135,14 @@ func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *MirInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *MirInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

@@ -263,7 +263,7 @@ func (iface *OfonoInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 	return nil, nil
 }
 
-func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -294,7 +294,7 @@ func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 	return nil, nil
 }
 
-func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -310,6 +310,14 @@ func (iface *OfonoInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 func (iface *OfonoInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *OfonoInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *OfonoInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

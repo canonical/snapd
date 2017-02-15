@@ -240,7 +240,15 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BrowserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -248,7 +256,7 @@ func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot
 	return nil, nil
 }
 
-func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 
 	switch securitySystem {

@@ -62,21 +62,21 @@ func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 
 func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
 }
@@ -107,11 +107,11 @@ plugs:
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `change_profile -> *,`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `@unrestricted`)
 }
@@ -132,11 +132,11 @@ plugs:
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), Not(testutil.Contains), `change_profile -> *,`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), Not(testutil.Contains), `@unrestricted`)
 }

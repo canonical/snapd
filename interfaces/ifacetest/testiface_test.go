@@ -120,32 +120,32 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 
 // TestInterface hands out empty plug security snippets
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, nil, s.slot, nil, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

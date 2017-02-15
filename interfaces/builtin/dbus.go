@@ -281,7 +281,7 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 	return nil, nil
 }
 
-func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return nil, err
@@ -377,7 +377,7 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
-func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return nil, err
@@ -427,6 +427,14 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
+}
+
+func (iface *DbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
 }
 
 func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

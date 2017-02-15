@@ -267,21 +267,21 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot1, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 
 	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
 	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityUDev)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, nil, s.testUdev2, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
@@ -289,49 +289,51 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet1 := []byte(`/dev/ttyS0 rw,
 `)
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot1, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
 	expectedSnippet2 := []byte(`/dev/ttyUSB927 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot2, interfaces.SecurityAppArmor)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot2, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
 	expectedSnippet3 := []byte(`/dev/ttyS42 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot3, interfaces.SecurityAppArmor)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot3, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 
 	expectedSnippet4 := []byte(`/dev/ttyO0 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot4, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot4, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet4, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet4, snippet))
 
 	expectedSnippet5 := []byte(`/dev/ttyACM0 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot5, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet5, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet5, snippet))
 
 	expectedSnippet6 := []byte(`/dev/ttyXRUSB0 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testSlot6, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet6, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet6, snippet))
 
 	expectedSnippet7 := []byte(`/dev/tty[A-Z]*[0-9] rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet7, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet7, snippet))
 
 	expectedSnippet8 := []byte(`/dev/tty[A-Z]*[0-9] rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, nil, s.testUdev2, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet8, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet8, snippet))
 }

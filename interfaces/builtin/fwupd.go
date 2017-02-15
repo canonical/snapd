@@ -195,7 +195,7 @@ func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 }
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -222,7 +222,7 @@ func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 }
 
 // ConnectedSlotSnippet returns security snippets for slot at connection
-func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -240,6 +240,14 @@ func (iface *FwupdInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // SanitizeSlot checks the slot definition is valid
 func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *FwupdInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *FwupdInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

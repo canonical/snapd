@@ -118,6 +118,14 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *SerialPortInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *SerialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentSlotSnippet returns snippets granted on install
 func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
@@ -140,7 +148,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -150,7 +158,7 @@ func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 }
 
 // ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if iface.hasUsbAttrs(slot) {

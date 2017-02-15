@@ -37,12 +37,16 @@ type TestInterface struct {
 	SanitizePlugCallback func(plug *interfaces.Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *interfaces.Slot) error
+	// ValidatePlugCallback is the callback invoked inside ValidatePlug()
+	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
+	// ValidateSlotCallback is the callback invoked inside ValidateSlot()
+	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
 	// SlotSnippetCallback is the callback invoked inside ConnectedSlotSnippet()
-	SlotSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
+	SlotSnippetCallback func(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
 	PermanentSlotSnippetCallback func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PlugSnippetCallback is the callback invoked inside ConnectedPlugSnippet()
-	PlugSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
+	PlugSnippetCallback func(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
 	PermanentPlugSnippetCallback func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error)
 
@@ -93,11 +97,33 @@ func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+// ValidatePlug checks if the attributes of the plug are correct, altering if necessary.
+func (t *TestInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	if t.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", t))
+	}
+	if t.SanitizePlugCallback != nil {
+		return t.ValidatePlugCallback(plug, attrs)
+	}
+	return nil
+}
+
+// ValidateSlot checks if the attributes of the slot are correct, altering if necessary.
+func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	if t.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", t))
+	}
+	if t.SanitizeSlotCallback != nil {
+		return t.ValidateSlotCallback(slot, attrs)
+	}
+	return nil
+}
+
 // ConnectedPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.PlugSnippetCallback != nil {
-		return t.PlugSnippetCallback(plug, slot, securitySystem)
+		return t.PlugSnippetCallback(plug, plugAttrs, slot, slotAttrs, securitySystem)
 	}
 	return nil, nil
 }
@@ -113,9 +139,9 @@ func (t *TestInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySyst
 
 // ConnectedSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	if t.SlotSnippetCallback != nil {
-		return t.SlotSnippetCallback(plug, slot, securitySystem)
+		return t.SlotSnippetCallback(plug, plugAttrs, slot, slotAttrs, securitySystem)
 	}
 	return nil, nil
 }

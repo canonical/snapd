@@ -88,7 +88,15 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *ContentInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *ContentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *ContentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *ContentInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -142,7 +150,7 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mnt
 	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
 }
 
-func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:

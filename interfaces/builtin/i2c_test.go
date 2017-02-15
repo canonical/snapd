@@ -182,7 +182,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := []byte(`KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"
 `)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
@@ -190,7 +190,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet1 := []byte(`/dev/i2c-1 rw,
 `)
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 

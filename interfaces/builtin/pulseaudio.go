@@ -125,7 +125,7 @@ func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 	return nil, nil
 }
 
-func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if release.OnClassic {
@@ -151,7 +151,7 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 	return nil, nil
 }
 
-func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -160,6 +160,14 @@ func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
 }
 
 func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *PulseAudioInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *PulseAudioInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
