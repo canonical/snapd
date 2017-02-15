@@ -554,6 +554,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe":        true,
 		"lxd":                     true,
 		"mir":                     true,
+		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
