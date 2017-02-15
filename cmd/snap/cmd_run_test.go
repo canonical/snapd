@@ -89,11 +89,11 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
@@ -125,11 +125,11 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"), "--classic",
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
@@ -160,11 +160,11 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	// and run it!
 	err = snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.app",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"--command=my-command", "snapname.app", "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -212,11 +212,11 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	// Run a hook from the active revision
 	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -247,11 +247,11 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	// Specifically pass "unset" which would use the active version.
 	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -284,11 +284,11 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	// Run a hook on revision 41
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Check(execArg0, check.Equals, filepath.Join(dirs.LibExecDir, "snap-confine"))
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 		"snap.snapname.hook.configure",
-		filepath.Join(dirs.LibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }

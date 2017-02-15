@@ -59,6 +59,13 @@ func Path(Version string) string {
 		return ""
 	}
 
+	// can we re-exec? some distributions will need extra work before re-exec really works.
+	switch release.ReleaseInfo.ID {
+	case "fedora", "centos", "rhel":
+		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
+		return ""
+	}
+
 	exe, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return ""
