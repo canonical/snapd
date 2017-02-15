@@ -394,8 +394,9 @@ func (s *BuySnapSuite) TestBuySnapFailsNoPaymentMethod(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
-Once completed, return here and run 'snap buy hello' again.`)
+	c.Check(err.Error(), check.Equals, `You need to have a payment method associated with your account in order to buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.
+
+Once you’ve added your payment details, you just need to run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -428,7 +429,8 @@ func (s *BuySnapSuite) TestBuySnapFailsNotAcceptedTerms(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/payment/edit to agree to the latest terms and conditions.
+	c.Check(err.Error(), check.Equals, `In order to buy oracledb, you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
+
 Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
