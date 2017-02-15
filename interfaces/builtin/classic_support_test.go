@@ -75,13 +75,13 @@ func (s *ClassicSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "/usr/bin/systemd-run Uxr,\n")
 	c.Check(string(snippet), testutil.Contains, "/bin/systemctl Uxr,\n")
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "mount\n")
