@@ -134,6 +134,8 @@ var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
 	switch app.Daemon {
+	// TODO: add 'dbus' when we support 'service: true' with 'bus:
+	// system' in the dbus interface
 	case "", "simple", "forking", "oneshot", "notify":
 		// valid
 	default:

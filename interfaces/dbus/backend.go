@@ -66,6 +66,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return nil
 }
 
+// Create the DBus busconfig policy for the snap
 func (b *Backend) setupBusConf(snapInfo *snap.Info, snippets map[string][][]byte) error {
 	snapName := snapInfo.Name()
 
@@ -108,9 +109,9 @@ func (b *Backend) removeBusConf(snapName string) error {
 	return nil
 }
 
-// combineSnippetsBusConf combines security snippets collected from
-// all the interfaces affecting a given snap into a content map
-// applicable to EnsureDirState.
+// combineSnippetsBusConf combines security snippets for busconfig
+// policy collected from all the interfaces affecting a given snap into a
+// content map applicable to EnsureDirState.
 func (b *Backend) combineSnippetsBusConf(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
@@ -141,6 +142,7 @@ func (b *Backend) combineSnippetsBusConf(snapInfo *snap.Info, snippets map[strin
 	return content, nil
 }
 
+// addContentBusConf creates/updates the xml busconfig policy for the snap
 func addContentBusConf(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	buffer.Write(xmlHeader)
@@ -173,6 +175,18 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte
 			if !ok {
 				continue
 			}
+			// TODO: we can eventually support 'system'
+			// by:
+			// 1. creating the
+			// SnapDBusSystemServicesFilesDir directory
+			// 2. writing the service file to
+			// SnapDBusSystemServicesFilesDir when
+			// 'daemon' is set to 'dbus' (see validate.go)
+			// 3. add 'Type=dbus' and
+			// 'BusName=slot.Attrs["name"].(string)' to
+			// the systemd unit when
+			// 'slot.Attrs["service"].(bool) == True' and
+			// 'daemon' is set to 'dbus'
 			if bus != "session" {
 				continue
 			}
@@ -181,12 +195,17 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte
 				continue
 			}
 			// we check if its a service here so that we know
-			// if a dbus service file needs to get generated.
+			// if a dbus service file needs to be generated.
 			isService, ok := slot.Attrs["service"].(bool)
 			if !ok || !isService {
 				continue
 			}
 
+			// We set only 'Name' and 'Exec' for now. We may add 'User' for 'system'
+			// services when we support per-snap users. Don't specify 'SystemdService'
+			// and just let dbus-daemon launch the service since 'SystemdService' is only
+			// used by dbus-daemon to tell systemd to launch the service and systemd
+			// user sessions aren't available everywhere yet.
 			var buffer bytes.Buffer
 			buffer.Write([]byte(fmt.Sprintf(`[D-BUS Service]
 Name=%s
@@ -211,6 +230,7 @@ Exec=%s
 	return nil
 }
 
+// Remove the DBus busconfig policy for the snap
 func (b *Backend) removeBusServ(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSessionServicesFilesDir, glob, nil)
