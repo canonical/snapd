@@ -23,7 +23,6 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
@@ -462,25 +461,6 @@ func (m *SnapManager) ensureRefreshes() error {
 		}
 	}
 
-	// check schedule
-	now := time.Now()
-	var matchedSchedule *timeutil.Schedule
-	for _, sched := range refreshSchedule {
-		if sched.Matches(now) {
-			matchedSchedule = sched
-			break
-		}
-
-	}
-	if matchedSchedule == nil {
-		return nil
-	}
-
-	// we already updated in this schedule window
-	if matchedSchedule.SameInterval(now, lastRefresh) {
-		return nil
-	}
-
 	// check that there is no change in flight already
 	for _, chg := range m.state.Changes() {
 		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
@@ -503,12 +483,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
-	endOfInterval := time.Date(now.Year(), now.Month(), now.Day(), matchedSchedule.End.Hour, matchedSchedule.End.Minute, matchedSchedule.End.Second, 0, now.Location())
-	timeToEndOfInterval := endOfInterval.Sub(now)
-	if timeToEndOfInterval <= 0 {
-		timeToEndOfInterval = 1 * time.Millisecond
-	}
-	when := time.Duration(rand.Int63n(int64(timeToEndOfInterval)))
+	when := timeutil.Next(refreshSchedule, lastRefresh)
 
 	m.nextRefresh = time.AfterFunc(when, func() { m.doAutoRefresh(updated, tasksets) })
 	logger.Debugf("schedule next refresh in %s", when)
