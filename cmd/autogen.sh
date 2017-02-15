@@ -27,7 +27,7 @@ case "$ID" in
 	ubuntu)
 		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu"
 		;;
-	fedora)
+	fedora|centos|rhel)
 		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
 		;;
 esac
