@@ -22,12 +22,9 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/dbus"
-	"github.com/snapcore/snapd/snap"
 )
 
 var unity8ConnectedPlugAppArmor = []byte(`
@@ -110,15 +107,6 @@ func (iface *Unity8Interface) String() string {
 	return iface.Name()
 }
 
-func (iface *Unity8Interface) dbusAppId(app *snap.AppInfo) string {
-	// FIXME: Until we decide whether unity8 is going to use Snappy-style
-	//        appIDs (snap.NAME_COMMAND) or Touch-style ones
-	//        (NAME_COMMAND_REVISION), we'll use a simpler *NAME_COMMAND* glob
-	//        here.
-	pieces := []string{app.Snap.Name(), app.Name}
-	return fmt.Sprintf("*%s*", dbus.SafePath(strings.Join(pieces, "_")))
-}
-
 func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
@@ -130,21 +118,13 @@ func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		newTags := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
 
+		// FIXME: Until we decide whether unity8 is going to use Snappy-style
+		//        appIDs (snap.NAME.COMMAND) or Touch-style ones
+		//        (NAME_COMMAND_REVISION), we'll use a simpler *NAME* glob
+		//        here.
 		appidsOld := []byte("###PLUG_DBUS_APPIDS###")
-		var appidsNew bytes.Buffer
-		var appidsList []string
-		for _, app := range plug.Apps {
-			appidsList = append(appidsList, iface.dbusAppId(app))
-		}
-		sort.Strings(appidsList) // makes tests reliable
-		if len(appidsList) == 1 {
-			appidsNew.WriteString(appidsList[0])
-		} else if len(appidsList) > 1 {
-			appidsNew.WriteByte('{')
-			appidsNew.WriteString(strings.Join(appidsList, ","))
-			appidsNew.WriteByte('}')
-		}
-		snippet = bytes.Replace(snippet, appidsOld, appidsNew.Bytes(), -1)
+		appidsNew := fmt.Sprintf("*%s*", dbus.SafePath(plug.Snap.Name()))
+		snippet = bytes.Replace(snippet, appidsOld, []byte(appidsNew), -1)
 
 		return snippet, nil
 	case interfaces.SecuritySecComp:

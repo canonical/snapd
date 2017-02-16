@@ -121,7 +121,7 @@ apps:
 `)
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "path=/*one_2dcmd_5fone*")
+	c.Check(string(snippet), testutil.Contains, "path=/*one_2dcmd*")
 
 	// Two commands
 	plug = createMockFooPlug(c, `
@@ -134,5 +134,5 @@ apps:
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "path=/{*two_2dcmds_5fone*,*two_2dcmds_5ftwo*}")
+	c.Check(string(snippet), testutil.Contains, "path=/*two_2dcmds*")
 }
