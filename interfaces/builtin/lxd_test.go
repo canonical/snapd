@@ -71,22 +71,22 @@ func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *LxdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Check(string(snippet), testutil.Contains, "shutdown\n")
 }

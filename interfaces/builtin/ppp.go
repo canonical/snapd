@@ -60,7 +60,7 @@ func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 	return nil, nil
 }
 
-func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return pppConnectedPlugAppArmor, nil
@@ -74,7 +74,7 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 	return nil, nil
 }
 
-func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -83,6 +83,14 @@ func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 func (iface *PppInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *PppInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *PppInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

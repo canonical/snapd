@@ -22,10 +22,11 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"github.com/snapcore/snapd/interfaces"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // The type for i2c interface
@@ -82,13 +83,21 @@ func (iface *I2cInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *I2cInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *I2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Returns snippet granted on install
 func (iface *I2cInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil, nil
@@ -113,7 +122,7 @@ func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 }
 
 // No extra permissions granted on connection
-func (iface *I2cInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *I2cInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

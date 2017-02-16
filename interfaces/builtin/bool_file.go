@@ -77,9 +77,17 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *BoolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BoolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
 // Applications associated with the slot don't gain any extra permissions.
-func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -105,7 +113,7 @@ func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
 // Applications associated with the plug gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.

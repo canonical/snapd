@@ -52,7 +52,7 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 	return nil, nil
 }
 
-func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(dockerConnectedPlugAppArmor)
@@ -68,7 +68,7 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 	return nil, nil
 }
 
-func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// The docker socket is a named socket and therefore mediated by
 	// AppArmor file rules. As such, there is no additional ConnectedSlot
 	// policy to add.
@@ -86,6 +86,14 @@ func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
+	return nil
+}
+
+func (iface *DockerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DockerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

@@ -128,13 +128,21 @@ func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *TimeControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *TimeControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Returns snippet granted on install
 func (iface *TimeControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(timeControlConnectedPlugAppArmor), nil
@@ -155,7 +163,7 @@ func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, s
 }
 
 // No extra permissions granted on connection
-func (iface *TimeControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *TimeControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

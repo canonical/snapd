@@ -218,7 +218,7 @@ func (iface *UbuntuDownloadManagerInterface) PermanentPlugSnippet(plug *interfac
 	return nil, nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -241,7 +241,7 @@ func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfac
 	return nil, nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -266,6 +266,14 @@ func (iface *UbuntuDownloadManagerInterface) SanitizeSlot(slot *interfaces.Slot)
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+	return nil
+}
+
+func (iface *UbuntuDownloadManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UbuntuDownloadManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 
