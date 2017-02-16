@@ -91,7 +91,9 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
 		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
 
-		t = t.AddDate(0, 0, 1)
+		// not using AddDate() here as this can panic() if no
+		// location is set
+		t = t.Add(24 * time.Hour)
 
 		// we have not hit the right day yet
 		if sched.Weekday != "" && a.Weekday() != wd {
