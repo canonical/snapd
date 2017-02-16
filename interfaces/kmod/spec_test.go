@@ -81,6 +81,14 @@ func (s *specSuite) TestSmoke(c *C) {
 		"module1": true, "module2": true})
 }
 
+// AddModule ignores duplicated modules
+func (s *specSuite) TestDeduplication(c *C) {
+	mod := "module1"
+	c.Assert(s.spec.AddModule(mod), IsNil)
+	c.Assert(s.spec.AddModule(mod), IsNil)
+	c.Assert(s.spec.Modules, DeepEquals, map[string]bool{"module1": true})
+}
+
 // The kmod.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
