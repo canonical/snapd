@@ -21,4 +21,5 @@ package kmod
 
 var (
 	LoadModules = loadModules
+	UniqueLines = uniqueLines
 )
