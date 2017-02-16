@@ -27,7 +27,6 @@ import (
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
-# Usage: reserved
 
 #include <abstractions/nameservice>
 
@@ -86,18 +85,9 @@ unix (bind) type=stream addr="@xtables",
 const firewallControlConnectedPlugSecComp = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
-# Usage: reserved
 
 # for connecting to xtables abstract socket
 bind
-recv
-recvfrom
-recvmsg
-recvmmsg
-send
-sendmmsg
-sendmsg
-sendto
 
 # for ping and ping6
 capset

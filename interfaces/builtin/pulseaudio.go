@@ -48,10 +48,7 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
-sendto
 shmctl
-sendmsg
-recvmsg
 `
 
 const pulseaudioPermanentSlotAppArmor = `
@@ -103,12 +100,9 @@ personality
 setpriority
 bind
 listen
-sendto
-recvfrom
+accept
 accept4
 shmctl
-sendmsg
-recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
