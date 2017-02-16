@@ -483,10 +483,10 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 
-	when := timeutil.Next(refreshSchedule, lastRefresh)
+	delta := timeutil.Next(refreshSchedule, lastRefresh)
 
-	m.nextRefresh = time.AfterFunc(when, func() { m.doAutoRefresh(updated, tasksets) })
-	logger.Debugf("schedule next refresh in %s", when)
+	m.nextRefresh = time.AfterFunc(delta, func() { m.doAutoRefresh(updated, tasksets) })
+	logger.Debugf("Next refresh scheduled for %s.", time.Now().Add(delta))
 
 	return nil
 }
