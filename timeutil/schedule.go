@@ -98,7 +98,6 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 	for {
 		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
 		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
-
 		if !last.Before(a) {
 			t = b.AddDate(0, 0, 1)
 			continue
@@ -128,6 +127,11 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 	a = maxScheduleDelay
 	for _, sched := range schedule {
 		start, end := sched.Next(last)
+		// special case, if we are exactly within a window
+		// randomize and go
+		if start.Before(now) && end.After(now) {
+			return randDur(end.Add(-5 * time.Minute).Sub(now))
+		}
 		if start.After(now) && start.Before(a) {
 			a = start
 			b = end
