@@ -30,8 +30,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -249,15 +247,6 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	if !release.OnClassic {
-		// XXX: drop this old repair code?
-		coreInfo, err := snapstate.CoreInfo(m.state)
-		if err == nil && coreInfo.Name() == "ubuntu-core" {
-			// already seeded... recover
-			return m.alreadyFirstbooted()
-		}
-	}
-
 	tsAll, err := populateStateFromSeed(m.state)
 	if err != nil {
 		return err
@@ -273,52 +262,6 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
-	return nil
-}
-
-// alreadyFirstbooted recovers already first booted devices with the old method appropriately
-func (m *DeviceManager) alreadyFirstbooted() error {
-	device, err := auth.Device(m.state)
-	if err != nil {
-		return err
-	}
-	// recover key-id
-	if device.Brand != "" && device.Model != "" {
-		serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
-			"brand-id": device.Brand,
-			"model":    device.Model,
-		})
-		if err != nil && err != asserts.ErrNotFound {
-			return err
-		}
-
-		if len(serials) == 1 {
-			// we can recover the key id from the assertion
-			serial := serials[0].(*asserts.Serial)
-			keyID := serial.DeviceKey().ID()
-			device.KeyID = keyID
-			device.Serial = serial.Serial()
-			err := auth.SetDevice(m.state, device)
-			if err != nil {
-				return err
-			}
-			// best effort to cleanup abandoned keys
-			pat := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1", "*")
-			keyFns, err := filepath.Glob(pat)
-			if err != nil {
-				panic(fmt.Sprintf("invalid glob for device keys: %v", err))
-			}
-			for _, keyFn := range keyFns {
-				if filepath.Base(keyFn) == keyID {
-					continue
-				}
-				os.Remove(keyFn)
-			}
-		}
-
-	}
-
-	m.state.Set("seeded", true)
 	return nil
 }
 
