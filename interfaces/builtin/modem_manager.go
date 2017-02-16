@@ -27,9 +27,8 @@ import (
 )
 
 var modemManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
 
 # To check present devices
 /run/udev/data/* r,
@@ -101,9 +100,8 @@ dbus (receive, send)
 `)
 
 var modemManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using ModemManager service. Reserved because this gives
-#  privileged access to the ModemManager service.
-# Usage: reserved
+# Description: Allow using ModemManager service. This gives privileged access
+# to the ModemManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -135,37 +133,15 @@ dbus (receive, send)
 `)
 
 var modemManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the ModemManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the ModemManager service. This gives
+# privileged access to the system.
+
 # TODO: add ioctl argument filters when seccomp arg filtering is implemented
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`)
-
-var modemManagerConnectedPlugSecComp = []byte(`
-# Description: Allow using ModemManager service. Reserved because this gives
-#  privileged access to the ModemManager service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
 `)
 
 var modemManagerPermanentSlotDBus = []byte(`
@@ -1196,8 +1172,6 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 			snippet = append(snippet, modemManagerConnectedPlugAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return modemManagerConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

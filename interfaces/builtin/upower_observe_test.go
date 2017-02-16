@@ -85,10 +85,6 @@ func (s *UPowerObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 // The label glob when all apps are bound to the ofono slot
@@ -172,13 +168,6 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-strict>")
 	// verify classic didn't connect
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
-}
-
-func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "send\n")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
