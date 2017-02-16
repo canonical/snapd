@@ -194,11 +194,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 		if err != nil && err != state.ErrNoState {
 			return nil, err
 		}
-		if err == nil && !release.OnClassic {
-			// XXX: we likely want defaults on classic with gadget
-			// but atm this function is too strict?
-			// how should gadget.yaml look like for classic?
-			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
+		if err == nil {
+			gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 			if err != nil {
 				return nil, err
 			}
