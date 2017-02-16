@@ -7,7 +7,7 @@ prepare: |
 
 restore: |
     killall dbus-daemon
-    apt autoremove -y dbus-x11
+    apt-get autoremove -y dbus-x11
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
