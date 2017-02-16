@@ -219,17 +219,6 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	// FIXME: enable on classic?
-	//
-	// Disable seed.yaml on classic for now. In the long run we want
-	// classic to have a seed parsing as well so that we can install
-	// snaps in a classic environment (LP: #1609903). However right
-	// now it is under heavy development so until the dust
-	// settles we disable it.
-	if release.OnClassic {
-		return nil
-	}
-
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -243,10 +232,13 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	coreInfo, err := snapstate.CoreInfo(m.state)
-	if err == nil && coreInfo.Name() == "ubuntu-core" {
-		// already seeded... recover
-		return m.alreadyFirstbooted()
+	if !release.OnClassic {
+		// XXX: drop this old repair code?
+		coreInfo, err := snapstate.CoreInfo(m.state)
+		if err == nil && coreInfo.Name() == "ubuntu-core" {
+			// already seeded... recover
+			return m.alreadyFirstbooted()
+		}
 	}
 
 	tsAll, err := populateStateFromSeed(m.state)
