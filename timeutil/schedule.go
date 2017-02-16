@@ -83,23 +83,27 @@ type Schedule struct {
 }
 
 func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
+	now := timeNow()
 	wd := time.Weekday(weekdayMap[sched.Weekday])
 
 	t := last
-	if sched.Weekday != "" {
-		lwd := last.Weekday()
-		delta := int(wd - lwd)
-		if delta < 0 {
-			delta += 7
-		}
-		t = t.AddDate(0, 0, delta)
-	}
-
 	for {
+		// slightly stupid, we move only a single day forward
+		t = t.AddDate(0, 0, 1)
+
 		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
 		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
-		if !last.Before(a) {
-			t = b.AddDate(0, 0, 1)
+
+		// we have not hit the right day yet
+		if sched.Weekday != "" && a.Weekday() != wd {
+			continue
+		}
+		// schedule is right now
+		if a.Before(now) && b.After(now) {
+			return a, b
+		}
+		// not yet after now
+		if !a.After(now) {
 			continue
 		}
 
@@ -121,10 +125,14 @@ func init() {
 // schedule window.
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
-	maxScheduleDelay := now.AddDate(0, 0, 7)
+	// delay more than 14 days
+	if now.Sub(last) > 14*time.Duration(24*time.Hour) {
+		return 0
+	}
 
 	var a, b time.Time
-	a = maxScheduleDelay
+	marker := now.AddDate(0, 0, 7)
+	a = marker
 	for _, sched := range schedule {
 		start, end := sched.Next(last)
 		// special case, if we are exactly within a window
@@ -137,7 +145,7 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 			b = end
 		}
 	}
-	if a == maxScheduleDelay {
+	if a == marker {
 		return 0
 	}
 
