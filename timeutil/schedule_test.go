@@ -144,6 +144,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			next:     "1h-3h",
 		},
 		{
+			// daily schedule, used one window
+			// -> run next daily window
+			schedule: "9:00-11:00/21:00-23:00",
+			last:     "2017-02-06 10:00",
+			now:      "2017-02-06 20:00",
+			next:     "1h-3h",
+		},
+		{
 			// daily schedule, missed all todays windows
 			// run tomorrow
 			schedule: "9:00-11:00/21:00-22:00",
