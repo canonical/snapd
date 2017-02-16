@@ -440,8 +440,8 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// get last refresh time
 	var lastRefresh time.Time
-	err := tr.Get("core", "refresh.last", &lastRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	err := m.state.Get("last-refresh", &lastRefresh)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -1219,9 +1219,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func setLastRefresh(st *state.State) {
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.last", time.Now())
-	tr.Commit()
+	st.Set("last-refresh", time.Now())
 }
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
