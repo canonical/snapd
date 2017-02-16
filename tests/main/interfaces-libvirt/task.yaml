@@ -39,7 +39,7 @@ prepare: |
     ip link set dev tap100 up
 
 restore: |
-    apt autoremove -y --purge libvirt-bin qemu &&
+    apt autoremove -y --purge libvirt-bin qemu
 
     ip link delete tap100
 
