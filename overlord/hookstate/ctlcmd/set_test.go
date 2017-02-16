@@ -256,3 +256,30 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *setAttrSuite) TestCopyAttributes(c *C) {
+	orig := map[string]interface{}{
+		"a": "A",
+		"b": true,
+		"c": 100,
+		"d": []interface{}{"x", "y", true},
+		"e": map[string]interface{}{
+			"e1": "E1",
+		},
+	}
+
+	cpy, err := ctlcmd.CopyAttributes(orig)
+	c.Assert(err, IsNil)
+	c.Check(cpy, DeepEquals, orig)
+
+	cpy["d"].([]interface{})[0] = 999
+	c.Check(orig["d"].([]interface{})[0], Equals, "x")
+	cpy["e"].(map[string]interface{})["e1"] = "x"
+	c.Check(orig["e"].(map[string]interface{})["e1"], Equals, "E1")
+
+	type unsupported struct{}
+	var x unsupported
+	_, err = ctlcmd.CopyAttributes(map[string]interface{}{"x": x})
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "unsupported attribute type 'ctlcmd_test.unsupported', value '{}'")
+}
