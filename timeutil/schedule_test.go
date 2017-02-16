@@ -144,6 +144,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			next:     "1h-3h",
 		},
 		{
+			// daily schedule, used one window
+			// -> run next daily window
+			schedule: "9:00-11:00/21:00-23:00",
+			last:     "2017-02-06 10:00",
+			now:      "2017-02-06 20:00",
+			next:     "1h-3h",
+		},
+		{
 			// daily schedule, missed all todays windows
 			// run tomorrow
 			schedule: "9:00-11:00/21:00-22:00",
@@ -157,6 +165,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2017-02-06 09:30",
 			now:      "2017-02-06 10:00",
 			next:     "23h-25h",
+		},
+		{
+			// single daily schedule, already updated today
+			// (at exactly the edge)
+			schedule: "9:00-11:00",
+			last:     "2017-02-06 09:00",
+			now:      "2017-02-06 09:00",
+			next:     "24h-26h",
 		},
 		{
 			// single daily schedule, last update a day ago
@@ -173,6 +189,13 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2017-02-06 21:30",
 			now:      "2017-02-06 23:00",
 			next:     "10h-12h",
+		},
+		{
+			// weekly schedule, next window today
+			schedule: "tue@9:00-11:00/wed@9:00-11:00",
+			last:     "2017-02-01 10:00",
+			now:      "2017-02-07 05:00",
+			next:     "4h-6h",
 		},
 		{
 			// weekly schedule, next window tomorrow

@@ -88,21 +88,24 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 
 	t := last
 	for {
-		// slightly stupid, we move only a single day forward
-		t = t.AddDate(0, 0, 1)
-
 		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
 		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
+
+		t = t.AddDate(0, 0, 1)
 
 		// we have not hit the right day yet
 		if sched.Weekday != "" && a.Weekday() != wd {
 			continue
 		}
+		// same inteval as last update, move forward
+		if last.After(a) && last.Before(b) {
+			continue
+		}
 		// schedule is right now
-		if a.Before(now) && b.After(now) {
+		if now.After(a) && now.Before(b) {
 			return a, b
 		}
-		// not yet after now
+		// not reached now yet
 		if !a.After(now) {
 			continue
 		}
@@ -117,7 +120,7 @@ func randDur(dur time.Duration) time.Duration {
 
 var (
 	timeNow     = time.Now
-	maxDuration = 14 * 24 * time.Duration(time.Hour)
+	maxDuration = 14 * 24 * time.Hour
 )
 
 func init() {
@@ -129,15 +132,11 @@ func init() {
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
 
-	// delay more than 14 days, always update
-	if now.Sub(last) > maxDuration {
-		return 0
-	}
-
-	var a, b time.Time
+	a := last.Add(maxDuration)
+	b := a.Add(1 * time.Hour)
 	for _, sched := range schedule {
 		start, end := sched.Next(last)
-		if a.IsZero() || start.After(now) && start.Before(a) {
+		if start.Before(a) {
 			a = start
 			b = end
 		}
