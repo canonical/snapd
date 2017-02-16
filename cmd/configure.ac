@@ -104,7 +104,7 @@ PKG_CHECK_MODULES([LIBUDEV], [libudev])
 PKG_CHECK_MODULES([UDEV], [udev])
 
 # Check if libcap is available.
-PKG_CHECK_MODULES([LIBCAP], [libcap])
+# PKG_CHECK_MODULES([LIBCAP], [libcap])
 
 # Enable special support for hosts with proprietary nvidia drivers on Ubuntu.
 AC_ARG_ENABLE([nvidia-ubuntu],
