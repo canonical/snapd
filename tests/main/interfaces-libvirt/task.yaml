@@ -2,7 +2,7 @@ summary: Ensure that the libvirt interface works.
 
 systems: [ubuntu-16.04-64]
 
-summary: |
+details: |
     The libvirt interface allows a snap to access the libvirtd socket in order to manage
     libvirt domains and other resources.
 
@@ -19,6 +19,7 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
     apt install -y libvirt-bin qemu
+    # add test user to the libvirtd group
     adduser test libvirtd
 
     echo "And libvirt is configured to manage /dev/net/tun"
@@ -38,11 +39,12 @@ prepare: |
     ip link set dev tap100 up
 
 restore: |
-    systemctl stop libvirtd.service
-    systemctl stop virtlogd.socket
-    apt remove -y --purge libvirt-bin qemu
+    apt autoremove -y --purge libvirt-bin qemu &&
 
     ip link delete tap100
+
+    # remove test user from the libvirtd group
+    deluser test libvirtd
 
 execute: |
     CONNECTED_PATTERN=":libvirt +test-snapd-libvirt-consumer"
@@ -79,4 +81,4 @@ execute: |
         echo "Expected permission error accessing libvirtd socket with disconnected plug"
         exit 1
     fi
-    grep -q "Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied" creation.error
+    cat creation.error | MATCH "Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied"
