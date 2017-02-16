@@ -37,10 +37,19 @@ type SerialPortInterfaceSuite struct {
 	testSlot2        *interfaces.Slot
 	testSlot3        *interfaces.Slot
 	testSlot4        *interfaces.Slot
+	testSlot5        *interfaces.Slot
+	testSlot6        *interfaces.Slot
 	missingPathSlot  *interfaces.Slot
 	badPathSlot1     *interfaces.Slot
 	badPathSlot2     *interfaces.Slot
 	badPathSlot3     *interfaces.Slot
+	badPathSlot4     *interfaces.Slot
+	badPathSlot5     *interfaces.Slot
+	badPathSlot6     *interfaces.Slot
+	badPathSlot7     *interfaces.Slot
+	badPathSlot8     *interfaces.Slot
+	badPathSlot9     *interfaces.Slot
+	badPathSlot10    *interfaces.Slot
 	badInterfaceSlot *interfaces.Slot
 
 	// Gadget Snap
@@ -69,33 +78,69 @@ slots:
         path: /dev/ttyS0
     test-port-2:
         interface: serial-port
-        path: /dev/ttyAMA2
+        path: /dev/ttyUSB927
     test-port-3:
         interface: serial-port
-        path: /dev/ttyUSB927
+        path: /dev/ttyS42
     test-port-4:
         interface: serial-port
-        path: /dev/ttyS42
+        path: /dev/ttyO0
+    test-port-5:
+        interface: serial-port
+        path: /dev/ttyACM0
+    test-port-6:
+        interface: serial-port
+        path: /dev/ttyXRUSB0
     missing-path: serial-port
     bad-path-1:
         interface: serial-port
         path: path
     bad-path-2:
         interface: serial-port
-        path: /dev/tty0
+        path: /dev/tty
     bad-path-3:
         interface: serial-port
-        path: /dev/ttyUSB9271
+        path: /dev/tty0
+    bad-path-4:
+        interface: serial-port
+        path: /dev/tty63
+    bad-path-5:
+        interface: serial-port
+        path: /dev/ttyUSB
+    bad-path-6:
+        interface: serial-port
+        path: /dev/usb
+    bad-path-7:
+        interface: serial-port
+        path: /dev/ttyprintk
+    bad-path-8:
+        interface: serial-port
+        path: /dev/ttyO
+    bad-path-9:
+        interface: serial-port
+        path: /dev/ttyS
+    bad-path-10:
+        interface: serial-port
+        path: /dev/ttyillegal0
     bad-interface: other-interface
 `, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
 	s.testSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-2"]}
 	s.testSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-3"]}
 	s.testSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-4"]}
+	s.testSlot5 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-5"]}
+	s.testSlot6 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-6"]}
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["missing-path"]}
 	s.badPathSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-1"]}
 	s.badPathSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-2"]}
 	s.badPathSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-3"]}
+	s.badPathSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-4"]}
+	s.badPathSlot5 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-5"]}
+	s.badPathSlot6 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-6"]}
+	s.badPathSlot7 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-7"]}
+	s.badPathSlot8 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-8"]}
+	s.badPathSlot9 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-9"]}
+	s.badPathSlot10 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-10"]}
 	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-interface"]}
 
 	gadgetSnapInfo := snaptest.MockInfo(c, `
@@ -159,7 +204,7 @@ func (s *SerialPortInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
+	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4, s.testSlot5, s.testSlot6} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, IsNil)
 	}
@@ -171,7 +216,7 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	c.Assert(err, ErrorMatches, `serial-port slot must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
-	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3} {
+	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3, s.badPathSlot4, s.badPathSlot5, s.badPathSlot6, s.badPathSlot7, s.badPathSlot8, s.badPathSlot9, s.badPathSlot10} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
@@ -248,15 +293,45 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-	expectedSnippet2 := []byte(`/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,
+	expectedSnippet2 := []byte(`/dev/ttyUSB927 rw,
 `)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot2, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
-	expectedSnippet3 := []byte(`/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,
+	expectedSnippet3 := []byte(`/dev/ttyS42 rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot3, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+
+	expectedSnippet4 := []byte(`/dev/ttyO0 rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot4, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet4, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet4, snippet))
+
+	expectedSnippet5 := []byte(`/dev/ttyACM0 rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet5, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet5, snippet))
+
+	expectedSnippet6 := []byte(`/dev/ttyXRUSB0 rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet6, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet6, snippet))
+
+	expectedSnippet7 := []byte(`/dev/tty[A-Z]*[0-9] rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet7, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet7, snippet))
+
+	expectedSnippet8 := []byte(`/dev/tty[A-Z]*[0-9] rw,
 `)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet8, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet8, snippet))
 }

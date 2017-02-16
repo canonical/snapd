@@ -103,6 +103,9 @@ AS_IF([test "x$enable_apparmor" = "xyes"], [
 PKG_CHECK_MODULES([LIBUDEV], [libudev])
 PKG_CHECK_MODULES([UDEV], [udev])
 
+# Check if libcap is available.
+# PKG_CHECK_MODULES([LIBCAP], [libcap])
+
 # Enable special support for hosts with proprietary nvidia drivers on Ubuntu.
 AC_ARG_ENABLE([nvidia-ubuntu],
     AS_HELP_STRING([--enable-nvidia-ubuntu], [Support for proprietary nvidia drivers (Ubuntu)]),
