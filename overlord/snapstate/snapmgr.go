@@ -74,8 +74,9 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	nextRefresh        *time.Timer
-	lastRefreshAttempt time.Time
+	nextRefresh            *time.Timer
+	currentRefreshSchedule string
+	lastRefreshAttempt     time.Time
 
 	runner *state.TaskRunner
 }
@@ -433,11 +434,6 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	tr := config.NewTransaction(m.state)
 
-	// already have a refresh timer
-	if m.nextRefresh != nil {
-		return nil
-	}
-
 	// get last refresh time
 	var lastRefresh time.Time
 	err := m.state.Get("last-refresh", &lastRefresh)
@@ -460,6 +456,18 @@ func (m *SnapManager) ensureRefreshes() error {
 			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 		}
 	}
+	// already have a refresh timer
+	if m.nextRefresh != nil {
+		if m.currentRefreshSchedule == refreshScheduleStr {
+			return nil
+		}
+		// the refresh schedule has changed
+		logger.Debugf("Refresh-schedule changed, reloading")
+		m.nextRefresh.Stop()
+		m.nextRefresh = nil
+		m.lastRefreshAttempt = time.Time{}
+	}
+	m.currentRefreshSchedule = refreshScheduleStr
 
 	// check that there is no change in flight already
 	for _, chg := range m.state.Changes() {
