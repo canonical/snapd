@@ -43,7 +43,7 @@ unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 const maliitInputMethodConnectedSlotAppArmor = `
 # Provides the maliit address service which assigns an individual unix socket
 # to each application
-dbus (send, receive)
+dbus (receive)
     bus=session
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
@@ -62,7 +62,7 @@ const maliitInputMethodConnectedPlugAppArmor = `
 # Allow applications to communicate with the maliit address service
 # which assigns an individual unix socket for all further communication
 # to happen over.
-dbus (send, receive)
+dbus (send)
     bus=session
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
