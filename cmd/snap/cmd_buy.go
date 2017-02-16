@@ -98,9 +98,9 @@ func buySnap(snapName string) error {
 
 Once you’ve added your payment details, you just need to run 'snap buy %s' again.`), snap.Name)
 			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`In order to buy oracledb, you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
+				return fmt.Errorf(i18n.G(`In order to buy %q, you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
 
-Once completed, return here and run 'snap buy %s' again.`), snap.Name)
+Once completed, return here and run 'snap buy %s' again.`), snap.Name, snap.Name)
 			}
 		}
 		return err
