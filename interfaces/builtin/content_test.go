@@ -238,7 +238,7 @@ slots:
 	}
 	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, nil, slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -274,7 +274,7 @@ slots:
 	}
 	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, nil, slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -312,7 +312,7 @@ slots:
 	}
 	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	content, err := s.iface.ConnectedPlugSnippet(plug, nil, slot, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that

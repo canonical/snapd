@@ -3077,7 +3077,8 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+
+	c.Assert(repo.Connect(connRef, nil, nil), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3312,7 +3313,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	// TODO: attributes
+	c.Assert(repo.Connect(connRef, nil, nil), check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()

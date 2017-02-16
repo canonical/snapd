@@ -127,7 +127,7 @@ func (iface *unity8PimCommonInterface) PermanentPlugSnippet(plug *interfaces.Plu
 	return nil, nil
 }
 
-func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -167,7 +167,7 @@ func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slo
 	}
 }
 
-func (iface *unity8PimCommonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *unity8PimCommonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
@@ -192,6 +192,14 @@ func (iface *unity8PimCommonInterface) SanitizeSlot(slot *interfaces.Slot) error
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
 	}
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

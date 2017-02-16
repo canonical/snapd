@@ -173,7 +173,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := []byte(`KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"
 `)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
@@ -186,7 +186,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 /sys/bus/iio/devices/iio:device1/ r,
 /sys/bus/iio/devices/iio:device1/** rwk,
 `)
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, nil, s.testUdev1, nil, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 

@@ -530,7 +530,7 @@ func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 	return nil, nil
 }
 
-func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
@@ -553,7 +553,7 @@ func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot,
 	return nil, nil
 }
 
-func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -573,6 +573,14 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
 		}
 	}
+	return nil
+}
+
+func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DockerSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }
 

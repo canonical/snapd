@@ -70,6 +70,14 @@ func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *commonInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *commonInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentPlugSnippet returns the snippet of text for the given security
 // system that is used during the whole lifetime of affected applications,
 // whether the plug is connected or not.
@@ -85,7 +93,7 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 //
 // Connected plugs get the static seccomp and apparmor blobs defined by the
 // instance variables.  They are not really connection specific in this case.
-func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(iface.connectedPlugAppArmor), nil
@@ -111,7 +119,7 @@ func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 // between a plug and a slot exists.
 //
 // Slots don't get any per-connection security snippets.
-func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

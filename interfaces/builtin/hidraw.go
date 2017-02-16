@@ -112,6 +112,14 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *HidrawInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *HidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // PermanentSlotSnippet returns snippets granted on install
 func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
@@ -134,7 +142,7 @@ func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
@@ -144,7 +152,7 @@ func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 }
 
 // ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if iface.hasUsbAttrs(slot) {

@@ -54,6 +54,14 @@ func (iface *UhidInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
+func (iface *UhidInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UhidInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
+
 // Check and possibly modify a plug
 func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
@@ -69,7 +77,7 @@ func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 // Getter for the security system specific to the plug
-func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(uhidConnectedPlugAppArmor), nil
@@ -88,7 +96,7 @@ func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 }
 
 // No extra permissions granted on connection
-func (iface *UhidInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *UhidInterface) ConnectedSlotSnippet(plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

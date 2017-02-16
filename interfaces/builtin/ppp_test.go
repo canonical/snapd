@@ -59,7 +59,7 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityKMod}
 	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, system)
 		c.Assert(err, IsNil)
 		if system == interfaces.SecurityAppArmor || system == interfaces.SecurityKMod {
 			c.Assert(snippet, Not(IsNil))
@@ -70,7 +70,7 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, nil, s.slot, nil, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)

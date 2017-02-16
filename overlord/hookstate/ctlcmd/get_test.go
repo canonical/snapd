@@ -165,6 +165,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	slotAttrs := make(map[string]interface{})
 	plugAttrs["aattr"] = "foo"
 	plugAttrs["baz"] = []string{"a", "b"}
+	plugAttrs["mapattr"] = map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"}
 	slotAttrs["battr"] = "bar"
 	attrsTask.Set("plug-attrs", plugAttrs)
 	attrsTask.Set("slot-attrs", slotAttrs)
@@ -214,6 +215,16 @@ func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
 	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "mapval1\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "mapattr.mapattr1"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --plug parameter doesn't do anything if used on plug side
