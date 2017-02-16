@@ -56,45 +56,22 @@ static bool sc_has_capability(const char *cap_name)
 
 void sc_privs_drop()
 {
-	// Get the real, effective and saved user identifiers
-	uid_t ruid, euid, suid;
-	if (getresuid(&ruid, &euid, &suid) < 0) {
-		die("cannot get real, effective and saved user identifiers");
+	gid_t gid = getgid();
+	uid_t uid = getuid();
+
+	// Drop extra group membership if we can.
+	if (sc_has_capability("cap_setgid")) {
+		gid_t gid_list[1] = { gid };
+		if (setgroups(1, gid_list) < 0) {
+			die("cannot set supplementary group identifiers");
+		}
 	}
-	// Ditto for group identifiers
-	gid_t rgid, egid, sgid;
-	if (getresgid(&rgid, &egid, &sgid) < 0) {
-		die("cannot get real, effective and saved group identifiers");
+	// Switch to real group ID
+	if (setgid(getgid()) < 0) {
+		die("cannot set group identifier to %d", gid);
 	}
-	if (euid == 0) {
-		// Drop extra group membership if we can.
-		if (sc_has_capability("cap_setgid")) {
-			gid_t gid_list[1] = { rgid };
-			if (setgroups(1, gid_list) < 0) {
-				die("cannot set supplementary group identifiers");
-			}
-		}
-		// Switch to real group ID
-		if (setgid(rgid) < 0) {
-			die("cannot set group identifier to %d", rgid);
-		}
-		// Switch to real user ID
-		if (setuid(ruid) < 0) {
-			die("cannot set user identifier to %d", ruid);
-		}
-		// Verify everything
-		//
-		// With the above, this should never happen but be paranoid to help
-		// future-proof code changes. Specifically, if our real gid was not
-		// root, but one of uid/euid still are root, die(). Same for if our
-		// real uid was not root, but one of gid/egid are root, die().
-		if (rgid != 0 && (getuid() == 0 || geteuid() == 0)) {
-			die("cannot permanently drop permissions (uid still elevated)");
-		}
-		if (ruid != 0 && (getgid() == 0 || getegid() == 0)) {
-			die("cannot permanently drop permissions (gid still elevated)");
-		}
-		// XXX Should we verify supplementary groups?
-		debug("elevated permissions have been permanently dropped");
+	// Switch to real user ID
+	if (setuid(getuid()) < 0) {
+		die("cannot set user identifier to %d", uid);
 	}
 }
