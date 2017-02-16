@@ -5143,8 +5143,12 @@ volumes:
 `
 
 func (s *snapmgrTestSuite) prepareGadget(c *C) {
-	gadgetSideInfo := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	gadgetInfo := snaptest.MockSnap(c, "name: the-gadget\nversion: 1.0", "", gadgetSideInfo)
+	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
+	gadgetInfo := snaptest.MockSnap(c, `
+name: the-gadget
+type: gadget
+version: 1.0
+`, "", gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
@@ -5162,6 +5166,9 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	defer r()
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5184,6 +5191,9 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
