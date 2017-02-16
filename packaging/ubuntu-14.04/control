@@ -17,6 +17,7 @@ Build-Depends: autoconf,
                gnupg2,
                golang-any (>=2:1.6) | golang-1.6,
                indent,
+               libcap-dev,
                init-system-helpers,
                libapparmor-dev,
                libglib2.0-dev,
@@ -65,7 +66,6 @@ Depends: adduser,
          systemd (>= 204-5ubuntu20.20),
 # only needed on trusty to pull in the right version.
          util-linux (>=2.20.1-5.1ubuntu20.9),
-         xdelta3,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23~14.04)

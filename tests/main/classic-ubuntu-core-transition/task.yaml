@@ -39,10 +39,10 @@ execute: |
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
+    . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
-        chg_id=$(snap changes|grep -o -P "^\d+(?= .*Transition ubuntu-core to core)" || true)
-        snap change $chg_id||true
+        snap change $(change_id "Transition ubuntu-core to core")||true
         sleep 1
     done
 

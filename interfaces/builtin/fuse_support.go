@@ -26,8 +26,6 @@ const fuseSupportConnectedPlugSecComp = `
 # not supported at this time.
 
 mount
-# for communicating with kernel
-recvmsg
 `
 
 const fuseSupportConnectedPlugAppArmor = `

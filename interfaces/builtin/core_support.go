@@ -57,13 +57,14 @@ const coreSupportConnectedPlugAppArmor = `
 /etc/systemd/logind.conf                            r,
 /etc/systemd/logind.conf.d/{,*}                     r,
 /etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
-`
 
-const coreSupportConnectedPlugSecComp = `
-sendmsg
-recvmsg
-sendto
-recvfrom
+# Allow managing the hostname with a core config option
+/etc/hostname                         rw,
+/{,usr/}{,s}bin/hostnamectl           ixr,
+
+# Allow modifying swapfile configuration for swapfile.service shipped in
+# the core snap, general mgmt of the service is handled via systemctl
+/etc/default/swapfile rw,
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
@@ -71,7 +72,6 @@ func NewCoreSupportInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "core-support",
 		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  coreSupportConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

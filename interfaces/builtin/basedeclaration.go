@@ -138,6 +138,9 @@ authority-id: canonical
 series: 16
 revision: 0
 plugs:
+  classic-support:
+    allow-installation: false
+    deny-auto-connection: true
   core-support:
     allow-installation:
       plug-snap-type:
@@ -195,6 +198,11 @@ slots:
       plug-attributes:
         allow-sandbox: true
   camera:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  classic-support:
     allow-installation:
       slot-snap-type:
         - core
@@ -393,6 +401,11 @@ slots:
     deny-connection:
       on-classic: false
   network-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  network-setup-control:
     allow-installation:
       slot-snap-type:
         - core

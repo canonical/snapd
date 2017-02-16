@@ -25,19 +25,10 @@ const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 `
 
-const openvswitchConnectedPlugSecComp = `
-recv
-recvmsg
-send
-sendto
-sendmsg
-`
-
 func NewOpenvSwitchInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "openvswitch",
 		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
-		connectedPlugSecComp:  openvswitchConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

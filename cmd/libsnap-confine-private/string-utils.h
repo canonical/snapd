@@ -50,4 +50,11 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...);
  **/
 size_t sc_string_append(char *dst, size_t dst_size, const char *str);
 
+/**
+ * Initialize a string (make it empty).
+ *
+ * Initialize a string as empty, ensuring buf is non-NULL buf_size is > 0.
+ **/
+void sc_string_init(char *buf, size_t buf_size);
+
 #endif

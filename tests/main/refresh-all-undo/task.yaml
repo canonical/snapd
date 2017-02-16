@@ -57,7 +57,8 @@ execute: |
     echo "But the bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}"| MATCH -v "fake"
 
-    chg_id=$(snap changes|grep -o -P "^\d+(?= *Error.*Refresh snap.*)")
+    . $TESTSLIB/changes.sh
+    chg_id=$(change_id "Refresh snap" Error)
 
     echo "Verify the snap change"
     snap change $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
