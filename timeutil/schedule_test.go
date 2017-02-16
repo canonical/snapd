@@ -145,11 +145,11 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		},
 		{
 			// daily schedule, missed all todays windows
-			// -> run immediately (out of turn) ?
-			schedule: "9:00-11:00/21:00-23:00",
-			last:     "2017-02-04 22:00",
-			now:      "2017-02-06 23:30",
-			next:     "0s-0s",
+			// run tomorrow
+			schedule: "9:00-11:00/21:00-22:00",
+			last:     "2017-02-04 21:30",
+			now:      "2017-02-06 23:00",
+			next:     "10h-12h",
 		},
 		{
 			// single daily schedule, already updated today
@@ -192,11 +192,12 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		},
 		{
 			// weekly schedule, missed weekly window
-			// -> run immediately (out of turn) ?
+			// run next monday
 			schedule: "mon@9:00-11:00",
 			last:     "2017-01-30 10:00",
-			now:      "2017-02-06 14:00",
-			next:     "0s-0s",
+			now:      "2017-02-06 12:00",
+			// 7*24h - 3h
+			next: "165h-167h",
 		},
 		{
 			// multi day schedule, next window soon
@@ -204,6 +205,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2017-01-31 22:00",
 			now:      "2017-02-06 5:00",
 			next:     "4h-6h",
+		},
+		{
+			// weekly schedule, missed weekly window
+			// by more than 14 days
+			schedule: "mon@9:00-11:00",
+			last:     "2017-01-01 10:00",
+			now:      "2017-02-06 12:00",
+			next:     "0s-0s",
 		},
 	} {
 		last, err := time.Parse(shortForm, t.last)
@@ -221,7 +230,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		minDist, maxDist := parse(c, t.next)
 
 		next := timeutil.Next(sched, last)
-		c.Check(next >= minDist && next <= maxDist, Equals, true, Commentf("invalid min distance for schedule %q with last refresh %q, now %q, expected %v, got %v", t.schedule, t.last, t.now, t.next, next))
+		c.Check(next >= minDist && next <= maxDist, Equals, true, Commentf("invalid  distance for schedule %q with last refresh %q, now %q, expected %v, got %v", t.schedule, t.last, t.now, t.next, next))
 	}
 
 }
