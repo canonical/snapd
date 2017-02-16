@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var maliitInputMethodPermanentSlotAppArmor = []byte(`
+const maliitInputMethodPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
 
 # DBus accesses
@@ -38,9 +38,9 @@ var maliitInputMethodPermanentSlotAppArmor = []byte(`
 # each application has its own one-to-one communication channel with the maliit
 # server, over which all further communication happens.
 unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
-`)
+`
 
-var maliitInputMethodConnectedSlotAppArmor = []byte(`
+const maliitInputMethodConnectedSlotAppArmor = `
 # Provides the maliit address service which assigns an individual unix socket
 # to each application
 dbus (send, receive)
@@ -51,9 +51,9 @@ dbus (send, receive)
 
 # provide access to the peer-to-peer dbus socket assigned by the address service
 unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var maliitInputMethodConnectedPlugAppArmor = []byte(`
+const maliitInputMethodConnectedPlugAppArmor = `
 # Description: Allow applications to connect to a maliit socket
 # Usage: common
 
@@ -70,9 +70,9 @@ dbus (send, receive)
 
 # provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
-`)
+`
 
-var maliitInputMethodPermanentSlotSecComp = []byte(`
+const maliitInputMethodPermanentSlotSecComp = `
 recvfrom
 recvmsg
 send
@@ -81,15 +81,15 @@ sendmsg
 listen
 accept
 accept4
-`)
+`
 
-var maliitInputMethodConnectedPlugSecComp = []byte(`
+const maliitInputMethodConnectedPlugSecComp = `
 recvfrom
 recvmsg
 send
 sendto
 sendmsg
-`)
+`
 
 type MaliitInputMethodInterface struct{}
 
@@ -106,10 +106,10 @@ func (iface *MaliitInputMethodInterface) ConnectedPlugSnippet(plug *interfaces.P
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(maliitInputMethodConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(maliitInputMethodConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return maliitInputMethodConnectedPlugSecComp, nil
+		return []byte(maliitInputMethodConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -117,9 +117,9 @@ func (iface *MaliitInputMethodInterface) ConnectedPlugSnippet(plug *interfaces.P
 func (iface *MaliitInputMethodInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return maliitInputMethodPermanentSlotAppArmor, nil
+		return []byte(maliitInputMethodPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return maliitInputMethodPermanentSlotSecComp, nil
+		return []byte(maliitInputMethodPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
@@ -129,7 +129,7 @@ func (iface *MaliitInputMethodInterface) ConnectedSlotSnippet(plug *interfaces.P
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(maliitInputMethodConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(maliitInputMethodConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
