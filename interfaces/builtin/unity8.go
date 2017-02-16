@@ -76,7 +76,8 @@ dbus (receive, send)
      peer=(name=com.canonical.Unity.Launcher,label=###SLOT_SECURITY_TAGS###),
 
 # Note: content-hub may become its own interface, but for now include it here
-# Pasteboard via Content Hub
+# Pasteboard via Content Hub. Unity8 with mir has safeguards that ensure snaps
+# only may get/set the pasteboard with user-driven actions.
 dbus (send)
      bus=session
      interface=com.ubuntu.content.dbus.Service
@@ -96,12 +97,6 @@ deny /{dev,run,var/run}/shm/lttng-ust-* r,
 `)
 
 var unity8ConnectedPlugSecComp = []byte(`
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 shutdown
 `)
 
@@ -116,8 +111,12 @@ func (iface *Unity8Interface) String() string {
 }
 
 func (iface *Unity8Interface) dbusAppId(app *snap.AppInfo) string {
-	pieces := []string{app.Snap.Name(), app.Name, app.Snap.Revision.String()}
-	return dbus.SafePath(strings.Join(pieces, "_"))
+	// FIXME: Until we decide whether unity8 is going to use Snappy-style
+	//        appIDs (snap.NAME_COMMAND) or Touch-style ones
+	//        (NAME_COMMAND_REVISION), we'll use a simpler *NAME_COMMAND* glob
+	//        here.
+	pieces := []string{app.Snap.Name(), app.Name}
+	return fmt.Sprintf("*%s*", dbus.SafePath(strings.Join(pieces, "_")))
 }
 
 func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
