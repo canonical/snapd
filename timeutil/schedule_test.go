@@ -159,6 +159,14 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			next:     "23h-25h",
 		},
 		{
+			// single daily schedule, already updated today
+			// (at exactly the edge)
+			schedule: "9:00-11:00",
+			last:     "2017-02-06 09:00",
+			now:      "2017-02-06 09:00",
+			next:     "24h-26h",
+		},
+		{
 			// single daily schedule, last update a day ago
 			// now is within the update window so randomize
 			// (run within remaining time delta)
