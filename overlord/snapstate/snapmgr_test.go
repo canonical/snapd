@@ -3855,17 +3855,17 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	var lastRefresh time.Time
 
-	tr := config.NewTransaction(s.state)
-	tr.Get("core", "refresh.last", &lastRefresh)
+	s.state.Get("last-refresh", &lastRefresh)
 	c.Check(time.Now().Year(), Equals, lastRefresh.Year())
 }
 
 func makeTestRefreshConfig(st *state.State) {
 	now := time.Now()
+	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
+
 	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.last", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 	// setup an interval that will end very soon :)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()+1))
 	tr.Commit()
 }
 
@@ -3883,7 +3883,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 
-	// nothing needs to be done, but refresh.last got updated
+	// nothing needs to be done, but last-refresh got updated
 	c.Check(s.state.Changes(), HasLen, 0)
 	s.verifyRefreshLast(c)
 }
@@ -3895,8 +3895,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 
 	now := time.Now()
 	fakeLastRefresh := now.Add(-1 * time.Hour)
+	s.state.Set("last-refresh", fakeLastRefresh)
+
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", fakeLastRefresh)
 	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()))
 	tr.Commit()
 
@@ -3911,8 +3912,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	c.Check(s.state.Changes(), HasLen, 0)
 
 	var refreshLast time.Time
-	tr = config.NewTransaction(s.state)
-	tr.Get("core", "refresh.last", &refreshLast)
+	s.state.Get("last-refresh", &refreshLast)
 	c.Check(refreshLast.Equal(fakeLastRefresh), Equals, true)
 }
 
@@ -4024,10 +4024,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.last", time.Time{})
-	tr.Commit()
-
+	s.state.Set("last-refresh", time.Time{})
 	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
 	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
 

@@ -11,12 +11,13 @@ execute: |
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
     snap set core refresh.schedule="0:00-$(date +%H:%M:%S --date=30seconds)"
-    snap set core refresh.last="2007-08-22T09:30:44.449455783+01:00"
     snap set core refresh.disabled=false
     
     systemctl stop snapd.{service,socket}
     echo "Modify the snap to track the edge channel"
     jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 
     systemctl start snapd.{service,socket}
@@ -36,5 +37,5 @@ execute: |
     snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
     
     echo "Ensure refresh.last is set"
-    jq ".data[\"config\"][\"core\"][\"refresh\"][\"last\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
+    jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH $(date +%Y)
 
