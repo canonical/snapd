@@ -20,6 +20,7 @@
 package timeutil_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -115,153 +116,112 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	}
 }
 
-func (ts *timeutilSuite) TestScheduleDistance(c *C) {
-	const shortForm = "2006-01-02 3:04"
-
-	for _, t := range []struct {
-		schedStr string
-		timeStr  string
-		distance time.Duration
-	}{
-		// same interval
-		{"9:00-11:00", "2017-02-05 9:00", 0},
-		{"9:00-11:00", "2017-02-05 10:00", 0},
-		{"9:00-11:00", "2017-02-05 11:00", 0},
-		// same day
-		{"9:00-11:00", "2017-02-05 8:00", 1 * time.Hour},
-		// next day
-		{"9:00-11:00", "2017-02-05 12:00", 21 * time.Hour},
-		// same weekday
-		{"sun@9:00-11:00", "2017-02-05 8:00", 1 * time.Hour},
-		// tomorrow
-		{"mon@9:00-11:00", "2017-02-05 8:00", 25 * time.Hour},
-		{"mon@9:00-11:00", "2017-02-05 12:00", 21 * time.Hour},
-		// the day after tomorrow
-		{"tue@9:00-11:00", "2017-02-05 8:00", 49 * time.Hour},
-		{"tue@9:00-11:00", "2017-02-05 12:00", 45 * time.Hour},
-		// schedule on sunday, distance from monday
-		{"sun@9:00-11:00", "2017-02-06 8:00", 145 * time.Hour},
-	} {
-		ti, err := time.Parse(shortForm, t.timeStr)
-		c.Assert(err, IsNil)
-
-		sched, err := timeutil.ParseSchedule(t.schedStr)
-		c.Assert(err, IsNil)
-		c.Assert(sched, HasLen, 1)
-
-		c.Check(sched[0].Distance(ti), Equals, t.distance, Commentf("invalid distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.distance, sched[0].Distance(ti)))
-	}
-
+func parse(c *C, s string) (time.Duration, time.Duration) {
+	l := strings.Split(s, "-")
+	c.Assert(l, HasLen, 2)
+	a, err := time.ParseDuration(l[0])
+	c.Assert(err, IsNil)
+	b, err := time.ParseDuration(l[1])
+	c.Assert(err, IsNil)
+	return a, b
 }
 
-func doTestScheduleNext(c *C) {
-	const shortForm = "2006-01-02 3:04"
-
-	for _, t := range []struct {
-		schedStr string
-		timeStr  string
-		minDist  time.Duration
-		maxDist  time.Duration
-	}{
-		// same interval
-		{"6:00-7:00/9:00-11:00", "2017-02-05 10:00", 0, 0},
-		// same day
-		{"6:00-7:00/9:00-11:00/14:00-15:00", "2017-02-05 8:00", 1 * time.Hour, 3 * time.Hour},
-		// next day
-		{"6:00-7:00/9:00-11:00", "2017-02-05 12:00", 18 * time.Hour, 20 * time.Hour},
-		// same weekday
-		{"sun@9:00-11:00/6:00-7:00", "2017-02-05 8:00", 1 * time.Hour, 3 * time.Hour},
-		// tomorrow
-		{"mon@9:00-11:00/wed@9:00-11:00", "2017-02-05 8:00", 25 * time.Hour, 27 * time.Hour},
-	} {
-		ti, err := time.Parse(shortForm, t.timeStr)
-		c.Assert(err, IsNil)
-
-		sched, err := timeutil.ParseSchedule(t.schedStr)
-		c.Assert(err, IsNil)
-
-		next := timeutil.Next(sched, ti)
-		c.Check(next >= t.minDist, Equals, true, Commentf("invalid min distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.minDist, next))
-		c.Check(next <= t.maxDist, Equals, true, Commentf("invalid max distance for schedule %q with time %q, expected %v, got %v", t.schedStr, t.timeStr, t.maxDist, next))
-	}
-
-}
 func (ts *timeutilSuite) TestScheduleNext(c *C) {
-	// part of the intervals are random, so ensure we run the test
-	// often enough
-	for i := 0; i < 1000; i++ {
-		doTestScheduleNext(c)
-	}
-}
-
-func (ts *timeutilSuite) TestScheduleMatches(c *C) {
-	const shortForm = "2006-01-02 3:04"
+	const shortForm = "2006-01-02 15:04"
 
 	for _, t := range []struct {
-		schedStr string
-		fakeNow  string
-		matches  bool
+		schedule string
+		last     string
+		now      string
+		next     string
 	}{
-		// 2017-02-05 is a Sunday
-		{"9:00-11:00", "2017-02-05 8:59", false},
-		{"9:00-11:00", "2017-02-05 9:00", true},
-		{"9:00-11:00", "2017-02-05 11:00", true},
-		{"9:00-11:00", "2017-02-05 11:01", false},
-		// 2017-02-06 is a Monday
-		{"mon@9:00-11:00", "2017-02-06 9:00", true},
-		// 2017-02-07 is a Tuesday
-		{"mon@9:00-11:00", "2017-02-07 9:00", false},
+		{
+			// daily schedule, missed one window
+			// -> run next daily window
+			schedule: "9:00-11:00/21:00-23:00",
+			last:     "2017-02-05 22:00",
+			now:      "2017-02-06 20:00",
+			next:     "1h-3h",
+		},
+		{
+			// daily schedule, missed all todays windows
+			// -> run immediately (out of turn) ?
+			schedule: "9:00-11:00/21:00-23:00",
+			last:     "2017-02-04 22:00",
+			now:      "2017-02-06 23:30",
+			next:     "0s-0s",
+		},
+		{
+			// single daily schedule, already updated today
+			schedule: "9:00-11:00",
+			last:     "2017-02-06 09:30",
+			now:      "2017-02-06 10:00",
+			next:     "23h-25h",
+		},
+		{
+			// single daily schedule, last update a day ago
+			// now is within the update window so randomize
+			// (run within remaining time delta)
+			schedule: "9:00-11:00",
+			last:     "2017-02-05 09:30",
+			now:      "2017-02-06 10:00",
+			next:     "0-55m",
+		},
+		{
+			// multi daily schedule, already updated today
+			schedule: "9:00-11:00/21:00-22:00",
+			last:     "2017-02-06 21:30",
+			now:      "2017-02-06 23:00",
+			next:     "10h-12h",
+		},
+		{
+			// weekly schedule, next window tomorrow
+			// (2017-02-06 is a monday)
+			schedule: "tue@9:00-11:00/wed@9:00-11:00",
+			last:     "2017-02-06 03:00",
+			now:      "2017-02-06 05:00",
+			next:     "28h-30h",
+		},
+		{
+			// weekly schedule, next window in 2 days
+			// (2017-02-06 is a monday)
+			schedule: "wed@9:00-11:00/thu@9:00-11:00",
+			last:     "2017-02-06 03:00",
+			now:      "2017-02-06 05:00",
+			next:     "52h-54h",
+		},
+		{
+			// weekly schedule, missed weekly window
+			// -> run immediately (out of turn) ?
+			schedule: "mon@9:00-11:00",
+			last:     "2017-01-30 10:00",
+			now:      "2017-02-06 14:00",
+			next:     "0s-0s",
+		},
+		{
+			// multi day schedule, next window soon
+			schedule: "mon@9:00-11:00/tue@21:00-23:00",
+			last:     "2017-01-31 22:00",
+			now:      "2017-02-06 5:00",
+			next:     "4h-6h",
+		},
 	} {
-		fakeNow, err := time.Parse(shortForm, t.fakeNow)
+		last, err := time.Parse(shortForm, t.last)
 		c.Assert(err, IsNil)
 
-		sched, err := timeutil.ParseSchedule(t.schedStr)
+		fakeNow, err := time.ParseInLocation(shortForm, t.now, time.Local)
 		c.Assert(err, IsNil)
-		c.Assert(sched, HasLen, 1)
+		restorer := timeutil.MockTimeNow(func() time.Time {
+			return fakeNow
+		})
+		defer restorer()
 
-		c.Check(sched[0].Matches(fakeNow), Equals, t.matches, Commentf("invalid match for %q with time %q, expected %v, got %v", t.schedStr, t.fakeNow, t.matches, sched[0].Matches(fakeNow)))
+		sched, err := timeutil.ParseSchedule(t.schedule)
+		c.Assert(err, IsNil)
+		minDist, maxDist := parse(c, t.next)
+
+		next := timeutil.Next(sched, last)
+		c.Check(next >= minDist && next <= maxDist, Equals, true, Commentf("invalid min distance for schedule %q with last refresh %q, now %q, expected %v, got %v", t.schedule, t.last, t.now, t.next, next))
 	}
-}
 
-func (ts *timeutilSuite) TestScheduleSameInterval(c *C) {
-	const shortForm = "2006-01-02 3:04"
-
-	for _, t := range []struct {
-		schedStr string
-
-		t1       string
-		t2       string
-		expected bool
-	}{
-		// not matched intervals are always false
-		{"9:00-11:00", "2017-02-05 8:59", "2017-02-05 8:59", false},
-
-		// same day, same interval
-		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 9:20", true},
-		{"9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
-
-		// different days
-		{"9:00-11:00", "2017-02-05 9:00", "2017-02-06 10:59", false},
-		{"9:00-11:00", "2017-02-05 9:00", "2017-02-17 09:00", false},
-
-		// weekly schedule, matching day
-		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-05 10:59", true},
-
-		// weekly schedule, not matching day
-		{"sun@9:00-11:00", "2017-02-05 9:00", "2017-02-07 10:59", false},
-		// different weeks
-		{"sun@9:00-11:00", "2017-02-12 9:00", "2017-02-05 10:59", false},
-	} {
-		t1, err := time.Parse(shortForm, t.t1)
-		c.Assert(err, IsNil)
-		t2, err := time.Parse(shortForm, t.t2)
-		c.Assert(err, IsNil)
-
-		sched, err := timeutil.ParseSchedule(t.schedStr)
-		c.Assert(err, IsNil)
-		c.Assert(sched, HasLen, 1)
-
-		res := sched[0].SameInterval(t1, t2)
-		c.Check(res, Equals, t.expected, Commentf("SameInterval(%q,%q) for %q returned %v, expected %v", t.t1, t.t2, t.schedStr, res, t.expected))
-	}
 }
