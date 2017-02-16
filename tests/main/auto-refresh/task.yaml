@@ -4,15 +4,15 @@ prepare: |
     snap install --devmode jq
 
 restore: |
-    snap set core refresh.disabled=true
-    
+    echo "Ensure no auto-refresh during the tests"
+    snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
+
 execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
-    snap set core refresh.schedule="0:00-$(date +%H:%M:%S --date=30seconds)"
-    snap set core refresh.disabled=false
-    
+    snap set core refresh.schedule="0:00-23:59"
+
     systemctl stop snapd.{service,socket}
     echo "Modify the snap to track the edge channel"
     jq '.data.snaps["test-snapd-tools"].channel = "edge"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
