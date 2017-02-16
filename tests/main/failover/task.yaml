@@ -30,7 +30,7 @@ execute: |
     . $TESTSLIB/names.sh
     . $TESTSLIB/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # first pass, save current target snap version
+        # first pass, save current target snap revision
         snap list | awk "/^${core_name} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
