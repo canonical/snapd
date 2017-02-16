@@ -21,7 +21,6 @@ package timeutil
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"regexp"
 	"strconv"
@@ -83,117 +82,68 @@ type Schedule struct {
 	Weekday string
 }
 
-// Matches returns true when the given time is within the schedule
-// interval.
-func (sched *Schedule) Matches(t time.Time) bool {
-	// if the schedule is limited to a specific weekday, we need
-	// to check if we are on that day
+func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
+	wd := time.Weekday(weekdayMap[sched.Weekday])
+
+	t := last
 	if sched.Weekday != "" {
-		wd := time.Weekday(weekdayMap[sched.Weekday])
-		if t.Weekday() != wd {
-			return false
+		lwd := last.Weekday()
+		delta := int(wd - lwd)
+		if delta < 0 {
+			delta += 7
 		}
+		t = t.AddDate(0, 0, delta)
 	}
 
-	// check if we are within the schedule time window
-	if t.Hour() >= sched.Start.Hour && t.Minute() >= sched.Start.Minute {
-		if t.Hour() < sched.End.Hour {
-			return true
+	for {
+		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
+		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
+		if !last.Before(a) {
+			t = b.AddDate(0, 0, 1)
+			continue
 		}
-		if t.Hour() == sched.End.Hour && t.Minute() <= sched.End.Minute {
-			return true
-		}
+
+		return a, b
 	}
-
-	return false
-}
-
-// Distance calculdates how long until this schedule can start.
-// A zero means "right-now". It is always positive, i.e. either
-// its now or at the next possible point in the future.
-//
-// A schedule can last a week, so the longest distance is 7*24h
-func (sched *Schedule) Distance(t time.Time) time.Duration {
-	if sched.Matches(t) {
-		return 0
-	}
-
-	// find the next weekday
-	nextDay := t
-	if sched.Weekday != "" {
-		wd := time.Weekday(weekdayMap[sched.Weekday])
-		for nextDay.Weekday() != wd {
-			nextDay = nextDay.Add(24 * time.Hour)
-		}
-	}
-
-	// find the next starting interval
-	schedStart := time.Date(t.Year(), t.Month(), nextDay.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, t.Location())
-	d := schedStart.Sub(t)
-	// in the past, so needs to happen on the next day
-	if d < 0 {
-		d = 24*time.Hour + d
-	}
-
-	return d
-}
-
-// Duration returns the total length of the schedule window
-func (sched *Schedule) Duration() time.Duration {
-	start := time.Date(2017, 02, 15, sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
-	end := time.Date(2017, 02, 15, sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
-	return end.Sub(start)
 }
 
 func randDur(dur time.Duration) time.Duration {
 	return time.Duration(rand.Int63n(int64(dur)))
 }
 
+var timeNow = time.Now
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 // Next will return the duration until a random time in the next
 // schedule window.
 func Next(schedule []*Schedule, last time.Time) time.Duration {
-	shortestDistance := time.Duration(math.MaxInt64)
+	now := timeNow()
+	maxScheduleDelay := now.AddDate(0, 0, 7)
 
-	now := time.Now()
+	var a, b time.Time
+	a = maxScheduleDelay
 	for _, sched := range schedule {
-		d := sched.Distance(last)
-		if d < shortestDistance && !sched.SameInterval(last, now.Add(d)) {
-			if d > 0 {
-				d = d + randDur(sched.Duration())
-			}
-			shortestDistance = d
+		start, end := sched.Next(last)
+		// special case, if we are exactly within a window
+		// randomize and go
+		if start.Before(now) && end.After(now) {
+			return randDur(end.Add(-5 * time.Minute).Sub(now))
+		}
+		if start.After(now) && start.Before(a) {
+			a = start
+			b = end
 		}
 	}
-
-	return shortestDistance
-}
-
-// SameInterval returns true if the given times are within the same
-// interval. Same means that they are on the same day (if its a
-// schedule that runs on every day or the same week (if ihts a schedule
-// that is run only on a specific weekday).
-//
-// E.g. for a schedule of "9:00-11:00"
-//
-// t1="2017-01-01 9:10", t1="2017-01-01 9:30"
-// (same day) is the same interval
-//
-// t1="2017-01-01 9:10", t1="2017-01-02 9:30"
-// (different day) is the *not* same interval
-//
-func (sched *Schedule) SameInterval(t1, t2 time.Time) bool {
-	if !sched.Matches(t1) || !sched.Matches(t2) {
-		// FIXME: or return error here?
-		return false
+	if a == maxScheduleDelay {
+		return 0
 	}
 
-	if sched.Weekday != "" {
-		t1Year, t1Week := t1.ISOWeek()
-		t2Year, t2Week := t2.ISOWeek()
-		return t1Year == t2Year && t1Week == t2Week
-	}
+	when := a.Sub(now) + randDur(b.Add(-5*time.Minute).Sub(a))
 
-	return t1.Year() == t2.Year() && t1.Month() == t2.Month() && t1.Day() == t2.Day()
+	return when
 }
 
 var weekdayMap = map[string]int{
