@@ -57,7 +57,10 @@ execute: |
     echo "But the bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}"| MATCH -v "fake"
 
+    . $TESTSLIB/changes.sh
+    chg_id=$(change_id "Refresh snap" Error)
+
     echo "Verify the snap change"
-    snap change 5 | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
-    snap change 5 | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
-    snap change 5 | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
+    snap change $chg_id | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
+    snap change $chg_id | MATCH "Done.*Download snap \"${GOOD_SNAP}\""
+    snap change $chg_id | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"

@@ -69,6 +69,8 @@ type deviceMgrSuite struct {
 	brandSigning *assertstest.SigningDB
 
 	reqID string
+
+	restoreOnClassic func()
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -130,6 +132,8 @@ func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
+	s.restoreOnClassic = release.MockOnClassic(false)
+
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
@@ -173,7 +177,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
 	dirs.SetRootDir("")
-	release.OnClassic = true
+	s.restoreOnClassic()
 }
 
 func (s *deviceMgrSuite) settle() {
@@ -183,6 +187,12 @@ func (s *deviceMgrSuite) settle() {
 		s.hookMgr.Wait()
 		s.mgr.Wait()
 	}
+}
+
+// seeding avoids triggering a real full seeding, it simulates having it in process instead
+func (s *deviceMgrSuite) seeding() {
+	chg := s.state.NewChange("seed", "Seed system")
+	chg.SetStatus(state.DoingStatus)
 }
 
 func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
@@ -311,6 +321,9 @@ version: gadget
 		Model: "pc",
 	})
 
+	// avoid full seeding
+	s.seeding()
+
 	// runs the whole device registration process
 	s.state.Unlock()
 	s.settle()
@@ -388,6 +401,9 @@ version: gadget
 	chg := s.state.NewChange("become-operational", "...")
 	chg.AddTask(t)
 
+	// avoid full seeding
+	s.seeding()
+
 	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -454,6 +470,9 @@ version: gadget
 	chg := s.state.NewChange("become-operational", "...")
 	chg.AddTask(t)
 
+	// avoid full seeding
+	s.seeding()
+
 	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -515,6 +534,9 @@ version: gadget
 		Brand: "canonical",
 		Model: "pc",
 	})
+
+	// avoid full seeding
+	s.seeding()
 
 	// runs the whole device registration process with polling
 	s.state.Unlock()
@@ -602,11 +624,13 @@ version: gadget
 hooks:
     prepare-device:
 `, "")
-
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
+
+	// avoid full seeding
+	s.seeding()
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -684,6 +708,9 @@ version: gadget
 		Brand: "canonical",
 		Model: "pc",
 	})
+
+	// avoid full seeding
+	s.seeding()
 
 	// try the whole device registration process
 	s.state.Unlock()
@@ -891,8 +918,6 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
-	release.OnClassic = false
-
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
@@ -910,8 +935,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
-	release.OnClassic = false
-
 	s.state.Lock()
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
@@ -929,7 +952,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlSkippedOnClassic(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
@@ -941,12 +964,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlSkippedOnClassic(c *C) {
 
 	err := s.mgr.EnsureSeedYaml()
 	c.Assert(err, IsNil)
-	c.Assert(called, Equals, false)
+	c.Assert(called, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
-	release.OnClassic = false
-
 	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
@@ -964,8 +985,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlRecover(c *C) {
-	release.OnClassic = false
-
 	restore := devicestate.MockPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
 		return nil, errors.New("should not be called")
 	})
@@ -1069,8 +1088,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
-	release.OnClassic = false
-
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -1100,8 +1117,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
-	release.OnClassic = false
-
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -1134,8 +1149,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
-	release.OnClassic = false
-
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",
@@ -1152,8 +1165,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
-	release.OnClassic = false
-
 	s.state.Lock()
 	// seeded
 	s.state.Set("seeded", true)
@@ -1177,7 +1188,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 }
 
 func (s *deviceMgrSuite) TestCheckGadget(c *C) {
-	release.OnClassic = false
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing is setup
@@ -1296,7 +1306,6 @@ name: gadget
 }
 
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
-	release.OnClassic = false
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing is setup
@@ -1442,8 +1451,6 @@ func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serial
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	release.OnClassic = false
 
 	// not seeded, no serial -> no auto-refresh
 	s.state.Set("seeded", false)
