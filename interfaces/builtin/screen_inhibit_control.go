@@ -61,12 +61,11 @@ dbus (send)
 # gnome, kde and cinnamon screensaver
 dbus (send)
     bus=session
-    path=/{ScreenSaver,}
+    path=/{,ScreenSaver}
     interface=org.{gnome.ScreenSaver,kde.screensaver,cinnamon.ScreenSaver}
     member=SimulateUserActivity
     peer=(label=unconfined),
 `
-
 
 const screenInhibitControlConnectedPlugSecComp = `
 # Description: Can inhibit and uninhibit screen savers in desktop sessions.
