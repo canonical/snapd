@@ -48,7 +48,7 @@ prepare: |
     fi
 
 restore: |
-    rm -f stderr.out
+    rm -f stderr.out installed_core_version store_core_version
     if [ "$STORE_TYPE" = "fake" ]; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
             exit
@@ -95,5 +95,13 @@ execute: |
     cat stderr.out | MATCH "snap \"$SNAP_NAME\" has no updates available"
 
     echo "classic snaps "
-
-    snap refresh $SNAP_NAME core 2>&1 | MATCH "All snaps up to date."
+    # check if a new version of the core snap was published during the suite execution
+    # (this is rare but has already happened)
+    . $TESTSLIB/names.sh
+    # installed version
+    snap list | awk "/^$core_name / {print(\$3)}" > installed_core_version
+    # version available for the current channel
+    snap info "$core_name" | awk "/^ +${CORE_CHANNEL}:/ {print(\$3)}" | sed 's/(\(.*\))/\1/' > store_core_version
+    if [ "$(cat store_core_version)" = "$(cat store_core_version)" ]; then
+        snap refresh $SNAP_NAME "$core_name" 2>&1 | MATCH "All snaps up to date."
+    fi
