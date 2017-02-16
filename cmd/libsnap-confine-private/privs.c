@@ -44,6 +44,7 @@ static bool sc_has_capability(const char *cap_name)
 	// Read the effective value of the flag we're dealing with
 	cap_flag_value_t cap_flags_value;
 	if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_flags_value) < 0) {
+		cap_free(caps);	// don't bother checking, we die anyway.
 		die("cannot obtain value of capability flag (cap_get_flag)");
 	}
 	// Free the representation of the capability state of the current process.
