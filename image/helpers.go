@@ -83,16 +83,18 @@ func readAuthFile(authFn string) (*auth.UserState, error) {
 	}
 	defer f.Close()
 
-	var user auth.UserState
-
-	var auth authData
+	var creds authData
 	dec := json.NewDecoder(f)
-	if err := dec.Decode(&auth); err != nil {
+	if err := dec.Decode(&creds); err != nil {
 		return nil, fmt.Errorf("cannot decode auth file %q: %v", authFn, err)
 	}
-	user.StoreMacaroon = auth.Macaroon
-	user.StoreDischarges = auth.Discharges
-	return &user, nil
+	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
+		return nil, fmt.Errorf("invalid auth file %q: missing fields", authFn)
+	}
+	return &auth.UserState{
+		StoreMacaroon:   creds.Macaroon,
+		StoreDischarges: creds.Discharges,
+	}, nil
 }
 
 func NewToolingStoreFromModel(model *asserts.Model) (*ToolingStore, error) {
