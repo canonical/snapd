@@ -74,6 +74,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/privs.c \
+	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
 	libsnap-confine-private/secure-getenv.h \
 	libsnap-confine-private/snap.c \
