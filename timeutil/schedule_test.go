@@ -175,6 +175,13 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			next:     "10h-12h",
 		},
 		{
+			// weekly schedule, next window today
+			schedule: "tue@9:00-11:00/wed@9:00-11:00",
+			last:     "2017-02-01 10:00",
+			now:      "2017-02-07 05:00",
+			next:     "4h-6h",
+		},
+		{
 			// weekly schedule, next window tomorrow
 			// (2017-02-06 is a monday)
 			schedule: "tue@9:00-11:00/wed@9:00-11:00",
