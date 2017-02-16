@@ -115,7 +115,10 @@ func randDur(dur time.Duration) time.Duration {
 	return time.Duration(rand.Int63n(int64(dur)))
 }
 
-var timeNow = time.Now
+var (
+	timeNow     = time.Now
+	maxDuration = 14 * 24 * time.Duration(time.Hour)
+)
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -125,27 +128,21 @@ func init() {
 // schedule window.
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
-	// delay more than 14 days
-	if now.Sub(last) > 14*time.Duration(24*time.Hour) {
+
+	// delay more than 14 days, always update
+	if now.Sub(last) > maxDuration {
 		return 0
 	}
 
 	var a, b time.Time
-	marker := now.AddDate(0, 0, 7)
-	a = marker
 	for _, sched := range schedule {
 		start, end := sched.Next(last)
-		// special case, if we are exactly within a window
-		// randomize and go
-		if start.Before(now) && end.After(now) {
-			return randDur(end.Add(-5 * time.Minute).Sub(now))
-		}
-		if start.After(now) && start.Before(a) {
+		if a.IsZero() || start.After(now) && start.Before(a) {
 			a = start
 			b = end
 		}
 	}
-	if a == marker {
+	if a.Before(now) {
 		return 0
 	}
 
