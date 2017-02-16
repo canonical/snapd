@@ -21,7 +21,11 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/kmod"
 )
+
+// FirewallControlInterface allows the control of the firewall.
+type FirewallControlInterface struct{}
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
@@ -112,4 +116,11 @@ func NewFirewallControlInterface() interfaces.Interface {
 		connectedPlugKMod:     firewallControlConnectedPlugKmod,
 		reservedForOS:         true,
 	}
+}
+
+// KModConnectedPlug TODO
+func (iface *FirewallControlInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddModule("ip6table_filter")
+	spec.AddModule("iptable_filter")
+	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 )
 
@@ -61,10 +62,10 @@ type TestInterface struct {
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
 
 	// Support for interacting with the kmod backend.
-	KModConnectedPlugCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	KModConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	KModPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
-	KModPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+	KModConnectedPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedSlotCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModPermanentPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug) error
+	KModPermanentSlotCallback func(spec *kmod.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -207,28 +208,28 @@ func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *inte
 
 // Support for interacting with the kmod backend.
 
-func (t *TestInterface) KModConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.MountConnectedPlugCallback != nil {
 		return t.KModConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) KModConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (t *TestInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if t.MountConnectedSlotCallback != nil {
 		return t.KModConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) KModPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error {
+func (t *TestInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
 	if t.MountPermanentPlugCallback != nil {
 		return t.KModPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) KModPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
+func (t *TestInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.KModPermanentSlotCallback(spec, slot)
 	}
