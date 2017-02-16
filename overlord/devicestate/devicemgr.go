@@ -164,13 +164,12 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	if device.Brand == "" || device.Model == "" {
-		// need first-boot, loading of model assertion info
-
-		// TODO: on classic if seeded means there was no model
-		// use a fallback
-
-		// cannot proceed yet, once first boot is done these will be set
-		// and we can pick up from there
+		// cannot proceed until seeding has loaded the model
+		// assertion and set the brand and model, that is
+		// optional on classic
+		// TODO: later we can check if
+		// "seeded" was set and we still don't have a brand/model
+		// and use a fallback assertion
 		return nil
 	}
 
@@ -178,6 +177,9 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	// TODO: make presence gadget optional on classic? that is
+	// sensible only for devices that the store can give directly
+	// serials to and when we will have a general fallback
 	gadgetInfo, err := snapstate.GadgetInfo(m.state)
 	if err == state.ErrNoState {
 		// no gadget installed yet, cannot proceed
@@ -811,8 +813,9 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	// either we have a serial or we try anyway if we attempted for a while to get a serial, this would allow us to at least upgrade core if that can help
-
+	// either we have a serial or we try anyway if we attempted
+	// for a while to get a serial, this would allow us to at
+	// least upgrade core if that can help
 	if ensureOperationalAttempts(st) >= 3 {
 		return true, nil
 	}
