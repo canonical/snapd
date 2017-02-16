@@ -117,7 +117,7 @@ func randDur(dur time.Duration) time.Duration {
 
 var (
 	timeNow     = time.Now
-	maxDuration = 14 * 24 * time.Duration(time.Hour)
+	maxDuration = 14 * 24 * time.Hour
 )
 
 func init() {
@@ -129,15 +129,11 @@ func init() {
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
 
-	// delay more than 14 days, always update
-	if now.Sub(last) > maxDuration {
-		return 0
-	}
-
-	var a, b time.Time
+	a := last.Add(maxDuration)
+	b := a.Add(1 * time.Hour)
 	for _, sched := range schedule {
 		start, end := sched.Next(last)
-		if a.IsZero() || start.After(now) && start.Before(a) {
+		if start.Before(a) {
 			a = start
 			b = end
 		}
