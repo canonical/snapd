@@ -88,20 +88,25 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 
 	t := last
 	for {
-		delta := 1
-		if sched.Weekday != "" {
-			lwd := t.Weekday()
-			delta = int(wd - lwd)
-			if delta <= 0 {
-				delta += 7
-			}
-		}
-		t = t.AddDate(0, 0, delta)
-
 		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
 		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
 
-		if b.Before(now) {
+		t = t.AddDate(0, 0, 1)
+
+		// we have not hit the right day yet
+		if sched.Weekday != "" && a.Weekday() != wd {
+			continue
+		}
+		// same inteval as last update, move forward
+		if last.After(a) && last.Before(b) {
+			continue
+		}
+		// schedule is right now
+		if now.After(a) && now.Before(b) {
+			return a, b
+		}
+		// not reached now yet
+		if !a.After(now) {
 			continue
 		}
 
