@@ -15,12 +15,23 @@ prepare: |
     . $TESTSLIB/nested.sh
 
     # determine arch related vars
-    set_vars
+    case "$NESTED_ARCH" in
+    amd64)
+        QEMU="$(which qemu-system-x86_64)"
+        ;;
+    i386)
+        QEMU="$(which qemu-system-i386)"
+        ;;
+    *)
+        echo "unsupported architecture"
+        exit 1
+        ;;
+    esac
 
     # create ubuntu-core image
     mkdir -p $WORK_DIR
-    snap install --devmode --edge ubuntu-image
-    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/$model_file --channel $CORE_CHANNEL --output ubuntu-core.img
+    snap install --devmode --beta ubuntu-image
+    /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
     mv ubuntu-core.img $WORK_DIR
 
     # create assertion block device
@@ -29,7 +40,7 @@ prepare: |
     #setup_bridge $TAP_DEVICE
 
     . $TESTSLIB/systemd.sh
-    systemd_create_and_start_unit nested-vm "$vm_unit_command"
+    systemd_create_and_start_unit nested-vm "${QEMU} ${VM_UNIT_COMMAND_SUFFIX}"
 
 restore: |
     snap remove ubuntu-image
@@ -51,9 +62,8 @@ execute: |
 
     curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread $WORK_DIR
 
+    set +x
     $WORK_DIR/spread -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
-                        external:ubuntu-core-16-64:tests/main/install-sideload \
                         external:ubuntu-core-16-64:tests/main/install-store \
-                        external:ubuntu-core-16-64:tests/main/interfaces-firewall-control \
                         external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
-                        external:ubuntu-core-16-64:tests/main/ubuntu-core-classic
+                        external:ubuntu-core-16-64:tests/main/op-remove-retry | while read line; do echo "> $line"; done

@@ -20,22 +20,3 @@ wait_for_ssh(){
         sleep 1
     done
 }
-
-set_vars(){
-    case "$NESTED_ARCH" in
-    amd64)
-        model_file=pc.model
-        vm_unit_command="$(which qemu-system-x86_64) ${VM_UNIT_COMMAND_SUFFIX}"
-        spread_system="ubuntu-core-16-64"
-        ;;
-    i386)
-        model_file=pc-i386.model
-        vm_unit_command="$(which qemu-system-i386) ${VM_UNIT_COMMAND_SUFFIX}"
-        spread_system="ubuntu-core-16-64"
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
-}
