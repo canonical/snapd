@@ -690,8 +690,8 @@ func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
 }`), 0600)
 	c.Assert(err, IsNil)
 
-	os.Setenv("UBUNTU_STORE_AUTH", authFn)
-	defer os.Unsetenv("UBUNTU_STORE_AUTH")
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
 
 	tsto, err := image.NewToolingStore()
 	c.Assert(err, IsNil)
