@@ -57,7 +57,7 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 	cfg.Architecture = arch
 	cfg.StoreID = storeID
 	var user *auth.UserState
-	if authFn := os.Getenv("UBUNTU_STORE_AUTH"); authFn != "" {
+	if authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME"); authFn != "" {
 		var err error
 		user, err = readAuthFile(authFn)
 		if err != nil {

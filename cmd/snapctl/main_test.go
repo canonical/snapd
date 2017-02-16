@@ -75,14 +75,14 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 	s.expectedArgs = []string{}
 
 	fakeAuthPath := filepath.Join(c.MkDir(), "auth.json")
-	os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", fakeAuthPath)
+	os.Setenv("SNAPD_AUTH_DATA_FILENAME", fakeAuthPath)
 	err := ioutil.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *snapctlSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_CONTEXT")
-	os.Unsetenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
+	os.Unsetenv("SNAPD_AUTH_DATA_FILENAME")
 	clientConfig.BaseURL = ""
 	s.server.Close()
 	os.Args = s.oldArgs
