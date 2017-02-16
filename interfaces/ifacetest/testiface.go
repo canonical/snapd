@@ -59,6 +59,12 @@ type TestInterface struct {
 	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the kmod backend.
+	KModConnectedPlugCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
+	KModPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -195,6 +201,36 @@ func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *inte
 func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.MountPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the kmod backend.
+
+func (t *TestInterface) KModConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.MountConnectedPlugCallback != nil {
+		return t.KModConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.MountConnectedSlotCallback != nil {
+		return t.KModConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error {
+	if t.MountPermanentPlugCallback != nil {
+		return t.KModPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
+	if t.MountPermanentSlotCallback != nil {
+		return t.KModPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
