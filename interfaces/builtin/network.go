@@ -24,7 +24,6 @@ import "github.com/snapcore/snapd/interfaces"
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
-# Usage: common
 #include <abstractions/nameservice>
 #include <abstractions/ssl_certs>
 
@@ -35,16 +34,7 @@ const networkConnectedPlugAppArmor = `
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
-# Usage: common
 bind
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
 `
 

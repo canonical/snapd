@@ -28,7 +28,6 @@ import (
 const dockerConnectedPlugAppArmor = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
 # Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
@@ -37,7 +36,6 @@ const dockerConnectedPlugAppArmor = `
 const dockerConnectedPlugSecComp = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
 bind
 `

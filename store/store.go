@@ -91,6 +91,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Contact = d.Contact
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -113,6 +114,11 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		})
 	}
 	info.Screenshots = screenshots
+	// FIXME: once the store sends "contact" for everything, remove
+	//        the "SupportURL" part of the if
+	if info.Contact == "" {
+		info.Contact = d.SupportURL
+	}
 
 	return info
 }
@@ -195,10 +201,14 @@ func getStructFields(s interface{}) []string {
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	deltasDefault := release.OnClassic
 	// only xdelta3 is supported for now, so check the binary exists here
 	// TODO: have a per-format checker instead
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault) && osutil.ExecutableExists("xdelta3")
+	if _, err := getXdelta3Cmd(); err != nil {
+		return false
+	}
+
+	deltasDefault := release.OnClassic
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
 }
 
 func useStaging() bool {
@@ -1431,6 +1441,16 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
+func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
+	switch {
+	case osutil.ExecutableExists("xdelta3"):
+		return exec.Command("xdelta3", args...), nil
+	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
+		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+	}
+	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+}
+
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
 var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
@@ -1447,7 +1467,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	partialTargetPath := targetPath + ".partial"
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd := exec.Command("xdelta3", xdelta3Args...)
+	cmd, err := getXdelta3Cmd(xdelta3Args...)
+	if err != nil {
+		return err
+	}
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {

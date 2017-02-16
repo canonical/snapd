@@ -27,8 +27,8 @@ import (
 )
 
 const ofonoPermanentSlotAppArmor = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # to create ppp network interfaces
 capability net_admin,
@@ -109,8 +109,8 @@ dbus (receive, send)
 `
 
 const ofonoConnectedPlugAppArmor = `
-# Description: Allow using Ofono service. Reserved because this gives
-# privileged access to the Ofono service.
+# Description: Allow using Ofono service. This gives privileged access to the
+# Ofono service.
 
 #include <abstractions/dbus-strict>
 
@@ -132,36 +132,15 @@ dbus (receive, send)
 `
 
 const ofonoPermanentSlotSecComp = `
-# Description: Allow operating as the ofono service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the ofono service. This gives privileged
+# access to the system.
 
 # Communicate with DBus, netlink, rild
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`
-
-const ofonoConnectedPlugSecComp = `
-# Description: Allow using ofono service. Reserved because this gives
-# privileged access to the ofono service.
-
-# Can communicate with DBus system service
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
 `
 
 const ofonoPermanentSlotDBus = `
@@ -274,8 +253,6 @@ func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 			snippet = append(snippet, ofonoConnectedPlugAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(ofonoConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
