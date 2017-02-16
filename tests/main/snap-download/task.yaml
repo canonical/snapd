@@ -25,6 +25,12 @@ execute: |
     su -l -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap download test-snapd-tools" test
     ls /home/test/test-snapd-tools_*.snap
     verify_asserts /home/test/test-snapd-tools_*.assert
+
+    echo "Snap download can download from a different store"
+    snap download --store-id demo test-snapd-tools-demo-store
+    ls test-snapd-tools-demo-store_*.snap
+    verify_asserts test-snapd-tools-demo-store_*.assert
+
 restore: |
     rm -f *.snap
     rm -f *.assert
