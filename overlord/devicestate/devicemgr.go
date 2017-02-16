@@ -177,7 +177,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	// TODO: make presence gadget optional on classic? that is
+	// TODO: make presence of gadget optional on classic? that is
 	// sensible only for devices that the store can give directly
 	// serials to and when we will have a general fallback
 	gadgetInfo, err := snapstate.GadgetInfo(m.state)
