@@ -209,28 +209,28 @@ func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *inte
 // Support for interacting with the kmod backend.
 
 func (t *TestInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.MountConnectedPlugCallback != nil {
+	if t.KModConnectedPlugCallback != nil {
 		return t.KModConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
 func (t *TestInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.MountConnectedSlotCallback != nil {
+	if t.KModConnectedSlotCallback != nil {
 		return t.KModConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
 func (t *TestInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
-	if t.MountPermanentPlugCallback != nil {
+	if t.KModPermanentPlugCallback != nil {
 		return t.KModPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
 func (t *TestInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
-	if t.MountPermanentSlotCallback != nil {
+	if t.KModPermanentSlotCallback != nil {
 		return t.KModPermanentSlotCallback(spec, slot)
 	}
 	return nil
