@@ -57,6 +57,10 @@ const accountControlConnectedPlugSecComp = `
 # TODO: dynamically determine the shadow gid to support alternate cores
 fchown - 0 42
 fchown32 - 0 42
+
+# useradd plugs into the audit system
+socket AF_NETLINK - NETLINK_AUDIT
+socket PF_NETLINK - NETLINK_AUDIT
 `
 
 // Interface which allows to handle the user accounts.

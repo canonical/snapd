@@ -160,6 +160,9 @@ var fwupdPermanentSlotSecComp = []byte(`
 # access to the system.
 # Can communicate with DBus system service
 bind
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `)
 
 var fwupdConnectedPlugSecComp = []byte(`

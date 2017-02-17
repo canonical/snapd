@@ -97,6 +97,10 @@ const networkObserveConnectedPlugSecComp = `
 
 # for ping and ping6
 capset
+
+# for network diagnostics
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket PF_NETLINK - NETLINK_INET_DIAG
 `
 
 // NewNetworkObserveInterface returns a new "network-observe" interface.
