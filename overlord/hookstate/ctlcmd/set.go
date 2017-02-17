@@ -167,50 +167,44 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 }
 
 func copyAttributes(value map[string]interface{}) (map[string]interface{}, error) {
-	var cpy interface{}
-	if err := copyRecursive(value, &cpy); err != nil {
+	cpy, err := copyRecursive(value)
+	if err != nil {
 		return nil, err
 	}
-	return cpy.(map[string]interface{}), nil
+	return cpy.(map[string]interface{}), err
 }
 
-func copyRecursive(value interface{}, out *interface{}) error {
+func copyRecursive(value interface{}) (interface{}, error) {
 	switch v := value.(type) {
 	case string:
-		*out = v
-		return nil
+		return v, nil
 	case bool:
-		*out = v
-		return nil
+		return v, nil
 	case int:
-		*out = v
-		return nil
+		return v, nil
 	case int64:
-		*out = v
-		return nil
+		return v, nil
 	case []interface{}:
 		arr := make([]interface{}, len(v))
 		for i, el := range v {
-			err := copyRecursive(el, &arr[i])
+			tmp, err := copyRecursive(el)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			arr[i] = tmp
 		}
-		*out = arr
-		return nil
+		return arr, nil
 	case map[string]interface{}:
 		mp := make(map[string]interface{}, len(v))
 		for key, item := range v {
-			var tmp interface{}
-			err := copyRecursive(item, &tmp)
+			tmp, err := copyRecursive(item)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			mp[key] = tmp
 		}
-		*out = mp
-		return nil
+		return mp, nil
 	default:
-		return fmt.Errorf("unsupported attribute type '%T', value '%v'", value, value)
+		return nil, fmt.Errorf("unsupported attribute type '%T', value '%v'", value, value)
 	}
 }
