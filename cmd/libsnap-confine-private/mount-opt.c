@@ -24,9 +24,10 @@
 #include <string.h>
 #include <sys/mount.h>
 
-#include "utils.h"
-#include "string-utils.h"
 #include "fault-injection.h"
+#include "privs.h"
+#include "string-utils.h"
+#include "utils.h"
 
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
@@ -267,6 +268,12 @@ void sc_do_mount(const char *source, const char *target,
 	    || mount(source, target, fs_type, mountflags, data) < 0) {
 		// Save errno as ensure can clobber it.
 		int saved_errno = errno;
+
+		// Drop privileges so that we can compute our nice error message
+		// without risking an attack on one of the string functions there.
+		sc_privs_drop();
+
+		// Compute the equivalent mount command.
 		ensure_mount_cmd();
 
 		// Restore errno and die.
@@ -294,6 +301,12 @@ void sc_do_umount(const char *target, int flags)
 	if (sc_faulty("umount", NULL) || umount2(target, flags) < 0) {
 		// Save errno as ensure can clobber it.
 		int saved_errno = errno;
+
+		// Drop privileges so that we can compute our nice error message
+		// without risking an attack on one of the string functions there.
+		sc_privs_drop();
+
+		// Compute the equivalent umount command.
 		ensure_umount_cmd();
 
 		// Restore errno and die.
