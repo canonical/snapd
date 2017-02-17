@@ -341,7 +341,7 @@ var _ Assertion = (*assertionBase)(nil)
 //   NAME ": " SIMPLEVALUE
 //
 // The format supports multiline text values (with '\n's in them) and
-// lists or maps possibly nested with string scalars in them.
+// lists or maps, possibly nested, with string scalars in them.
 //
 // For those a header entry looks like:
 //
