@@ -63,10 +63,10 @@ type TestInterface struct {
 
 	// Support for interacting with the seccomp backend.
 
-	SeccompConnectedPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	SeccompConnectedSlotCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	SeccompPermanentPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug) error
-	SeccompPermanentSlotCallback func(spec *seccomp.Specification, slot *interfaces.Slot) error
+	SecCompConnectedPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedSlotCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompPermanentPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug) error
+	SecCompPermanentSlotCallback func(spec *seccomp.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -209,30 +209,30 @@ func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *inte
 
 // Support for interacting with the seccomp backend.
 
-func (t *TestInterface) SeccompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.SeccompConnectedPlugCallback != nil {
-		return t.SeccompConnectedPlugCallback(spec, plug, slot)
+func (t *TestInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SecCompConnectedPlugCallback != nil {
+		return t.SecCompConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) SeccompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.SeccompConnectedSlotCallback != nil {
-		return t.SeccompConnectedSlotCallback(spec, plug, slot)
+func (t *TestInterface) SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SecCompConnectedSlotCallback != nil {
+		return t.SecCompConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) SeccompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
-	if t.SeccompPermanentPlugCallback != nil {
-		return t.SeccompPermanentPlugCallback(spec, plug)
+func (t *TestInterface) SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
+	if t.SecCompPermanentPlugCallback != nil {
+		return t.SecCompPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) SeccompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	if t.SeccompPermanentSlotCallback != nil {
-		return t.SeccompPermanentSlotCallback(spec, slot)
+func (t *TestInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	if t.SecCompPermanentSlotCallback != nil {
+		return t.SecCompPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }

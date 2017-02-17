@@ -38,16 +38,16 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SeccompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			return spec.AddSnippet([]byte("connected-plug"))
 		},
-		SeccompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			return spec.AddSnippet([]byte("connected-slot"))
 		},
-		SeccompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
+		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
 			return spec.AddSnippet([]byte("permanent-plug"))
 		},
-		SeccompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
 			return spec.AddSnippet([]byte("permanent-slot"))
 		},
 	},
