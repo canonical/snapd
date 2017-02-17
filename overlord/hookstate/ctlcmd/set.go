@@ -181,7 +181,7 @@ func copyRecursive(value interface{}) (interface{}, error) {
 	case bool:
 		return v, nil
 	case int:
-		return v, nil
+		return int64(v), nil
 	case int64:
 		return v, nil
 	case []interface{}:
