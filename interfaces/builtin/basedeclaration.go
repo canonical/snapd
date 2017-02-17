@@ -478,6 +478,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  repowerd:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
   screen-inhibit-control:
     allow-installation:
       slot-snap-type:

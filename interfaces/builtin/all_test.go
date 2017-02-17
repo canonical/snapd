@@ -53,6 +53,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.PhysicalMemoryControlInterface{})
 	c.Check(all, Contains, &builtin.PhysicalMemoryObserveInterface{})
 	c.Check(all, Contains, &builtin.PulseAudioInterface{})
+	c.Check(all, Contains, &builtin.RepowerdInterface{})
 	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, Contains, &builtin.TimeControlInterface{})
 	c.Check(all, Contains, &builtin.UDisks2Interface{})
