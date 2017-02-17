@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -81,6 +82,12 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 	old := readInfo
 	readInfo = mock
 	return func() { readInfo = old }
+}
+
+func MockLastUbuntuCoreTransitionAttempt(m *SnapManager, last time.Time) (restorer func()) {
+	orig := m.lastUbuntuCoreTransitionAttempt
+	m.lastUbuntuCoreTransitionAttempt = last
+	return func() { m.lastUbuntuCoreTransitionAttempt = orig }
 }
 
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
