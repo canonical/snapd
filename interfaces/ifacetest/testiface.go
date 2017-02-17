@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -59,6 +60,13 @@ type TestInterface struct {
 	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the seccomp backend.
+
+	SeccompConnectedPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SeccompConnectedSlotCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SeccompPermanentPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug) error
+	SeccompPermanentSlotCallback func(spec *seccomp.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -195,6 +203,36 @@ func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *inte
 func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.MountPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the seccomp backend.
+
+func (t *TestInterface) SeccompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SeccompConnectedPlugCallback != nil {
+		return t.SeccompConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SeccompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.MountConnectedSlotCallback != nil {
+		return t.SeccompConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SeccompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
+	if t.SeccompPermanentPlugCallback != nil {
+		return t.SeccompPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) SeccompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	if t.SeccompPermanentSlotCallback != nil {
+		return t.SeccompPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
