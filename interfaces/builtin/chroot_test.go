@@ -79,15 +79,12 @@ func (s *ChrootInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "chroot"`)
 }
 
-func (s *ChrootInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
 func (s *ChrootInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `capability sys_chroot`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `chroot`)
 }

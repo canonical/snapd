@@ -27,6 +27,12 @@ func init() {
 	allInterfaces = append(allInterfaces, NewChrootInterface())
 }
 
+const chrootConnectedPlugAppArmor = `
+# Description: Can chroot into a directory.
+
+capability sys_chroot,
+`
+
 const chrootConnectedPlugSecComp = `
 # Description: Can use the chroot syscall
 chroot
@@ -35,8 +41,9 @@ chroot
 // NewChrootInterface returns a new "chroot" interface.
 func NewChrootInterface() interfaces.Interface {
 	return &commonInterface{
-		name:                 "chroot",
-		connectedPlugSecComp: chrootConnectedPlugSecComp,
-		reservedForOS:        true,
+		name: "chroot",
+		connectedPlugAppArmor: chrootConnectedPlugAppArmor,
+		connectedPlugSecComp:  chrootConnectedPlugSecComp,
+		reservedForOS:         true,
 	}
 }
