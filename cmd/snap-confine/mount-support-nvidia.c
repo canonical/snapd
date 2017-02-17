@@ -228,18 +228,17 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 {
 	struct sc_nvidia_driver driver;
 	sc_probe_nvidia_driver(&driver);
-	if (driver.major_version != 0) {
-		// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-		char src[PATH_MAX], dst[PATH_MAX];
-		sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
-				 driver.major_version);
-		sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
-				 SC_LIBGL_DIR);
-		debug("bind mounting nvidia driver %s -> %s", src, dst);
-		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-			die("cannot bind mount nvidia driver %s -> %s", src,
-			    dst);
-		}
+	if (driver.major_version == 0) {
+		return;
+	}
+	// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
+	char src[PATH_MAX], dst[PATH_MAX];
+	sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
+			 driver.major_version);
+	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SC_LIBGL_DIR);
+	debug("bind mounting nvidia driver %s -> %s", src, dst);
+	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
+		die("cannot bind mount nvidia driver %s -> %s", src, dst);
 	}
 }
 #endif				// ifdef NVIDIA_UBUNTU
