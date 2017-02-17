@@ -230,7 +230,7 @@ Exec=%s
 	return nil
 }
 
-// Remove the DBus busconfig policy for the snap
+// Remove the DBus service file for the snap
 func (b *Backend) removeBusServ(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSessionServicesFilesDir, glob, nil)
