@@ -3864,8 +3864,7 @@ func makeTestRefreshConfig(st *state.State) {
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
 	tr := config.NewTransaction(st)
-	// setup an interval that will end very soon :)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00:00-%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second()+1))
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
 	tr.Commit()
 }
 
