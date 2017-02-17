@@ -32,10 +32,13 @@ reset_classic() {
             systemctl start $unit
         done
     fi
-    systemctl start snapd.socket
 
-    # wait for snapd listening
-    while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
+    if [ "$1" != "--keep-stopped" ]; then
+        systemctl start snapd.socket
+
+        # wait for snapd listening
+        while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
+    fi
 }
 
 reset_all_snap() {
@@ -58,7 +61,9 @@ reset_all_snap() {
     rm -rf /var/lib/snapd/*
     $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
     rm -rf /root/.snap
-    systemctl start snapd.service snapd.socket
+    if [ "$1" != "--keep-stopped" ]; then
+        systemctl start snapd.service snapd.socket
+    fi
 }
 
 if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

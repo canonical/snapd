@@ -184,26 +184,6 @@ owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/    rw,
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
 `)
 
-var downloadConnectedPlugSecComp = []byte(`
-# Description: Can access download manager.
-
-# dbus
-recvmsg
-send
-sendto
-sendmsg
-`)
-
-var downloadPermanentSlotSecComp = []byte(`
-# Description: Can act as a download manager.
-
-# dbus
-recvmsg
-send
-sendto
-sendmsg
-`)
-
 type UbuntuDownloadManagerInterface struct{}
 
 func (iface *UbuntuDownloadManagerInterface) Name() string {
@@ -225,8 +205,6 @@ func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfac
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(downloadConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return downloadConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -235,8 +213,6 @@ func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfac
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return downloadPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return downloadPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }

@@ -268,6 +268,13 @@ readahead
 readdir
 readlink
 readlinkat
+
+# allow reading from sockets
+recv
+recvfrom
+recvmsg
+recvmmsg
+
 remap_file_pages
 
 removexattr
@@ -324,6 +331,13 @@ semctl
 semget
 semop
 semtimedop
+
+# allow sending to sockets
+send
+sendto
+sendmsg
+sendmmsg
+
 sendfile
 sendfile64
 

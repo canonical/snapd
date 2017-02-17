@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -3862,7 +3863,7 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
@@ -3881,7 +3882,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
@@ -3913,7 +3914,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	// can only be disabled in debug mode
 	oldEnv := os.Getenv("SNAPD_DEBUG")
@@ -3954,7 +3955,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshDisabled(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
@@ -3995,7 +3996,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
@@ -4026,7 +4027,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) bool { return true }
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.last", time.Time{})
@@ -5142,8 +5143,12 @@ volumes:
 `
 
 func (s *snapmgrTestSuite) prepareGadget(c *C) {
-	gadgetSideInfo := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	gadgetInfo := snaptest.MockSnap(c, "name: the-gadget\nversion: 1.0", "", gadgetSideInfo)
+	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
+	gadgetInfo := snaptest.MockSnap(c, `
+name: the-gadget
+type: gadget
+version: 1.0
+`, "", gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
@@ -5157,8 +5162,13 @@ func (s *snapmgrTestSuite) prepareGadget(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5181,6 +5191,9 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
