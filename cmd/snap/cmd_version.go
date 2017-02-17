@@ -69,6 +69,9 @@ func printVersions() error {
 	if sv.OnClassic {
 		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
 	}
+	if sv.Kernel != "" {
+		fmt.Fprintf(w, "kernel\t%s\n", sv.Kernel)
+	}
 	w.Flush()
 
 	return err

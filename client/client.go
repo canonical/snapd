@@ -287,6 +287,7 @@ type ServerVersion struct {
 	OSID        string
 	OSVersionID string
 	OnClassic   bool
+	Kernel      string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -301,6 +302,7 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSID:        sysInfo.OSRelease.ID,
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
+		Kernel:      sysInfo.Kernel,
 	}, nil
 }
 
@@ -365,6 +367,7 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
+	Kernel    string    `json:"kernel,omitempty"`
 }
 
 func (rsp *response) err() error {
