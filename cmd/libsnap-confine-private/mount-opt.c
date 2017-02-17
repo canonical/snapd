@@ -253,11 +253,11 @@ void sc_do_mount(const char *source, const char *target,
 	const char *mount_cmd = NULL;
 
 	void ensure_mount_cmd() {
-		if (mount_cmd == NULL) {
-			mount_cmd = sc_mount_cmd(buf, sizeof buf, source,
-						 target, fs_type, mountflags,
-						 data);
+		if (mount_cmd != NULL) {
+			return;
 		}
+		mount_cmd = sc_mount_cmd(buf, sizeof buf, source,
+					 target, fs_type, mountflags, data);
 	}
 
 	if (sc_is_debug_enabled()) {
@@ -288,10 +288,10 @@ void sc_do_umount(const char *target, int flags)
 	const char *umount_cmd = NULL;
 
 	void ensure_umount_cmd() {
-		if (umount_cmd == NULL) {
-			umount_cmd =
-			    sc_umount_cmd(buf, sizeof buf, target, flags);
+		if (umount_cmd != NULL) {
+			return;
 		}
+		umount_cmd = sc_umount_cmd(buf, sizeof buf, target, flags);
 	}
 
 	if (sc_is_debug_enabled()) {
