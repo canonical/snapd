@@ -51,6 +51,7 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
+	snapstate.CanAutoRefresh = nil
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
