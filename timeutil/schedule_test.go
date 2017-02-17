@@ -37,18 +37,16 @@ var _ = Suite(&timeutilSuite{})
 
 func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 	for _, t := range []struct {
-		timeStr              string
-		hour, minute, second int
-		errStr               string
+		timeStr      string
+		hour, minute int
+		errStr       string
 	}{
-		{"8:59", 8, 59, 0, ""},
-		{"8:59:12", 8, 59, 12, ""},
-		{"08:59", 8, 59, 0, ""},
-		{"12:00", 12, 0, 0, ""},
-		{"xx", 0, 0, 0, `cannot parse "xx"`},
-		{"11:61", 0, 0, 0, `cannot parse "11:61"`},
-		{"25:00", 0, 0, 0, `cannot parse "25:00"`},
-		{"11:59:61", 0, 0, 0, `cannot parse "11:59:61"`},
+		{"8:59", 8, 59, ""},
+		{"08:59", 8, 59, ""},
+		{"12:00", 12, 0, ""},
+		{"xx", 0, 0, `cannot parse "xx"`},
+		{"11:61", 0, 0, `cannot parse "11:61"`},
+		{"25:00", 0, 0, `cannot parse "25:00"`},
 	} {
 		ti, err := timeutil.ParseTime(t.timeStr)
 		if t.errStr != "" {
@@ -57,29 +55,8 @@ func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 			c.Check(err, IsNil)
 			c.Check(ti.Hour, Equals, t.hour)
 			c.Check(ti.Minute, Equals, t.minute)
-			c.Check(ti.Second, Equals, t.second)
 		}
 	}
-}
-
-func (ts *timeutilSuite) TestOrderTimeOfDay(c *C) {
-	for _, t := range []struct {
-		t1, t2 string
-		isLess bool
-	}{
-		{"9:00", "10:00", true},
-		{"9:00", "9:01", true},
-		{"9:00:00", "9:00:01", true},
-		{"10:00", "9:00", false},
-		{"9:00", "9:00", false},
-	} {
-		t1, err := timeutil.ParseTime(t.t1)
-		c.Assert(err, IsNil)
-		t2, err := timeutil.ParseTime(t.t2)
-		c.Assert(err, IsNil)
-		c.Check(t1.Less(t2), Equals, t.isLess, Commentf("incorrect result for %#v", t))
-	}
-
 }
 
 func (ts *timeutilSuite) TestParseSchedule(c *C) {
@@ -94,8 +71,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-11:00/invalid", nil, `cannot parse "invalid": not a valid interval`},
 		{"09:00-25:00", nil, `cannot parse "25:00": not a valid time`},
 		// moving backwards
-		{"11:00-09:00", nil, `cannot parse "11:00-09:00": not a valid interval`},
-		{"23:00-01:00", nil, `cannot parse "23:00-01:00": not a valid interval`},
+		{"11:00-09:00", nil, `cannot parse "11:00-09:00": time in an interval cannot go backwards`},
+		{"23:00-01:00", nil, `cannot parse "23:00-01:00": time in an interval cannot go backwards`},
 		// FIXME: error message sucks
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon", want "mon", "tue", etc`},
 
