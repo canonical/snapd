@@ -39,16 +39,16 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		SeccompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet(snap.AppSecurityTag("snap1", "app1"), "connected-plug")
+			return spec.AddSnippet([]byte("connected-plug"))
 		},
 		SeccompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet(snap.AppSecurityTag("snap2", "app2"), "connected-slot")
+			return spec.AddSnippet([]byte("connected-slot"))
 		},
 		SeccompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet(snap.AppSecurityTag("snap1", "app1"), "permanent-plug")
+			return spec.AddSnippet([]byte("permanent-plug"))
 		},
 		SeccompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet(snap.AppSecurityTag("snap2", "app2"), "permanent-slot")
+			return spec.AddSnippet([]byte("permanent-slot"))
 		},
 	},
 	plug: &interfaces.Plug{
@@ -56,6 +56,12 @@ var _ = Suite(&specSuite{
 			Snap:      &snap.Info{SuggestedName: "snap1"},
 			Name:      "name",
 			Interface: "test",
+			Apps: map[string]*snap.AppInfo{
+				"app1": &snap.AppInfo{
+					Snap: &snap.Info{
+						SuggestedName: "snap1",
+					},
+					Name: "app1"}},
 		},
 	},
 	slot: &interfaces.Slot{
@@ -63,21 +69,18 @@ var _ = Suite(&specSuite{
 			Snap:      &snap.Info{SuggestedName: "snap2"},
 			Name:      "name",
 			Interface: "test",
+			Apps: map[string]*snap.AppInfo{
+				"app2": &snap.AppInfo{
+					Snap: &snap.Info{
+						SuggestedName: "snap2",
+					},
+					Name: "app2"}},
 		},
 	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &seccomp.Specification{}
-}
-
-// AddSnippet is not broken
-func (s *specSuite) TestSmoke(c *C) {
-	c.Assert(s.spec.AddSnippet(snap.AppSecurityTag("snap1", "app1"), "foo"), IsNil)
-	c.Assert(s.spec.AddSnippet(snap.AppSecurityTag("snap2", "app2"), "bar"), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, map[string][]string{
-		"snap.snap1.app1": []string{"foo"},
-		"snap.snap2.app2": []string{"bar"}})
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
@@ -87,24 +90,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, map[string][]string{
-		"snap.snap1.app1": []string{"connected-plug", "permanent-plug"},
-		"snap.snap2.app2": []string{"connected-slot", "permanent-slot"},
+	c.Assert(s.spec.Snippets, DeepEquals, map[string][][]byte{
+		"snap.snap1.app1": [][]byte{[]byte("connected-plug"), []byte("permanent-plug")},
+		"snap.snap2.app2": [][]byte{[]byte("connected-slot"), []byte("permanent-slot")},
 	})
-}
-
-func (s *specSuite) TestRemove(c *C) {
-	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-
-	c.Check(len(s.spec.Snippets), Equals, 2)
-	s.spec.Remove("snap2")
-	c.Assert(s.spec.Snippets, DeepEquals, map[string][]string{
-		"snap.snap1.app1": []string{"connected-plug", "permanent-plug"},
-	})
-	s.spec.Remove("snap1")
-	c.Assert(len(s.spec.Snippets), Equals, 0)
 }

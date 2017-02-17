@@ -19,36 +19,28 @@
 
 package seccomp
 
-import (
-	"strings"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/snap"
-)
+import "github.com/snapcore/snapd/interfaces"
 
 // Specification keeps all the seccomp snippets.
 type Specification struct {
 	// Snippets are indexed by security tag.
-	Snippets map[string][]string
+	Snippets     map[string][][]byte
+	securityTags []string
 }
 
 // AddSnippet adds a new seccomp snippet.
-func (spec *Specification) AddSnippet(securityTag, snippet string) error {
+func (spec *Specification) AddSnippet(snippet []byte) error {
+	if len(spec.securityTags) == 0 {
+		return nil
+	}
 	if spec.Snippets == nil {
-		spec.Snippets = make(map[string][]string)
+		spec.Snippets = make(map[string][][]byte)
 	}
-	spec.Snippets[securityTag] = append(spec.Snippets[securityTag], snippet)
-	return nil
-}
+	for _, tag := range spec.securityTags {
+		spec.Snippets[tag] = append(spec.Snippets[tag], snippet)
+	}
 
-// Remove removes all seccomp snippets for given snap.
-func (spec *Specification) Remove(snapName string) {
-	tagPrefix := snap.SecurityTag(snapName)
-	for tag := range spec.Snippets {
-		if strings.HasPrefix(tag, tagPrefix) {
-			delete(spec.Snippets, tag)
-		}
-	}
+	return nil
 }
 
 // Implementation of methods required by interfaces.Specification
@@ -59,6 +51,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		SeccompConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.SeccompConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -70,6 +64,8 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		SeccompConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.SeccompConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -81,6 +77,8 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 		SeccompPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.SeccompPermanentPlug(spec, plug)
 	}
 	return nil
@@ -92,6 +90,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *in
 		SeccompPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.SeccompPermanentSlot(spec, slot)
 	}
 	return nil
