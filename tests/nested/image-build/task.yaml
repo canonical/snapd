@@ -2,18 +2,7 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 
 systems: [ubuntu-16.04-64]
 
-environment:
-    SSH_PORT: 8022
-    USER: user1
-    PASSWORD: ubuntu
-    SPREAD_EXTERNAL_ADDRESS: "localhost:8022"
-    WORK_DIR: /tmp/work-dir
-    TAP_DEVICE: tap0
-    VM_UNIT_COMMAND_SUFFIX: "-m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::${SSH_PORT}-:22 -drive file=${WORK_DIR}/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
-
 prepare: |
-    . $TESTSLIB/nested.sh
-
     # determine arch related vars
     case "$NESTED_ARCH" in
     amd64)
@@ -29,30 +18,45 @@ prepare: |
     esac
 
     # create ubuntu-core image
-    mkdir -p $WORK_DIR
+    mkdir -p /tmp/work-dir
     snap install --devmode --beta ubuntu-image
     /snap/bin/ubuntu-image --image-size 3G $TESTSLIB/assertions/nested-${NESTED_ARCH}.model --channel $CORE_CHANNEL --output ubuntu-core.img
-    mv ubuntu-core.img $WORK_DIR
+    mv ubuntu-core.img /tmp/work-dir
 
     # create assertion block device
     genisoimage -volid cidata -joliet -rock -o assertions.disk $TESTSLIB/assertions/auto-import.assert
 
-    #setup_bridge $TAP_DEVICE
-
     . $TESTSLIB/systemd.sh
-    systemd_create_and_start_unit nested-vm "${QEMU} ${VM_UNIT_COMMAND_SUFFIX}"
+    systemd_create_and_start_unit nested-vm "${QEMU} -m 1024 -nographic -net nic,model=virtio -net user,hostfwd=tcp::8022-:22 -drive file=/tmp/work-dir/ubuntu-core.img,if=virtio,cache=none -drive file=${PWD}/assertions.disk,if=virtio,cache=none"
 
 restore: |
     snap remove ubuntu-image
     . $TESTSLIB/systemd.sh
     systemd_stop_and_destroy_unit nested-vm
-    rm -rf $WORK_DIR
-
-    #. $TESTSLIB/nested.sh
-    #teardown_bridge $TAP_DEVICE
+    rm -rf /tmp/work-dir
 
 execute: |
-    . $TESTSLIB/nested.sh
+    execute_remote(){
+        sshpass -p ubuntu ssh -p 8022 -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
+    }
+
+    prepare_ssh(){
+        execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+        execute_remote "echo test:ubuntu | sudo chpasswd"
+        execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
+    }
+
+    wait_for_ssh(){
+        retry=300
+        while ! execute_remote true; do
+            retry=$(( retry - 1 ))
+            if [ $retry -le 0 ]; then
+                echo "Timed out waiting for ssh. Aborting!"
+                exit 1
+            fi
+            sleep 1
+        done
+    }
 
     wait_for_ssh
 
@@ -60,10 +64,11 @@ execute: |
 
     cd $SPREAD_PATH
 
-    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread $WORK_DIR
+    curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz && rm -f spread-amd64.tar.gz && mv spread /tmp/work-dir
 
     set +x
-    $WORK_DIR/spread -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
-                        external:ubuntu-core-16-64:tests/main/install-store \
-                        external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
-                        external:ubuntu-core-16-64:tests/main/op-remove-retry | while read line; do echo "> $line"; done
+    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    /tmp/work-dir/spread -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
+                            external:ubuntu-core-16-64:tests/main/install-store \
+                            external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
+                            external:ubuntu-core-16-64:tests/main/op-remove-retry | while read line; do echo "> $line"; done
