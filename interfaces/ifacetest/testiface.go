@@ -217,7 +217,7 @@ func (t *TestInterface) SeccompConnectedPlug(spec *seccomp.Specification, plug *
 }
 
 func (t *TestInterface) SeccompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.MountConnectedSlotCallback != nil {
+	if t.SeccompConnectedSlotCallback != nil {
 		return t.SeccompConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil

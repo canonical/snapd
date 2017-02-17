@@ -20,10 +20,15 @@
 package seccomp
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
+// Specification keeps all the seccomp snippets.
 type Specification struct {
+	// Snippets are indexed by security tag.
 	Snippets map[string][]string
 }
 
@@ -34,6 +39,16 @@ func (spec *Specification) AddSnippet(securityTag, snippet string) error {
 	}
 	spec.Snippets[securityTag] = append(spec.Snippets[securityTag], snippet)
 	return nil
+}
+
+// Remove removes all seccomp snippets for given snap.
+func (spec *Specification) Remove(snapName string) {
+	tagPrefix := snap.SecurityTag(snapName)
+	for tag := range spec.Snippets {
+		if strings.HasPrefix(tag, tagPrefix) {
+			delete(spec.Snippets, tag)
+		}
+	}
 }
 
 // Implementation of methods required by interfaces.Specification
