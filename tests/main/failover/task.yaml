@@ -12,6 +12,10 @@ details: |
     reboots, one for trying the upgrade and another for rolling back) the installed
     fundamental snap is the good one and the boot environment variables are correctly set.
 
+environment:
+    INJECT_FAILURE/rclocalcrash: inject_rclocalcrash_failure
+    INJECT_FAILURE/emptysystemd: inject_emptysystemd_failure
+
 restore: |
     rm -f failing.snap failBoot currentBoot prevBoot
     rm -rf /tmp/unpack
@@ -27,6 +31,18 @@ debug: |
     snap changes
 
 execute: |
+    inject_rclocalcrash_failure(){
+        chmod a+x /tmp/unpack/etc/rc.local
+        cat <<EOF > /tmp/unpack/etc/rc.local
+    #!bin/sh
+    printf c > /proc/sysrq-trigger
+    EOF
+    }
+
+    inject_emptysystemd_failure(){
+        truncate -s 0 /tmp/unpack/lib/systemd/systemd
+    }
+
     . $TESTSLIB/names.sh
     . $TESTSLIB/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -37,11 +53,7 @@ execute: |
         unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${core_name}_*.snap
 
         # set failure condition
-        chmod a+x /tmp/unpack/etc/rc.local
-        cat <<EOF > /tmp/unpack/etc/rc.local
-    #!bin/sh
-    printf c > /proc/sysrq-trigger
-    EOF
+        eval ${INJECT_FAILURE}
 
         # repack new target snap
         snapbuild /tmp/unpack . && mv ${core_name}_*.snap failing.snap
