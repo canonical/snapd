@@ -8,4 +8,4 @@ var/lib/snapd/lib/gl
 var/lib/snapd/snaps/partial
 var/lib/snapd/void
 var/snap
-etc/dbus-1/session.d 
+etc/dbus-1/session.d

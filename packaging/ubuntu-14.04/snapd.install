@@ -13,6 +13,8 @@ data/completion/snap /usr/share/bash-completion/completions
 # udev, must be installed before 80-udisks
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 data/info /usr/lib/snapd/
+# dbus session support
+data/dbus/snapd.conf /etc/dbus-1/session.d
 
 # snap-confine
 etc/apparmor.d/usr.lib.snapd.snap-confine
