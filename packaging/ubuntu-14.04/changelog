@@ -1,3 +1,11 @@
+snapd (2.22.3~14.04) trusty; urgency=medium
+
+  * New emergency release
+    - falloff mechanism to stop endless failing transition from ubuntu-core to
+    core that causes re-downloads of the core snap (LP: #1665745)
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Fri, 17 Feb 2017 20:00:03 +0100
+
 snapd (2.22.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1659522
