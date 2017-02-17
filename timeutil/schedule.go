@@ -28,12 +28,11 @@ import (
 	"time"
 )
 
-var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9]):?([0-5][0-9])?$`)
+var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
 
 type TimeOfDay struct {
 	Hour   int
 	Minute int
-	Second int
 }
 
 // ParseTime parses a string that contains hour:minute and returns
@@ -50,12 +49,6 @@ func ParseTime(s string) (t TimeOfDay, err error) {
 	t.Minute, err = strconv.Atoi(m[2])
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
-	}
-	if m[3] != "" {
-		t.Second, err = strconv.Atoi(m[3])
-		if err != nil {
-			return t, fmt.Errorf("cannot parse %q: %s", m[3], err)
-		}
 	}
 	return t, nil
 }
@@ -75,8 +68,8 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 
 	t := last
 	for {
-		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, sched.Start.Second, 0, time.Local)
-		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, sched.End.Second, 0, time.Local)
+		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, 0, 0, time.Local)
+		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, 0, 0, time.Local)
 
 		// not using AddDate() here as this can panic() if no
 		// location is set
