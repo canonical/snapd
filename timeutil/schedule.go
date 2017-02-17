@@ -103,12 +103,7 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 		if last.After(a) && last.Before(b) {
 			continue
 		}
-		// schedule is right now
-		if now.After(a) && now.Before(b) {
-			return a, b
-		}
-		// not reached now yet
-		if !a.After(now) {
+		if b.Before(now) {
 			continue
 		}
 
