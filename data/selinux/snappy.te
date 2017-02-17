@@ -1,0 +1,199 @@
+
+policy_module(snappy,0.0.12)
+
+########################################
+#
+# Declarations
+#
+
+type snappy_t;
+type snappy_exec_t;
+init_daemon_domain(snappy_t, snappy_exec_t)
+
+type snappy_config_t;
+files_config_file(snappy_config_t)
+
+type snappy_home_t;
+typealias snappy_home_t alias { user_snappy_home_t staff_snappy_home_t sysadm_snappy_home_t };
+typealias snappy_home_t alias { auditadm_snappy_home_t secadm_snappy_home_t };
+userdom_user_home_content(snappy_home_t)
+
+type snappy_var_t;
+files_type(snappy_var_t)
+
+type snappy_var_lib_t;
+files_type(snappy_var_lib_t)
+
+type snappy_var_run_t;
+files_pid_file(snappy_var_run_t)
+
+type snappy_unit_file_t;
+systemd_unit_file(snappy_unit_file_t)
+
+########################################
+#
+# snappy local policy
+#
+
+# For development purposes, snappy_t domain is to be marked permissive
+permissive snappy_t;
+
+# Allow transitions from init_t to snappy for sockets
+gen_require(` type init_t; type var_run_t; ')
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
+filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
+
+# Allow init_t to read snappy data
+allow init_t snappy_var_lib_t:dir read;
+
+# Allow snapd to read init socket
+gen_require(` type init_t; ')
+allow snappy_t init_t:file { getattr open read };
+allow snappy_t init_t:lnk_file read;
+allow snappy_t init_t:unix_stream_socket connectto;
+
+# Allow snapd to read file contexts
+gen_require(` type file_context_t; ')
+allow snappy_t file_context_t:dir search;
+allow snappy_t file_context_t:file { getattr open read };
+
+# Allow snapd to read procfs
+gen_require(` type proc_t; ')
+allow snappy_t proc_t:file { getattr open read };
+
+# Allow snapd to read sysfs
+gen_require(` type sysfs_t; ')
+allow snappy_t sysfs_t:dir read;
+allow snappy_t sysfs_t:file { getattr setattr open read write };
+allow snappy_t sysfs_t:lnk_file read;
+
+
+# Allow snapd to read SSL cert store
+gen_require(` type cert_t; ')
+allow snappy_t cert_t:dir search;
+allow snappy_t cert_t:file { getattr open read };
+allow snappy_t cert_t:lnk_file read;
+
+# Allow snapd to read config files
+read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
+
+# Allow snapd to manage snaps' homedir data
+manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
+manage_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
+manage_lnk_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
+userdom_search_user_home_dirs(snappy_t)
+userdom_user_home_dir_filetrans(snappy_t, snappy_home_t, dir, "snap")
+
+# Allow snapd to read DNS config
+gen_require(` type net_conf_t; ')
+allow snappy_t net_conf_t:file { getattr open read };
+allow snappy_t net_conf_t:lnk_file { read };
+
+# When managed by NetworkManager, DNS config is in its rundata
+gen_require(` type NetworkManager_var_run_t; ')
+allow snappy_t NetworkManager_var_run_t:dir search;
+
+# Allow snapd to read sysctl files
+gen_require(` type sysctl_net_t; ')
+allow snappy_t sysctl_net_t:dir search;
+allow snappy_t sysctl_net_t:file { open read };
+
+# Allow snapd to manage D-Bus config files for snaps
+gen_require(` type dbusd_etc_t; ')
+allow snappy_t dbusd_etc_t:dir { getattr open read search };
+allow snappy_t dbusd_etc_t:file { getattr open read write create rename unlink };
+allow snappy_t dbusd_etc_t:lnk_file { read };
+
+# Allow snapd to manage udev rules for snaps
+gen_require(` type udev_rules_t; type udev_exec_t; ')
+allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
+allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
+allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to manipulate udev
+gen_require(` type udev_t; type udev_var_run_t; ')
+allow snappy_t udev_t:unix_stream_socket connectto;
+allow snappy_t udev_var_run_t:file { getattr open read };
+allow snappy_t udev_var_run_t:sock_file { getattr open read write };
+
+# Allow snapd to read/write systemd units and use systemctl for managing snaps
+gen_require(` type systemd_unit_file_t; type systemd_systemctl_exec_t; ')
+allow snappy_t systemd_unit_file_t:dir { search open read write add_name remove_name };
+allow snappy_t systemd_unit_file_t:file { getattr open read write create rename unlink };
+allow snappy_t systemd_systemctl_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to mount snaps
+gen_require(` type mount_exec_t; ')
+allow snappy_t mount_exec_t:file { execute execute_no_trans getattr open read };
+
+# Allow snapd to execute unsquashfs
+gen_require(` type bin_t; ')
+allow snappy_t bin_t:file { execute execute_no_trans };
+
+# Allow snapd to get FUSE device attributes
+gen_require(` type fuse_device_t; ')
+allow snappy_t fuse_device_t:chr_file getattr;
+
+# Read l10n files?
+miscfiles_read_localization(snappy_t)
+
+# Allow snapd to manage its socket files
+manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+
+# Allow snapd to manage mounts
+gen_require(` type fs_t; type mount_var_run_t; ')
+allow snappy_t fs_t:filesystem { mount unmount };
+allow snappy_t mount_var_run_t:dir search;
+allow snappy_t mount_var_run_t:file { getattr setattr open read write };
+
+# Allow snapd to manage its persistent data
+manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_dirs_pattern(snappy_t, snappy_var_t, snappy_var_t)
+manage_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
+manage_lnk_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
+
+# Grant snapd access to /tmp
+gen_require(` type tmp_t; ')
+allow snappy_t tmp_t:dir { getattr setattr add_name create read remove_name rmdir write };
+allow snappy_t tmp_t:file { getattr setattr create open unlink write };
+
+# Until we can figure out how to apply the label to mounted snaps,
+# we need to grant snapd access to "unlabeled files"
+gen_require(` type unlabeled_t; ')
+allow snappy_t unlabeled_t:dir { getattr search open read };
+allow snappy_t unlabeled_t:file { getattr open read };
+
+logging_send_syslog_msg(snappy_t);
+
+allow snappy_t self:capability { sys_admin dac_override chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
+allow snappy_t self:tun_socket relabelto;
+allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
+
+allow snappy_t self:fifo_file rw_fifo_file_perms;
+allow snappy_t self:unix_stream_socket create_stream_socket_perms;
+allow snappy_t self:tcp_socket create_stream_socket_perms;
+allow snappy_t self:udp_socket create_stream_socket_perms;
+allow snappy_t self:unix_dgram_socket create_socket_perms;
+allow snappy_t self:capability2 block_suspend;
+
+# snapd needs to check for ipv6 support
+gen_require(` type node_t; ')
+allow snappy_t node_t:tcp_socket node_bind;
+
+corenet_all_recvfrom_unlabeled(snappy_t)
+corenet_all_recvfrom_netlabel(snappy_t)
+corenet_tcp_sendrecv_generic_if(snappy_t)
+corenet_tcp_sendrecv_generic_node(snappy_t)
+
+corenet_tcp_sendrecv_http_port(snappy_t)
+corenet_tcp_connect_http_port(snappy_t)
+corenet_tcp_sendrecv_http_cache_port(snappy_t)
+corenet_tcp_connect_http_cache_port(snappy_t)
+
+# snapd has its own internal DNS resolver
+corenet_tcp_sendrecv_dns_port(snappy_t)
+corenet_udp_sendrecv_dns_port(snappy_t)
+corenet_tcp_connect_dns_port(snappy_t)
+corenet_sendrecv_dns_client_packets(snappy_t)

@@ -1,0 +1,21 @@
+HOME_DIR/snap(/.*)?			gen_context(system_u:object_r:snappy_home_t,s0)
+
+
+/usr/bin/snap			--	gen_context(system_u:object_r:snappy_exec_t,s0)
+
+ifdef(`distro_redhat',`
+/usr/libexec/snapd/.*		--	gen_context(system_u:object_r:snappy_exec_t,s0)
+/etc/sysconfig/snapd		-- 	gen_context(system_u:object_r:snappy_config_t,s0)
+/usr/lib/systemd/system/snapd.* --	gen_context(system_u:object_r:snappy_unit_file_t,s0)
+')
+
+ifdef(`distro_debian',`
+/usr/lib/snapd/.*  		--	gen_context(system_u:object_r:snappy_exec_t,s0)
+/etc/default/snapd		-- 	gen_context(system_u:object_r:snappy_config_t,s0)
+/lib/systemd/system/snapd.* 	--	gen_context(system_u:object_r:snappy_unit_file_t,s0)
+')
+
+/var/run/snapd\.socket 		-s	gen_context(system_u:object_r:snappy_var_run_t,s0)
+/var/run/snapd-snap\.socket 	-s	gen_context(system_u:object_r:snappy_var_run_t,s0)
+/var/lib/snapd(/.*)?			gen_context(system_u:object_r:snappy_var_lib_t,s0)
+/var/snap(/.*)?				gen_context(system_u:object_r:snappy_var_t,s0)
