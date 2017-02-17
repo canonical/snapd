@@ -199,6 +199,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  chroot:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   content:
     allow-installation:
       slot-snap-type:
