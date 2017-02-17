@@ -425,7 +425,7 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-var CanAutoRefresh func(st *state.State) bool
+var CanAutoRefresh func(st *state.State) (bool, error)
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
@@ -433,8 +433,11 @@ func (m *SnapManager) ensureRefreshes() error {
 	defer m.state.Unlock()
 
 	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
+	if CanAutoRefresh == nil {
 		return nil
+	}
+	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
 	}
 
 	tr := config.NewTransaction(m.state)

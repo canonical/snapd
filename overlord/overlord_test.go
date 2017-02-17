@@ -173,10 +173,19 @@ func (wm *witnessManager) Stop() {
 func (wm *witnessManager) Wait() {
 }
 
+// markSeeded flags the state under the overlord as seeded to avoid running the seeding code in these tests
+func markSeeded(o *overlord.Overlord) {
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+}
+
 func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
+	markSeeded(o)
 	o.Loop()
 
 	err = o.Stop()
@@ -196,6 +205,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	}
 	o.Engine().AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -231,6 +241,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeImmediate(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -261,6 +272,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -293,6 +305,7 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -324,6 +337,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 	se := o.Engine()
 	se.AddManager(witness)
 
+	markSeeded(o)
 	o.Loop()
 	defer o.Stop()
 
@@ -357,6 +371,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
 
+	markSeeded(o)
 	o.Loop()
 	time.Sleep(150 * time.Millisecond)
 	err = o.Stop()
@@ -391,6 +406,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	c.Check(st.Changes(), HasLen, 2)
 	st.Unlock()
 
+	markSeeded(o)
 	// start the loop that runs the prune ticker
 	o.Loop()
 
@@ -508,6 +524,7 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()
@@ -542,6 +559,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()
@@ -584,6 +602,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	chg.AddTask(t)
 	s.Unlock()
 
+	markSeeded(o)
 	o.Settle()
 
 	s.Lock()

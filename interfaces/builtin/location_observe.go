@@ -26,9 +26,8 @@ import (
 )
 
 var locationObservePermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the location service. This gives privileged
+# access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -121,9 +120,8 @@ dbus (send)
 `)
 
 var locationObserveConnectedPlugAppArmor = []byte(`
-# Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+# Description: Allow using location service. This gives privileged access to
+# the service.
 
 #include <abstractions/dbus-strict>
 
@@ -187,18 +185,6 @@ dbus (receive)
     peer=(label=unconfined),
 `)
 
-var locationObservePermanentSlotSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationObserveConnectedPlugSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
 var locationObservePermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
@@ -239,8 +225,6 @@ func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return locationObserveConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObserveConnectedPlugSecComp, nil
 	default:
 		return nil, nil
 	}
@@ -252,8 +236,6 @@ func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationObservePermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return locationObservePermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationObservePermanentSlotSecComp, nil
 	default:
 		return nil, nil
 	}
