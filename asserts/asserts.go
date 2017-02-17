@@ -357,10 +357,10 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // * entries of map each of the form:
 //
-//     " "*baseindent NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
+//     " "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // baseindent starts at 0 and then grows with nesting matching the
-// previous level introduction (the " "*baseindent " -" bit)
+// previous level introduction (e.g. the " "*baseindent " -" bit)
 // length minus 1.
 //
 // In general the following headers are mandatory:
