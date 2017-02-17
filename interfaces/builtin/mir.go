@@ -51,6 +51,9 @@ listen
 accept
 accept4
 shmctl
+# for udev
+socket AF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
 `)
 
 var mirConnectedSlotAppArmor = []byte(`

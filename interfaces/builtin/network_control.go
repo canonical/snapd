@@ -188,6 +188,16 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
+socket AF_NETLINK - NETLINK_ROUTE
+socket PF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket PF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket PF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket PF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
+socket PF_NETLINK - NETLINK_DNRTMSG
 
 mount
 umount

@@ -153,6 +153,8 @@ mount
 shmctl
 umount
 umount2
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const udisks2PermanentSlotDBus = `

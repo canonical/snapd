@@ -400,8 +400,36 @@ sigwaitinfo
 
 # AppArmor mediates AF_UNIX/AF_LOCAL via 'unix' rules and all other AF_*
 # domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
-# we can allow 'socket' for any domain and let AppArmor handle the rest.
-socket
+# we can allow 'socket' for all domains except AF_NETLINK and let AppArmor
+# handle the rest.
+socket AF_UNIX - -
+socket PF_UNIX - -
+socket AF_LOCAL - -
+socket PF_LOCAL - -
+socket AF_INET - -
+socket PF_INET - -
+socket AF_INET6 - -
+socket PF_INET6 - -
+socket AF_IPX - -
+socket PF_IPX - -
+socket AF_X25 - -
+socket PF_X25 - -
+socket AF_AX25 - -
+socket PF_AX25 - -
+socket AF_ATMPVC - -
+socket PF_ATMPVC - -
+socket AF_APPLETALK - -
+socket PF_APPLETALK - -
+socket AF_PACKET - -
+socket PF_PACKET - -
+socket AF_ALG - -
+socket PF_ALG - -
+socket AF_CAN - -
+socket PF_CAN - -
+# For AF_NETLINK/PF_NETLINK, we'll use a combination of AppArmor coarse
+# mediation and seccomp arg filtering of netlink families
+# socket AF_NETLINK - -
+# socket PF_NETLINK - -
 
 # needed by snapctl
 getsockopt
