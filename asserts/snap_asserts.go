@@ -783,7 +783,7 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 }
 
 func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
-	developerRanges, err := checkDevelopers(assert.headers, "developers")
+	developerRanges, err := checkDevelopers(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -794,16 +794,16 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func checkDevelopers(headers map[string]interface{}, name string) (map[string][]*dateRange, error) {
+func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, error) {
 	// TODO:
 	// - reject overlapping date ranges?
-	value, ok := headers[name]
+	value, ok := headers["developers"]
 	if !ok {
 		return nil, nil
 	}
 	developers, ok := value.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%q must be a list of developer maps", name)
+		return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
 	}
 	if len(developers) == 0 {
 		return nil, nil
@@ -813,22 +813,22 @@ func checkDevelopers(headers map[string]interface{}, name string) (map[string][]
 	for i, item := range developers {
 		developer, ok := item.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("%q must be a list of developer maps", name)
+			return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
 		}
 		accountID, err := checkNotEmptyStringWhat(developer, "developer-id", "item")
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
+			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
 		}
 		since, err := checkRFC3339DateWhat(developer, "since", "item")
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
+			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
 		}
 		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", "item", time.Time{})
 		if err != nil {
-			return nil, fmt.Errorf("%s[%d]'s %s", name, i, err)
+			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
 		}
 		if !until.IsZero() && since.After(until) {
-			return nil, fmt.Errorf(`%s[%d]'s "since" must be less than or equal to "until"`, name, i)
+			return nil, fmt.Errorf(`developers[%d]'s "since" must be less than or equal to "until"`, i)
 		}
 		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})
 	}
