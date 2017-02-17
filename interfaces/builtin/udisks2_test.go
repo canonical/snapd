@@ -185,7 +185,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus}
+		interfaces.SecurityDBus}
 	for _, system := range systems {
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
@@ -198,6 +198,9 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }

@@ -177,17 +177,13 @@ func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne
 }
 
 func (s *LocationObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
