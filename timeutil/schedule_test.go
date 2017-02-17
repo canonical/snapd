@@ -37,18 +37,16 @@ var _ = Suite(&timeutilSuite{})
 
 func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 	for _, t := range []struct {
-		timeStr              string
-		hour, minute, second int
-		errStr               string
+		timeStr      string
+		hour, minute int
+		errStr       string
 	}{
-		{"8:59", 8, 59, 0, ""},
-		{"8:59:12", 8, 59, 12, ""},
-		{"08:59", 8, 59, 0, ""},
-		{"12:00", 12, 0, 0, ""},
-		{"xx", 0, 0, 0, `cannot parse "xx"`},
-		{"11:61", 0, 0, 0, `cannot parse "11:61"`},
-		{"25:00", 0, 0, 0, `cannot parse "25:00"`},
-		{"11:59:61", 0, 0, 0, `cannot parse "11:59:61"`},
+		{"8:59", 8, 59, ""},
+		{"08:59", 8, 59, ""},
+		{"12:00", 12, 0, ""},
+		{"xx", 0, 0, `cannot parse "xx"`},
+		{"11:61", 0, 0, `cannot parse "11:61"`},
+		{"25:00", 0, 0, `cannot parse "25:00"`},
 	} {
 		ti, err := timeutil.ParseTime(t.timeStr)
 		if t.errStr != "" {
@@ -57,7 +55,6 @@ func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 			c.Check(err, IsNil)
 			c.Check(ti.Hour, Equals, t.hour)
 			c.Check(ti.Minute, Equals, t.minute)
-			c.Check(ti.Second, Equals, t.second)
 		}
 	}
 }
