@@ -227,15 +227,30 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 {
 	struct sc_nvidia_driver driver;
+
+	// Probe sysfs to get the version of the driver that is currently inserted.
 	sc_probe_nvidia_driver(&driver);
+
+	// If there's driver in the kernel then don't mount userspace.
 	if (driver.major_version == 0) {
 		return;
 	}
-	// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
+	// Construct the paths for the driver userspace libraries
+	// and for the gl directory.
 	char src[PATH_MAX], dst[PATH_MAX];
 	sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
 			 driver.major_version);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SC_LIBGL_DIR);
+
+	// If there is no userspace driver available then don't try to mount it.
+	// This can happen for any number of reasons but one interesting one is
+	// that that snapd runs in a lxd container on a host that uses nvidia. In
+	// that case the container may not have the userspace library installed but
+	// the kernel will still have the module around.
+	if (access(src, F_OK) != 0) {
+		return;
+	}
+	// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
 		die("cannot bind mount nvidia driver %s -> %s", src, dst);
