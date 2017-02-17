@@ -36,19 +36,6 @@ type TimeOfDay struct {
 	Second int
 }
 
-func (td TimeOfDay) Less(other TimeOfDay) bool {
-	if td.Hour < other.Hour {
-		return true
-	}
-	if td.Minute < other.Minute {
-		return true
-	}
-	if td.Second < other.Second {
-		return true
-	}
-	return false
-}
-
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
@@ -197,8 +184,8 @@ func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
 	if err != nil {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
-	if end.Less(start) {
-		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
+	if !(start.Hour <= end.Hour && start.Minute <= end.Minute) {
+		return start, end, fmt.Errorf("cannot parse %q: time in an interval cannot go backwards", s)
 	}
 
 	return start, end, nil
