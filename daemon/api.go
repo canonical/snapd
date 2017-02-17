@@ -237,6 +237,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
 		"managed":    len(users) > 0,
+		"kernel":     release.KernelVersion(),
 	}
 
 	// TODO: set the store-id here from the model information
