@@ -449,12 +449,13 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err != nil {
-		// FIXME: this will spam syslog :/
 		logger.Noticef("cannot use refresh.schedule: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
 		if err != nil {
 			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 		}
+		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+		tr.Commit()
 	}
 	// already have a refresh timer
 	if m.nextRefresh != nil {
