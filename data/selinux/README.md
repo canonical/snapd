@@ -4,7 +4,9 @@ This is the SELinux policy for Snapd and related Snappy components
 
 # Licensing
 
-As the work from this is derived from modules from [Fedora's SELinux policy project](https://github.com/fedora-selinux/selinux-policy), it is licensed in the same manner.
+As the work from this is derived from modules from [Fedora's SELinux policy
+project](https://github.com/fedora-selinux/selinux-policy), it is licensed in
+the same manner.
 
 Copyright (C) 2016 Neal Gompa
 
