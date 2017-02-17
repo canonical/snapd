@@ -21,6 +21,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <linux/can.h>		// needed for search mappings
+#include <linux/netlink.h>
 #include <sched.h>
 #include <search.h>
 #include <stdbool.h>
@@ -317,6 +318,29 @@ static void sc_map_init()
 	sc_map_add(Q_XSETQLIM);
 	sc_map_add(Q_XGETQSTAT);
 	sc_map_add(Q_XQUOTARM);
+
+	// man 7 netlink (uapi/linux/netlink.h)
+	sc_map_add(NETLINK_ROUTE);
+	sc_map_add(NETLINK_USERSOCK);
+	sc_map_add(NETLINK_FIREWALL);
+	sc_map_add(NETLINK_SOCK_DIAG);
+	sc_map_add(NETLINK_NFLOG);
+	sc_map_add(NETLINK_XFRM);
+	sc_map_add(NETLINK_SELINUX);
+	sc_map_add(NETLINK_ISCSI);
+	sc_map_add(NETLINK_AUDIT);
+	sc_map_add(NETLINK_FIB_LOOKUP);
+	sc_map_add(NETLINK_CONNECTOR);
+	sc_map_add(NETLINK_NETFILTER);
+	sc_map_add(NETLINK_IP6_FW);
+	sc_map_add(NETLINK_DNRTMSG);
+	sc_map_add(NETLINK_KOBJECT_UEVENT);
+	sc_map_add(NETLINK_GENERIC);
+	sc_map_add(NETLINK_SCSITRANSPORT);
+	sc_map_add(NETLINK_ECRYPTFS);
+	sc_map_add(NETLINK_RDMA);
+	sc_map_add(NETLINK_CRYPTO);
+	sc_map_add(NETLINK_INET_DIAG);
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
