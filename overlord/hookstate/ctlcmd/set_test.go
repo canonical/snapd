@@ -20,6 +20,8 @@
 package ctlcmd_test
 
 import (
+	"reflect"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -261,7 +263,7 @@ func (s *setAttrSuite) TestCopyAttributes(c *C) {
 	orig := map[string]interface{}{
 		"a": "A",
 		"b": true,
-		"c": 100,
+		"c": int(100),
 		"d": []interface{}{"x", "y", true},
 		"e": map[string]interface{}{
 			"e1": "E1",
@@ -270,6 +272,11 @@ func (s *setAttrSuite) TestCopyAttributes(c *C) {
 
 	cpy, err := ctlcmd.CopyAttributes(orig)
 	c.Assert(err, IsNil)
+	// verify that int is converted into int64
+	c.Check(reflect.TypeOf(cpy["c"]).Kind(), Equals, reflect.Int64)
+	c.Check(reflect.TypeOf(orig["c"]).Kind(), Equals, reflect.Int)
+	// change the type of orig's value to int64 to make DeepEquals happy in the test
+	orig["c"] = int64(100)
 	c.Check(cpy, DeepEquals, orig)
 
 	cpy["d"].([]interface{})[0] = 999
