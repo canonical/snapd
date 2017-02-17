@@ -462,7 +462,7 @@ func (m *SnapManager) ensureRefreshes() error {
 			return nil
 		}
 		// the refresh schedule has changed
-		logger.Debugf("Refresh-schedule changed, reloading")
+		logger.Debugf("Option refresh-schedule changed, reloading.")
 		m.nextRefresh.Stop()
 		m.nextRefresh = nil
 		m.lastRefreshAttempt = time.Time{}
