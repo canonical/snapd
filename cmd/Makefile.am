@@ -106,8 +106,18 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/utils-test.c
 libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
-libsnap_confine_private_unit_tests_LDADD += -lcap
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
+
+# XXX: This injects a dependency on libcap in a way that makes automake happy
+# and allows us to link libcap statically. We need to link in libcap statically
+# as at this time adding runtime dependencies to snap-confine is tricky.
+
+libsnap-confine-private/unit-tests$(EXEEXT): $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_DEPENDENCIES) $(EXTRA_libsnap_confine_private_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f libsnap-confine-private/unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(libsnap_confine_private_unit_tests_LINK) $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_LDADD) $(LIBS)
+
+libsnap-confine-private/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 endif
 
 ##
@@ -119,7 +129,14 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
 decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
-decode_mount_opts_decode_mount_opts_LDADD += -lcap
+# XXX: this makes automake generate decode_mount_opts_decode_mount_opts_LINK
+decode_mount_opts_decode_mount_opts_CFLAGS = -D_fake
+
+decode-mount-opts/decode-mount-opts$(EXEEXT): $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_DEPENDENCIES) $(EXTRA_decode_mount_opts_decode_mount_opts_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f decode-mount-opts/decode-mount-opts$(EXEEXT)
+	$(AM_V_CCLD)$(decode_mount_opts_decode_mount_opts_LINK) $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_LDADD) $(LIBS)
+
+decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
 ##
 ## snap-confine
@@ -188,7 +205,12 @@ snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
-snap_confine_snap_confine_LDADD += -lcap
+
+snap-confine/snap-confine$(EXEEXT): $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) $(LIBS)
+
+snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
@@ -224,6 +246,14 @@ snap_confine_snap_confine_unit_tests_SOURCES = \
 snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+
+
+snap-confine/snap-confine-unit-tests$(EXEEXT): $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine-unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_unit_tests_LINK) $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_LDADD) $(LIBS)
+
+snap-confine/snap-confine-unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 endif
 
 snap-confine/%.5: snap-confine/%.rst
