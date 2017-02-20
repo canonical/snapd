@@ -35,8 +35,9 @@ import (
 )
 
 var (
-	crashDbUrlBase = "https://daisy.ubuntu.com/"
-	machineID      = "/var/lib/dbus/machine-id"
+	CrashDbURLBase string
+
+	machineID = "/var/lib/dbus/machine-id"
 
 	timeNow = time.Now
 )
@@ -52,6 +53,10 @@ func distroRelease() string {
 }
 
 func Report(snap, channel, errMsg string) (string, error) {
+	if CrashDbURLBase == "" {
+		return "", nil
+	}
+
 	machineID, err := ioutil.ReadFile(machineID)
 	if err != nil {
 		return "", err
@@ -59,7 +64,7 @@ func Report(snap, channel, errMsg string) (string, error) {
 	machineID = bytes.TrimSpace(machineID)
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
 
-	crashDbUrl := fmt.Sprintf("%s/%s", crashDbUrlBase, identifier)
+	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
 
 	report := map[string]string{
 		"ProblemType":        "Snap",
