@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -445,10 +445,15 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	} else {
 		changeID, err = cli.Install(name, opts)
 	}
-	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindSnapAlreadyInstalled {
-		fmt.Fprintf(Stderr, i18n.G("snap %q is already installed, see \"snap refresh --help\"\n"), name)
+	if e, ok := err.(*client.Error); ok {
+		msg, isError := clientErrorToCmdMessage(name, e)
+		if isError {
+			return errors.New(msg)
+		}
+		fmt.Fprintf(Stderr, msg)
 		return nil
 	}
+
 	if err != nil {
 		return err
 	}
