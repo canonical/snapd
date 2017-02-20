@@ -50,3 +50,22 @@ func (s *UASuite) TestUserAgent(c *C) {
 	ua = httputil.UserAgent()
 	c.Check(strings.Contains(ua, "extraProd"), Equals, true)
 }
+
+func (s *UASuite) TestStripUnsafeRunes(c *C) {
+	// Sanity check, strings like that are not modified
+	for _, unchanged := range []string{
+		"abc-xyz-ABC-XYZ-0-9",
+		".", "-", "_",
+		"4.4.0-62-generic",
+		"4.8.6-x86_64-linode78",
+	} {
+		c.Check(httputil.StripUnsafeRunes(unchanged), Equals, unchanged, Commentf("%q", unchanged))
+	}
+	for _, t := range []struct{ orig, changed string }{
+		{"space bar", "spacebar"},
+		{"~;+()[]", ""}, // most punctuation goes away
+	} {
+		c.Check(httputil.StripUnsafeRunes(t.orig), Equals, t.changed)
+	}
+
+}

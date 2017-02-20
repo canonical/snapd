@@ -19,7 +19,10 @@
 
 package httputil
 
-var GetFlags = (*LoggedTransport).getFlags
+var (
+	GetFlags         = (*LoggedTransport).getFlags
+	StripUnsafeRunes = stripUnsafeRunes
+)
 
 func MockUserAgent(mock string) (restore func()) {
 	old := userAgent
