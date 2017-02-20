@@ -55,6 +55,7 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &kmod.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 	s.modprobeCmd = testutil.MockCommand(c, "modprobe", "")
 }
 
@@ -67,32 +68,12 @@ func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, interfaces.SecurityKMod)
 }
 
-func (s *backendSuite) TestUniqueLines(c *C) {
-	data := []string{
-		"module1",
-		"module2",
-		"module3",
-		"module2",
-	}
-	out := kmod.UniqueLines(data)
-	c.Assert(out, HasLen, 3)
-
-	c.Assert(out[0], Equals, "module1")
-	c.Assert(out[1], Equals, "module2")
-	c.Assert(out[2], Equals, "module3")
-
-	data = []string{}
-	out = kmod.UniqueLines(data)
-	c.Assert(out, HasLen, 0)
-}
-
 func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		if securitySystem == interfaces.SecurityKMod {
-			return []byte("module1    \n    module2\nmodule1\n#\n"), nil
-		}
-		return nil, nil
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+		spec.AddModule("module1")
+		spec.AddModule("module2")
+		return nil
 	}
 
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
@@ -117,11 +98,9 @@ func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		if securitySystem == interfaces.SecurityKMod {
-			return []byte("module1\nmodule2"), nil
-		}
-		return nil, nil
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+		spec.AddModule("module1")
+		return nil
 	}
 
 	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
@@ -137,12 +116,11 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		if securitySystem == interfaces.SecurityKMod {
-			return []byte("module1\nmodule2"), nil
-		}
-		return nil, nil
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+		spec.AddModule("module1")
+		return nil
 	}
+
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		s.modprobeCmd.ForgetCalls()
