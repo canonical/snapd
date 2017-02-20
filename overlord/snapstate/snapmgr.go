@@ -80,6 +80,8 @@ type SnapManager struct {
 	refreshRandomness  time.Duration
 	lastRefreshAttempt time.Time
 
+	lastUbuntuCoreTransitionAttempt time.Time
+
 	runner *state.TaskRunner
 }
 
@@ -539,6 +541,23 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 			return nil
 		}
 	}
+
+	// ensure we limit the retries in case something goes wrong
+	var retryCount int
+	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if retryCount > 5 {
+		// limit amount of retries
+		return nil
+	}
+	now := time.Now()
+	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
+		return nil
+	}
+	m.lastUbuntuCoreTransitionAttempt = now
+	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
 	if err != nil {
