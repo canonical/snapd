@@ -553,7 +553,15 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	var logMsg []string
 	for _, t := range t.Change().Tasks() {
 		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
-		logMsg = append(logMsg, t.Log()...)
+		for _, l := range t.Log() {
+			// cut of the rfc339 timestamp to ensure duplicate
+			// detection works in daisy
+			tStampLen := len("2006-01-02T15:04:05Z07:00")
+			if len(l) < tStampLen {
+				continue
+			}
+			logMsg = append(logMsg, l[tStampLen:])
+		}
 	}
 
 	st.Unlock()
