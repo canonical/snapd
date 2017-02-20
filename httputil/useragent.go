@@ -63,7 +63,16 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s", version,
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
 		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
-		stripUnsafeRunes(release.KernelVersion()))
+		sanitizeKernelVersion(release.KernelVersion()))
+}
+
+func sanitizeKernelVersion(in string) string {
+	out := stripUnsafeRunes(in)
+	// Arbitrary choice, limit kernel version to 20 characters
+	if len(out) > 20 {
+		out = out[:20]
+	}
+	return out
 }
 
 func stripUnsafeRunes(in string) string {
