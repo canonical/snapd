@@ -61,18 +61,20 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			err = bson.Unmarshal(b, &data)
 			c.Assert(err, IsNil)
 			c.Check(data, DeepEquals, map[string]string{
-				"ProblemType":   "Snap",
-				"DistroRelease": fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
-				"Snap":          "some-snap",
-				"Date":          "2017-02-17 09:51:00 +0000 UTC",
-				"Channel":       "beta",
-				"ErrorMessage":  "failed to do stuff",
-				"Architecture":  arch.UbuntuArchitecture(),
+				"ProblemType":        "Snap",
+				"DistroRelease":      fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
+				"Snap":               "some-snap",
+				"Date":               "2017-02-17 09:51:00 +0000 UTC",
+				"Channel":            "beta",
+				"ErrorMessage":       "failed to do stuff",
+				"DuplicateSignature": "snap-install: failed to do stuff",
+				"Architecture":       arch.UbuntuArchitecture(),
 			})
+			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 		case 1:
 			c.Check(r.Method, Equals, "POST")
 			c.Check(r.URL.Path, Matches, identifier)
-
+			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 		default:
 			c.Fatalf("expected one request, got %d", n+1)
 		}
@@ -87,12 +89,13 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
 	defer restorer()
 
-	err := errtracker.Report("some-snap", "beta", "failed to do stuff")
+	id, err := errtracker.Report("some-snap", "beta", "failed to do stuff")
 	c.Check(err, IsNil)
+	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 1)
 
 	// run again, verify identifier is unchanged
-	err = errtracker.Report("some-other-snap", "edge", "failed to do more stuff")
+	id, err = errtracker.Report("some-other-snap", "edge", "failed to do more stuff")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, 2)
 }
