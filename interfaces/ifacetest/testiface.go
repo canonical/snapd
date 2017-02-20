@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -59,6 +60,13 @@ type TestInterface struct {
 	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the udev backend.
+
+	UdevConnectedPlugCallback func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UdevConnectedSlotCallback func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UdevPermanentPlugCallback func(spec *udev.Specification, plug *interfaces.Plug) error
+	UdevPermanentSlotCallback func(spec *udev.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -195,6 +203,36 @@ func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *inte
 func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.MountPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the udev backend.
+
+func (t *TestInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.UdevConnectedPlugCallback != nil {
+		return t.UdevConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.UdevConnectedSlotCallback != nil {
+		return t.UdevConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error {
+	if t.UdevPermanentPlugCallback != nil {
+		return t.UdevPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	if t.UdevPermanentSlotCallback != nil {
+		return t.UdevPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
