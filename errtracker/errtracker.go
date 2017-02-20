@@ -41,6 +41,16 @@ var (
 	timeNow = time.Now
 )
 
+// distroRelease returns a distro release as it is expected by daisy.ubuntu.com
+func distroRelease() string {
+	ID := release.ReleaseInfo.ID
+	if ID == "ubuntu" {
+		ID = "Ubuntu"
+	}
+
+	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
+}
+
 func Report(snap, channel, errMsg string) (string, error) {
 	machineID, err := ioutil.ReadFile(machineID)
 	if err != nil {
@@ -54,7 +64,7 @@ func Report(snap, channel, errMsg string) (string, error) {
 	report := map[string]string{
 		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
-		"DistroRelease":      fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
+		"DistroRelease":      distroRelease(),
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,
