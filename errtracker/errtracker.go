@@ -27,7 +27,7 @@ import (
 	"net/http"
 	"time"
 
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/httputil"
