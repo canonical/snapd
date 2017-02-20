@@ -706,6 +706,12 @@ type dateRange struct {
 
 // SnapDeveloper holds a snap-developer assertion, defining the developers who
 // can collaborate on a snap while it's owned by a specific publisher.
+//
+// The primary key (snap-id, publisher-id) allows a snap to have many
+// snap-developer assertions, e.g. to allow a future publisher's collaborations
+// to be defined before the snap is transferred. However only the
+// snap-developer for the current publisher (the snap-declaration publisher-id)
+// is relevant to a device.
 type SnapDeveloper struct {
 	assertionBase
 	developerRanges map[string][]*dateRange
@@ -729,6 +735,9 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 		return fmt.Errorf("snap-developer must be signed by the publisher or a trusted authority but got authority %q and publisher %q", authorityID, publisherID)
 	}
 
+	// Check snap-declaration for the snap-id exists for the series.
+	// Note: the current publisher is irrelevant here because this assertion
+	// may be for a future publisher.
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
