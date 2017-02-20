@@ -24,10 +24,10 @@ import (
 )
 
 func MockCrashDbURL(url string) (restorer func()) {
-	old := crashDbUrlBase
-	crashDbUrlBase = url
+	old := CrashDbURLBase
+	CrashDbURLBase = url
 	return func() {
-		crashDbUrlBase = old
+		CrashDbURLBase = old
 	}
 }
 
