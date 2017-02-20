@@ -535,8 +535,9 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
+
 	snapsup, err := TaskSnapSetup(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -548,15 +549,17 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.SideInfo.RealName == "" {
 		return nil
 	}
-	st.Lock()
+
 	var logMsg []string
 	for _, t := range t.Change().Tasks() {
 		if t.Status() == state.ErrorStatus {
 			logMsg = append(logMsg, t.Log()...)
 		}
 	}
+
 	st.Unlock()
 	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
 	} else {
