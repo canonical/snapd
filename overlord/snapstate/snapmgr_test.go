@@ -5328,7 +5328,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreBackoffWorks(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
-	s.state.Set("ubuntu-core-transition-retry", 6)
+	s.state.Set("ubuntu-core-transition-retry", 7)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
