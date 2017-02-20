@@ -68,9 +68,9 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 
 func sanitizeKernelVersion(in string) string {
 	out := stripUnsafeRunes(in)
-	// Arbitrary choice, limit kernel version to 20 characters
-	if len(out) > 20 {
-		out = out[:20]
+	// Arbitrary choice, limit kernel version to 25 characters
+	if len(out) > 25 {
+		out = out[:25]
 	}
 	return out
 }

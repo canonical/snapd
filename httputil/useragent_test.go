@@ -71,9 +71,9 @@ func (s *UASuite) TestStripUnsafeRunes(c *C) {
 }
 
 func (s *UASuite) TestSanitizeKernelVersion(c *C) {
-	// Ensure that it is not too long (at most 20 runes)
+	// Ensure that it is not too long (at most 25 runes)
 	const in = "this-is-a-very-long-thing-that-pretends-to-be-a-kernel-version-string"
-	const out = "this-is-a-very-long-"
+	const out = "this-is-a-very-long-thing"
 	c.Check(httputil.SanitizeKernelVersion(in), Equals, out)
 
 }
