@@ -63,7 +63,17 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s %s)", version,
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
 		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
-		release.KernelVersion())
+		stripUnsafeRunes(release.KernelVersion()))
+}
+
+func stripUnsafeRunes(in string) string {
+	mapping := func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
+			return r
+		}
+		return -1
+	}
+	return strings.Map(mapping, in)
 }
 
 // UserAgent returns the user-agent string setup through SetUserAgentFromVersion.
