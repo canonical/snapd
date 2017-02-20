@@ -75,14 +75,15 @@ func sanitizeKernelVersion(in string) string {
 	return out
 }
 
-func stripUnsafeRunes(in string) string {
-	mapping := func(r rune) rune {
-		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
-			return r
-		}
-		return -1
+func safeRuneMapper(r rune) rune {
+	if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.' {
+		return r
 	}
-	return strings.Map(mapping, in)
+	return -1
+}
+
+func stripUnsafeRunes(in string) string {
+	return strings.Map(safeRuneMapper, in)
 }
 
 // UserAgent returns the user-agent string setup through SetUserAgentFromVersion.
