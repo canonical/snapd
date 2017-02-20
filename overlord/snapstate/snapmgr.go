@@ -552,9 +552,8 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	var logMsg []string
 	for _, t := range t.Change().Tasks() {
-		if t.Status() == state.ErrorStatus {
-			logMsg = append(logMsg, t.Log()...)
-		}
+		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
+		logMsg = append(logMsg, t.Log()...)
 	}
 
 	st.Unlock()
