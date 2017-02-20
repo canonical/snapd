@@ -57,7 +57,7 @@ var _ = Suite(&specSuite{
 			Name:      "name",
 			Interface: "test",
 			Apps: map[string]*snap.AppInfo{
-				"app1": &snap.AppInfo{
+				"app1": {
 					Snap: &snap.Info{
 						SuggestedName: "snap1",
 					},
@@ -70,7 +70,7 @@ var _ = Suite(&specSuite{
 			Name:      "name",
 			Interface: "test",
 			Apps: map[string]*snap.AppInfo{
-				"app2": &snap.AppInfo{
+				"app2": {
 					Snap: &snap.Info{
 						SuggestedName: "snap2",
 					},
@@ -91,7 +91,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(s.spec.Snippets, DeepEquals, map[string][][]byte{
-		"snap.snap1.app1": [][]byte{[]byte("connected-plug"), []byte("permanent-plug")},
-		"snap.snap2.app2": [][]byte{[]byte("connected-slot"), []byte("permanent-slot")},
+		"snap.snap1.app1": {[]byte("connected-plug"), []byte("permanent-plug")},
+		"snap.snap2.app2": {[]byte("connected-slot"), []byte("permanent-slot")},
 	})
 }
