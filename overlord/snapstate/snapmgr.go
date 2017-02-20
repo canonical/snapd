@@ -418,7 +418,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if retryCount > 5 {
+	if retryCount > 6 {
 		// limit amount of retries
 		return nil
 	}
