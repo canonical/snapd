@@ -82,6 +82,9 @@ func Report(snap, channel, errMsg string) (string, error) {
 	}
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", crashDbUrl, bytes.NewBuffer(reportBson))
+	if err != nil {
+		return "", err
+	}
 	req.Header.Add("Content-Type", "application/octet-stream")
 	req.Header.Add("X-Whoopsie-Version", httputil.UserAgent())
 	resp, err := client.Do(req)
