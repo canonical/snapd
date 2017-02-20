@@ -98,5 +98,6 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	// run again, verify identifier is unchanged
 	id, err = errtracker.Report("some-other-snap", "edge", "failed to do more stuff")
 	c.Check(err, IsNil)
+	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 2)
 }
