@@ -826,7 +826,7 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		}
 
 		what := fmt.Sprintf(`in "developers" item %d`, i+1)
-		accountID, err := checkNotEmptyStringWhat(developer, "developer-id", what)
+		accountID, err := checkStringMatchesWhat(developer, "developer-id", what, validAccountID)
 		if err != nil {
 			return nil, err
 		}

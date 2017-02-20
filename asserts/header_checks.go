@@ -233,12 +233,16 @@ func checkStringListMatches(headers map[string]interface{}, name string, pattern
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
-	s, err := checkNotEmptyString(headers, name)
+	return checkStringMatchesWhat(headers, name, "header", pattern)
+}
+
+func checkStringMatchesWhat(headers map[string]interface{}, name, what string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return "", err
 	}
 	if !pattern.MatchString(s) {
-		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+		return "", fmt.Errorf("%q %s contains invalid characters: %q", name, what, s)
 	}
 	return s, nil
 }

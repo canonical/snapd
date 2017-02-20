@@ -1396,6 +1396,8 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		{sds.developersLines, "developers:\n  foo: bar\n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers:\n  - foo\n", `"developers" must be a list of developer maps`},
 		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `"developer-id" in "developers" item 1 is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: a\n",
+			`"developer-id" in "developers" item 1 contains invalid characters: "a"`},
 		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n",
 			`"since" in "developers" item 1 for developer "dev-id2" is mandatory`},
 		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n",
