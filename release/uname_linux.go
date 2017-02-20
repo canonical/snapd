@@ -23,14 +23,7 @@ import (
 	"syscall"
 )
 
-// KernelVersion returns the version of the kernel or the empty string if one cannot be determined.
-func KernelVersion() string {
-	var buf syscall.Utsname
-	err := syscall.Uname(&buf)
-	if err != nil {
-		return ""
-	}
-	// Release is more informative than Version.
+func getKernelRelease(buf *syscall.Utsname) string {
 	input := buf.Release[:]
 	// The Utsname structures uses [65]int8 or [65]uint8, depending on
 	// architecture, to represent various fields. We need to conver them to
@@ -45,4 +38,15 @@ func KernelVersion() string {
 		output = append(output, byte(c))
 	}
 	return string(output)
+}
+
+// KernelVersion returns the version of the kernel or the empty string if one cannot be determined.
+func KernelVersion() string {
+	var buf syscall.Utsname
+	err := syscall.Uname(&buf)
+	if err != nil {
+		return ""
+	}
+	// Release is more informative than Version.
+	return getKernelRelease(&buf)
 }
