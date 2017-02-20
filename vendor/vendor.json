@@ -132,6 +132,12 @@
 			"path": "gopkg.in/yaml.v2",
 			"revision": "49c95bdc21843256fb6c4e0d370a05f24a0bf213",
 			"revisionTime": "2015-02-24T22:57:58Z"
+		},
+		{
+			"checksumSHA1": "aM4ZlRetn5gV4qipnYoAYWKbh+4=",
+			"path": "labix.org/v2/mgo/bson",
+			"revision": "287",
+			"revisionTime": "2014-07-01T14:00:51Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"
