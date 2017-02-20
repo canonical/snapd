@@ -1,0 +1,95 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2017 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package errtracker_test
+
+import (
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"labix.org/v2/mgo/bson"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/errtracker"
+)
+
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
+type ErrtrackerTestSuite struct {
+}
+
+var _ = Suite(&ErrtrackerTestSuite{})
+
+func (s *ErrtrackerTestSuite) TestReport(c *C) {
+	n := 0
+	identifier := ""
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Matches, "/[a-z0-9]+")
+			identifier = r.URL.Path
+			b, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+
+			var data map[string]string
+			err = bson.Unmarshal(b, &data)
+			c.Assert(err, IsNil)
+			c.Check(data, DeepEquals, map[string]string{
+				"ProblemType":  "Snap",
+				"Snap":         "some-snap",
+				"Date":         "2017-02-17 09:51:00 +0000 UTC",
+				"Channel":      "beta",
+				"ErrorMessage": "failed to do stuff",
+				"Architecture": arch.UbuntuArchitecture(),
+			})
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Matches, identifier)
+
+		default:
+			c.Fatalf("expected one request, got %d", n+1)
+		}
+
+		n++
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
+	defer restorer()
+
+	err := errtracker.Report("some-snap", "beta", "failed to do stuff")
+	c.Check(err, IsNil)
+	c.Check(n, Equals, 1)
+
+	// run again, verify identifier is unchanged
+	err = errtracker.Report("some-other-snap", "edge", "failed to do more stuff")
+	c.Check(err, IsNil)
+	c.Check(n, Equals, 2)
+}
