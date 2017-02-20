@@ -157,6 +157,8 @@ plugs:
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
+  unity8:
+    allow-installation: false
 slots:
   account-control:
     allow-installation:
@@ -549,6 +551,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   unity8-calendar:
     allow-installation:
       slot-snap-type:
