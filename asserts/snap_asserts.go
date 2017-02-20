@@ -824,21 +824,26 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		if !ok {
 			return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
 		}
-		accountID, err := checkNotEmptyStringWhat(developer, "developer-id", "item")
+
+		what := fmt.Sprintf(`in "developers" item %d`, i+1)
+		accountID, err := checkNotEmptyStringWhat(developer, "developer-id", what)
 		if err != nil {
-			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
+			return nil, err
 		}
-		since, err := checkRFC3339DateWhat(developer, "since", "item")
+
+		what = fmt.Sprintf(`in "developers" item %d for developer %q`, i+1, accountID)
+		since, err := checkRFC3339DateWhat(developer, "since", what)
 		if err != nil {
-			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
+			return nil, err
 		}
-		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", "item", time.Time{})
+		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", what, time.Time{})
 		if err != nil {
-			return nil, fmt.Errorf("developers[%d]'s %s", i, err)
+			return nil, err
 		}
 		if !until.IsZero() && since.After(until) {
-			return nil, fmt.Errorf(`developers[%d]'s "since" must be less than or equal to "until"`, i)
+			return nil, fmt.Errorf(`"since" %s must be less than or equal to "until"`, what)
 		}
+
 		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})
 	}
 
