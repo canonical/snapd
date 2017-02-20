@@ -63,10 +63,10 @@ type TestInterface struct {
 
 	// Support for interacting with the apparmor backend.
 
-	ApparmorConnectedPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	ApparmorConnectedSlotCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	ApparmorPermanentPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug) error
-	ApparmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
+	AppArmorConnectedPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnectedSlotCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorPermanentPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug) error
+	AppArmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -209,30 +209,30 @@ func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *inte
 
 // Support for interacting with the apparmor backend.
 
-func (t *TestInterface) ApparmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.ApparmorConnectedPlugCallback != nil {
-		return t.ApparmorConnectedPlugCallback(spec, plug, slot)
+func (t *TestInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.AppArmorConnectedPlugCallback != nil {
+		return t.AppArmorConnectedPlugCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) ApparmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.ApparmorConnectedSlotCallback != nil {
-		return t.ApparmorConnectedSlotCallback(spec, plug, slot)
+func (t *TestInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.AppArmorConnectedSlotCallback != nil {
+		return t.AppArmorConnectedSlotCallback(spec, plug, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) ApparmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error {
-	if t.ApparmorPermanentPlugCallback != nil {
-		return t.ApparmorPermanentPlugCallback(spec, plug)
+func (t *TestInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error {
+	if t.AppArmorPermanentPlugCallback != nil {
+		return t.AppArmorPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) ApparmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	if t.ApparmorPermanentSlotCallback != nil {
-		return t.ApparmorPermanentSlotCallback(spec, slot)
+func (t *TestInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	if t.AppArmorPermanentSlotCallback != nil {
+		return t.AppArmorPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }

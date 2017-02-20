@@ -50,12 +50,12 @@ func (spec *Specification) AddSnippet(snippet []byte) error {
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		ApparmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.ApparmorConnectedPlug(spec, plug, slot)
+		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
@@ -63,12 +63,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		ApparmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.ApparmorConnectedSlot(spec, plug, slot)
+		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
@@ -76,12 +76,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 // AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		ApparmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		AppArmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.ApparmorPermanentPlug(spec, plug)
+		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
 }
@@ -89,12 +89,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 // AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		ApparmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		AppArmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.ApparmorPermanentSlot(spec, slot)
+		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
 }
