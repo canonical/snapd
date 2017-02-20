@@ -56,7 +56,7 @@ func (s *SnapSuite) TestList(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			c.Check(r.URL.RawQuery, check.Equals, "")
-			http.Redirect(w, r, r.URL)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
