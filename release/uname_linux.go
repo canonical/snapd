@@ -23,14 +23,6 @@ import (
 	"syscall"
 )
 
-func int8ToString(input []int8) string {
-	output := make([]byte, len(input))
-	for i, c := range input {
-		output[i] = byte(c)
-	}
-	return string(output)
-}
-
 // KernelVersion returns the version of the kernel or the empty string if one cannot be determined.
 func KernelVersion() string {
 	var buf syscall.Utsname
@@ -39,5 +31,18 @@ func KernelVersion() string {
 		return ""
 	}
 	// Release is more informative than Version.
-	return int8ToString(buf.Release[:])
+	input := buf.Release[:]
+	// The Utsname structures uses [65]int8 or [65]uint8, depending on
+	// architecture, to represent various fields. We need to conver them to
+	// strings.
+	output := make([]byte, 0, len(input))
+	for _, c := range input {
+		// The input buffer has fixed size but we want to break at the first
+		// zero we encounter.
+		if c == 0 {
+			break
+		}
+		output = append(output, byte(c))
+	}
+	return string(output)
 }
