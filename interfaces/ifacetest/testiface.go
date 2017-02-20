@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 )
 
@@ -59,6 +60,13 @@ type TestInterface struct {
 	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the apparmor backend.
+
+	ApparmorConnectedPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	ApparmorConnectedSlotCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	ApparmorPermanentPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug) error
+	ApparmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -195,6 +203,36 @@ func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *inte
 func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.MountPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the apparmor backend.
+
+func (t *TestInterface) ApparmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.ApparmorConnectedPlugCallback != nil {
+		return t.ApparmorConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ApparmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.ApparmorConnectedSlotCallback != nil {
+		return t.ApparmorConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ApparmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error {
+	if t.ApparmorPermanentPlugCallback != nil {
+		return t.ApparmorPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) ApparmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	if t.ApparmorPermanentSlotCallback != nil {
+		return t.ApparmorPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
