@@ -20,6 +20,7 @@
 package errtracker_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/errtracker"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -59,12 +61,13 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			err = bson.Unmarshal(b, &data)
 			c.Assert(err, IsNil)
 			c.Check(data, DeepEquals, map[string]string{
-				"ProblemType":  "Snap",
-				"Snap":         "some-snap",
-				"Date":         "2017-02-17 09:51:00 +0000 UTC",
-				"Channel":      "beta",
-				"ErrorMessage": "failed to do stuff",
-				"Architecture": arch.UbuntuArchitecture(),
+				"ProblemType":   "Snap",
+				"DistroRelease": fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
+				"Snap":          "some-snap",
+				"Date":          "2017-02-17 09:51:00 +0000 UTC",
+				"Channel":       "beta",
+				"ErrorMessage":  "failed to do stuff",
+				"Architecture":  arch.UbuntuArchitecture(),
 			})
 		case 1:
 			c.Check(r.Method, Equals, "POST")

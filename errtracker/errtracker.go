@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -45,17 +46,19 @@ func Report(snap, channel, errMsg string) error {
 	if err != nil {
 		return err
 	}
+	machineID = bytes.TrimSpace(machineID)
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
 
 	crashDbUrl := fmt.Sprintf("%s/%s", crashDbUrlBase, identifier)
 
 	report := map[string]string{
-		"ProblemType":  "Snap",
-		"Architecture": arch.UbuntuArchitecture(),
-		"Date":         fmt.Sprintf("%s", timeNow()),
-		"Snap":         snap,
-		"Channel":      channel,
-		"ErrorMessage": errMsg,
+		"ProblemType":   "Snap",
+		"Architecture":  arch.UbuntuArchitecture(),
+		"DistroRelease": fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
+		"Date":          fmt.Sprintf("%s", timeNow()),
+		"Snap":          snap,
+		"Channel":       channel,
+		"ErrorMessage":  errMsg,
 	}
 	reportBson, err := bson.Marshal(report)
 	if err != nil {
