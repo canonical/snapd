@@ -110,6 +110,18 @@
 			"revisionTime": "2015-01-21T11:42:31Z"
 		},
 		{
+			"checksumSHA1": "YsB2DChSV9HxdzHaKATllAUKWSI=",
+			"path": "gopkg.in/mgo.v2/bson",
+			"revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+			"revisionTime": "2016-08-18T02:01:20Z"
+		},
+		{
+			"checksumSHA1": "XQsrqoNT1U0KzLxOFcAZVvqhLfk=",
+			"path": "gopkg.in/mgo.v2/internal/json",
+			"revision": "3f83fa5005286a7fe593b055f0d7771a7dce4655",
+			"revisionTime": "2016-08-18T02:01:20Z"
+		},
+		{
 			"checksumSHA1": "lBMMakT63h9ywP4d5wlkhOYMCAs=",
 			"path": "gopkg.in/retry.v1",
 			"revision": "c09f6b86ba4d5d2cf5bdf0665364aec9fd4815db",
@@ -132,12 +144,6 @@
 			"path": "gopkg.in/yaml.v2",
 			"revision": "49c95bdc21843256fb6c4e0d370a05f24a0bf213",
 			"revisionTime": "2015-02-24T22:57:58Z"
-		},
-		{
-			"checksumSHA1": "aM4ZlRetn5gV4qipnYoAYWKbh+4=",
-			"path": "labix.org/v2/mgo/bson",
-			"revision": "287",
-			"revisionTime": "2014-07-01T14:00:51Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"
