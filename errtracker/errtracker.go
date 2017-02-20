@@ -55,7 +55,7 @@ func Report(snap, channel, errMsg string) (string, error) {
 		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
 		"DistroRelease":      fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
-		"Date":               fmt.Sprintf("%s", timeNow()),
+		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,
 		"ErrorMessage":       errMsg,

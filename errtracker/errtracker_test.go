@@ -64,7 +64,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"ProblemType":        "Snap",
 				"DistroRelease":      fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
 				"Snap":               "some-snap",
-				"Date":               "2017-02-17 09:51:00 +0000 UTC",
+				"Date":               "Fri Feb 17 09:51:00 2017",
 				"Channel":            "beta",
 				"ErrorMessage":       "failed to do stuff",
 				"DuplicateSignature": "snap-install: failed to do stuff",
