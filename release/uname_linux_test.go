@@ -20,6 +20,8 @@
 package release_test
 
 import (
+	"syscall"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
@@ -29,4 +31,22 @@ func (s *ReleaseTestSuite) TestKernelVersion(c *C) {
 	ver := release.KernelVersion()
 	// Ensure that we got something.
 	c.Check(ver, Not(Equals), "")
+}
+
+func (s *ReleaseTestSuite) TestGetKenrelRelease(c *C) {
+	var buf syscall.Utsname
+	c.Check(release.GetKernelRelease(&buf), Equals, "")
+
+	buf.Release[0] = 'f'
+	buf.Release[1] = 'o'
+	buf.Release[2] = 'o'
+	buf.Release[3] = 0
+	buf.Release[4] = 'u'
+	buf.Release[5] = 'n'
+	buf.Release[6] = 'u'
+	buf.Release[7] = 's'
+	buf.Release[8] = 'e'
+	buf.Release[9] = 'd'
+
+	c.Check(release.GetKernelRelease(&buf), Equals, "foo")
 }
