@@ -556,7 +556,12 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 	st.Unlock()
-	errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	if err == nil {
+		logger.Noticef("Reported problem as %s", oopsid)
+	} else {
+		logger.Debugf("Cannot report problem: %s", err)
+	}
 
 	return nil
 }

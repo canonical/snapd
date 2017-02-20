@@ -41,10 +41,10 @@ var (
 	timeNow = time.Now
 )
 
-func Report(snap, channel, errMsg string) error {
+func Report(snap, channel, errMsg string) (string, error) {
 	machineID, err := ioutil.ReadFile(machineID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	machineID = bytes.TrimSpace(machineID)
 	identifier := fmt.Sprintf("%x", sha512.Sum512(machineID))
@@ -52,17 +52,18 @@ func Report(snap, channel, errMsg string) error {
 	crashDbUrl := fmt.Sprintf("%s/%s", crashDbUrlBase, identifier)
 
 	report := map[string]string{
-		"ProblemType":   "Snap",
-		"Architecture":  arch.UbuntuArchitecture(),
-		"DistroRelease": fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
-		"Date":          fmt.Sprintf("%s", timeNow()),
-		"Snap":          snap,
-		"Channel":       channel,
-		"ErrorMessage":  errMsg,
+		"ProblemType":        "Snap",
+		"Architecture":       arch.UbuntuArchitecture(),
+		"DistroRelease":      fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID),
+		"Date":               fmt.Sprintf("%s", timeNow()),
+		"Snap":               snap,
+		"Channel":            channel,
+		"ErrorMessage":       errMsg,
+		"DuplicateSignature": fmt.Sprintf("snap-install: %s", errMsg),
 	}
 	reportBson, err := bson.Marshal(report)
 	if err != nil {
-		return err
+		return "", err
 	}
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", crashDbUrl, bytes.NewBuffer(reportBson))
@@ -70,12 +71,16 @@ func Report(snap, channel, errMsg string) error {
 	req.Header.Add("X-Whoopsie-Version", httputil.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("cannot upload error report, return code: %d", resp.StatusCode)
+		return "", fmt.Errorf("cannot upload error report, return code: %d", resp.StatusCode)
+	}
+	oopsID, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	return string(oopsID), nil
 }
