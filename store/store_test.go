@@ -546,7 +546,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	var buf bytes.Buffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
+	c.Check(err.Error(), Equals, "Please buy foo before installing it.")
 	c.Check(n, Equals, 1)
 }
 

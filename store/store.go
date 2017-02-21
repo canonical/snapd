@@ -1383,7 +1383,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusUnauthorized:
-			return fmt.Errorf("cannot download non-free snap without purchase")
+
+			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
 			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
