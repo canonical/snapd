@@ -104,10 +104,6 @@ dbus (receive, send)
 
 const upowerObservePermanentSlotSeccomp = `
 bind
-recvmsg
-sendmsg
-sendto
-recvfrom
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -194,20 +190,6 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const upowerObserveConnectedPlugSecComp = `
-# Description: Can query UPower for power devices, history and statistics.
-
-# dbus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
 type UpowerObserveInterface struct{}
 
 func (iface *UpowerObserveInterface) Name() string {
@@ -229,8 +211,6 @@ func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 		}
 		snippet := bytes.Replace([]byte(upowerObserveConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObserveConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }

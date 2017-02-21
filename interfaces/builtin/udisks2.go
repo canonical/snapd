@@ -26,9 +26,8 @@ import (
 )
 
 const udisks2PermanentSlotAppArmor = `
-# Description: Allow operating as the udisks2. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the udisks2. This gives privileged access to
+# the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -91,9 +90,8 @@ umount /{,run/}media/**,
 `
 
 var udisks2ConnectedSlotAppArmor = []byte(`
-# Allow connected clients to interact with the service. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+# Allow connected clients to interact with the service. This gives privileged
+# access to the system.
 
 dbus (send)
     bus=system
@@ -117,9 +115,8 @@ dbus (receive, send)
 `)
 
 var udisks2ConnectedPlugAppArmor = []byte(`
-# Description: Allow using udisks service. Reserved because this gives
-# privileged access to the service.
-# Usage: reserved
+# Description: Allow using udisks service. This gives privileged access to the
+# service.
 
 #include <abstractions/dbus-strict>
 
@@ -152,28 +149,10 @@ fchown32
 fchownat
 lchown
 lchown32
-getsockname
-setsockopt
 mount
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 shmctl
 umount
 umount2
-`
-
-const udisks2ConnectedPlugSecComp = `
-getsockname
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 `
 
 const udisks2PermanentSlotDBus = `
@@ -366,8 +345,6 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return []byte(udisks2ConnectedPlugDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2ConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }

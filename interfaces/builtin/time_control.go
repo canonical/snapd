@@ -31,7 +31,6 @@ const timeControlConnectedPlugAppArmor = `
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
 # gives full access to the RTC device nodes and relevant parts of sysfs.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -83,17 +82,6 @@ capability sys_time,
 # device nodes.
 /sbin/hwclock ixr,
 `
-const timeControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`
 
 // The type for the rtc interface
 type TimeControlInterface struct{}
@@ -141,9 +129,6 @@ func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, s
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(timeControlConnectedPlugAppArmor), nil
-
-	case interfaces.SecuritySecComp:
-		return []byte(timeControlConnectedPlugSecComp), nil
 
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer

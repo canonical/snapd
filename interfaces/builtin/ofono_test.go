@@ -140,14 +140,6 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
-func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "send\n")
-}
-
 func (s *OfonoInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

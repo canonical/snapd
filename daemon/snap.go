@@ -156,7 +156,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 type appJSON struct {
 	Name    string   `json:"name"`
 	Daemon  string   `json:"daemon"`
-	Aliases []string `json:"aliases"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -204,6 +204,7 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		"private":          localSnap.Private,
 		"apps":             apps,
 		"broken":           localSnap.Broken,
+		"contact":          localSnap.Contact,
 	}
 }
 
@@ -242,6 +243,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"channel":       remoteSnap.Channel,
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
+		"contact":       remoteSnap.Contact,
 	}
 
 	if len(screenshots) > 0 {

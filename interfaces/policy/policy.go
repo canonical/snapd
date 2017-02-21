@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ package policy
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
@@ -131,6 +132,31 @@ func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
 	return connc.Slot.Attrs
+}
+
+func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
+	notFound := fmt.Errorf("%s attribute %q not found", which, path)
+	comps := strings.Split(path, ".")
+	var v interface{} = attrs
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, notFound
+		}
+		v, ok = m[comp]
+		if !ok {
+			return nil, notFound
+		}
+	}
+	return v, nil
+}
+
+func (connc *ConnectCandidate) PlugAttr(arg string) (interface{}, error) {
+	return nestedGet("plug", connc.Plug.Attrs, arg)
+}
+
+func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
+	return nestedGet("slot", connc.Slot.Attrs, arg)
 }
 
 func (connc *ConnectCandidate) plugSnapType() snap.Type {

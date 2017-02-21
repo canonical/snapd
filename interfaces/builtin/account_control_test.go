@@ -88,5 +88,5 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "\nsendto\nrecvfrom\n")
+	c.Check(string(snippet), testutil.Contains, "\nfchown - 0 42\n")
 }

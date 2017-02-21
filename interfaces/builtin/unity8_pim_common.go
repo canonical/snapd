@@ -28,8 +28,8 @@ import (
 )
 
 const unity8PimCommonPermanentSlotAppArmor = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -83,33 +83,13 @@ dbus (receive, send)
 `
 
 const unity8PimCommonPermanentSlotSecComp = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`
-
-const unity8PimCommonConnectedPlugSecComp = `
-# Description: Allow using EDS service. Reserved because this gives
-# privileged access to the eds service.
-
-# Can communicate with DBus system service
-recv
-recvmsg
-send
-sendto
-sendmsg
 `
 
 type unity8PimCommonInterface struct {
@@ -144,8 +124,6 @@ func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		}
 
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(unity8PimCommonConnectedPlugSecComp), nil
 	default:
 		return nil, nil
 	}

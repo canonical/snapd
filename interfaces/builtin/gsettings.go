@@ -27,7 +27,6 @@ const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
 # gsettings and allows adjusting settings of other applications.
-# Usage: reserved
 
 #include <abstractions/dbus-session-strict>
 
@@ -40,27 +39,11 @@ dbus (receive, send)
     peer=(label=unconfined),
 `
 
-const gsettingsConnectedPlugSecComp = `
-# Description: Can access global gsettings of the user's session. Restricted
-# because this gives privileged access to sensitive information stored in
-# gsettings and allows adjusting settings of other applications.
-
-# dbus
-connect
-getsockname
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
 // NewGsettingsInterface returns a new "gsettings" interface.
 func NewGsettingsInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "gsettings",
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
-		connectedPlugSecComp:  gsettingsConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

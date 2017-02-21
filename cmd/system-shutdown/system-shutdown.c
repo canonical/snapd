@@ -29,6 +29,7 @@
 #include <errno.h>		// errno, sys_errlist
 
 #include "system-shutdown-utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 
 int main(int argc, char *argv[])
 {
@@ -78,13 +79,13 @@ int main(int argc, char *argv[])
 	if (argc < 2) {
 		kmsg("* called without verb; halting.");
 	} else {
-		if (streq("reboot", argv[1])) {
+		if (sc_streq("reboot", argv[1])) {
 			cmd = RB_AUTOBOOT;
 			kmsg("- rebooting.");
-		} else if (streq("poweroff", argv[1])) {
+		} else if (sc_streq("poweroff", argv[1])) {
 			cmd = RB_POWER_OFF;
 			kmsg("- powering off.");
-		} else if (streq("halt", argv[1])) {
+		} else if (sc_streq("halt", argv[1])) {
 			kmsg("- halting.");
 		} else {
 			kmsg("* called with unsupported verb %s; halting.",

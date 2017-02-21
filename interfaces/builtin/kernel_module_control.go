@@ -29,9 +29,13 @@ const kernelModuleControlConnectedPlugAppArmor = `
   capability sys_module,
   @{PROC}/modules r,
 
-  # NOTE: needed by lscpu. In the future this may be moved to system-trace or
-  # system-observe.
+  # FIXME: moved to physical-memory-observe (remove this in series 18)
   /dev/mem r,
+
+  # Required to use SYSLOG_ACTION_READ_ALL and SYSLOG_ACTION_SIZE_BUFFER when
+  # /proc/sys/kernel/dmesg_restrict is '1' (syslog(2)). These operations are
+  # required to verify kernel modules that are loaded.
+  capability syslog,
 `
 
 const kernelModuleControlConnectedPlugSecComp = `
