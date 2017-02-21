@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -56,6 +58,8 @@ type FirstBootTestSuite struct {
 	brandSigning *assertstest.SigningDB
 
 	overlord *overlord.Overlord
+
+	restoreOnClassic func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -63,6 +67,7 @@ var _ = Suite(&FirstBootTestSuite{})
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
+	s.restoreOnClassic = release.MockOnClassic(false)
 
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
@@ -93,12 +98,67 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	s.systemctl.Restore()
 	s.mockUdevAdm.Restore()
 
 	s.restore()
+	s.restoreOnClassic()
+	dirs.SetRootDir("/")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
+	release.OnClassic = true
+
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
+	c.Assert(err, IsNil)
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// only mark seeded
+	c.Check(tsAll, HasLen, 1)
+	tasks := tsAll[0].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
+	release.OnClassic = true
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	// only mark seeded
+	c.Check(tsAll, HasLen, 1)
+	tasks := tsAll[0].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "my-brand")
+	c.Check(ds.Model, Equals, "my-model-classic")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
@@ -164,7 +224,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c, "foo")
+	assertsChain := s.makeModelAssertionChain(c, "my-model", "foo")
 	for i, as := range assertsChain {
 		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
 		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
@@ -201,7 +261,8 @@ snaps:
 	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
 
 	// now run the change and check the result
-	chg := st.NewChange("run-it", "run the populate from seed changes")
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -345,7 +406,7 @@ version: 1.0`
 	writeAssertionsToFile("bar.asserts", []asserts.Assertion{devAcct, snapDeclBar, snapRevBar})
 
 	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c, "my-model")
 	writeAssertionsToFile("model.asserts", assertsChain)
 
 	// create a seed.yaml
@@ -366,7 +427,8 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
-	chg := st.NewChange("run-it", "run the populate from seed changes")
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -419,8 +481,12 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, reqSnaps 
 		"architecture": "amd64",
 		"store":        "canonical",
 		"gadget":       "pc",
-		"kernel":       "pc-kernel",
 		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	if strings.HasSuffix(modelStr, "-classic") {
+		headers["classic"] = "true"
+	} else {
+		headers["kernel"] = "pc-kernel"
 	}
 	if len(reqSnaps) != 0 {
 		reqs := make([]interface{}, len(reqSnaps))
@@ -434,7 +500,7 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, reqSnaps 
 	return model.(*asserts.Model)
 }
 
-func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, reqSnaps ...string) []asserts.Assertion {
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, reqSnaps ...string) []asserts.Assertion {
 	assertChain := []asserts.Assertion{}
 
 	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
@@ -446,12 +512,56 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, reqSnaps ...string) [
 	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
 	assertChain = append(assertChain, brandAccKey)
 
-	model := s.makeModelAssertion(c, "my-model", reqSnaps...)
+	model := s.makeModelAssertion(c, modName, reqSnaps...)
 	assertChain = append(assertChain, model)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
 	assertChain = append(assertChain, storeAccountKey)
 	return assertChain
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c *C) {
+	release.OnClassic = true
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// import them
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// import them
+	st.Lock()
+	defer st.Unlock()
+
+	_, err = devicestate.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
@@ -460,7 +570,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	st := ovld.State()
 
 	// add a bunch of assert files
-	assertsChain := s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c, "my-model")
 	for i, as := range assertsChain {
 		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
 		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
@@ -501,7 +611,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	defer st.Unlock()
 
 	// write out only the model assertion
-	assertsChain := s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c, "my-model")
 	for _, as := range assertsChain {
 		if as.Type() == asserts.ModelType {
 			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
@@ -544,7 +654,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	assertsChain := s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c, "my-model")
 	for _, as := range assertsChain {
 		if as.Type() != asserts.ModelType {
 			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")

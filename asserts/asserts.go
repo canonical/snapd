@@ -331,15 +331,17 @@ var _ Assertion = (*assertionBase)(nil)
 // where:
 //
 //    HEADER is a set of header entries separated by "\n"
-//    BODY can be arbitrary,
+//    BODY can be arbitrary text,
 //    SIGNATURE is the signature
+//
+// Both BODY and HEADER must be UTF8.
 //
 // A header entry for a single line value (no '\n' in it) looks like:
 //
 //   NAME ": " SIMPLEVALUE
 //
 // The format supports multiline text values (with '\n's in them) and
-// lists possibly nested with string scalars in them.
+// lists or maps, possibly nested, with string scalars in them.
 //
 // For those a header entry looks like:
 //
@@ -348,12 +350,17 @@ var _ Assertion = (*assertionBase)(nil)
 // where MULTI can be
 //
 // * (baseindent + 4)-space indented value (multiline text)
+//
 // * entries of a list each of the form:
 //
-//   " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//     " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//
+// * entries of map each of the form:
+//
+//     " "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // baseindent starts at 0 and then grows with nesting matching the
-// previous level introduction (the " "*baseindent " -" bit)
+// previous level introduction (e.g. the " "*baseindent " -" bit)
 // length minus 1.
 //
 // In general the following headers are mandatory:
@@ -369,8 +376,10 @@ var _ Assertion = (*assertionBase)(nil)
 //
 //   revision (a positive int)
 //   body-length (expected to be equal to the length of BODY)
+//   format (a positive int for the format iteration of the type used)
 //
 // Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
+//
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
 	assertionSnapshot := make([]byte, len(serializedAssertion))
