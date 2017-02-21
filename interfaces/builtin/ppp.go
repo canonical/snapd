@@ -75,8 +75,7 @@ func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 }
 
 func (iface *PppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	err := spec.AddModule(pppConnectedPlugKmod)
-	return err
+	return spec.AddModule(pppConnectedPlugKmod)
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
