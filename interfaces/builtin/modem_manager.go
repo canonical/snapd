@@ -31,6 +31,7 @@ var modemManagerPermanentSlotAppArmor = []byte(`
 # privileged access to the system.
 
 # To check present devices
+network netlink raw,
 /run/udev/data/* r,
 /sys/bus/usb/devices/ r,
 # FIXME snapd should be querying udev and adding the /sys and /run/udev accesses
@@ -142,6 +143,9 @@ accept4
 bind
 listen
 shutdown
+# libgudev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `)
 
 var modemManagerPermanentSlotDBus = []byte(`
