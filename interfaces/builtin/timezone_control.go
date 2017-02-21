@@ -29,7 +29,6 @@ const timezoneControlConnectedPlugAppArmor = `
 # Can change timezone via timedated D-Bus interface,
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object, see:
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -69,24 +68,11 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const timezoneControlConnectedPlugSecComp = `
-# dbus
-connect
-getsockname
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
-`
-
 // NewTimezoneControlInterface returns a new "timezone-control" interface.
 func NewTimezoneControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timezone-control",
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timezoneControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

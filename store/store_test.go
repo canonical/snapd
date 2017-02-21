@@ -676,6 +676,74 @@ func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	restore := release.MockOnClassic(false)
+	defer restore()
+	altPath := c.MkDir()
+	origSnapMountDir := dirs.SnapMountDir
+	defer func() { dirs.SnapMountDir = origSnapMountDir }()
+	dirs.SnapMountDir = c.MkDir()
+	exeInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")
+	os.MkdirAll(filepath.Dir(exeInCorePath), 0755)
+
+	scenarios := []struct {
+		env       string
+		classic   bool
+		exeInHost bool
+		exeInCore bool
+
+		wantDelta bool
+	}{
+		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
+
+		{env: "0", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: true, wantDelta: false},
+
+		{env: "1", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
+	}
+
+	for _, scenario := range scenarios {
+		if scenario.exeInCore {
+			osutil.CopyFile("/bin/true", exeInCorePath, 0)
+		} else {
+			os.Remove(exeInCorePath)
+		}
+		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
+		release.MockOnClassic(scenario.classic)
+		if scenario.exeInHost {
+			os.Setenv("PATH", origPath)
+		} else {
+			os.Setenv("PATH", altPath)
+		}
+
+		c.Check(useDeltas(), Equals, scenario.wantDelta, Commentf("%#v", scenario))
+	}
+}
+
 type downloadBehaviour []struct {
 	url   string
 	error bool
@@ -1443,6 +1511,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
+	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch, Equals, "0")
@@ -2621,6 +2690,42 @@ var MockUpdatesWithDeltasJSON = `
     }
 }
 `
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+	for _, t := range []struct {
+		onClassic      bool
+		deltaFormatStr string
+	}{
+		{false, ""},
+		{true, "xdelta3"},
+	} {
+		restore := release.MockOnClassic(t.onClassic)
+		defer restore()
+
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, t.deltaFormatStr)
+		}))
+		defer mockServer.Close()
+
+		var err error
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		repo := New(&cfg, nil)
+		c.Assert(repo, NotNil)
+
+		repo.ListRefresh([]*RefreshCandidate{
+			{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(24),
+				Epoch:    "0",
+			},
+		}, nil)
+	}
+}
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")

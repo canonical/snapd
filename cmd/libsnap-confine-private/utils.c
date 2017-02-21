@@ -116,9 +116,14 @@ static bool getenv_bool(const char *name)
 	return value;
 }
 
+bool sc_is_debug_enabled()
+{
+	return getenv_bool("SNAP_CONFINE_DEBUG");
+}
+
 void debug(const char *msg, ...)
 {
-	if (getenv_bool("SNAP_CONFINE_DEBUG")) {
+	if (sc_is_debug_enabled()) {
 		va_list va;
 		va_start(va, msg);
 		fprintf(stderr, "DEBUG: ");
@@ -140,21 +145,6 @@ void write_string_to_file(const char *filepath, const char *buf)
 		die("fflush failed");
 	if (fclose(f) != 0)
 		die("fclose failed");
-}
-
-int must_snprintf(char *str, size_t size, const char *format, ...)
-{
-	int n;
-
-	va_list va;
-	va_start(va, format);
-	n = vsnprintf(str, size, format, va);
-	va_end(va);
-
-	if (n < 0 || n >= size)
-		die("failed to snprintf %s", str);
-
-	return n;
 }
 
 int sc_nonfatal_mkpath(const char *const path, mode_t mode)

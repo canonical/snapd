@@ -34,17 +34,23 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
+func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if err := m.addInterfaces(extra); err != nil {
+	if err := m.addInterfaces(extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(extraBackends); err != nil {
 		return err
 	}
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
 	if err := m.reloadConnections(""); err != nil {
+		return err
+	}
+	if err := m.unbreakTheWorld(); err != nil {
 		return err
 	}
 	return nil
@@ -64,6 +70,20 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 	return nil
 }
 
+func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	for _, backend := range backends.All {
+		if err := m.repo.AddBackend(backend); err != nil {
+			return err
+		}
+	}
+	for _, backend := range extra {
+		if err := m.repo.AddBackend(backend); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) addSnaps() error {
 	snaps, err := snapstate.ActiveInfos(m.state)
 	if err != nil {
@@ -75,6 +95,62 @@ func (m *InterfaceManager) addSnaps() error {
 			logger.Noticef("%s", err)
 		}
 	}
+	return nil
+}
+
+func (m *InterfaceManager) unbreakTheWorld() error {
+	// XXX: As a special measure to unbreak the world refresh seccomp security
+	// of all the snaps on the system. Later on this should be improved to
+	// either refresh all security backends or to know how to apply stashed
+	// (versioned) security that was preserved by snapd on upgrade to a new
+	// version of itself.
+
+	// Get all the security backends
+	securityBackends := m.repo.Backends()
+
+	// Get all the snap infos
+	snaps, err := snapstate.ActiveInfos(m.state)
+	if err != nil {
+		return err
+	}
+	// Add implicit slots to all snaps
+	for _, snapInfo := range snaps {
+		snap.AddImplicitSlots(snapInfo)
+	}
+
+	// From now on we don't fail if a particular operation fails, this is a
+	// best-effort service. It's not much of an unbreak-the-world idea if we
+	// bail out and don't start.
+
+	// For each snap:
+	for _, snapInfo := range snaps {
+		snapName := snapInfo.Name()
+		// Get the state of the snap so we can compute the confinement option
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
+			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+		}
+
+		// Compute confinement options
+		opts := confinementOptions(snapst.Flags)
+
+		// For each backend:
+		for _, backend := range securityBackends {
+			// The issue this is attempting to fix is only affecting seccomp so
+			// limit the work just to this backend.
+			shouldRefresh := backend.Name() == interfaces.SecuritySecComp
+			if !shouldRefresh {
+				continue
+			}
+			// Refresh security of this snap and backend
+			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
+				// Let's log this but carry on
+				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
+					backend.Name(), snapName, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -101,13 +177,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
 	st := task.State()
 	snapName := snapInfo.Name()
 
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Setup(snapInfo, opts, repo)
+		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
@@ -117,9 +193,9 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.Co
 	return nil
 }
 
-func removeSnapSecurity(task *state.Task, snapName string) error {
+func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string) error {
 	st := task.State()
-	for _, backend := range backends.All {
+	for _, backend := range m.repo.Backends() {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()

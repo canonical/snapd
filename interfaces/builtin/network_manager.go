@@ -27,9 +27,8 @@ import (
 )
 
 var networkManagerPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 
 capability net_admin,
 capability net_bind_service,
@@ -183,9 +182,8 @@ dbus (receive, send)
 `)
 
 var networkManagerConnectedPlugAppArmor = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-#  privileged access to the NetworkManager service.
-# Usage: reserved
+# Description: Allow using NetworkManager service. This gives privileged access
+# to the NetworkManager service.
 
 #include <abstractions/dbus-strict>
 
@@ -197,30 +195,14 @@ dbus (receive, send)
 `)
 
 var networkManagerPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the NetworkManager service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the NetworkManager service. This gives
+# privileged access to the system.
 accept
 accept4
 bind
-connect
-getpeername
-getsockname
-getsockopt
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
-setsockopt
 sethostname
 shutdown
-socketpair
-socket
 # Needed for keyfile settings plugin to allow adding settings
 # for different users. This is currently at runtime only used
 # to make new created network settings files only editable by
@@ -237,23 +219,6 @@ fchown32
 fchownat
 lchown
 lchown32
-`)
-
-var networkManagerConnectedPlugSecComp = []byte(`
-# Description: Allow using NetworkManager service. Reserved because this gives
-#  privileged access to the NetworkManager service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-connect
-getsockname
-recv
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-socket
 `)
 
 var networkManagerPermanentSlotDBus = []byte(`
@@ -426,8 +391,6 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		}
 		snippet := bytes.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return networkManagerConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

@@ -25,10 +25,12 @@ environment:
     TRUST_TEST_KEYS: "$(HOST: echo ${SPREAD_TRUST_TEST_KEYS:-true})"
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: "$(HOST: echo ${SPREAD_CORE_CHANNEL:-edge})"
+    KERNEL_CHANNEL: "$(HOST: echo ${SPREAD_KERNEL_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
+    SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
 
 backends:
     linode:
@@ -90,6 +92,12 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            - ubuntu-14.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-14.04-i386:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -220,8 +228,10 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        systemctl enable --now snapd.refresh.timer
+        snap set core refresh.disabled=false
     fi
+
+    rm -f $SPREAD_PATH/snapd-state.tar.gz
 
 suites:
     tests/main/:
@@ -235,6 +245,7 @@ suites:
                 prepare_classic
             fi
         prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 prepare_each_classic
@@ -242,10 +253,8 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine
+                apt-get purge -y snapd
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -257,13 +266,14 @@ suites:
             else
                 prepare_classic
             fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
         restore: |
             $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine
+                apt-get purge -y snapd
             fi
-        restore-each: |
-            $TESTSLIB/reset.sh --reuse-core
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
@@ -273,12 +283,49 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
-            apt-get purge -y snapd snap-confine
+            apt-get purge -y snapd
         restore-each: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
             $TESTSLIB/reset.sh
+
+    tests/unit/:
+        summary: Suite to run non-go unit tests and go unit tests for other runtimes
+        systems: [-ubuntu-core-16-64-fixme]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
+        restore: |
+            $TESTSLIB/reset.sh --store
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+
+    tests/nested/:
+        summary: Tests for nested images
+        environment:
+            NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
+        halt-timeout: 2h
+        kill-timeout: 2h
+        manual: true
+        prepare: |
+            # apt update is hanging on security.ubuntu.com with IPv6.
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+            apt update && apt install -y snapd qemu genisoimage sshpass
+        restore: |
+            apt remove -y qemu genisoimage sshpass
 
 # vim:ts=4:sw=4:et

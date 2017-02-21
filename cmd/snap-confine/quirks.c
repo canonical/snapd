@@ -28,6 +28,7 @@
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 // XXX: for smaller patch, this should be in utils.h later
 #include "user-support.h"
@@ -89,7 +90,8 @@ static void sc_quirk_mkdir_bind(const char *src_dir, const char *dest_dir,
 	if (sc_nonfatal_mkpath(dest_dir, 0755) < 0) {
 		die("cannot create empty directory at %s", dest_dir);
 	}
-	const char *flags_str = sc_mount_opt2str(flags);
+	char buf[1000];
+	const char *flags_str = sc_mount_opt2str(buf, sizeof buf, flags);
 	debug("performing operation: mount %s %s -o %s", src_dir, dest_dir,
 	      flags_str);
 	if (mount(src_dir, dest_dir, NULL, flags, NULL) != 0) {
@@ -143,10 +145,10 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 			die("unsupported entry type of file %s (%d)",
 			    entryp->d_name, entryp->d_type);
 		}
-		must_snprintf(src_name, sizeof src_name, "%s/%s", ref_dir,
-			      entryp->d_name);
-		must_snprintf(dest_name, sizeof dest_name, "%s/%s", mimic_dir,
-			      entryp->d_name);
+		sc_must_snprintf(src_name, sizeof src_name, "%s/%s", ref_dir,
+				 entryp->d_name);
+		sc_must_snprintf(dest_name, sizeof dest_name, "%s/%s",
+				 mimic_dir, entryp->d_name);
 		sc_quirk_mkdir_bind(src_name, dest_name, flags);
 	} while (entryp != NULL);
 }
@@ -189,8 +191,8 @@ void sc_setup_quirks()
 	}
 	// now let's make /var/lib the vanilla /var/lib from the core snap
 	char buf[PATH_MAX];
-	must_snprintf(buf, sizeof buf, "%s/var/lib",
-		      sc_get_inner_core_mount_point());
+	sc_must_snprintf(buf, sizeof buf, "%s/var/lib",
+			 sc_get_inner_core_mount_point());
 	sc_quirk_create_writable_mimic("/var/lib", buf,
 				       MS_RDONLY | MS_REC | MS_SLAVE | MS_NODEV
 				       | MS_NOSUID);

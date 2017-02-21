@@ -34,6 +34,7 @@
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/snap.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
 #include "quirks.h"
@@ -76,7 +77,7 @@ static const char *sc_get_outer_core_mount_point()
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
-static void setup_private_mount(const char *security_tag)
+static void setup_private_mount(const char *snap_name)
 {
 	uid_t uid = getuid();
 	gid_t gid = getgid();
@@ -87,8 +88,8 @@ static void setup_private_mount(const char *security_tag)
 	//
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
-	must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-		      security_tag);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
+			 snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
@@ -98,7 +99,7 @@ static void setup_private_mount(const char *security_tag)
 	if (!d) {
 		die("cannot allocate memory for string copy");
 	}
-	must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
+	sc_must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
 	free(d);
 
 	if (mkdir(tmpdir, 01777) != 0) {
@@ -189,16 +190,16 @@ static void setup_private_pts()
  * either the core snap on an all-snap system or the core snap + punched holes
  * on a classic system.
  **/
-static void sc_setup_mount_profiles(const char *security_tag)
+static void sc_setup_mount_profiles(const char *snap_name)
 {
-	debug("%s: %s", __FUNCTION__, security_tag);
+	debug("%s: %s", __FUNCTION__, snap_name);
 
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	const char *mount_profile_dir = "/var/lib/snapd/mount";
 
 	char profile_path[PATH_MAX];
-	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
-		      mount_profile_dir, security_tag);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/snap.%s.fstab",
+			 mount_profile_dir, snap_name);
 
 	debug("opening mount profile %s", profile_path);
 	f = setmntent(profile_path, "r");
@@ -360,7 +361,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		    errno != EEXIST) {
 			die("cannot create %s", mnt->path);
 		}
-		must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, mnt->path);
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->path);
 		debug("performing operation: mount --rbind %s %s", mnt->path,
 		      dst);
 		if (mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL) < 0) {
@@ -387,10 +389,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018
 	const char *etc_alternatives = "/etc/alternatives";
 	if (access(etc_alternatives, F_OK) == 0) {
-		must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
-			      etc_alternatives);
-		must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
-			      etc_alternatives);
+		sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir,
+				 etc_alternatives);
+		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
+				 etc_alternatives);
 		debug("performing operation: mount --bind %s %s", src, dst);
 		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
 			die("cannot perform operation: mount --bind %s %s", src,
@@ -407,7 +409,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the
 	// directory is always /snap. On the host it is a build-time configuration
 	// option stored in SNAP_MOUNT_DIR.
-	must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
+	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
 	debug("performing operation: mount --rbind %s %s", SNAP_MOUNT_DIR, dst);
 	if (mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC | MS_SLAVE, NULL)
 	    < 0) {
@@ -427,11 +429,25 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    SC_HOSTFS_DIR);
 		}
 	}
+	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
+	// created the directory as the user who first ran a snap on a given
+	// system and the group identity of that user is visilbe on disk.
+	// This was LP:#1665004
+	struct stat sb;
+	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
+		die("cannot stat %s", SC_HOSTFS_DIR);
+	}
+	if (sb.st_uid != 0 || sb.st_gid != 0) {
+		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+			die("cannot change user/group owner of %s to root",
+			    SC_HOSTFS_DIR);
+		}
+	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
 	// has a number of undocumented requirements and one of them is that the
 	// "put_old" directory (the second argument) cannot be shared in any way.
-	must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, SC_HOSTFS_DIR);
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, SC_HOSTFS_DIR);
 	debug("performing operation: mount --bind %s %s", dst, dst);
 	if (mount(dst, dst, NULL, MS_BIND, NULL) < 0) {
 		die("cannot perform operation: mount --bind %s %s", dst, dst);
@@ -478,7 +494,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// in the original root filesystem (which is now mounted on SC_HOSTFS_DIR).
 	// This way we can remove the temporary directory we created and "clean up"
 	// after ourselves nicely.
-	must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
 	debug("performing operation: umount %s", dst);
 	if (umount2(dst, 0) < 0) {
 		die("cannot perform operation: umount %s", dst);
@@ -502,21 +518,21 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Detach the redundant hostfs version of sysfs since it shows up in the
 	// mount table and software inspecting the mount table may become confused
 	// (eg, docker and LP:# 162601).
-	must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
+	sc_must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
 	debug("performing operation: umount --lazy %s", src);
 	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
 		die("cannot perform operation: umount --lazy %s", src);
 	}
 	// Detach the redundant hostfs version of /dev since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
-	must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
+	sc_must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
 	debug("performing operation: umount --lazy %s", src);
 	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
 		die("cannot perform operation: umount --lazy %s", src);
 	}
 	// Detach the redundant hostfs version of /proc since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
-	must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
+	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
 	debug("performing operation: umount --lazy %s", src);
 	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
 		die("cannot perform operation: umount --lazy %s", src);
@@ -579,7 +595,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_populate_mount_ns(const char *security_tag)
+void sc_populate_mount_ns(const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -641,7 +657,7 @@ void sc_populate_mount_ns(const char *security_tag)
 
 	// set up private mounts
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(security_tag);
+	setup_private_mount(snap_name);
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
@@ -652,7 +668,7 @@ void sc_populate_mount_ns(const char *security_tag)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(security_tag);
+	sc_setup_mount_profiles(snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.

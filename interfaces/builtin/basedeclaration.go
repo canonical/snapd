@@ -138,6 +138,9 @@ authority-id: canonical
 series: 16
 revision: 0
 plugs:
+  classic-support:
+    allow-installation: false
+    deny-auto-connection: true
   core-support:
     allow-installation:
       plug-snap-type:
@@ -154,6 +157,8 @@ plugs:
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
+  unity8:
+    allow-installation: false
 slots:
   account-control:
     allow-installation:
@@ -199,14 +204,24 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  classic-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   content:
     allow-installation:
       slot-snap-type:
         - app
         - gadget
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(content)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+      plug-attributes:
+        content: $SLOT(content)
   core-support:
     allow-installation:
       slot-snap-type:
@@ -392,6 +407,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  network-setup-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   network-setup-observe:
     allow-installation:
       slot-snap-type:
@@ -490,6 +510,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  thumbnailer:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
   time-control:
     allow-installation:
       slot-snap-type:
@@ -525,6 +551,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   unity8-calendar:
     allow-installation:
       slot-snap-type:

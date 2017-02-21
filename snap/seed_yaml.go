@@ -44,6 +44,8 @@ type SeedSnap struct {
 
 	Private bool `yaml:"private,omitempty"`
 
+	Contact string `yaml:"contact,omitempty"`
+
 	// no assertions are available in the seed for this snap
 	Unasserted bool `yaml:"unasserted,omitempty"`
 
