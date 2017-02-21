@@ -35,8 +35,6 @@ capability net_bind_service,
 capability net_raw,
 
 network netlink,
-network netlink raw,
-network netlink dgram,
 network bridge,
 network inet,
 network inet6,
@@ -219,17 +217,9 @@ fchown32
 fchownat
 lchown
 lchown32
-# netlink for networking
-socket AF_NETLINK - NETLINK_ROUTE
-socket PF_NETLINK - NETLINK_ROUTE
-socket AF_NETLINK - NETLINK_FIB_LOOKUP
-socket PF_NETLINK - NETLINK_FIB_LOOKUP
-socket AF_NETLINK - NETLINK_INET_DIAG
-socket PF_NETLINK - NETLINK_INET_DIAG
-socket AF_NETLINK - NETLINK_XFRM
-socket PF_NETLINK - NETLINK_XFRM
-socket AF_NETLINK - NETLINK_DNRTMSG
-socket PF_NETLINK - NETLINK_DNRTMSG
+# netlink
+socket AF_NETLINK - -
+socket PF_NETLINK - -
 `)
 
 var networkManagerPermanentSlotDBus = []byte(`
