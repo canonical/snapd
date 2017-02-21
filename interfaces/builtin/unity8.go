@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
-var unity8ConnectedPlugAppArmor = []byte(`
+const unity8ConnectedPlugAppArmor = []byte(`
 # Description: Can access unity8 desktop services
 
 #include <abstractions/dbus-session-strict>
@@ -109,7 +109,7 @@ dbus (receive)
 deny /{dev,run,var/run}/shm/lttng-ust-* r,
 `)
 
-var unity8ConnectedPlugSecComp = []byte(`
+const unity8ConnectedPlugSecComp = []byte(`
 shutdown
 `)
 
