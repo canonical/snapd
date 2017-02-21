@@ -107,6 +107,9 @@ shmctl
 # pulseaudio creates on startup.
 setgroups
 setgroups32
+# libudev
+socket AF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
 `
 
 type PulseAudioInterface struct{}
