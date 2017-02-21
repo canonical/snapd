@@ -20,6 +20,7 @@
 package httputil
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -107,4 +108,14 @@ func NewHTTPClient(opts *ClientOpts) *http.Client {
 		Timeout:       opts.Timeout,
 		CheckRedirect: checkRedirect,
 	}
+}
+
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	// fixed in go 1.8
+	fixupHeadersForRedirect(req, via)
+
+	return nil
 }

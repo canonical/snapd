@@ -24,8 +24,7 @@ import (
 )
 
 func fixupHeadersForRedirect(req *http.Request, via []*http.Request) {
-	// preserve some headers across redirects
-	// to the CDN
+	// preserve some headers across redirects (needed for the CDN)
 	// (this is done automatically, slightly more cleanly, from 1.8)
 	for k, v := range via[0].Header {
 		switch http.CanonicalHeaderKey(k) {
