@@ -66,9 +66,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
 	}
 
+	if len(spec.(*Specification).Modules) == 0 {
+		return nil
+	}
 	content, modules := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := interfaces.SecurityTagGlob(snapName)

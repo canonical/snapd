@@ -89,11 +89,8 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	type definer interface {
-		KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-	}
 	spec := &kmod.Specification{}
-	err = s.iface.(definer).KModConnectedPlug(spec, s.plug, s.slot)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules, DeepEquals, map[string]bool{
 		"ip6table_filter": true,

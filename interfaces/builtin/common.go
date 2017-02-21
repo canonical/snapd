@@ -129,28 +129,36 @@ func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 
 func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	for _, m := range iface.connectedPlugKModModules {
-		spec.AddModule(m)
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	for _, m := range iface.connectedSlotKModModules {
-		spec.AddModule(m)
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
 	for _, m := range iface.permanentPlugKModModules {
-		spec.AddModule(m)
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
 	for _, m := range iface.permanentSlotKModModules {
-		spec.AddModule(m)
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
 	}
 	return nil
 }

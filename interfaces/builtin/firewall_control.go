@@ -98,13 +98,15 @@ capset
 setuid
 `
 
+var firewallControlConnectedPlugKmod = []string{"ip6table_filter", "iptable_filter"}
+
 // NewFirewallControlInterface returns a new "firewall-control" interface.
 func NewFirewallControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "firewall-control",
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
-		connectedPlugKModModules: []string{"ip6table_filter", "iptable_filter"},
+		connectedPlugKModModules: firewallControlConnectedPlugKmod,
 		reservedForOS:            true,
 	}
 }
