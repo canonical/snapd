@@ -30,8 +30,8 @@ openvswitch
 // NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
 func NewOpenvSwitchSupportInterface() interfaces.Interface {
 	return &commonInterface{
-		name:              "openvswitch-support",
-		connectedPlugKMod: openvswitchSupportConnectedPlugKmod,
-		reservedForOS:     true,
+		name: "openvswitch-support",
+		connectedPlugKModModules: []string{"openvswitch"},
+		reservedForOS:            true,
 	}
 }

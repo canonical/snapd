@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,9 +38,13 @@ type commonInterface struct {
 	name                   string
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
-	connectedPlugKMod      string
 	reservedForOS          bool
 	rejectAutoConnectPairs bool
+
+	connectedPlugKModModules []string
+	connectedSlotKModModules []string
+	permanentPlugKModModules []string
+	permanentSlotKModModules []string
 }
 
 // Name returns the interface name.
@@ -91,8 +96,6 @@ func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		return []byte(iface.connectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(iface.connectedPlugSecComp), nil
-	case interfaces.SecurityKMod:
-		return []byte(iface.connectedPlugKMod), nil
 	}
 	return nil, nil
 }
@@ -122,4 +125,32 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 // By default we allow what declarations allowed.
 func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return !iface.rejectAutoConnectPairs
+}
+
+func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, m := range iface.connectedPlugKModModules {
+		spec.AddModule(m)
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, m := range iface.connectedSlotKModModules {
+		spec.AddModule(m)
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
+	for _, m := range iface.permanentPlugKModModules {
+		spec.AddModule(m)
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
+	for _, m := range iface.permanentSlotKModModules {
+		spec.AddModule(m)
+	}
+	return nil
 }
