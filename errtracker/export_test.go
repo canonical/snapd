@@ -31,6 +31,14 @@ func MockCrashDbURL(url string) (restorer func()) {
 	}
 }
 
+func MockMachineIDPath(path string) (restorer func()) {
+	old := machineID
+	machineID = path
+	return func() {
+		machineID = old
+	}
+}
+
 func MockTimeNow(f func() time.Time) (restorer func()) {
 	old := timeNow
 	timeNow = f
