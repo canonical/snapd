@@ -104,6 +104,9 @@ dbus (receive, send)
 
 const upowerObservePermanentSlotSeccomp = `
 bind
+# libudev
+socket AF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
