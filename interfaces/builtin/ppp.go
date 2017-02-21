@@ -46,7 +46,7 @@ capability setuid,
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
 // by the kernel on different ioctl calls for this device. Note also that
 // in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
-var pppConnectedPlugKmod = []string{"ppp_generic"}
+var pppConnectedPlugKmod = "ppp_generic"
 
 type PppInterface struct{}
 
@@ -75,12 +75,8 @@ func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 }
 
 func (iface *PppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	for _, m := range pppConnectedPlugKmod {
-		if err := spec.AddModule(m); err != nil {
-			return err
-		}
-	}
-	return nil
+	err := spec.AddModule(pppConnectedPlugKmod)
+	return err
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
