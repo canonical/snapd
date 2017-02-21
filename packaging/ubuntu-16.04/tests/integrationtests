@@ -24,9 +24,9 @@ systemctl reload sshd.service
 
 # Map snapd deb package pockets to core snap channels. This is intended to cope
 # with the autopkgtest execution when testing packages from the different pockets
-if [ -n "$(apt list snapd | grep \\-proposed)" ]; then
+if apt -qq list snapd | grep -q -- -proposed; then
     export SPREAD_CORE_CHANNEL=candidate
-elif [ -n "$(apt list snapd | grep \\-updates)" ]; then
+elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
 
