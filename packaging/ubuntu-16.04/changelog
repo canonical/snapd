@@ -1,3 +1,9 @@
+snapd (2.22.5) xenial; urgency=medium
+
+  * Fix FTBFS due to machine-id file
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Tue, 21 Feb 2017 09:43:42 +0100
+
 snapd (2.22.4) xenial; urgency=medium
 
   * New bugfix release:
