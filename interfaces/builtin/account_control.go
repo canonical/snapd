@@ -59,8 +59,8 @@ fchown - 0 42
 fchown32 - 0 42
 
 # from libaudit1
-socket AF_NETLINK SOCK_RAW NETLINK_AUDIT
-socket PF_NETLINK SOCK_RAW NETLINK_AUDIT
+socket AF_NETLINK - NETLINK_AUDIT
+socket PF_NETLINK - NETLINK_AUDIT
 `
 
 // Interface which allows to handle the user accounts.
