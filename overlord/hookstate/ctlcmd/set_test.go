@@ -20,6 +20,8 @@
 package ctlcmd_test
 
 import (
+	"reflect"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -255,4 +257,36 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *setAttrSuite) TestCopyAttributes(c *C) {
+	orig := map[string]interface{}{
+		"a": "A",
+		"b": true,
+		"c": int(100),
+		"d": []interface{}{"x", "y", true},
+		"e": map[string]interface{}{
+			"e1": "E1",
+		},
+	}
+
+	cpy, err := ctlcmd.CopyAttributes(orig)
+	c.Assert(err, IsNil)
+	// verify that int is converted into int64
+	c.Check(reflect.TypeOf(cpy["c"]).Kind(), Equals, reflect.Int64)
+	c.Check(reflect.TypeOf(orig["c"]).Kind(), Equals, reflect.Int)
+	// change the type of orig's value to int64 to make DeepEquals happy in the test
+	orig["c"] = int64(100)
+	c.Check(cpy, DeepEquals, orig)
+
+	cpy["d"].([]interface{})[0] = 999
+	c.Check(orig["d"].([]interface{})[0], Equals, "x")
+	cpy["e"].(map[string]interface{})["e1"] = "x"
+	c.Check(orig["e"].(map[string]interface{})["e1"], Equals, "E1")
+
+	type unsupported struct{}
+	var x unsupported
+	_, err = ctlcmd.CopyAttributes(map[string]interface{}{"x": x})
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "unsupported attribute type 'ctlcmd_test.unsupported', value '{}'")
 }
