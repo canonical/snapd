@@ -141,6 +141,11 @@ accept4
 bind
 listen
 shutdown
+socket AF_NETLINK SOCK_DGRAM NETLINK_ROUTE
+socket PF_NETLINK SOCK_DGRAM NETLINK_ROUTE
+# libudev
+socket AF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
+socket PF_NETLINK SOCK_RAW NETLINK_KOBJECT_UEVENT
 `
 
 const ofonoPermanentSlotDBus = `
