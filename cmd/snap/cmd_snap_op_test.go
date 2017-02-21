@@ -673,6 +673,30 @@ func (s *SnapOpSuite) TestTryClassic(c *check.C) {
 	s.runTryTest(c, &client.SnapOptions{Classic: true})
 }
 
+func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "kind":"snap-not-a-snap"
+  },
+  "status-code": 400
+}
+`)
+
+	})
+
+	cmd := []string{"try", "/"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`)
+}
+
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")

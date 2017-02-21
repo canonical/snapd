@@ -39,6 +39,7 @@
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/mountinfo.h"
+#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
 
@@ -147,24 +148,24 @@ static const char *sc_ns_dir = SC_NS_DIR;
  **/
 static bool sc_is_ns_group_dir_private()
 {
-	struct mountinfo *info
-	    __attribute__ ((cleanup(cleanup_mountinfo))) = NULL;
-	info = parse_mountinfo(NULL);
+	struct sc_mountinfo *info
+	    __attribute__ ((cleanup(sc_cleanup_mountinfo))) = NULL;
+	info = sc_parse_mountinfo(NULL);
 	if (info == NULL) {
 		die("cannot parse /proc/self/mountinfo");
 	}
-	struct mountinfo_entry *entry = first_mountinfo_entry(info);
+	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
 	while (entry != NULL) {
-		const char *mount_dir = mountinfo_entry_mount_dir(entry);
+		const char *mount_dir = sc_mountinfo_entry_mount_dir(entry);
 		const char *optional_fields =
-		    mountinfo_entry_optional_fields(entry);
+		    sc_mountinfo_entry_optional_fields(entry);
 		if (strcmp(mount_dir, sc_ns_dir) == 0
 		    && strcmp(optional_fields, "") == 0) {
 			// If /run/snapd/ns has no optional fields, we know it is mounted
 			// private and there is nothing else to do.
 			return true;
 		}
-		entry = next_mountinfo_entry(entry);
+		entry = sc_next_mountinfo_entry(entry);
 	}
 	return false;
 }
@@ -265,8 +266,8 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
 		die("cannot open directory for namespace group %s", group_name);
 	}
 	char lock_fname[PATH_MAX];
-	must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
-		      SC_NS_LOCK_FILE);
+	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
+			 SC_NS_LOCK_FILE);
 	debug("opening lock file for namespace group %s", group_name);
 	group->lock_fd =
 	    openat(group->dir_fd, lock_fname,
@@ -285,9 +286,9 @@ void sc_close_ns_group(struct sc_ns_group *group)
 {
 	debug("releasing resources associated with namespace group %s",
 	      group->name);
-	close(group->dir_fd);
-	close(group->lock_fd);
-	close(group->event_fd);
+	sc_cleanup_close(&group->dir_fd);
+	sc_cleanup_close(&group->lock_fd);
+	sc_cleanup_close(&group->event_fd);
 	free(group->name);
 	free(group);
 }
@@ -324,8 +325,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX];
-	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-		      SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
+			 SC_NS_MNT_FILE);
 	int mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	// NOTE: There is no O_EXCL here because the file can be around but
 	// doesn't have to be a mounted namespace.
@@ -343,6 +344,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 	}
 	// Check if we got an nsfs-based file or a regular file. This can be
 	// reliably tested because nsfs has an unique filesystem type NSFS_MAGIC.
+	// On older kernels that don't support nsfs yet we can look for
+	// PROC_SUPER_MAGIC instead.
 	// We can just ensure that this is the case thanks to fstatfs.
 	struct statfs buf;
 	if (fstatfs(mnt_fd, &buf) < 0) {
@@ -352,7 +355,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
 #define NSFS_MAGIC 0x6e736673
 #endif
-	if (buf.f_type == NSFS_MAGIC) {
+	if (buf.f_type == NSFS_MAGIC || buf.f_type == PROC_SUPER_MAGIC) {
 		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
 		vanilla_cwd = get_current_dir_name();
@@ -456,9 +459,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		     (int)parent, group->name);
 		char src[PATH_MAX];
 		char dst[PATH_MAX];
-		must_snprintf(src, sizeof src, "/proc/%d/ns/mnt", (int)parent);
-		must_snprintf(dst, sizeof dst, "%s%s", group->name,
-			      SC_NS_MNT_FILE);
+		sc_must_snprintf(src, sizeof src, "/proc/%d/ns/mnt",
+				 (int)parent);
+		sc_must_snprintf(dst, sizeof dst, "%s%s", group->name,
+				 SC_NS_MNT_FILE);
 		if (mount(src, dst, NULL, MS_BIND, NULL) < 0) {
 			die("cannot bind-mount the mount namespace file %s -> %s", src, dst);
 		}
@@ -525,8 +529,8 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 	}
 	// Unmount ${group_name}.mnt which holds the preserved namespace
 	char mnt_fname[PATH_MAX];
-	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
-		      SC_NS_MNT_FILE);
+	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
+			 SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);
 	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
 		switch (errno) {

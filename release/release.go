@@ -49,16 +49,33 @@ func (os *OS) ForceDevMode() bool {
 		switch os.VersionID {
 		case "0.4":
 			return false
-		default:
-			return true
 		}
-	default:
-		// NOTE: Other distributions can move out of devmode by
-		// integrating with the interface security backends. This will
-		// be documented separately in the porting guide.
-		return true
+	case "linuxmint":
+		// NOTE: mint uses "LinuxMint" (mixed capitalization) but this is
+		// normalized by readOSRelease.
+		switch os.VersionID {
+		case "18.1":
+			// Linux Mint 18.1 aka "serena" should use apparmor confinement
+			// given that it shares packages with Ubuntu 16.04.
+			return false
+		}
+	case "galliumos":
+
+		switch os.VersionID {
+		case "1.0":
+			// 1.0 is based on 15.04
+			return true
+
+		default:
+			// GalliumOS is build on top of ubuntu-16.04
+			return false
+		}
 	}
 
+	// NOTE: Other distributions can move out of devmode by
+	// integrating with the interface security backends. This will
+	// be documented separately in the porting guide.
+	return true
 }
 
 var (

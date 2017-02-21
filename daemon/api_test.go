@@ -54,7 +54,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -142,6 +142,10 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		ID:        "ubuntu",
 		VersionID: "mocked",
 	})
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		return false, nil
+	}
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
@@ -225,6 +229,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
+	// mark as already seeded
+	st.Set("seeded", true)
 
 	s.d = d
 	return d
@@ -386,6 +392,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"trymode":          false,
 			"apps":             []appJSON{},
 			"broken":           "",
+			"contact":          "",
 		},
 		Meta: meta,
 	}
@@ -1788,7 +1795,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1812,7 +1819,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1829,7 +1836,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 	// add the assertions first
@@ -1911,7 +1918,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1954,7 +1961,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 }
 
 func (s *apiSuite) TestTrySnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2069,7 +2076,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2179,10 +2186,10 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 
 	// Set a config that we'll get in a moment
 	d.overlord.State().Lock()
-	transaction := configstate.NewTransaction(d.overlord.State())
-	transaction.Set("test-snap", "test-key1", "test-value1")
-	transaction.Set("test-snap", "test-key2", "test-value2")
-	transaction.Commit()
+	tr := config.NewTransaction(d.overlord.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Commit()
 	d.overlord.State().Unlock()
 
 	result := s.runGetConf(c, []string{"test-key1"})

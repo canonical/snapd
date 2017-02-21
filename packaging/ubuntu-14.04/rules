@@ -66,7 +66,7 @@ override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
 
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnap-confine
+	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
 	dh_installdeb
 
 override_dh_clean:
@@ -126,8 +126,6 @@ override_dh_install:
 	fi
 	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)

@@ -26,9 +26,8 @@ import (
 )
 
 var locationControlPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the location service. This gives privileged
+# access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -86,9 +85,8 @@ dbus (send)
 `)
 
 var locationControlConnectedPlugAppArmor = []byte(`
-# Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+# Description: Allow using location service. This gives privileged access to
+# the service.
 
 #include <abstractions/dbus-strict>
 
@@ -120,20 +118,6 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
-`)
-
-var locationControlPermanentSlotSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationControlConnectedPlugSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
 `)
 
 var locationControlPermanentSlotDBus = []byte(`
@@ -171,8 +155,6 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return locationControlConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -183,8 +165,6 @@ func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationControlPermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return locationControlPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }

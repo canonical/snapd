@@ -24,8 +24,8 @@ import (
 )
 
 const unity8CalendarPermanentSlotAppArmor = `
-# Description: Allow operating as the EDS service. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the EDS service. This gives privileged access
+# to the system.
 
 # DBus accesses
 dbus (bind)

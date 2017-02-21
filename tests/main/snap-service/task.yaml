@@ -1,6 +1,6 @@
 summary: Check that `snap run --command=reload` works
 
-kill-timeout: 1m
+kill-timeout: 3m
 execute: |
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
@@ -18,4 +18,3 @@ execute: |
             break
         fi
     done
-  

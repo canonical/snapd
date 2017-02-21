@@ -14,11 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include <stdlib.h>
-#include <stdbool.h>
-
 #ifndef CORE_LAUNCHER_UTILS_H
 #define CORE_LAUNCHER_UTILS_H
+
+#include <stdlib.h>
+#include <stdbool.h>
 
 __attribute__ ((noreturn))
     __attribute__ ((format(printf, 1, 2)))
@@ -30,11 +30,14 @@ bool error(const char *fmt, ...);
 __attribute__ ((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
-void write_string_to_file(const char *filepath, const char *buf);
+/**
+ * Return true if debugging is enabled.
+ *
+ * This can used to avoid costly computation that is only useful for debugging.
+ **/
+bool sc_is_debug_enabled();
 
-// snprintf version that dies on any error condition
-__attribute__ ((format(printf, 3, 4)))
-int must_snprintf(char *str, size_t size, const char *format, ...);
+void write_string_to_file(const char *filepath, const char *buf);
 
 /**
  * Safely create a given directory.
