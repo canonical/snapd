@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type BluetoothControlInterfaceSuite struct {
@@ -40,6 +42,12 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "bluetooth-control",
 			Interface: "bluetooth-control",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "core",
+					},
+					Name: "app1"}},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -47,6 +55,12 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "bluetooth-control",
 			Interface: "bluetooth-control",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "other",
+					},
+					Name: "app2"}},
 		},
 	},
 })
@@ -84,7 +98,9 @@ func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(seccompSpec.Snippets["snap.other.app2"][0]), testutil.Contains, "\nbind\n")
 }
