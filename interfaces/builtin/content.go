@@ -137,7 +137,8 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 }
 
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
-	options := []string{"bind"}
+	options := make([]string, 0, len(extraOptions)+1)
+	options = append(options, "bind")
 	options = append(options, extraOptions...)
 	return mount.Entry{
 		Name:    resolveSpecialVariable(relSrc, slot.Snap),
