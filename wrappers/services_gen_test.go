@@ -35,7 +35,7 @@ type servicesWrapperGenSuite struct{}
 var _ = Suite(&servicesWrapperGenSuite{})
 
 const expectedServiceFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=snap-snap-44.mount
 Wants=network-online.target
@@ -63,7 +63,7 @@ var (
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=snap-xkcd\x2dwebserver-44.mount
 Wants=network-online.target
