@@ -54,6 +54,13 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				// NOTE: This is a temporary measure until the root cause of issue
+				// like this can be found and corrected.
+				task.Errorf("cannot get state of snap %q that was affected by a change to snap %q -- skipping setup of security profiles",
+					affectedSnapName, affectingSnap)
+				continue
+			}
 			return err
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
