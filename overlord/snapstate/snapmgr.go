@@ -575,8 +575,9 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	extra := map[string]string{
-		"UbuntuCoreTransitionCount": strconv.Itoa(ubuntuCoreTransitionCount),
+	extra := map[string]string{}
+	if ubuntuCoreTransitionCount > 0 {
+		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
 	st.Unlock()

@@ -3840,11 +3840,13 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	var errSnap, errChannel, errMsg string
 	var errExtra map[string]string
+	var n int
 	restore := snapstate.MockErrtrackerReport(func(aSnap, aChannel, aErrMsg string, extra map[string]string) (string, error) {
 		errSnap = aSnap
 		errChannel = aChannel
 		errMsg = aErrMsg
 		errExtra = extra
+		n += 1
 		return "oopsid", nil
 	})
 	defer restore()
@@ -3879,6 +3881,7 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	s.state.Lock()
 
 	// verify we generated a failure report
+	c.Check(n, Equals, 1)
 	c.Check(errSnap, Equals, "some-snap")
 	c.Check(errChannel, Equals, "some-channel")
 	c.Check(errExtra, DeepEquals, map[string]string{
@@ -3895,6 +3898,20 @@ setup-aliases: Hold
 start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
+
+	// run again with empty "ubuntu-core-transition-retry"
+	s.state.Set("ubuntu-core-transition-retry", 0)
+	chg = s.state.NewChange("install", "install a snap")
+	ts, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+	// verify that we excluded this field from the bugreport
+	c.Check(n, Equals, 2)
+	c.Check(errExtra, DeepEquals, map[string]string{})
 }
 
 type snapmgrQuerySuite struct {
