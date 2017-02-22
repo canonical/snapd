@@ -131,11 +131,8 @@ func (s *SnapSuite) TestListEmptyWithQuery(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "quux"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.Stderr(), check.Equals, "No snaps are installed yet. Try \"snap install hello-world\".\n")
+	_, err := snap.Parser().ParseArgs([]string{"list", "quux"})
+	c.Assert(err, check.ErrorMatches, `no matching snaps installed`)
 }
 
 func (s *SnapSuite) TestListWithNoMatchingQuery(c *check.C) {
