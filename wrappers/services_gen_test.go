@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers"
@@ -205,7 +206,7 @@ apps:
 
 func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {
 
-	yamlText := `
+	info := snaptest.MockInfo(c, `
 name: snap
 version: 1.0
 apps:
@@ -216,11 +217,8 @@ apps:
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: oneshot
-`
+`, &snap.SideInfo{Revision: snap.R(44)})
 
-	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
 	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
