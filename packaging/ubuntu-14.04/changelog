@@ -1,3 +1,18 @@
+snapd (2.23~14.04) UNRELEASED; urgency=medium
+
+  * New upstream release, LP: #xxx
+    - ...
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Jan 2017 15:04:26 +0100
+
+snapd (2.22.3~14.04) trusty; urgency=medium
+
+  * New bugfix release, LP: #1665729:
+    - Limit the number of retries for the ubuntu-core -> core
+      transition to fix possible store overload.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Feb 2017 18:58:34 +0100
+
 snapd (2.22.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1659522

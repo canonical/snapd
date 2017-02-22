@@ -619,6 +619,12 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
+
+	if len(x.Positional.Snaps) == 0 && os.Getenv("SNAP_REFRESH_FROM_TIMER") == "1" {
+		fmt.Fprintf(Stdout, "Ignoring `snap refresh` from the systemd timer")
+		return nil
+	}
+
 	names := make([]string, len(x.Positional.Snaps))
 	for i, name := range x.Positional.Snaps {
 		names[i] = string(name)
@@ -680,6 +686,11 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	changeID, err := cli.Try(path, opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
+		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+	}
 	if err != nil {
 		return err
 	}

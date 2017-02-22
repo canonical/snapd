@@ -6,7 +6,7 @@ environment:
 prepare: |
     mkdir -p $ROOT
     chown test:test $ROOT
-restore:
+restore: |
     rm -rf $ROOT
 execute: |
     # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently

@@ -272,6 +272,9 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 }
 
 func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
 	batch := assertstate.NewBatch()
 
 	var a asserts.Assertion
@@ -293,7 +296,7 @@ func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
 	})()
 
 	err := batch.Add(a)
-	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 1 is latest supported`)
+	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 111 is latest supported`)
 }
 
 func fakeSnap(rev int) []byte {

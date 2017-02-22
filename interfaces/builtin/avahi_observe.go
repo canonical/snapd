@@ -105,25 +105,10 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const avahiObserveConnectedPlugSecComp = `
-# Description: allows domain browsing, service browsing and service resolving
-
-# dbus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
-`
-
 func NewAvahiObserveInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "avahi-observe",
 		connectedPlugAppArmor: avahiObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  avahiObserveConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

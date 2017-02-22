@@ -28,7 +28,6 @@ const systemObserveConnectedPlugAppArmor = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # Needed by 'ps'
 @{PROC}/tty/drivers r,
@@ -70,12 +69,10 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
 const systemObserveConnectedPlugSecComp = `
 # Description: Can query system status information. This is restricted because
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
-# Usage: reserved
 
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
@@ -83,16 +80,6 @@ const systemObserveConnectedPlugSecComp = `
 # Note: may uncomment once ubuntu-core-launcher understands @deny rules and
 # if/when we conditionally deny this in the future.
 #@deny ptrace
-
-# for connecting to /org/freedesktop/hostname1 over DBus
-connect
-getsockname
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-socket
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.
