@@ -36,10 +36,10 @@ import (
 
 var (
 	CrashDbURLBase string
+	SnapdVersion   string
 
 	machineID = "/var/lib/dbus/machine-id"
-
-	timeNow = time.Now
+	timeNow   = time.Now
 )
 
 // distroRelease returns a distro release as it is expected by daisy.ubuntu.com
@@ -69,6 +69,7 @@ func Report(snap, channel, errMsg string) (string, error) {
 	report := map[string]string{
 		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
+		"SnapdVersion":       SnapdVersion,
 		"DistroRelease":      distroRelease(),
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
