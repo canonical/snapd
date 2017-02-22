@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -91,11 +92,8 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 // Connected plugs get the static seccomp and apparmor blobs defined by the
 // instance variables.  They are not really connection specific in this case.
 func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		return []byte(iface.connectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(iface.connectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -161,4 +159,8 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 		}
 	}
 	return nil
+}
+
+func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet([]byte(iface.connectedPlugSecComp))
 }
