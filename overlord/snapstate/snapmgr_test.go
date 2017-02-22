@@ -5372,26 +5372,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 	c.Check(s.state.Changes()[0].Kind(), Equals, "transition-ubuntu-core")
 }
 
-func (s *snapmgrTestSuite) TestTransitionCoreBackoffWorks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "os",
-	})
-	s.state.Set("ubuntu-core-transition-retry", 7)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Check(s.state.Changes(), HasLen, 0)
-}
-
 func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5402,7 +5382,9 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
-	snapstate.MockLastUbuntuCoreTransitionAttempt(s.snapmgr, time.Now().Add(-6*time.Hour))
+
+	// tried 3h ago, no retry
+	s.state.Set("ubuntu-core-transition-last-retry-time", time.Now().Add(-3*time.Hour))
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -5410,6 +5392,19 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 	s.state.Lock()
 
 	c.Check(s.state.Changes(), HasLen, 0)
+
+	// tried 7h ago, retry
+	s.state.Set("ubuntu-core-transition-last-retry-time", time.Now().Add(-7*time.Hour))
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 1)
+
+	var t time.Time
+	s.state.Get("ubuntu-core-transition-last-retry-time", &t)
+	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
