@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -569,8 +570,17 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	var ubuntuCoreTransitionCount int
+	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	extra := map[string]string{
+		"UbuntuCoreTransitionCount": strconv.Itoa(ubuntuCoreTransitionCount),
+	}
+
 	st.Unlock()
-	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"), extra)
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)

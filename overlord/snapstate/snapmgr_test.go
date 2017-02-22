@@ -3839,10 +3839,12 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	var errSnap, errChannel, errMsg string
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aChannel, aErrMsg string) (string, error) {
+	var errExtra map[string]string
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aChannel, aErrMsg string, extra map[string]string) (string, error) {
 		errSnap = aSnap
 		errChannel = aChannel
 		errMsg = aErrMsg
+		errExtra = extra
 		return "oopsid", nil
 	})
 	defer restore()
@@ -3856,6 +3858,7 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.state.Set("ubuntu-core-transition-retry", 7)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -3878,6 +3881,9 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	// verify we generated a failure report
 	c.Check(errSnap, Equals, "some-snap")
 	c.Check(errChannel, Equals, "some-channel")
+	c.Check(errExtra, DeepEquals, map[string]string{
+		"UbuntuCoreTransitionCount": "7",
+	})
 	c.Check(errMsg, Matches, `(?sm)download-snap: Undoing
 validate-snap: Done
 .*
