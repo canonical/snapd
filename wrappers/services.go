@@ -186,6 +186,7 @@ WorkingDirectory={{.App.Snap.DataDir}}
 {{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
+{{if .Remain}}RemainAfterExit={{.Remain}}{{end}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
 
 [Install]
@@ -204,6 +205,17 @@ WantedBy={{.ServicesTarget}}
 		restartCond = systemd.RestartOnFailure.String()
 	}
 
+	var remain string
+	if appInfo.Daemon == "oneshot" {
+		// any restart condition other than "no" is invalid for oneshot daemons
+		restartCond = "no"
+		// If StopExec is present for a oneshot service than we also need
+		// RemainAfterExit=yes
+		if appInfo.StopCommand != "" {
+			remain = "yes"
+		}
+	}
+
 	wrapperData := struct {
 		App *snap.AppInfo
 
@@ -212,6 +224,7 @@ WantedBy={{.ServicesTarget}}
 		ServicesTarget     string
 		PrerequisiteTarget string
 		MountUnit          string
+		Remain             string
 
 		Home    string
 		EnvVars string
@@ -223,6 +236,7 @@ WantedBy={{.ServicesTarget}}
 		ServicesTarget:     systemd.ServicesTarget,
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
+		Remain:             remain,
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
