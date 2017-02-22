@@ -167,7 +167,7 @@ static void sc_map_init()
 
 	// build up the map linked list
 
-	// man 2 socket - domain
+	// man 2 socket - domain and man 5 apparmor.d
 	sc_map_add(AF_UNIX);
 	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
@@ -192,6 +192,58 @@ static void sc_map_init()
 	sc_map_add(PF_PACKET);
 	sc_map_add(AF_ALG);
 	sc_map_add(PF_ALG);
+	sc_map_add(AF_BRIDGE);
+	sc_map_add(PF_BRIDGE);
+	sc_map_add(AF_NETROM);
+	sc_map_add(PF_NETROM);
+	sc_map_add(AF_ROSE);
+	sc_map_add(PF_ROSE);
+	sc_map_add(AF_NETBEUI);
+	sc_map_add(PF_NETBEUI);
+	sc_map_add(AF_SECURITY);
+	sc_map_add(PF_SECURITY);
+	sc_map_add(AF_KEY);
+	sc_map_add(PF_KEY);
+	sc_map_add(AF_ASH);
+	sc_map_add(PF_ASH);
+	sc_map_add(AF_ECONET);
+	sc_map_add(PF_ECONET);
+	sc_map_add(AF_SNA);
+	sc_map_add(PF_SNA);
+	sc_map_add(AF_IRDA);
+	sc_map_add(PF_IRDA);
+	sc_map_add(AF_PPPOX);
+	sc_map_add(PF_PPPOX);
+	sc_map_add(AF_WANPIPE);
+	sc_map_add(PF_WANPIPE);
+	sc_map_add(AF_BLUETOOTH);
+	sc_map_add(PF_BLUETOOTH);
+	sc_map_add(AF_RDS);
+	sc_map_add(PF_RDS);
+	sc_map_add(AF_LLC);
+	sc_map_add(PF_LLC);
+	sc_map_add(AF_TIPC);
+	sc_map_add(PF_TIPC);
+	sc_map_add(AF_IUCV);
+	sc_map_add(PF_IUCV);
+	sc_map_add(AF_RXRPC);
+	sc_map_add(PF_RXRPC);
+	sc_map_add(AF_ISDN);
+	sc_map_add(PF_ISDN);
+	sc_map_add(AF_PHONET);
+	sc_map_add(PF_PHONET);
+	sc_map_add(AF_IEEE802154);
+	sc_map_add(PF_IEEE802154);
+	sc_map_add(AF_CAIF);
+	sc_map_add(PF_CAIF);
+	sc_map_add(AF_NFC);
+	sc_map_add(PF_NFC);
+	sc_map_add(AF_VSOCK);
+	sc_map_add(PF_VSOCK);
+	sc_map_add(AF_MPLS);
+	sc_map_add(PF_MPLS);
+	sc_map_add(AF_IB);
+	sc_map_add(PF_IB);
 	// linux/can.h
 	sc_map_add(AF_CAN);
 	sc_map_add(PF_CAN);
