@@ -1127,10 +1127,12 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 // - all interfaces are absolutely identical on both new and old
 // Do not use this as a general way to transition from snap A to snap B.
 func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
+	const fnName = "TransitionCore"
+
 	var oldSnapst, newSnapst SnapState
 	err := Get(st, oldName, &oldSnapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, fmt.Errorf("(internal error) cannot get state of old snap %q: %s", oldName, err)
 	}
 	if !oldSnapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
@@ -1139,14 +1141,14 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	var userID int
 	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("(internal error) cannot get info of snap %p %q: %s", newName, err)
 	}
 
 	var all []*state.TaskSet
 	// install new core (if not already installed)
 	err = Get(st, newName, &newSnapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, fmt.Errorf("(internal error) cannot get state of new snap %q: %s", newName, err)
 	}
 	if !newSnapst.HasCurrent() {
 		// start by instaling the new snap
@@ -1156,7 +1158,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("(internal error, %s) cannot request installation of new snap %q: %s", fnName, newName, err)
 		}
 		all = append(all, tsInst)
 	}
@@ -1181,7 +1183,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	// then remove the old snap
 	tsRm, err := Remove(st, oldName, snap.R(0))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("(internal error, %s) cannot remove old snap %q: %s", fnName, oldName, err)
 	}
 	tsRm.WaitFor(transIf)
 	all = append(all, tsRm)
