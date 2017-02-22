@@ -272,14 +272,9 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 		return nil
 	}
 
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a %s snap on classic", kind)
-	}
-
 	currentSnap, err := currentInfo(st)
 	// in firstboot we have no gadget/kernel yet - that is ok
-	// devicestate considers that case
+	// first install rules are in devicestate!
 	if err == state.ErrNoState {
 		return nil
 	}

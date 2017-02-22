@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -58,6 +58,7 @@ type imageSuite struct {
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
+	tsto            *image.ToolingStore
 
 	storeSigning *assertstest.StoreStack
 	brandSigning *assertstest.SigningDB
@@ -78,6 +79,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	image.Stderr = s.stderr
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
+	s.tsto = image.MockToolingStore(s)
 
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
@@ -279,7 +281,7 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 }
 
 func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
-	err := image.DownloadUnpackGadget(s, s.model, &image.Options{}, nil)
+	err := image.DownloadUnpackGadget(s.tsto, s.model, &image.Options{}, nil)
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
 
@@ -308,7 +310,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	local, err := image.LocalSnaps(opts)
 	c.Assert(err, IsNil)
 
-	err = image.DownloadUnpackGadget(s, s.model, opts, local)
+	err = image.DownloadUnpackGadget(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// verify the right data got unpacked
@@ -343,6 +345,7 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 
 	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
+	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
 	s.addSystemSnapAssertions(c, "required-snap1", "other")
 }
 
@@ -373,7 +376,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	local, err := image.LocalSnaps(opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -395,6 +398,8 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 			File:   fn,
 		})
 	}
+	c.Check(seed.Snaps[3].Name, Equals, "required-snap1")
+	c.Check(seed.Snaps[3].Contact, Equals, "foo@example.com")
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
 	brandPubKey, err := s.brandSigning.PublicKey("")
@@ -463,7 +468,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 	local, err := image.LocalSnaps(opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -589,7 +594,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	local, err := image.LocalSnaps(opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -646,7 +651,7 @@ func (s *imageSuite) TestBootstrapToRootDirKernelPublisherMismatch(c *C) {
 	local, err := image.LocalSnaps(opts)
 	c.Assert(err, IsNil)
 
-	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	err = image.BootstrapToRootDir(s.tsto, s.model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "other" for model by "my-brand"`)
 }
 
@@ -674,4 +679,23 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(targetDir, "etc/cloud/cloud.cfg"))
 	c.Assert(err, IsNil)
 	c.Check(content, DeepEquals, canary)
+}
+
+func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "auth.json")
+	err := ioutil.WriteFile(authFn, []byte(`{
+"macaroon": "MACAROON",
+"discharges": ["DISCHARGE"]
+}`), 0600)
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tsto, err := image.NewToolingStore()
+	c.Assert(err, IsNil)
+	user := tsto.User()
+	c.Check(user.StoreMacaroon, Equals, "MACAROON")
+	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }

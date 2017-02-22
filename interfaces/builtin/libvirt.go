@@ -27,13 +27,9 @@ const libvirtConnectedPlugAppArmor = `
 `
 
 const libvirtConnectedPlugSecComp = `
-recv
-recvmsg
-send
-sendto
-sendmsg
 listen
 accept
+accept4
 `
 
 func NewLibvirtInterface() interfaces.Interface {

@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -1360,10 +1361,7 @@ environment:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Environment, DeepEquals, map[string]string{
-		"foo": "bar",
-		"baz": "boom",
-	})
+	c.Assert(info.Environment, DeepEquals, *strutil.NewOrderedMap("foo", "bar", "baz", "boom"))
 }
 
 func (s *YamlSuite) TestSnapYamlPerAppEnvironment(c *C) {
@@ -1378,10 +1376,7 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Apps["foo"].Environment, DeepEquals, map[string]string{
-		"k1": "v1",
-		"k2": "v2",
-	})
+	c.Assert(info.Apps["foo"].Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
 }
 
 // classic confinement

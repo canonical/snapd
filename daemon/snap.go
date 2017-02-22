@@ -204,6 +204,7 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		"private":          localSnap.Private,
 		"apps":             apps,
 		"broken":           localSnap.Broken,
+		"contact":          localSnap.Contact,
 	}
 }
 
@@ -242,6 +243,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"channel":       remoteSnap.Channel,
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
+		"contact":       remoteSnap.Contact,
 	}
 
 	if len(screenshots) > 0 {
