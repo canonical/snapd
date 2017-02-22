@@ -39,6 +39,22 @@ func MockMachineIDPath(path string) (restorer func()) {
 	}
 }
 
+func MockHostSnapd(path string) (restorer func()) {
+	old := mockedHostSnapd
+	mockedHostSnapd = path
+	return func() {
+		mockedHostSnapd = old
+	}
+}
+
+func MockCoreSnapd(path string) (restorer func()) {
+	old := mockedCoreSnapd
+	mockedCoreSnapd = path
+	return func() {
+		mockedCoreSnapd = old
+	}
+}
+
 func MockTimeNow(f func() time.Time) (restorer func()) {
 	old := timeNow
 	timeNow = f

@@ -25,12 +25,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -38,8 +41,11 @@ var (
 	CrashDbURLBase string
 	SnapdVersion   string
 
-	machineID = "/var/lib/dbus/machine-id"
-	timeNow   = time.Now
+	machineID       = "/var/lib/dbus/machine-id"
+	mockedHostSnapd = ""
+	mockedCoreSnapd = ""
+
+	timeNow = time.Now
 )
 
 // distroRelease returns a distro release as it is expected by daisy.ubuntu.com
@@ -66,11 +72,30 @@ func Report(snap, channel, errMsg string, extra map[string]string) (string, erro
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
 
+	hostSnapdPath := filepath.Join(dirs.LibExecDir, "snapd")
+	coreSnapdPath := filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd")
+	if mockedHostSnapd != "" {
+		hostSnapdPath = mockedHostSnapd
+	}
+	if mockedCoreSnapd != "" {
+		coreSnapdPath = mockedCoreSnapd
+	}
+	hostBuildID, _ := osutil.ReadBuildID(hostSnapdPath)
+	coreBuildID, _ := osutil.ReadBuildID(coreSnapdPath)
+	if hostBuildID == "" {
+		hostBuildID = "unknown"
+	}
+	if coreBuildID == "" {
+		coreBuildID = "unknown"
+	}
+
 	report := map[string]string{
 		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
 		"SnapdVersion":       SnapdVersion,
 		"DistroRelease":      distroRelease(),
+		"HostSnapdBuildID":   hostBuildID,
+		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,

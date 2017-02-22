@@ -35,32 +35,38 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/errtracker"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type ErrtrackerTestSuite struct {
-	restorer func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&ErrtrackerTestSuite{})
 
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	p := filepath.Join(c.MkDir(), "machine-id")
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
-	s.restorer = errtracker.MockMachineIDPath(p)
-}
-
-func (s *ErrtrackerTestSuite) TearDownTest(c *C) {
-	s.restorer()
+	s.AddCleanup(errtracker.MockMachineIDPath(p))
+	s.AddCleanup(errtracker.MockHostSnapd("/bin/true"))
+	s.AddCleanup(errtracker.MockCoreSnapd("/bin/false"))
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
+	hostBuildID, err := osutil.ReadBuildID("/bin/true")
+	c.Assert(err, IsNil)
+	coreBuildID, err := osutil.ReadBuildID("/bin/false")
+	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
 	defer func() { errtracker.SnapdVersion = prev }()
@@ -81,6 +87,8 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
 				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
+				"HostSnapdBuildID":   hostBuildID,
+				"CoreSnapdBuildID":   coreBuildID,
 				"SnapdVersion":       "some-snapd-version",
 				"Snap":               "some-snap",
 				"Date":               "Fri Feb 17 09:51:00 2017",
