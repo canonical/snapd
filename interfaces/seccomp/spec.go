@@ -19,7 +19,9 @@
 
 package seccomp
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
 // Specification keeps all the seccomp snippets.
 type Specification struct {

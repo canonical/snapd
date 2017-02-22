@@ -50,6 +50,7 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &seccomp.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Prepare a directory for seccomp profiles.
 	// NOTE: Normally this is a part of the OS snap.
@@ -210,12 +211,13 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := seccomp.MockTemplate([]byte("default\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
 			if scenario.snippet == "" {
-				return nil, nil
+				return nil
 			}
-			return []byte(scenario.snippet), nil
+			return spec.AddSnippet([]byte(scenario.snippet))
 		}
+
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
@@ -246,11 +248,11 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	iface2 := &ifacetest.TestInterface{InterfaceName: "iface2"}
 	s.Repo.AddInterface(iface2)
 
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("zzz"), nil
+	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		return spec.AddSnippet([]byte("zzz"))
 	}
-	iface2.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("aaa"), nil
+	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		return spec.AddSnippet([]byte("aaa"))
 	}
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
