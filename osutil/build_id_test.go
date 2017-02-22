@@ -20,6 +20,10 @@
 package osutil_test
 
 import (
+	"os/exec"
+	"path/filepath"
+	"regexp"
+
 	"github.com/snapcore/snapd/osutil"
 
 	. "gopkg.in/check.v1"
@@ -38,23 +42,28 @@ func (s *buildIDSuite) TestString(c *C) {
 }
 
 func (s *buildIDSuite) TestGetBuildID(c *C) {
-	for _, t := range []struct {
-		fname, expected string
-	}{
-		{"true.i386", "BuildID[sha1]=159364c90b873eb5def7431c2ee7d1385e58be51"},
-		{"true.amd64", "BuildID[sha1]=efbf0ce8dd9617c890a0547ce5a1a6073f5867af"},
-		{"true.arm64", "BuildID[sha1]=8b65339d7fa0c4cdc87ed9c8020626aa10fb521b"},
-		{"true.armhf", "BuildID[sha1]=c80229c22d4b6b30b71ab1b1b5a1de6b86b6aadf"},
-	} {
-		id, err := osutil.GetBuildID(t.fname)
+	for _, fname := range []string{"/bin/true", "/bin/false"} {
+		output, err := exec.Command("file", fname).CombinedOutput()
 		c.Assert(err, IsNil)
-		c.Assert(id.String(), Equals, t.expected, Commentf("executable: %s", t.fname))
+
+		re := regexp.MustCompile(`(BuildID\[.*\]=[a-f0-9]+)`)
+		matches := re.FindStringSubmatch(string(output))
+		c.Assert(matches, HasLen, 2)
+
+		id, err := osutil.GetBuildID(fname)
+		c.Assert(err, IsNil)
+		c.Assert(id.String(), Equals, matches[1], Commentf("executable: %s", fname))
 	}
 }
 
 func (s *buildIDSuite) TestGetBuildIDNoID(c *C) {
-	// The test file was processed to strip the section containing the build-id note
-	id, err := osutil.GetBuildID("true.noid.amd64")
+	stripedTruth := filepath.Join(c.MkDir(), "true")
+	osutil.CopyFile("/bin/true", stripedTruth, 0)
+	output, err := exec.Command("strip", "-R", ".note.gnu.build-id", stripedTruth).CombinedOutput()
+	c.Assert(string(output), Equals, "")
+	c.Assert(err, IsNil)
+
+	id, err := osutil.GetBuildID(stripedTruth)
 	c.Assert(err, Equals, osutil.ErrNoBuildID)
 	c.Assert(id, IsNil)
 }
