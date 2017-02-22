@@ -460,8 +460,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
-		return fmt.Errorf("(internal error, %s) cannot get resolve disconnect %q:%q %q:%q: %s",
-			fnName, plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name, err)
+		// NOTE: ResolveDisconnect already produces nice error messages
+		return err
 	}
 	m.repo.DisconnectAll(affectedConns)
 	affectedSnaps := snapNamesFromConns(affectedConns)
