@@ -132,7 +132,7 @@ func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 	case interfaces.SecurityAppArmor:
 		oldTags := []byte("###SLOT_SECURITY_TAGS###")
 		newTags := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
+		snippet := bytes.Replace([]byte(unity8ConnectedPlugAppArmor), oldTags, newTags, -1)
 
 		// FIXME: Until we decide whether unity8 is going to use Snappy-style
 		//        appIDs (snap.NAME.COMMAND) or Touch-style ones
@@ -146,7 +146,7 @@ func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return unity8ConnectedPlugSecComp, nil
+		return []byte(unity8ConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
