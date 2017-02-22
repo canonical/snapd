@@ -73,6 +73,7 @@ func Report(snap, channel, errMsg string) (string, error) {
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,
+		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": fmt.Sprintf("snap-install: %s", errMsg),
 	}
