@@ -162,5 +162,8 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 }
 
 func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(iface.connectedPlugSecComp))
+	if iface.connectedPlugSecComp != "" {
+		return spec.AddSnippet([]byte(iface.connectedPlugSecComp))
+	}
+	return nil
 }
