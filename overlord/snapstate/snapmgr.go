@@ -51,8 +51,6 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	lastUbuntuCoreTransitionAttempt time.Time
-
 	runner *state.TaskRunner
 }
 
@@ -420,20 +418,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 
 	// ensure we limit the retries in case something goes wrong
+	var lastUbuntuCoreTransitionAttempt time.Time
+	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	now := time.Now()
+	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
+		return nil
+	}
+	m.state.Set("ubuntu-core-transition-last-retry-time", now)
+
 	var retryCount int
 	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if retryCount > 6 {
-		// limit amount of retries
-		return nil
-	}
-	now := time.Now()
-	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
-		return nil
-	}
-	m.lastUbuntuCoreTransitionAttempt = now
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
