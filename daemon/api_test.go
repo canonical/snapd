@@ -558,6 +558,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	// Ensure that we had a kernel-verrsion but don't check the actual value.
+	const kernelVersionKey = "kernel-version"
+	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
