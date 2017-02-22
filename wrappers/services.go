@@ -170,7 +170,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 func genServiceFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
