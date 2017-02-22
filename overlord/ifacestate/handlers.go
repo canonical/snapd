@@ -57,7 +57,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			if err == state.ErrNoState {
 				// NOTE: This is a temporary measure until the root cause of issue
 				// like this can be found and corrected.
-				task.Errorf("cannot get state of snap %q that was affected by a change to snap %q -- skipping setup of security profiles",
+				task.Errorf("cannot get state of snap %q that was affected by a change to snap %q -- skipping setup of its security profiles",
 					affectedSnapName, affectingSnap)
 				continue
 			}
@@ -374,7 +374,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		// NOTE: This is a temporary measure until the root cause of issue
 		// like this can be found and corrected.
-		task.Errorf("cannot get state of snap %q (slot side) -- skipping setup of security profiles", connRef.SlotRef.Snap)
+		task.Errorf("cannot get state of snap %q (slot side) -- skipping setup of its security profiles", connRef.SlotRef.Snap)
 	} else {
 		slotOpts := confinementOptions(slotSnapst.Flags)
 		if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
@@ -390,7 +390,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		// NOTE: This is a temporary measure until the root cause of issue
 		// like this can be found and corrected.
-		task.Errorf("cannot get state of snap %q (plug side) -- skipping setup of security profiles", connRef.PlugRef.Snap)
+		task.Errorf("cannot get state of snap %q (plug side) -- skipping setup of its security profiles", connRef.PlugRef.Snap)
 	} else {
 		plugOpts := confinementOptions(plugSnapst.Flags)
 		if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
@@ -445,7 +445,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			if err == state.ErrNoState {
 				// NOTE: This is a temporary measure until the root cause of issue
 				// like this can be found and corrected.
-				task.Errorf("cannot get state of snap %q that was affected by the disconnection of %s %s -- skipping setup of security profiles",
+				task.Errorf("cannot get state of snap %q that was affected by the disconnection of %s %s -- skipping setup of its security profiles",
 					snapName, plugRef, slotRef)
 				continue
 			}
