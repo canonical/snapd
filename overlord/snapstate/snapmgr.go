@@ -42,6 +42,10 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
+var (
+	errtrackerReport = errtracker.Report
+)
+
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
@@ -556,16 +560,17 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		for _, l := range t.Log() {
 			// cut of the rfc339 timestamp to ensure duplicate
 			// detection works in daisy
-			tStampLen := len("2006-01-02T15:04:05Z07:00")
-			if len(l) < tStampLen {
+			tStampLen := strings.Index(l, " ")
+			if tStampLen < 0 {
 				continue
 			}
+			// not tStampLen+1 because the indent is nice
 			logMsg = append(logMsg, l[tStampLen:])
 		}
 	}
 
 	st.Unlock()
-	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
