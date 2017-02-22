@@ -40,12 +40,12 @@ func getKernelRelease(buf *syscall.Utsname) string {
 	return string(output)
 }
 
-// KernelVersion returns the version of the kernel or the empty string if one cannot be determined.
+// KernelVersion returns the version of the kernel or the string "unknown" if one cannot be determined.
 func KernelVersion() string {
 	var buf syscall.Utsname
 	err := syscall.Uname(&buf)
 	if err != nil {
-		return ""
+		return "unknown"
 	}
 	// Release is more informative than Version.
 	return getKernelRelease(&buf)
