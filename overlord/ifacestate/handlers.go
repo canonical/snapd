@@ -54,7 +54,8 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
-			return err
+			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedSnapName, affectingSnap, err)
+			continue
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
 		if err != nil {
@@ -422,7 +423,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, snapName := range affectedSnaps {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			return err
+			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
+			continue
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
