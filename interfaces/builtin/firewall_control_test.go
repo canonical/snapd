@@ -49,6 +49,12 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "other",
+					},
+					Name: "app2"}},
 		},
 	},
 })
