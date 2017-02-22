@@ -183,8 +183,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 
 	// Remove security artefacts of the snap.
 	if err := removeSnapSecurity(task, snapName); err != nil {
-		// TODO: how long to wait?
-		return &state.Retry{}
+		return err
 	}
 
 	return nil
@@ -431,7 +430,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 		opts := confinementOptions(snapst.Flags)
 		if err := setupSnapSecurity(task, snapInfo, opts, m.repo); err != nil {
-			return &state.Retry{}
+			return err
 		}
 	}
 	for _, conn := range affectedConns {

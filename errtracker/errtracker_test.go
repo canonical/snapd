@@ -62,6 +62,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
 
+	prev := errtracker.SnapdVersion
+	defer func() { errtracker.SnapdVersion = prev }()
+	errtracker.SnapdVersion = "some-snapd-version"
+
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
@@ -77,6 +81,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
 				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
+				"SnapdVersion":       "some-snapd-version",
 				"Snap":               "some-snap",
 				"Date":               "Fri Feb 17 09:51:00 2017",
 				"Channel":            "beta",

@@ -3837,6 +3837,60 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 }
 
+func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
+	var errSnap, errChannel, errMsg string
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aChannel, aErrMsg string) (string, error) {
+		errSnap = aSnap
+		errChannel = aChannel
+		errMsg = aErrMsg
+		return "oopsid", nil
+	})
+	defer restore()
+
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/11"
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify we generated a failure report
+	c.Check(errSnap, Equals, "some-snap")
+	c.Check(errChannel, Equals, "some-channel")
+	c.Check(errMsg, Matches, `(?sm)download-snap: Undoing
+validate-snap: Done
+.*
+link-snap: Error
+ INFO unlink
+ ERROR fail
+set-auto-aliases: Hold
+setup-aliases: Hold
+start-snap-services: Hold
+cleanup: Hold
+run-hook: Hold`)
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }

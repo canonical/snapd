@@ -96,6 +96,12 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
+func MockErrtrackerReport(mock func(string, string, string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}
+
 var (
 	CheckSnap            = checkSnap
 	CanRemove            = canRemove

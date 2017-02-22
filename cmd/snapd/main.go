@@ -39,6 +39,7 @@ func init() {
 	}
 	// set here to avoid accidental submits in e.g. unit tests
 	errtracker.CrashDbURLBase = "https://daisy.ubuntu.com/"
+	errtracker.SnapdVersion = cmd.Version
 }
 
 func main() {
