@@ -52,7 +52,7 @@ func distroRelease() string {
 	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
 }
 
-func Report(snap, channel, errMsg string) (string, error) {
+func Report(snap, channel, errMsg string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
 	}
@@ -77,6 +77,12 @@ func Report(snap, channel, errMsg string) (string, error) {
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": fmt.Sprintf("snap-install: %s", errMsg),
+	}
+	for k, v := range extra {
+		// only set if empty
+		if _, ok := report[k]; !ok {
+			report[k] = v
+		}
 	}
 	reportBson, err := bson.Marshal(report)
 	if err != nil {
