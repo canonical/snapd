@@ -26,9 +26,9 @@ import (
 )
 
 var mirPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the Mir server. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the Mir server. This gives privileged access
+# to the system.
+
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
 /{dev,run}/shm/\#* rw,
@@ -42,46 +42,27 @@ network netlink raw,
 `)
 
 var mirPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the mir server. Reserved because this
-# gives privileged access to the system.
+# Description: Allow operating as the mir server. This gives privileged access
+# to the system.
 # Needed for server launch
 bind
 listen
 # Needed by server upon client connect
-send
-sendto
-sendmsg
 accept
+accept4
 shmctl
-recv
-recvmsg
-recvfrom
 `)
 
 var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: common
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
-`)
-
-var mirConnectedPlugSecComp = []byte(`
-# Description: Permit clients to use Mir
-# Usage: common
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-
 `)
 
 type MirInterface struct{}
@@ -101,8 +82,6 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mirConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

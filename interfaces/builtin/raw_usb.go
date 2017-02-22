@@ -25,8 +25,7 @@ import (
 
 const rawusbConnectedPlugAppArmor = `
 # Description: Allow raw access to all connected USB devices.
-# Reserved because this gives privileged access to the system.
-# Usage: reserved
+# This gives privileged access to the system.
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
 # Allow detection of usb devices. Leaks plugged in USB device info

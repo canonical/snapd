@@ -124,19 +124,11 @@ func (s *DbusInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
 	snippet, err = s.iface.ConnectedSlotSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
 	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	snippet, err = s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
@@ -370,14 +362,6 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-slot{,.*}\"\n")
 }
 
-func (s *DbusInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
-}
-
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
@@ -475,14 +459,6 @@ func (s *DbusInterfaceSuite) TestConnectedPlugAppArmorSystem(c *C) {
 
 	// verify interface in rule
 	c.Check(string(snippet), testutil.Contains, "interface=\"org.test-system-connected{,.*}\"\n")
-}
-
-func (s *DbusInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.connectedSessionPlug, s.connectedSessionSlot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
 
 func (s *DbusInterfaceSuite) TestConnectionFirst(c *C) {

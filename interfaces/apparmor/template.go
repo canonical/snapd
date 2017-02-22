@@ -343,8 +343,8 @@ var defaultTemplate = []byte(`
   /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
