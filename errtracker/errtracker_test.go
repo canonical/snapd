@@ -62,7 +62,10 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
 
+	prev := errtracker.SnapdVersion
+	defer func() { errtracker.SnapdVersion = prev }()
 	errtracker.SnapdVersion = "some-snapd-version"
+
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
