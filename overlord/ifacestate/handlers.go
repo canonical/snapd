@@ -366,23 +366,36 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
-		return err
-	}
-
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
+	err = snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst)
+	if err != nil && err != state.ErrNoState {
 		return err
+	}
+	if err != nil {
+		// NOTE: This is a temporary measure until the root cause of issue
+		// like this can be found and corrected.
+		task.Errorf("cannot get state of snap %q (slot side) -- skipping setup of security profiles", connRef.SlotRef.Snap)
+	} else {
+		slotOpts := confinementOptions(slotSnapst.Flags)
+		if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+			return err
+		}
 	}
 
-	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+	var plugSnapst snapstate.SnapState
+	err = snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
-		return err
+	if err != nil {
+		// NOTE: This is a temporary measure until the root cause of issue
+		// like this can be found and corrected.
+		task.Errorf("cannot get state of snap %q (plug side) -- skipping setup of security profiles", connRef.PlugRef.Snap)
+	} else {
+		plugOpts := confinementOptions(plugSnapst.Flags)
+		if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
+			return err
+		}
 	}
 
 	conns[connRef.ID()] = connState{Interface: plug.Interface}
