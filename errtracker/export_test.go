@@ -39,6 +39,14 @@ func MockMachineIDPath(path string) (restorer func()) {
 	}
 }
 
+func MockUsrBinSnap(path string) (restorer func()) {
+	old := usrBinSnap
+	usrBinSnap = path
+	return func() {
+		usrBinSnap = old
+	}
+}
+
 func MockTimeNow(f func() time.Time) (restorer func()) {
 	old := timeNow
 	timeNow = f

@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/errtracker"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -42,7 +43,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type ErrtrackerTestSuite struct {
-	restorer func()
+	restorer []func()
 }
 
 var _ = Suite(&ErrtrackerTestSuite{})
@@ -51,16 +52,21 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	p := filepath.Join(c.MkDir(), "machine-id")
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
-	s.restorer = errtracker.MockMachineIDPath(p)
+	s.restorer = append(s.restorer, errtracker.MockMachineIDPath(p))
+	s.restorer = append(s.restorer, errtracker.MockUsrBinSnap("/bin/true"))
 }
 
 func (s *ErrtrackerTestSuite) TearDownTest(c *C) {
-	s.restorer()
+	for _, f := range s.restorer {
+		f()
+	}
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
+	usrBinSnapID, err := osutil.GetBuildID("/bin/true")
+	c.Assert(err, IsNil)
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -77,6 +83,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
 				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
+				"UsrBinSnapBuildID":  usrBinSnapID.String(),
 				"Snap":               "some-snap",
 				"Date":               "Fri Feb 17 09:51:00 2017",
 				"Channel":            "beta",

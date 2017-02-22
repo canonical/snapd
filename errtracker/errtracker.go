@@ -31,13 +31,15 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
 var (
 	CrashDbURLBase string
 
-	machineID = "/var/lib/dbus/machine-id"
+	machineID  = "/var/lib/dbus/machine-id"
+	usrBinSnap = "/usr/bin/snap"
 
 	timeNow = time.Now
 )
@@ -66,10 +68,17 @@ func Report(snap, channel, errMsg string) (string, error) {
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
 
+	usrBinSnapBuildID, err := osutil.GetBuildID(usrBinSnap)
+	if err != nil {
+		id := osutil.BuildID("unknown")
+		usrBinSnapBuildID = &id
+	}
+
 	report := map[string]string{
 		"ProblemType":        "Snap",
 		"Architecture":       arch.UbuntuArchitecture(),
 		"DistroRelease":      distroRelease(),
+		"UsrBinSnapBuildID":  usrBinSnapBuildID.String(),
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,
