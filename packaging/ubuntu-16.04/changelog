@@ -1,3 +1,24 @@
+snapd (2.22.6) xenial; urgency=medium
+
+  * New upstream release, LP: #1667105
+    - overlord/ifacestate: don't fail if affected snap is gone
+    - revert #2910: osutil: add package for reading Build-ID (#2918)
+    - errtracker: include the build-id of host and core snapd (#2912)
+    - errtracker: include the number of ubuntu-core -> core retries
+      (#2915)
+    - snapstate: retry ubuntu-core -> core transition every 6h (#2914)
+    - osutil: add package for reading Build-ID (#2910)
+    - errtracker: include kernel version in error reports (#2905)
+    - release: return "unknown" if uname fails
+    - many: rebased uname branch for 2.22
+    - errtracker: include snapd version in err reports
+    - overlord/ifacestate: don't unconditionally retry stuff (#2906)
+    - snapstate: fix incorrect cut of the timestamps for the error
+      reports (#2908)
+    - tests: update listing test for latest core snap version update
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Wed, 22 Feb 2017 23:34:23 +0100
+
 snapd (2.22.5) xenial; urgency=medium
 
   * Fix FTBFS due to machine-id file
