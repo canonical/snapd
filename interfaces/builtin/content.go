@@ -136,7 +136,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions []string) mount.Entry {
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
 	options := []string{"bind"}
 	options = append(options, extraOptions...)
 	return mount.Entry{
@@ -197,13 +197,13 @@ func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfac
 
 func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	for _, r := range iface.path(slot, "read") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, r, []string{"ro"}))
+		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
 		if err != nil {
 			return err
 		}
 	}
 	for _, w := range iface.path(slot, "write") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, w, nil))
+		err := spec.AddMountEntry(mountEntry(plug, slot, w))
 		if err != nil {
 			return err
 		}
