@@ -39,11 +39,19 @@ func MockMachineIDPath(path string) (restorer func()) {
 	}
 }
 
-func MockUsrBinSnap(path string) (restorer func()) {
-	old := usrBinSnap
-	usrBinSnap = path
+func MockHostSnapd(path string) (restorer func()) {
+	old := mockedHostSnapd
+	mockedHostSnapd = path
 	return func() {
-		usrBinSnap = old
+		mockedHostSnapd = old
+	}
+}
+
+func MockCoreSnapd(path string) (restorer func()) {
+	old := mockedCoreSnapd
+	mockedCoreSnapd = path
+	return func() {
+		mockedCoreSnapd = old
 	}
 }
 

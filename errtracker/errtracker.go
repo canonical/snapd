@@ -25,11 +25,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -39,8 +41,9 @@ var (
 	CrashDbURLBase string
 	SnapdVersion   string
 
-	machineID  = "/var/lib/dbus/machine-id"
-	usrBinSnap = "/usr/bin/snap"
+	machineID       = "/var/lib/dbus/machine-id"
+	mockedHostSnapd = ""
+	mockedCoreSnapd = ""
 
 	timeNow = time.Now
 )
@@ -69,10 +72,21 @@ func Report(snap, channel, errMsg string) (string, error) {
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
 
-	usrBinSnapBuildID, err := osutil.GetBuildID(usrBinSnap)
-	if err != nil {
-		id := osutil.BuildID("unknown")
-		usrBinSnapBuildID = &id
+	hostSnapdPath := filepath.Join(dirs.LibExecDir, "snapd")
+	coreSnapdPath := filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd")
+	if mockedHostSnapd != "" {
+		hostSnapdPath = mockedHostSnapd
+	}
+	if mockedCoreSnapd != "" {
+		coreSnapdPath = mockedCoreSnapd
+	}
+	hostBuildID, _ := osutil.ReadBuildID(hostSnapdPath)
+	coreBuildID, _ := osutil.ReadBuildID(coreSnapdPath)
+	if hostBuildID == "" {
+		hostBuildID = "unknown"
+	}
+	if coreBuildID == "" {
+		coreBuildID = "unknown"
 	}
 
 	report := map[string]string{
@@ -80,7 +94,8 @@ func Report(snap, channel, errMsg string) (string, error) {
 		"Architecture":       arch.UbuntuArchitecture(),
 		"SnapdVersion":       SnapdVersion,
 		"DistroRelease":      distroRelease(),
-		"UsrBinSnapBuildID":  usrBinSnapBuildID.String(),
+		"HostSnapdBuildID":   hostBuildID,
+		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
 		"Channel":            channel,

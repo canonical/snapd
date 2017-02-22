@@ -56,13 +56,16 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPath(p))
-	s.AddCleanup(errtracker.MockUsrBinSnap("/bin/true"))
+	s.AddCleanup(errtracker.MockHostSnapd("/bin/true"))
+	s.AddCleanup(errtracker.MockCoreSnapd("/bin/false"))
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
-	usrBinSnapID, err := osutil.GetBuildID("/bin/true")
+	hostBuildID, err := osutil.ReadBuildID("/bin/true")
+	c.Assert(err, IsNil)
+	coreBuildID, err := osutil.ReadBuildID("/bin/false")
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -84,7 +87,8 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
 				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
-				"UsrBinSnapBuildID":  usrBinSnapID.String(),
+				"HostSnapdBuildID":   hostBuildID,
+				"CoreSnapdBuildID":   coreBuildID,
 				"SnapdVersion":       "some-snapd-version",
 				"Snap":               "some-snap",
 				"Date":               "Fri Feb 17 09:51:00 2017",
