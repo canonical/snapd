@@ -34,50 +34,39 @@ type buildIDSuite struct{}
 
 var _ = Suite(&buildIDSuite{})
 
-func (s *buildIDSuite) TestString(c *C) {
-	id1 := osutil.BuildID([]byte{0xef, 0xbf, 0xc, 0xe8, 0xdd, 0x96, 0x17, 0xc8, 0x90, 0xa0, 0x54, 0x7c, 0xe5, 0xa1, 0xa6, 0x7, 0x3f, 0x58, 0x67, 0xaf})
-	c.Assert(id1.String(), Equals, "BuildID[sha1]=efbf0ce8dd9617c890a0547ce5a1a6073f5867af")
-
-	id2 := osutil.BuildID([]byte{0xef, 0xbf, 0xc, 0xe8, 0xdd, 0x96, 0x17, 0xc8, 0x90, 0xa0, 0x54, 0x7c, 0xe5, 0xa1, 0xa6, 0x7})
-	c.Assert(id2.String(), Equals, "BuildID[md5/uuid]=efbf0ce8dd9617c890a0547ce5a1a607")
-
-	id3 := osutil.BuildID([]byte{0xde, 0xad, 0xbe, 0xef})
-	c.Assert(id3.String(), Equals, "BuildID[???]=deadbeef")
-}
-
 func buildID(c *C, fname string) string {
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
-	re := regexp.MustCompile(`(BuildID\[.*\]=[a-f0-9]+)`)
+	re := regexp.MustCompile(`BuildID\[.*\]=([a-f0-9]+)`)
 	matches := re.FindStringSubmatch(string(output))
 	c.Assert(matches, HasLen, 2)
 
 	return matches[1]
 }
 
-func (s *buildIDSuite) TestGetBuildID(c *C) {
+func (s *buildIDSuite) TestReadBuildID(c *C) {
 	for _, fname := range []string{"/bin/true", "/bin/false"} {
 
-		id, err := osutil.GetBuildID(fname)
+		id, err := osutil.ReadBuildID(fname)
 		c.Assert(err, IsNil)
-		c.Assert(id.String(), Equals, buildID(c, fname), Commentf("executable: %s", fname))
+		c.Assert(id, Equals, buildID(c, fname), Commentf("executable: %s", fname))
 	}
 }
 
-func (s *buildIDSuite) TestGetBuildIDNoID(c *C) {
+func (s *buildIDSuite) TestReadBuildIDNoID(c *C) {
 	stripedTruth := filepath.Join(c.MkDir(), "true")
 	osutil.CopyFile("/bin/true", stripedTruth, 0)
 	output, err := exec.Command("strip", "-R", ".note.gnu.build-id", stripedTruth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
-	id, err := osutil.GetBuildID(stripedTruth)
+	id, err := osutil.ReadBuildID(stripedTruth)
 	c.Assert(err, Equals, osutil.ErrNoBuildID)
-	c.Assert(id, IsNil)
+	c.Assert(id, Equals, "")
 }
 
-func (s *buildIDSuite) TestGetBuildIDmd5(c *C) {
+func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 	if !osutil.FileExists("/usr/bin/gcc") {
 		c.Skip("No gcc found")
 	}
@@ -89,7 +78,7 @@ func (s *buildIDSuite) TestGetBuildIDmd5(c *C) {
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
-	id, err := osutil.GetBuildID(md5Truth)
+	id, err := osutil.ReadBuildID(md5Truth)
 	c.Assert(err, IsNil)
-	c.Assert(id.String(), Equals, buildID(c, md5Truth))
+	c.Assert(id, Equals, buildID(c, md5Truth))
 }

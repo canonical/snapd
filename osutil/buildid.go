@@ -22,53 +22,36 @@ package osutil
 import (
 	"debug/elf"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"os"
 )
 
 // ErrNoBuildID is returned when an executable does not contain a Build-ID
-var ErrNoBuildID = errors.New("executable does not contain GNU Build-Id")
+var ErrNoBuildID = errors.New("executable does not contain a build ID")
 
-// BuildID is an array of bytes that identify a given build of an executable.
-type BuildID []byte
-
-// String returns the familiar representation, namely "BuildID[...]=..."
-func (id BuildID) String() string {
-	switch len(id) {
-	case 0x10: // md5 note:
-		return fmt.Sprintf("BuildID[md5/uuid]=%x", []byte(id))
-	case 0x14: // SHA1 note:
-		return fmt.Sprintf("BuildID[sha1]=%x", []byte(id))
-	default:
-		return fmt.Sprintf("BuildID[???]=%x", []byte(id))
-	}
-}
-
-// ELF Note header.
-type noteHeader struct {
+type elfNoteHeader struct {
 	Namesz uint32
 	Descsz uint32
 	Type   uint32
 }
 
-// GetBuildID returns the GNU Build-ID of a given executable.
+// ReadBuildID returns the GNU build ID note of the provided ELF executable.
+// The ErrNoBuildID error is returned when one is not found.
 //
-// Note that not all executables will contain an embedded build-id (it can be
-// specifically stripped) and that golang executables built with plain "go
-// build" may not contain one. In such cases ErrNoBuildID is returned.
+// Observed Go binaries presented one when built with:
 //
-// When built with `go build -buildmode=pie` a Build-ID is present. C executables
-// seem to have this in all cases. The idea of Build-ID seems to have originated
-// from Fedora: http://fedoraproject.org/wiki/Releases/FeatureBuildId
-func GetBuildID(fname string) (*BuildID, error) {
+//      go build -buildmode=pie
+//
+// See details at http://fedoraproject.org/wiki/Releases/FeatureBuildId
+func ReadBuildID(fname string) (string, error) {
 	const ELF_NOTE_GNU = "GNU\x00"
 	const NT_GNU_BUILD_ID uint32 = 3
 
 	// Open the designated ELF file
 	f, err := elf.Open(fname)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer f.Close()
 
@@ -84,9 +67,9 @@ func GetBuildID(fname string) (*BuildID, error) {
 		sr.Seek(0, os.SEEK_SET)
 
 		// Read the ELF Note header
-		nHdr := new(noteHeader)
+		nHdr := new(elfNoteHeader)
 		if err := binary.Read(sr, f.ByteOrder, nHdr); err != nil {
-			return nil, err
+			return "", err
 		}
 
 		// We are looking for a specific type of note
@@ -97,7 +80,7 @@ func GetBuildID(fname string) (*BuildID, error) {
 		// Read note name
 		noteName := make([]byte, nHdr.Namesz)
 		if err := binary.Read(sr, f.ByteOrder, noteName); err != nil {
-			return nil, err
+			return "", err
 		}
 
 		// We are only interested in GNU build IDs
@@ -108,12 +91,11 @@ func GetBuildID(fname string) (*BuildID, error) {
 		// Read note data
 		noteData := make([]byte, nHdr.Descsz)
 		if err := binary.Read(sr, f.ByteOrder, noteData); err != nil {
-			return nil, err
+			return "", err
 		}
 
 		// Return the first build-id we manage to find
-		id := BuildID(noteData)
-		return &id, nil
+		return hex.EncodeToString(noteData), nil
 	}
-	return nil, ErrNoBuildID
+	return "", ErrNoBuildID
 }
