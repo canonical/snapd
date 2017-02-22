@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
-const unity8ConnectedPlugAppArmor = []byte(`
+const unity8ConnectedPlugAppArmor = `
 # Description: Can access unity8 desktop services
 
 #include <abstractions/dbus-session-strict>
@@ -107,11 +107,11 @@ dbus (receive)
 # Lttng tracing is very noisy and should not be allowed by confined apps.
 # Can safely deny. LP: #1260491
 deny /{dev,run,var/run}/shm/lttng-ust-* r,
-`)
+`
 
-const unity8ConnectedPlugSecComp = []byte(`
+const unity8ConnectedPlugSecComp = `
 shutdown
-`)
+`
 
 type Unity8Interface struct{}
 
