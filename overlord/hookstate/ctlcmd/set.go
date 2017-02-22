@@ -165,3 +165,46 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	attrsTask.Set(which, attributes)
 	return nil
 }
+
+func copyAttributes(value map[string]interface{}) (map[string]interface{}, error) {
+	cpy, err := copyRecursive(value)
+	if err != nil {
+		return nil, err
+	}
+	return cpy.(map[string]interface{}), err
+}
+
+func copyRecursive(value interface{}) (interface{}, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case bool:
+		return v, nil
+	case int:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case []interface{}:
+		arr := make([]interface{}, len(v))
+		for i, el := range v {
+			tmp, err := copyRecursive(el)
+			if err != nil {
+				return nil, err
+			}
+			arr[i] = tmp
+		}
+		return arr, nil
+	case map[string]interface{}:
+		mp := make(map[string]interface{}, len(v))
+		for key, item := range v {
+			tmp, err := copyRecursive(item)
+			if err != nil {
+				return nil, err
+			}
+			mp[key] = tmp
+		}
+		return mp, nil
+	default:
+		return nil, fmt.Errorf("unsupported attribute type '%T', value '%v'", value, value)
+	}
+}
