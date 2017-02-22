@@ -72,8 +72,6 @@ func GetBuildID(fname string) (*BuildID, error) {
 	}
 	defer f.Close()
 
-	const specialSectionName = ".note.gnu.build-id"
-
 	for _, section := range f.Sections {
 
 		// We are looking for note sections
