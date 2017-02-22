@@ -36,6 +36,8 @@ type BuildID []byte
 // String returns the familiar representation, namely "BuildID[...]=..."
 func (id BuildID) String() string {
 	switch len(id) {
+	case 0x10: // md5 note:
+		return fmt.Sprintf("BuildID[md5/uuid]=%x", []byte(id))
 	case 0x14: // SHA1 note:
 		return fmt.Sprintf("BuildID[sha1]=%x", []byte(id))
 	default:

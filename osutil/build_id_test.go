@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -41,18 +42,23 @@ func (s *buildIDSuite) TestString(c *C) {
 	c.Assert(id2.String(), Equals, "BuildID[???]=deadbeef")
 }
 
+func buildID(c *C, fname string) string {
+	output, err := exec.Command("file", fname).CombinedOutput()
+	c.Assert(err, IsNil)
+
+	re := regexp.MustCompile(`(BuildID\[.*\]=[a-f0-9]+)`)
+	matches := re.FindStringSubmatch(string(output))
+	c.Assert(matches, HasLen, 2)
+
+	return matches[1]
+}
+
 func (s *buildIDSuite) TestGetBuildID(c *C) {
 	for _, fname := range []string{"/bin/true", "/bin/false"} {
-		output, err := exec.Command("file", fname).CombinedOutput()
-		c.Assert(err, IsNil)
-
-		re := regexp.MustCompile(`(BuildID\[.*\]=[a-f0-9]+)`)
-		matches := re.FindStringSubmatch(string(output))
-		c.Assert(matches, HasLen, 2)
 
 		id, err := osutil.GetBuildID(fname)
 		c.Assert(err, IsNil)
-		c.Assert(id.String(), Equals, matches[1], Commentf("executable: %s", fname))
+		c.Assert(id.String(), Equals, buildID(c, fname), Commentf("executable: %s", fname))
 	}
 }
 
@@ -66,4 +72,21 @@ func (s *buildIDSuite) TestGetBuildIDNoID(c *C) {
 	id, err := osutil.GetBuildID(stripedTruth)
 	c.Assert(err, Equals, osutil.ErrNoBuildID)
 	c.Assert(id, IsNil)
+}
+
+func (s *buildIDSuite) TestGetBuildIDmd5(c *C) {
+	if !osutil.FileExists("/usr/bin/gcc") {
+		c.Skip("No gcc found")
+	}
+
+	md5Truth := filepath.Join(c.MkDir(), "true")
+	err := ioutil.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
+	c.Assert(err, IsNil)
+	output, err := exec.Command("gcc", "-Wl,-build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
+	c.Assert(string(output), Equals, "")
+	c.Assert(err, IsNil)
+
+	id, err := osutil.GetBuildID(md5Truth)
+	c.Assert(err, IsNil)
+	c.Assert(id.String(), Equals, buildID(c, md5Truth))
 }
