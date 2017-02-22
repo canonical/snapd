@@ -26,9 +26,8 @@ import (
 )
 
 var bluezPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the bluez service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the bluez service. This gives privileged
+# access to the system.
 
   network bluetooth,
 
@@ -96,9 +95,8 @@ var bluezPermanentSlotAppArmor = []byte(`
 `)
 
 var bluezConnectedPlugAppArmor = []byte(`
-# Description: Allow using bluez service. Reserved because this gives
-#  privileged access to the bluez service.
-# Usage: reserved
+# Description: Allow using bluez service. This gives privileged access to the
+# bluez service.
 
 #include <abstractions/dbus-strict>
 
@@ -129,36 +127,13 @@ dbus (receive)
 `)
 
 var bluezPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the bluez service. Reserved because this
-# gives
-#  privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the bluez service. This gives privileged
+# access to the system.
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`)
-
-var bluezConnectedPlugSecComp = []byte(`
-# Description: Allow using bluez service. Reserved because this gives
-#  privileged access to the bluez service.
-# Usage: reserved
-
-# Can communicate with DBus system service
-recv
-recvmsg
-send
-sendto
-sendmsg
 `)
 
 var bluezPermanentSlotDBus = []byte(`
@@ -200,8 +175,6 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return bluezConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }

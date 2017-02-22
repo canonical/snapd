@@ -80,6 +80,8 @@ type SnapManager struct {
 	refreshRandomness  time.Duration
 	lastRefreshAttempt time.Time
 
+	lastUbuntuCoreTransitionAttempt time.Time
+
 	runner *state.TaskRunner
 }
 
@@ -425,7 +427,7 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-var CanAutoRefresh func(st *state.State) bool
+var CanAutoRefresh func(st *state.State) (bool, error)
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
@@ -433,8 +435,11 @@ func (m *SnapManager) ensureRefreshes() error {
 	defer m.state.Unlock()
 
 	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
+	if CanAutoRefresh == nil {
 		return nil
+	}
+	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -536,6 +541,23 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 			return nil
 		}
 	}
+
+	// ensure we limit the retries in case something goes wrong
+	var retryCount int
+	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if retryCount > 5 {
+		// limit amount of retries
+		return nil
+	}
+	now := time.Now()
+	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
+		return nil
+	}
+	m.lastUbuntuCoreTransitionAttempt = now
+	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
 	if err != nil {

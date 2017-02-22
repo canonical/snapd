@@ -227,3 +227,38 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+
+const snapYaml = `
+name: foo
+version: 1
+developer: acme
+apps:
+    foo:
+        slots: [iface, iface2]
+`
+
+// Ensure that combined snippets are sorted
+func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
+	// NOTE: replace the real template with a shorter variant
+	restore := seccomp.MockTemplate([]byte("default\n"))
+	defer restore()
+
+	iface2 := &ifacetest.TestInterface{InterfaceName: "iface2"}
+	s.Repo.AddInterface(iface2)
+
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("zzz"), nil
+	}
+	iface2.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("aaa"), nil
+	}
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, "default\naaa\nzzz\n")
+	stat, err := os.Stat(profile)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
+}
