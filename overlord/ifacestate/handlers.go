@@ -54,6 +54,13 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				// NOTE: This is a temporary measure until the root cause of issue
+				// like this can be found and corrected.
+				task.Errorf("cannot get state of snap %q that was affected by a change to snap %q -- skipping setup of its security profiles",
+					affectedSnapName, affectingSnap)
+				continue
+			}
 			return err
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
@@ -359,23 +366,36 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
-		return err
-	}
-
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
+	err = snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst)
+	if err != nil && err != state.ErrNoState {
 		return err
+	}
+	if err != nil {
+		// NOTE: This is a temporary measure until the root cause of issue
+		// like this can be found and corrected.
+		task.Errorf("cannot get state of snap %q (slot side) -- skipping setup of its security profiles", connRef.SlotRef.Snap)
+	} else {
+		slotOpts := confinementOptions(slotSnapst.Flags)
+		if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+			return err
+		}
 	}
 
-	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := setupSnapSecurity(task, slot.Snap, slotOpts, m.repo); err != nil {
+	var plugSnapst snapstate.SnapState
+	err = snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
-		return err
+	if err != nil {
+		// NOTE: This is a temporary measure until the root cause of issue
+		// like this can be found and corrected.
+		task.Errorf("cannot get state of snap %q (plug side) -- skipping setup of its security profiles", connRef.PlugRef.Snap)
+	} else {
+		plugOpts := confinementOptions(plugSnapst.Flags)
+		if err := setupSnapSecurity(task, plug.Snap, plugOpts, m.repo); err != nil {
+			return err
+		}
 	}
 
 	conns[connRef.ID()] = connState{Interface: plug.Interface}
@@ -422,6 +442,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, snapName := range affectedSnaps {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				// NOTE: This is a temporary measure until the root cause of issue
+				// like this can be found and corrected.
+				task.Errorf("cannot get state of snap %q that was affected by the disconnection of %s %s -- skipping setup of its security profiles",
+					snapName, plugRef, slotRef)
+				continue
+			}
 			return err
 		}
 		snapInfo, err := snapst.CurrentInfo()
