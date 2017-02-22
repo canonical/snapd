@@ -9,7 +9,7 @@ snapd (2.22.4) xenial; urgency=medium
   * New bugfix release:
     - errtracker: add support for error reporting via daisy.ubuntu.com
     - snapstate: allow for 6 retries for the core transition
-    - httputils: ensure User-Agent works accross redirects
+    - httputils: ensure User-Agent works across redirects
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 21 Feb 2017 09:07:10 +0100
 
