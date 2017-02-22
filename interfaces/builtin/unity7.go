@@ -28,7 +28,6 @@ const unity7ConnectedPlugAppArmor = `
 # Description: Can access Unity7. Restricted because Unity 7 runs on X and
 # requires access to various DBus services and this environment does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -297,7 +296,7 @@ dbus (receive)
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
 
-# notifications
+# app-indicators
 dbus (send)
     bus=session
     path=/StatusNotifierWatcher
@@ -334,8 +333,15 @@ dbus (send)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
-    member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
+    member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    peer=(label=unconfined),
 
 dbus (send)
     bus=session
@@ -351,6 +357,7 @@ dbus (receive)
     member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
 
+# notifications
 dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
@@ -433,6 +440,20 @@ dbus (receive)
     member="{GetAll,GetLayout}"
     peer=(label=unconfined),
 
+# Allow requesting interest in receiving media key events. This tells Gnome
+# settings that our application should be notified when key events we are
+# interested in are pressed.
+dbus (send)
+  bus=session
+  interface=org.gnome.SettingsDaemon.MediaKeys
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  peer=(label=unconfined),
+dbus (send)
+  bus=session
+  interface=org.freedesktop.DBus.Properties
+  path=/org/gnome/SettingsDaemon/MediaKeys
+  member="Get{,All}"
+  peer=(label=unconfined),
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
@@ -446,15 +467,7 @@ const unity7ConnectedPlugSecComp = `
 # eavesdropping or apps interfering with one another.
 
 # X
-recvfrom
-recvmsg
 shutdown
-
-# dbus
-recvmsg
-send
-sendto
-sendmsg
 `
 
 // NewUnity7Interface returns a new "unity7" interface.

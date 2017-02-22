@@ -52,6 +52,7 @@ type Snap struct {
 	TryMode         bool          `json:"trymode"`
 	Apps            []AppInfo     `json:"apps"`
 	Broken          string        `json:"broken"`
+	Contact         string        `json:"contact"`
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`

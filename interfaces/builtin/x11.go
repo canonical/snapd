@@ -27,7 +27,6 @@ import (
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
 #include <abstractions/X>
 #include <abstractions/fonts>
@@ -40,11 +39,7 @@ const x11ConnectedPlugAppArmor = `
 const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-# Usage: reserved
 
-recvfrom
-recvmsg
-sendmsg
 shutdown
 `
 

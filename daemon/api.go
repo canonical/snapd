@@ -238,6 +238,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
 		"managed":    len(users) > 0,
+
+		"kernel-version": release.KernelVersion(),
 	}
 
 	// TODO: set the store-id here from the model information
@@ -2182,7 +2184,7 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
 	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
+		return BadRequest("cannot get users as non-root")
 	}
 
 	st := c.d.overlord.State()

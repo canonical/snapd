@@ -74,10 +74,6 @@ func (s *Unity8ContactsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 // The label glob when all apps are bound to the contacts slot
@@ -161,14 +157,6 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic didn't connect
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
-}
-
-func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "send\n")
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
