@@ -97,13 +97,6 @@ func (b *Backend) Remove(snapName string) error {
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
-	/*for securityTag, snippet := range spec.Snippets {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-		addContent(securityTag, opts, snippet, content)
-	}*/
-
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
