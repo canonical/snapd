@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -79,8 +80,10 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) 
 }
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for kmod
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
+	spec := &kmod.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(spec.Modules, DeepEquals, map[string]bool{
+		"openvswitch": true,
+	})
 }

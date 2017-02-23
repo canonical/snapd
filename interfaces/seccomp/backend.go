@@ -61,15 +61,17 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
-	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, opts, snippets)
+
+	// Get the snippets that apply to this snap
+	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
+
 	glob := interfaces.SecurityTagGlob(snapName)
 	dir := dirs.SnapSeccompDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -92,27 +94,28 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// combineSnippets combines security snippets collected from all the interfaces
+// deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-		addContent(appInfo.SecurityTag(), opts, snippets, content)
-	}
-
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), opts, snippets, content)
+		snippet := spec.Snippets[hookInfo.SecurityTag()]
+		addContent(hookInfo.SecurityTag(), opts, snippet, content)
+	}
+	for _, appInfo := range snapInfo.Apps {
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		snippet := spec.Snippets[appInfo.SecurityTag()]
+		addContent(appInfo.SecurityTag(), opts, snippet, content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetsForTag [][]byte, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -124,7 +127,6 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 	}
 
 	buffer.Write(defaultTemplate)
-	snippetsForTag := snippets[securityTag]
 	sort.Sort(byByteContent(snippetsForTag))
 	for _, snippet := range snippetsForTag {
 		buffer.Write(snippet)
@@ -138,7 +140,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 }
 
 func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+	return &Specification{}
 }
 
 type byByteContent [][]byte

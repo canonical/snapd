@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 var bluezPermanentSlotAppArmor = []byte(`
@@ -183,12 +184,14 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return bluezPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return bluezPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
 		return bluezPermanentSlotDBus, nil
 	}
 	return nil, nil
+}
+
+func (iface *BluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(bluezPermanentSlotSecComp)
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -57,11 +58,11 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 
 func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityKMod}
+		interfaces.SecuritySecComp}
 	for _, system := range systems {
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
-		if system == interfaces.SecurityAppArmor || system == interfaces.SecurityKMod {
+		if system == interfaces.SecurityAppArmor {
 			c.Assert(snippet, Not(IsNil))
 		} else {
 			c.Assert(snippet, IsNil)
@@ -79,4 +80,11 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+
+	spec := &kmod.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Modules, DeepEquals, map[string]bool{
+		"ppp_generic": true,
+	})
 }

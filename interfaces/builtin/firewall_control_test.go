@@ -24,6 +24,8 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -47,6 +49,12 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "other",
+					},
+					Name: "app2"}},
 		},
 	},
 })
@@ -84,11 +92,16 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for kmod
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
+	c.Assert(len(seccompSpec.Snippets), Equals, 1)
+
+	spec := &kmod.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(spec.Modules, DeepEquals, map[string]bool{
+		"ip6table_filter": true,
+		"iptable_filter":  true,
+	})
 }
