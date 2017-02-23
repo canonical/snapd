@@ -3,7 +3,7 @@
 set -ex
 
 # required for the debian adt host
-mkdir -p /etc/systemd/system/snapd.service.d/ 
+mkdir -p /etc/systemd/system/snapd.service.d/
 if [ "$http_proxy" != "" ]; then
     cat <<EOF | tee /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
@@ -22,6 +22,14 @@ echo ubuntu:ubuntu|chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 
 service ssh restart
+
+# Map snapd deb package pockets to core snap channels. This is intended to cope
+# with the autopkgtest execution when testing packages from the different pockets
+if apt -qq list snapd | grep -q -- -proposed; then
+    export SPREAD_CORE_CHANNEL=candidate
+elif apt -qq list snapd | grep -q -- -updates; then
+    export SPREAD_CORE_CHANNEL=stable
+fi
 
 # and now run spread against localhost
 . /etc/os-release
