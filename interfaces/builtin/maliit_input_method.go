@@ -73,6 +73,7 @@ unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY
 `
 
 const maliitInputMethodPermanentSlotSecComp = `
+recv
 recvfrom
 recvmsg
 send
@@ -84,6 +85,7 @@ accept4
 `
 
 const maliitInputMethodConnectedPlugSecComp = `
+recv
 recvfrom
 recvmsg
 send
