@@ -31,6 +31,16 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 
 /**
+ * Compare two mount entries (through indirect pointers).
+ **/
+static int
+sc_indirect_compare_mount_entry(const struct sc_mount_entry **a,
+				const struct sc_mount_entry **b)
+{
+	return sc_compare_mount_entry(*a, *b);
+}
+
+/**
  * Copy struct mntent into a freshly-allocated struct sc_mount_entry.
  *
  * The next pointer is initialized to NULL, it should be managed by the caller.
@@ -92,6 +102,37 @@ void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp)
 		sc_free_mount_entry_list(*entryp);
 		*entryp = NULL;
 	}
+}
+
+int sc_compare_mount_entry(const struct sc_mount_entry *a,
+			   const struct sc_mount_entry *b)
+{
+	int result;
+	if (a == NULL || b == NULL) {
+		die("cannot compare NULL mount entry");
+	}
+	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_type, b->entry.mnt_type);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_opts, b->entry.mnt_opts);
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_freq - b->entry.mnt_freq;
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_passno - b->entry.mnt_passno;
+	return result;
 }
 
 struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
