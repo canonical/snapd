@@ -721,7 +721,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	}
 
 	// see if we need to update the channel
-	if infoErr != nil && snapst.Channel != channel {
+	if snap.IsNoUpdateAvailableError(infoErr) && snapst.Channel != channel {
 		snapsup := &SnapSetup{
 			SideInfo: snapst.CurrentSideInfo(),
 			// update the tracked channel
