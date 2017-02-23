@@ -105,18 +105,17 @@ func NewHTTPClient(opts *ClientOpts) *http.Client {
 			Key:       "SNAPD_DEBUG_HTTP",
 			body:      opts.MayLogBody,
 		},
-		Timeout: opts.Timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) > 10 {
-				return errors.New("stopped after 10 redirects")
-			}
-			// preserve some headers across redirects
-			// to the CDN
-			for _, header := range []string{"Range", "User-Agent"} {
-				v := via[0].Header.Get(header)
-				req.Header.Set(header, v)
-			}
-			return nil
-		},
+		Timeout:       opts.Timeout,
+		CheckRedirect: checkRedirect,
 	}
+}
+
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	// fixed in go 1.8
+	fixupHeadersForRedirect(req, via)
+
+	return nil
 }
