@@ -37,49 +37,46 @@
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
 #include "user-support.h"
+#include "snap-confine-args.h"
 
 int main(int argc, char **argv)
 {
-	if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+	// Use our super-defensive parser to figure out what we've been asked to do.
+	struct sc_error *err = NULL;
+	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+	args = sc_nonfatal_parse_args(&argc, &argv, &err);
+
+	if (sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE)) {
+		sc_error_free(err);
+		// Let's print our nice usage string and exit.
+		fprintf(stderr, "Usage: %s <security-tag> <executable>",
+			argv[0]);
+		return 1;
+	}
+	// We don't want to handle any other errors, just die if we see one.
+	sc_die_on_error(err);
+
+	// We've been asked to print the version string so let's just do that.
+	if (sc_args_is_version_query(args)) {
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
 		return 0;
 	}
-	char *basename = strrchr(argv[0], '/');
-	if (basename) {
-		debug("setting argv[0] to %s", basename + 1);
-		argv[0] = basename + 1;
-	}
-	if (argc > 1 && !strcmp(argv[0], "ubuntu-core-launcher")) {
-		debug("shifting arguments by one");
-		argv[1] = argv[0];
-		argv++;
-		argc--;
-	}
-	// XXX: replace with pull request 2416 in snapd
-	bool classic_confinement = false;
-	if (argc > 2 && strcmp(argv[1], "--classic") == 0) {
-		classic_confinement = true;
-		// Shift remaining arguments left
-		int i;
-		for (i = 1; i + 1 < argc; ++i) {
-			argv[i] = argv[i + 1];
-		}
-		argv[i] = NULL;
-		argc -= 1;
-	}
-	const int NR_ARGS = 2;
-	if (argc < NR_ARGS + 1)
-		die("Usage: %s <security-tag> <binary>", argv[0]);
-
-	const char *security_tag = argv[1];
-	debug("security tag is %s", security_tag);
-	const char *binary = argv[2];
-	debug("binary to run is %s", binary);
-	uid_t real_uid = getuid();
-	gid_t real_gid = getgid();
-
+	// Collect and validate the security tag and a few other things passed on
+	// command line.
+	const char *security_tag = sc_args_security_tag(args);
 	if (!verify_security_tag(security_tag))
 		die("security tag %s not allowed", security_tag);
+	const char *executable = sc_args_executable(args);
+	bool classic_confinement = sc_args_is_classic_confinement(args);
+
+	debug("security tag: %s", security_tag);
+	debug("executable:   %s", executable);
+	debug("confinement:  %s",
+	      classic_confinement ? "classic" : "non-classic");
+
+	// Who are we?
+	uid_t real_uid = getuid();
+	gid_t real_gid = getgid();
 
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
@@ -193,8 +190,13 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
 	}
-	// and exec the new binary
-	execv(binary, (char *const *)&argv[NR_ARGS]);
+	// and exec the new executable
+	argv[0] = (char *)executable;
+	debug("execv(%s, %s...)", executable, argv[0]);
+	for (int i=1; i<argc; ++i) {
+		debug(" argv[%i] = %s", i, argv[i]);
+	}
+	execv(executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
 }
