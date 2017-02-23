@@ -73,7 +73,7 @@ func (s *specSuite) SetUpTest(c *C) {
 
 func (s *specSuite) TestAddSnippte(c *C) {
 	c.Assert(s.spec.AddSnippet([]byte("foo")), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, map[string]bool{
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string]bool{
 		"foo": true})
 }
 
@@ -84,7 +84,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, map[string]bool{
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string]bool{
 		"connected-plug": true, "permanent-plug": true,
 		"connected-slot": true, "permanent-slot": true,
 	})

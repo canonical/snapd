@@ -26,16 +26,25 @@ import (
 // Specification assists in collecting udev snippets associated with an interface.
 type Specification struct {
 	// Snippets are stored in a map for de-duplication
-	Snippets map[string]bool
+	snippets map[string]bool
 }
 
 // AddSnippet adds a new udev snippet.
 func (spec *Specification) AddSnippet(snippet []byte) error {
-	if spec.Snippets == nil {
-		spec.Snippets = make(map[string]bool)
+	if spec.snippets == nil {
+		spec.snippets = make(map[string]bool)
 	}
-	spec.Snippets[string(snippet)] = true
+	spec.snippets[string(snippet)] = true
 	return nil
+}
+
+// Snippets returns a copy of all the snippets added so far.
+func (spec *Specification) Snippets() map[string]bool {
+	result := make(map[string]bool, len(spec.snippets))
+	for k, v := range spec.snippets {
+		result[k] = v
+	}
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
