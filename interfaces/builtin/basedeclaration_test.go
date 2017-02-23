@@ -147,6 +147,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
+		"unity8":                  true,
 		"ubuntu-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
@@ -436,8 +437,10 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"thumbnailer":             {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
+		"unity8":                  {"app"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"ubuntu-download-manager": {"app"},
@@ -528,6 +531,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -574,6 +578,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe":        true,
 		"lxd":                     true,
 		"mir":                     true,
+		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
@@ -647,6 +652,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {

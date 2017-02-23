@@ -24,6 +24,8 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -38,37 +40,31 @@ type OS struct {
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (os *OS) ForceDevMode() bool {
-	switch os.ID {
-	case "neon":
-		return false
-	case "ubuntu":
-		return false
-	case "ubuntu-core":
-		return false
-	case "elementary":
-		switch os.VersionID {
-		case "0.4":
-			return false
-		}
-	case "linuxmint":
-		// NOTE: mint uses "LinuxMint" (mixed capitalization) but this is
-		// normalized by readOSRelease.
-		switch os.VersionID {
-		case "18.1":
-			// Linux Mint 18.1 aka "serena" should use apparmor confinement
-			// given that it shares packages with Ubuntu 16.04.
-			return false
-		}
-	case "galliumos":
+	supported := []struct {
+		ID        string
+		VersionID string
+	}{
+		{"neon", ""},
+		{"ubuntu", ""},
+		{"ubuntu-core", ""},
+		// NOTE: elementary is "Elementary OS" but normalization
+		// applies
+		{"elementary", "0.4"},
+		// NOTE: mint uses "LinuxMint" (mixed capitalization)
+		// but this is normalized by readOSRelease.
+		{"linuxmint", "18.1"},
+		{"galliumos", "2.0"},
+		{"peppermint", "7.0"},
+		// NOTE: zorin is "Zorin OS" but normalization applies
+		{"zorin", "12"},
+	}
 
-		switch os.VersionID {
-		case "1.0":
-			// 1.0 is based on 15.04
-			return true
-
-		default:
-			// GalliumOS is build on top of ubuntu-16.04
-			return false
+	for _, s := range supported {
+		if os.ID == s.ID {
+			res, err := strutil.VersionCompare(os.VersionID, s.VersionID)
+			if err == nil && res >= 0 {
+				return false
+			}
 		}
 	}
 

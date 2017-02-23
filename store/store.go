@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -497,19 +497,20 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
+	if s.authContext == nil {
+		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
+	}
 	newDischarges, err := refreshDischarges(user)
 	if err != nil {
 		return err
 	}
 
-	if s.authContext != nil {
-		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
-		if err != nil {
-			return err
-		}
-		// update in place
-		*user = *curUser
+	curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+	if err != nil {
+		return err
 	}
+	// update in place
+	*user = *curUser
 
 	return nil
 }
@@ -1382,7 +1383,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusUnauthorized:
-			return fmt.Errorf("cannot download non-free snap without purchase")
+
+			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
 			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}

@@ -110,10 +110,12 @@ func NewHTTPClient(opts *ClientOpts) *http.Client {
 			if len(via) > 10 {
 				return errors.New("stopped after 10 redirects")
 			}
-			// preserve the range header across redirects
+			// preserve some headers across redirects
 			// to the CDN
-			v := via[0].Header.Get("Range")
-			req.Header.Set("Range", v)
+			for _, header := range []string{"Range", "User-Agent"} {
+				v := via[0].Header.Get(header)
+				req.Header.Set(header, v)
+			}
 			return nil
 		},
 	}

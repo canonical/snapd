@@ -90,9 +90,9 @@ func (s *X11InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-// The recvfrom system call is allowed
+// The shutdown system call is allowed
 func (s *X11InterfaceSuite) TestLP1574526(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "recvfrom\n")
+	c.Check(string(snippet), testutil.Contains, "shutdown\n")
 }

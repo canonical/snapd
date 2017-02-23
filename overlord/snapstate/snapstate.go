@@ -189,12 +189,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	var defaults map[string]interface{}
 
 	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+		// FIXME: this doesn't work during seeding itself
 		gadget, err := GadgetInfo(st)
 		if err != nil && err != state.ErrNoState {
 			return nil, err
 		}
 		if err == nil {
-			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
+			gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 			if err != nil {
 				return nil, err
 			}
@@ -719,6 +720,28 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	if err != nil {
 		return nil, err
 	}
+
+	// see if we need to update the channel
+	if snap.IsNoUpdateAvailableError(infoErr) && snapst.Channel != channel {
+		snapsup := &SnapSetup{
+			SideInfo: snapst.CurrentSideInfo(),
+			// update the tracked channel
+			Channel: channel,
+		}
+		// Update the current snap channel as well. This ensures that
+		// the UI displays the right values.
+		snapsup.SideInfo.Channel = channel
+
+		switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))
+		switchSnap.Set("snap-setup", &snapsup)
+
+		switchSnapTs := state.NewTaskSet(switchSnap)
+		for _, ts := range tts {
+			switchSnapTs.WaitAll(ts)
+		}
+		tts = append(tts, switchSnapTs)
+	}
+
 	if len(tts) == 0 && len(updates) == 0 {
 		// really nothing to do, return the original no-update-available error
 		return nil, infoErr

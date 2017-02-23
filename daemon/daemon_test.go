@@ -225,6 +225,12 @@ func (l *witnessAcceptListener) Accept() (net.Conn, error) {
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
+	st := d.overlord.State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
@@ -265,6 +271,12 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d := newTestDaemon(c)
+	// mark as already seeded
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
