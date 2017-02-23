@@ -17,20 +17,20 @@
  *
  */
 
-package mount_test
+package seccomp_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
 type specSuite struct {
 	iface *ifacetest.TestInterface
-	spec  *mount.Specification
+	spec  *seccomp.Specification
 	plug  *interfaces.Plug
 	slot  *interfaces.Slot
 }
@@ -38,56 +38,60 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddMountEntry(mount.Entry{Name: "connected-plug"})
+		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+			return spec.AddSnippet([]byte("connected-plug"))
 		},
-		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddMountEntry(mount.Entry{Name: "connected-slot"})
+		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+			return spec.AddSnippet([]byte("connected-slot"))
 		},
-		MountPermanentPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug) error {
-			return spec.AddMountEntry(mount.Entry{Name: "permanent-plug"})
+		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
+			return spec.AddSnippet([]byte("permanent-plug"))
 		},
-		MountPermanentSlotCallback: func(spec *mount.Specification, slot *interfaces.Slot) error {
-			return spec.AddMountEntry(mount.Entry{Name: "permanent-slot"})
+		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+			return spec.AddSnippet([]byte("permanent-slot"))
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap1"},
 			Name:      "name",
 			Interface: "test",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "snap1",
+					},
+					Name: "app1"}},
 		},
 	},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap2"},
 			Name:      "name",
 			Interface: "test",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "snap2",
+					},
+					Name: "app2"}},
 		},
 	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = &mount.Specification{}
+	s.spec = &seccomp.Specification{}
 }
 
-// AddMountEntry is not broken
-func (s *specSuite) TestSmoke(c *C) {
-	ent0 := mount.Entry{Name: "fs1"}
-	ent1 := mount.Entry{Name: "fs2"}
-	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
-	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{ent0, ent1})
-}
-
-// The mount.Specification can be used through the interfaces.Specification interface
+// The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
-		{Name: "connected-plug"}, {Name: "connected-slot"},
-		{Name: "permanent-plug"}, {Name: "permanent-slot"}})
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][][]byte{
+		"snap.snap1.app1": {[]byte("connected-plug"), []byte("permanent-plug")},
+		"snap.snap2.app2": {[]byte("connected-slot"), []byte("permanent-slot")},
+	})
 }
