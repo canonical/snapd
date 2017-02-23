@@ -176,6 +176,44 @@ static void test_sc_save_mount_profile()
 	fclose(f);
 }
 
+static void test_sc_compare_mount_entry()
+{
+	// Do trivial comparison checks.
+	g_assert_cmpint(sc_compare_mount_entry(&test_entry_1, &test_entry_1),
+			==, 0);
+	g_assert_cmpint(sc_compare_mount_entry(&test_entry_1, &test_entry_2), <,
+			0);
+	g_assert_cmpint(sc_compare_mount_entry(&test_entry_2, &test_entry_1), >,
+			0);
+	g_assert_cmpint(sc_compare_mount_entry(&test_entry_2, &test_entry_2),
+			==, 0);
+
+	// Ensure that each field is compared.
+	struct sc_mount_entry a = test_entry_1;
+	struct sc_mount_entry b = test_entry_1;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), ==, 0);
+
+	b.entry.mnt_fsname = test_entry_2.entry.mnt_fsname;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), <, 0);
+	b = test_entry_1;
+
+	b.entry.mnt_dir = test_entry_2.entry.mnt_dir;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), <, 0);
+	b = test_entry_1;
+
+	b.entry.mnt_opts = test_entry_2.entry.mnt_opts;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), <, 0);
+	b = test_entry_1;
+
+	b.entry.mnt_freq = test_entry_2.entry.mnt_freq;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), <, 0);
+	b = test_entry_1;
+
+	b.entry.mnt_passno = test_entry_2.entry.mnt_passno;
+	g_assert_cmpint(sc_compare_mount_entry(&a, &b), <, 0);
+	b = test_entry_1;
+}
+
 static void test_sc_clone_mount_entry_from_mntent()
 {
 	struct sc_mount_entry *entry =
@@ -187,6 +225,31 @@ static void test_sc_clone_mount_entry_from_mntent()
 	g_assert_null(next);
 }
 
+static void test_sc_sort_mount_entries()
+{
+	struct sc_mount_entry *list;
+
+	// Sort an empty list, it should not blow up.
+	list = NULL;
+	sc_sort_mount_entries(&list);
+	g_assert(list == NULL);
+
+	// Create a list with two items in wrong order (backwards).
+	struct sc_mount_entry entry_1 = test_entry_1;
+	struct sc_mount_entry entry_2 = test_entry_2;
+	list = &entry_2;
+	entry_2.next = &entry_1;
+	entry_1.next = NULL;
+
+	// Sort the list
+	sc_sort_mount_entries(&list);
+
+	// Ensure that the linkage now follows the right order.
+	g_assert(list == &entry_1);
+	g_assert(entry_1.next == &entry_2);
+	g_assert(entry_2.next == NULL);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount-entry/sc_load_mount_profile",
@@ -195,6 +258,10 @@ static void __attribute__ ((constructor)) init()
 			test_sc_load_mount_profile__no_such_file);
 	g_test_add_func("/mount-entry/sc_save_mount_profile",
 			test_sc_save_mount_profile);
+	g_test_add_func("/mount-entry/sc_compare_mount_entry",
+			test_sc_compare_mount_entry);
 	g_test_add_func("/mount-entry/test_sc_clone_mount_entry_from_mntent",
 			test_sc_clone_mount_entry_from_mntent);
+	g_test_add_func("/mount-entry/test_sort_mount_entries",
+			test_sc_sort_mount_entries);
 }

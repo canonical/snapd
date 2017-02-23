@@ -124,16 +124,16 @@ slots:
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntry1 := "/src-1 /dst-1 none bind,ro 0 0"
-	fsEntry2 := "/src-2 /dst-2 none bind,ro 0 0"
+	fsEntry1 := mount.Entry{"/src-1", "/dst-1", "none", []string{"bind", "ro"}, 0, 0}
+	fsEntry2 := mount.Entry{"/src-2", "/dst-2", "none", []string{"bind", "ro"}, 0, 0}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddSnippet(fsEntry1)
+		return spec.AddMountEntry(fsEntry1)
 	}
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet(fsEntry2)
+		return spec.AddMountEntry(fsEntry2)
 	}
 
 	// confinement options are irrelevant to this security backend
@@ -163,7 +163,7 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
-		return spec.AddSnippet("")
+		return spec.AddMountEntry(mount.Entry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand

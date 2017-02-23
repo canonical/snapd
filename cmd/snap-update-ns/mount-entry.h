@@ -49,6 +49,26 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 			   const char *pathname);
 
 /**
+ * Compare two mount entries.
+ *
+ * Returns 0 if both entries are equal, a number less than zero if the first
+ * entry sorts before the second entry or a number greater than zero if the
+ * second entry sorts before the second entry.
+ **/
+int
+sc_compare_mount_entry(const struct sc_mount_entry *a,
+		       const struct sc_mount_entry *b);
+
+/**
+ * Sort the linked list of mount entries.
+ *
+ * The initial argument is a pointer to the first element (which can be NULL).
+ * The list is sorted and all the next pointers are updated to point to the
+ * lexically subsequent element.
+ **/
+void sc_sort_mount_entries(struct sc_mount_entry **first);
+
+/**
  * Free a dynamically allocated list of strct sc_mount_entry objects.
  *
  * This function is designed to be used with
