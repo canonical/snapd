@@ -1,6 +1,6 @@
 summary: check that the core and kernel snaps roll back correctly after a failed upgrade
 
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
 
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental
@@ -67,18 +67,21 @@ execute: |
         test "$(bootenv snap_try_core)" = "${core_name}_$(cat failBoot).snap"
 
         REBOOT
-    else
-        # after rollback, we have the original target snap
-        snap list | awk "/^${core_name} / {print(\$3)}" > currentBoot
-        test "$(cat prevBoot)" = "$(cat currentBoot)"
-
-        # and the boot env vars are correctly set
-        echo "Waiting for snapd to clean snap_mode"
-        while [ "$(bootenv snap_mode)" != "" ]; do
-            sleep 1
-        done
-
-        test "$(bootenv snap_core)" = "${core_name}_$(cat prevBoot).snap"
-        # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
-        # test "$(bootenv snap_try_${TARGET_SNAP})" = ""
     fi
+    # after rollback, we have the original target snap
+    # wait until the kernel and core snap revisions are in place
+    while ! snap changes | MATCH "Done .* Update kernel and core snap revisions"; do
+        sleep 1
+    done
+    snap list | awk "/^${core_name} / {print(\$3)}" > currentBoot
+    test "$(cat prevBoot)" = "$(cat currentBoot)"
+
+    # and the boot env vars are correctly set
+    echo "Waiting for snapd to clean snap_mode"
+    while [ "$(bootenv snap_mode)" != "" ]; do
+        sleep 1
+    done
+
+    test "$(bootenv snap_core)" = "${core_name}_$(cat prevBoot).snap"
+    # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
+    # test "$(bootenv snap_try_${TARGET_SNAP})" = ""
