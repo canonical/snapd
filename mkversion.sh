@@ -26,9 +26,18 @@ if [ "$GOPACKAGE" = "cmd" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
 fi
 
-if which git >/dev/null; then
-    v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
-    o=git
+# If the version is passed in as an argument to mkversion.sh, let's use that.
+if [ ! -z "$1" ]; then
+    v="$1"
+    o=shell
+fi
+
+if [ -z "$v" ]; then
+    # Let's try to derive the version from git..
+    if which git >/dev/null; then
+        v="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+        o=git
+    fi
 fi
 
 if [ -z "$v" ]; then

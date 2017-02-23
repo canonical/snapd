@@ -31,7 +31,6 @@ const dockerSupportConnectedPlugAppArmor = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -114,7 +113,6 @@ const dockerSupportConnectedPlugSecComp = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 # Because seccomp may only go more strict, we must allow all syscalls to Docker
 # that it expects to give to containers in addition to what it needs to run and

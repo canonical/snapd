@@ -29,12 +29,12 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	Snippets []string
+	MountEntries []Entry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddSnippet(snippet string) error {
-	spec.Snippets = append(spec.Snippets, snippet)
+func (spec *Specification) AddMountEntry(e Entry) error {
+	spec.MountEntries = append(spec.MountEntries, e)
 	return nil
 }
 

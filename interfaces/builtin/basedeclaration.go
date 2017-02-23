@@ -157,6 +157,8 @@ plugs:
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
+  unity8:
+    allow-installation: false
 slots:
   account-control:
     allow-installation:
@@ -318,6 +320,11 @@ slots:
         - core
     deny-auto-connection: true
   libvirt:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  framebuffer:
     allow-installation:
       slot-snap-type:
         - core
@@ -508,6 +515,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  thumbnailer:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
   time-control:
     allow-installation:
       slot-snap-type:
@@ -543,6 +556,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   unity8-calendar:
     allow-installation:
       slot-snap-type:
