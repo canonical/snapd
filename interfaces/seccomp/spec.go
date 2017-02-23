@@ -24,7 +24,7 @@ import "github.com/snapcore/snapd/interfaces"
 // Specification keeps all the seccomp snippets.
 type Specification struct {
 	// Snippets are indexed by security tag.
-	Snippets     map[string][][]byte
+	snippets     map[string][][]byte
 	securityTags []string
 }
 
@@ -33,14 +33,29 @@ func (spec *Specification) AddSnippet(snippet []byte) error {
 	if len(spec.securityTags) == 0 {
 		return nil
 	}
-	if spec.Snippets == nil {
-		spec.Snippets = make(map[string][][]byte)
+	if spec.snippets == nil {
+		spec.snippets = make(map[string][][]byte)
 	}
 	for _, tag := range spec.securityTags {
-		spec.Snippets[tag] = append(spec.Snippets[tag], snippet)
+		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 	}
 
 	return nil
+}
+
+// Snippets returns a deep copy of all the added snippets.
+func (spec *Specification) Snippets() map[string][][]byte {
+	result := make(map[string][][]byte, len(spec.snippets))
+	for k, v := range spec.snippets {
+		vCopy := make([][]byte, 0, len(v))
+		for _, vElem := range v {
+			vElemCopy := make([]byte, len(vElem))
+			copy(vElemCopy, vElem)
+			vCopy = append(vCopy, vElemCopy)
+		}
+		result[k] = vCopy
+	}
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
