@@ -25,11 +25,13 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -79,6 +81,8 @@ type SnapManager struct {
 
 	refreshRandomness  time.Duration
 	lastRefreshAttempt time.Time
+
+	lastUbuntuCoreTransitionAttempt time.Time
 
 	runner *state.TaskRunner
 }
@@ -425,7 +429,7 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-var CanAutoRefresh func(st *state.State) bool
+var CanAutoRefresh func(st *state.State) (bool, error)
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
@@ -433,8 +437,11 @@ func (m *SnapManager) ensureRefreshes() error {
 	defer m.state.Unlock()
 
 	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil || !CanAutoRefresh(m.state) {
+	if CanAutoRefresh == nil {
 		return nil
+	}
+	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -536,6 +543,23 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 			return nil
 		}
 	}
+
+	// ensure we limit the retries in case something goes wrong
+	var retryCount int
+	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if retryCount > 6 {
+		// limit amount of retries
+		return nil
+	}
+	now := time.Now()
+	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
+		return nil
+	}
+	m.lastUbuntuCoreTransitionAttempt = now
+	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
 	if err != nil {
@@ -645,7 +669,46 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
-	// FIXME: remove the entire function
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	// report this error to an error tracker
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		return nil
+	}
+	if snapsup.SideInfo.RealName == "" {
+		return nil
+	}
+
+	var logMsg []string
+	for _, t := range t.Change().Tasks() {
+		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
+		for _, l := range t.Log() {
+			// cut of the rfc339 timestamp to ensure duplicate
+			// detection works in daisy
+			tStampLen := len("2006-01-02T15:04:05Z07:00")
+			if len(l) < tStampLen {
+				continue
+			}
+			logMsg = append(logMsg, l[tStampLen:])
+		}
+	}
+
+	st.Unlock()
+	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	st.Lock()
+	if err == nil {
+		logger.Noticef("Reported problem as %s", oopsid)
+	} else {
+		logger.Debugf("Cannot report problem: %s", err)
+	}
+
 	return nil
 }
 

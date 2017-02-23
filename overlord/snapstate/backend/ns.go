@@ -38,7 +38,7 @@ func mountNsPath(snapName string) string {
 func (b Backend) runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
-		toolPath := filepath.Join(dirs.LibExecDir, toolName)
+		toolPath := filepath.Join(dirs.DistroLibExecDir, toolName)
 		cmd := exec.Command(toolPath, snapName)
 		output, err := cmd.CombinedOutput()
 		return output, err

@@ -546,7 +546,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased401(c *C) {
 	var buf bytes.Buffer
 	err := download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot download non-free snap without purchase")
+	c.Check(err.Error(), Equals, "Please buy foo before installing it.")
 	c.Check(n, Equals, 1)
 }
 
@@ -684,37 +684,63 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	altPath := c.MkDir()
+	origSnapMountDir := dirs.SnapMountDir
+	defer func() { dirs.SnapMountDir = origSnapMountDir }()
+	dirs.SnapMountDir = c.MkDir()
+	exeInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")
+	os.MkdirAll(filepath.Dir(exeInCorePath), 0755)
 
 	scenarios := []struct {
-		env      string
-		classic  bool
-		exe      bool
-		expected bool
+		env       string
+		classic   bool
+		exeInHost bool
+		exeInCore bool
+
+		wantDelta bool
 	}{
-		{"", false, false, false},  // no env, not on classic, no executable => no delta
-		{"", false, true, false},   // no env, not on classic, executable => no delta
-		{"", true, false, false},   // no env, on classic, no executable => no delta
-		{"", true, true, true},     // no env, on classic, executable => DELTA!
-		{"0", false, false, false}, // env says NO, not classic, no executable => no delta
-		{"0", false, true, false},  // env says NO, not classic, executable => no delta
-		{"0", true, false, false},  // env says NO, classic, no executable => no delta
-		{"0", true, true, false},   // env says NO, classic, executable => no delta
-		{"1", false, false, false}, // env says YES, no classic, no executable => no delta
-		{"1", false, true, true},   // env says YES, no classic, executable => DELTA!
-		{"1", true, false, false},  // env says YES, classic, no executable => no delta
-		{"1", true, true, true},    // env says YES, classic, executable => DELTA!
+		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
+
+		{env: "0", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: false, exeInCore: true, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: false, wantDelta: false},
+		{env: "0", classic: true, exeInHost: true, exeInCore: true, wantDelta: false},
+
+		{env: "1", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
+		{env: "1", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "1", classic: true, exeInHost: true, exeInCore: true, wantDelta: true},
 	}
 
 	for _, scenario := range scenarios {
+		if scenario.exeInCore {
+			osutil.CopyFile("/bin/true", exeInCorePath, 0)
+		} else {
+			os.Remove(exeInCorePath)
+		}
 		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
 		release.MockOnClassic(scenario.classic)
-		if scenario.exe {
+		if scenario.exeInHost {
 			os.Setenv("PATH", origPath)
 		} else {
 			os.Setenv("PATH", altPath)
 		}
 
-		c.Check(useDeltas(), Equals, scenario.expected, Commentf("%#v", scenario))
+		c.Check(useDeltas(), Equals, scenario.wantDelta, Commentf("%#v", scenario))
 	}
 }
 
@@ -1485,6 +1511,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
+	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch, Equals, "0")
