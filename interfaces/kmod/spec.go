@@ -31,19 +31,28 @@ import (
 // holds internal state that is used by the kmod backend during the interface
 // setup process.
 type Specification struct {
-	Modules map[string]bool
+	modules map[string]bool
 }
 
 // AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
 func (spec *Specification) AddModule(module string) error {
 	m := strings.TrimSpace(module)
 	if len(m) > 0 {
-		if spec.Modules == nil {
-			spec.Modules = make(map[string]bool)
+		if spec.modules == nil {
+			spec.modules = make(map[string]bool)
 		}
-		spec.Modules[m] = true
+		spec.modules[m] = true
 	}
 	return nil
+}
+
+// Modules returns a copy of the kernel module names added.
+func (spec *Specification) Modules() map[string]bool {
+	result := make(map[string]bool, len(spec.modules))
+	for k, v := range spec.modules {
+		result[k] = v
+	}
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
