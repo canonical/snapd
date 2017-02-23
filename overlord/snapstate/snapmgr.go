@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,10 @@ var (
 
 	// random interval on top of the minmum time between refreshes
 	defaultRefreshRandomness = 4 * time.Hour
+)
+
+var (
+	errtrackerReport = errtracker.Report
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -546,20 +551,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 
 	// ensure we limit the retries in case something goes wrong
+	var lastUbuntuCoreTransitionAttempt time.Time
+	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	now := time.Now()
+	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
+		return nil
+	}
+	m.state.Set("ubuntu-core-transition-last-retry-time", now)
+
 	var retryCount int
 	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if retryCount > 6 {
-		// limit amount of retries
-		return nil
-	}
-	now := time.Now()
-	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
-		return nil
-	}
-	m.lastUbuntuCoreTransitionAttempt = now
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
@@ -693,16 +700,27 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		for _, l := range t.Log() {
 			// cut of the rfc339 timestamp to ensure duplicate
 			// detection works in daisy
-			tStampLen := len("2006-01-02T15:04:05Z07:00")
-			if len(l) < tStampLen {
+			tStampLen := strings.Index(l, " ")
+			if tStampLen < 0 {
 				continue
 			}
+			// not tStampLen+1 because the indent is nice
 			logMsg = append(logMsg, l[tStampLen:])
 		}
 	}
 
+	var ubuntuCoreTransitionCount int
+	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	extra := map[string]string{}
+	if ubuntuCoreTransitionCount > 0 {
+		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
+	}
+
 	st.Unlock()
-	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"), extra)
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
