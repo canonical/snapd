@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,69 +17,77 @@
  *
  */
 
-package mount
+package kmod
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// Specification assists in collecting mount entries associated with an interface.
+// Specification assists in collecting kernel modules associated with an interface.
 //
 // Unlike the Backend itself (which is stateless and non-persistent) this type
-// holds internal state that is used by the mount backend during the interface
+// holds internal state that is used by the kmod backend during the interface
 // setup process.
 type Specification struct {
-	MountEntries []Entry
+	Modules map[string]bool
 }
 
-// AddMountEntry adds a new mount entry.
-func (spec *Specification) AddMountEntry(e Entry) error {
-	spec.MountEntries = append(spec.MountEntries, e)
+// AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
+func (spec *Specification) AddModule(module string) error {
+	m := strings.TrimSpace(module)
+	if len(m) > 0 {
+		if spec.Modules == nil {
+			spec.Modules = make(map[string]bool)
+		}
+		spec.Modules[m] = true
+	}
 	return nil
 }
 
 // Implementation of methods required by interfaces.Specification
 
-// ConnectedPlug records mount-specific side-effects of having a connected plug.
+// AddConnectedPlug records kmod-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		MountConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		KModConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedPlug(spec, plug, slot)
+		return iface.KModConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
-// ConnectedSlot records mount-specific side-effects of having a connected slot.
+// AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		MountConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		KModConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedSlot(spec, plug, slot)
+		return iface.KModConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
-// PermanentPlug records mount-specific side-effects of having a plug.
+// AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		MountPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		KModPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountPermanentPlug(spec, plug)
+		return iface.KModPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
-// PermanentSlot records mount-specific side-effects of having a slot.
+// AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		MountPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		KModPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountPermanentSlot(spec, slot)
+		return iface.KModPermanentSlot(spec, slot)
 	}
 	return nil
 }

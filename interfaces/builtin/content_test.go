@@ -207,10 +207,12 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/snap/producer/5/export",
+		Dir:     "/snap/consumer/7/import",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
 }
 
 // Check that sharing of read-only snap content is possible
@@ -233,10 +235,12 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/snap/producer/5/export",
+		Dir:     "/snap/consumer/7/import",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -269,10 +273,12 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/var/snap/producer/5/export",
+		Dir:     "/var/snap/consumer/7/import",
+		Options: []string{"bind"},
+	}}
+	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -307,10 +313,12 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(s.iface.MountConnectedPlug(spec, plug, slot), IsNil)
-	expectedSnippets := []string{
-		"/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0",
-	}
-	c.Assert(spec.Snippets, DeepEquals, expectedSnippets)
+	expectedMnt := []mount.Entry{{
+		Name:    "/var/snap/producer/common/export",
+		Dir:     "/var/snap/consumer/common/import",
+		Options: []string{"bind"},
+	}}
+	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

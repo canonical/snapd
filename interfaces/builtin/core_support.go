@@ -65,6 +65,10 @@ const coreSupportConnectedPlugAppArmor = `
 # Allow modifying swapfile configuration for swapfile.service shipped in
 # the core snap, general mgmt of the service is handled via systemctl
 /etc/default/swapfile rw,
+
+# Allow read/write access to the pi2 boot config.txt. WARNING: improperly
+# editing this file may render the system unbootable.
+owner /boot/uboot/config.txt rwk,
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
