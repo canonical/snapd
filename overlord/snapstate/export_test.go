@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+        "time"
 	"errors"
 
 	"gopkg.in/tomb.v2"
@@ -93,6 +94,17 @@ func MockErrtrackerReport(mock func(string, string, string, map[string]string) (
 	prev := errtrackerReport
 	errtrackerReport = mock
 	return func() { errtrackerReport = prev }
+}
+
+func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
+	prevMinRefreshInterval := minRefreshInterval
+	prevDefaultRefreshRandomness := defaultRefreshRandomness
+	minRefreshInterval = newMinRefreshInterval
+	defaultRefreshRandomness = newRefreshRandomness
+	return func() {
+		minRefreshInterval = prevMinRefreshInterval
+		defaultRefreshRandomness = prevDefaultRefreshRandomness
+	}
 }
 
 var (

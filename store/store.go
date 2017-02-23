@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -90,6 +91,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Contact = d.Contact
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -112,6 +114,11 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		})
 	}
 	info.Screenshots = screenshots
+	// FIXME: once the store sends "contact" for everything, remove
+	//        the "SupportURL" part of the if
+	if info.Contact == "" {
+		info.Contact = d.SupportURL
+	}
 
 	return info
 }
@@ -192,8 +199,16 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+// Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	// only xdelta3 is supported for now, so check the binary exists here
+	// TODO: have a per-format checker instead
+	if _, err := getXdelta3Cmd(); err != nil {
+		return false
+	}
+
+	deltasDefault := release.OnClassic
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
 }
 
 func useStaging() bool {
@@ -482,19 +497,20 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
+	if s.authContext == nil {
+		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
+	}
 	newDischarges, err := refreshDischarges(user)
 	if err != nil {
 		return err
 	}
 
-	if s.authContext != nil {
-		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
-		if err != nil {
-			return err
-		}
-		// update in place
-		*user = *curUser
+	curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+	if err != nil {
+		return err
 	}
+	// update in place
+	*user = *curUser
 
 	return nil
 }
@@ -625,10 +641,7 @@ func (s *Store) retryRequest(ctx context.Context, client *http.Client, reqOption
 		// break out from retry loop
 		break
 	}
-
-	if attempt.Count() > 1 {
-		logRetryTime(startTime, reqOptions.URL.String(), attempt, resp, err)
-	}
+	maybeLogRetrySummary(startTime, reqOptions.URL.String(), attempt, resp, err)
 
 	return resp, err
 }
@@ -1370,7 +1383,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusUnauthorized:
-			return fmt.Errorf("cannot download non-free snap without purchase")
+
+			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
 			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
@@ -1429,6 +1443,16 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar)
 }
 
+func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
+	switch {
+	case osutil.ExecutableExists("xdelta3"):
+		return exec.Command("xdelta3", args...), nil
+	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
+		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
+	}
+	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+}
+
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
 var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
@@ -1445,7 +1469,10 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	partialTargetPath := targetPath + ".partial"
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd := exec.Command("xdelta3", xdelta3Args...)
+	cmd, err := getXdelta3Cmd(xdelta3Args...)
+	if err != nil {
+		return err
+	}
 
 	if err := cmd.Run(); err != nil {
 		if err := os.Remove(partialTargetPath); err != nil {
@@ -1478,7 +1505,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
-	deltaName := filepath.Base(deltaPath)
+	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
 	w, err := os.Create(deltaPath)
 	if err != nil {

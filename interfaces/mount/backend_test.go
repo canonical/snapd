@@ -53,6 +53,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &mount.Backend{}
 	s.BackendSuite.SetUpTest(c)
 
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
+
 	err := os.MkdirAll(dirs.SnapMountPolicyDir, 0700)
 	c.Assert(err, IsNil)
 
@@ -79,16 +81,28 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = ioutil.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
-	canaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
-	err = ioutil.WriteFile(canaryToStay, []byte("stay!"), 0644)
+	snapCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.fstab")
+	err = ioutil.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	c.Assert(err, IsNil)
+
+	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
+	err = ioutil.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
+	c.Assert(err, IsNil)
+
+	snapCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.fstab")
+	err = ioutil.WriteFile(snapCanaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.Backend.Remove("hello-world")
 	c.Assert(err, IsNil)
 
+	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
-	content, err := ioutil.ReadFile(canaryToStay)
+	content, err := ioutil.ReadFile(appCanaryToStay)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "stay!")
+	content, err = ioutil.ReadFile(snapCanaryToStay)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "stay!")
 }
@@ -100,47 +114,47 @@ apps:
     app2:
 hooks:
     configure:
-        plugs: [iface-plug, iface2-plug]
+        plugs: [iface-plug]
 plugs:
     iface-plug:
         interface: iface
-    iface2-plug:
-        interface: iface2
 slots:
     iface-slot:
-        interface: iface
-    iface2-slot:
         interface: iface2
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntryIF1 := "/src-1 /dst-1 none bind,ro 0 0"
-	fsEntryIF2 := "/src-2 /dst-2 none bind,ro 0 0"
+	fsEntry1 := mount.Entry{"/src-1", "/dst-1", "none", []string{"bind", "ro"}, 0, 0}
+	fsEntry2 := mount.Entry{"/src-2", "/dst-2", "none", []string{"bind", "ro"}, 0, 0}
 
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(fsEntryIF1), nil
+	// Give the plug a permanent effect
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
+		return spec.AddMountEntry(fsEntry1)
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(fsEntryIF1), nil
-	}
-	s.iface2.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(fsEntryIF2), nil
-	}
-	s.iface2.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(fsEntryIF2), nil
+	// Give the slot a permanent effect
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *interfaces.Slot) error {
+		return spec.AddMountEntry(fsEntry2)
 	}
 
 	// confinement options are irrelevant to this security backend
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
 
-	// ensure both security snippets for iface/iface2 are combined
-	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntryIF1, fsEntryIF2), "\n")
+	// ensure both security effects from iface/iface2 are combined
+	// (because mount profiles are global in the whole snap)
+	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	sort.Strings(expected)
-	// and we have them both for both apps and the hook
+	// and that we have the modern fstab file (global for snap)
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	sort.Strings(got)
+	c.Check(got, DeepEquals, expected)
+	// and that we have the legacy, per app/hook files as well.
 	for _, binary := range []string{"app1", "app2", "hook.configure"} {
-		fn1 := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
-		content, err := ioutil.ReadFile(fn1)
-		c.Assert(err, IsNil, Commentf("Expected mount file for %q", binary))
+		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
+		content, err := ioutil.ReadFile(fn)
+		c.Assert(err, IsNil, Commentf("Expected mount profile for %q", binary))
 		got := strings.Split(string(content), "\n")
 		sort.Strings(got)
 		c.Check(got, DeepEquals, expected)
@@ -148,11 +162,8 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("xxx"), nil
-	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("xxx"), nil
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *interfaces.Plug) error {
+		return spec.AddMountEntry(mount.Entry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand

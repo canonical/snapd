@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -43,6 +44,10 @@ func cleanSubPath(path string) bool {
 func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+	content, ok := slot.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content slot must have a content attribute set")
 	}
 
 	// check that we have either a read or write path
@@ -67,6 +72,10 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	content, ok := plug.Attrs["content"].(string)
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("content plug must have a content attribute set")
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
@@ -127,10 +136,15 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	src := resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
+	options := make([]string, 0, len(extraOptions)+1)
+	options = append(options, "bind")
+	options = append(options, extraOptions...)
+	return mount.Entry{
+		Name:    resolveSpecialVariable(relSrc, slot.Snap),
+		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Options: options,
+	}
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -167,14 +181,6 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		}
 
 		return contentSnippet.Bytes(), nil
-	case interfaces.SecurityMount:
-		for _, r := range iface.path(slot, "read") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
-		}
-		for _, w := range iface.path(slot, "write") {
-			fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
-		}
-		return contentSnippet.Bytes(), nil
 	}
 	return nil, nil
 }
@@ -184,5 +190,24 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 }
 
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
-	return plug.Attrs["content"] == slot.Attrs["content"]
+	// allow what declarations allowed
+	return true
+}
+
+// Interactions with the mount backend.
+
+func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, r := range iface.path(slot, "read") {
+		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
+		if err != nil {
+			return err
+		}
+	}
+	for _, w := range iface.path(slot, "write") {
+		err := spec.AddMountEntry(mountEntry(plug, slot, w))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

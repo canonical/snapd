@@ -72,7 +72,7 @@ func Report(snap, channel, errMsg string, extra map[string]string) (string, erro
 
 	crashDbUrl := fmt.Sprintf("%s/%s", CrashDbURLBase, identifier)
 
-	hostSnapdPath := filepath.Join(dirs.LibExecDir, "snapd")
+	hostSnapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
 	coreSnapdPath := filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd")
 	if mockedHostSnapd != "" {
 		hostSnapdPath = mockedHostSnapd

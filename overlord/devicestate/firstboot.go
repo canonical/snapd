@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,12 +30,16 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
+
+var errNothingToDo = errors.New("nothing to do")
 
 func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
@@ -47,13 +52,24 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+
 	// ack all initial assertions
 	model, err := importAssertionsFromSeed(st)
+	if err == errNothingToDo {
+		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
+		// on classic it is ok to not seed any snaps
+		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+	}
+
+	seed, err := snap.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +108,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
+			sideInfo.Contact = sn.Contact
 		}
 
 		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
@@ -106,11 +123,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 		tsAll = append(tsAll, ts)
 	}
 	if len(tsAll) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
 
 	ts := tsAll[len(tsAll)-1]
-	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 	markSeeded.WaitAll(ts)
 	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
 
@@ -135,6 +151,10 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	// set device,model from the model assertion
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
+	if release.OnClassic && os.IsNotExist(err) {
+		// on classic seeding is optional
+		return nil, errNothingToDo
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
@@ -171,6 +191,17 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
 	}
 	modelAssertion := a.(*asserts.Model)
+
+	classicModel := modelAssertion.Classic()
+	if release.OnClassic != classicModel {
+		var msg string
+		if classicModel {
+			msg = "cannot seed an all-snaps system with a classic model"
+		} else {
+			msg = "cannot seed a classic system with an all-snaps model"
+		}
+		return nil, fmt.Errorf(msg)
+	}
 
 	// set device,model from the model assertion
 	device.Brand = modelAssertion.BrandID()

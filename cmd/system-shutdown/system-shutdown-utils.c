@@ -32,38 +32,7 @@
 #include <unistd.h>		// getpid, close
 
 #include "../libsnap-confine-private/mountinfo.h"
-
-bool streq(const char *a, const char *b)
-{
-	if (!a || !b) {
-		return false;
-	}
-
-	size_t alen = strlen(a);
-	size_t blen = strlen(b);
-
-	if (alen != blen) {
-		return false;
-	}
-
-	return strncmp(a, b, alen) == 0;
-}
-
-static bool endswith(const char *str, const char *suffix)
-{
-	if (!str || !suffix) {
-		return false;
-	}
-
-	size_t xlen = strlen(suffix);
-	size_t slen = strlen(str);
-
-	if (slen < xlen) {
-		return false;
-	}
-
-	return strncmp(str - xlen + slen, suffix, xlen) == 0;
-}
+#include "../libsnap-confine-private/string-utils.h"
 
 __attribute__ ((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
@@ -120,36 +89,37 @@ bool umount_all()
 	bool had_writable = false;
 
 	for (int i = 0; i < 10 && did_umount; i++) {
-		struct mountinfo *mounts = parse_mountinfo(NULL);
+		struct sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
 		if (!mounts) {
 			// oh dear
 			die("unable to get mount info; giving up");
 		}
-		struct mountinfo_entry *cur = first_mountinfo_entry(mounts);
+		struct sc_mountinfo_entry *cur =
+		    sc_first_mountinfo_entry(mounts);
 
 		had_writable = false;
 		did_umount = false;
 		while (cur) {
-			const char *dir = mountinfo_entry_mount_dir(cur);
-			const char *src = mountinfo_entry_mount_source(cur);
-			unsigned major = mountinfo_entry_dev_major(cur);
+			const char *dir = sc_mountinfo_entry_mount_dir(cur);
+			const char *src = sc_mountinfo_entry_mount_source(cur);
+			unsigned major = sc_mountinfo_entry_dev_major(cur);
 
-			cur = next_mountinfo_entry(cur);
+			cur = sc_next_mountinfo_entry(cur);
 
-			if (streq("/", dir)) {
+			if (sc_streq("/", dir)) {
 				continue;
 			}
 
-			if (streq("/dev", dir)) {
+			if (sc_streq("/dev", dir)) {
 				continue;
 			}
 
-			if (streq("/proc", dir)) {
+			if (sc_streq("/proc", dir)) {
 				continue;
 			}
 
 			if (major != 0 && major != LOOP_MAJOR
-			    && endswith(dir, "/writable")) {
+			    && sc_endswith(dir, "/writable")) {
 				had_writable = true;
 			}
 
@@ -161,7 +131,7 @@ bool umount_all()
 				did_umount = true;
 			}
 		}
-		cleanup_mountinfo(&mounts);
+		sc_cleanup_mountinfo(&mounts);
 	}
 
 	return !had_writable;
