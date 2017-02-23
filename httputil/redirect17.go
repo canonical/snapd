@@ -21,15 +21,18 @@ package httputil
 
 import (
 	"net/http"
+	"strings"
 )
 
 func fixupHeadersForRedirect(req *http.Request, via []*http.Request) {
 	// preserve some headers across redirects (needed for the CDN)
 	// (this is done automatically, slightly more cleanly, from 1.8)
 	for k, v := range via[0].Header {
-		switch http.CanonicalHeaderKey(k) {
-		case "Authorization", "Www-Authenticate", "Cookie", "Cookie2":
-			// whistle innocently
+		switch strings.ToLower(k) {
+		case "authorization", "www-authenticate", "cookie", "cookie2":
+			// Do not copy sensitive headers across
+			// redirects. For rationale for which headers and
+			// why, see https://golang.org/pkg/net/http/#Client
 		default:
 			req.Header[k] = v
 		}
