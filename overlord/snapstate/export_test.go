@@ -20,8 +20,8 @@
 package snapstate
 
 import (
-        "time"
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
