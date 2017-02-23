@@ -90,7 +90,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, map[string][][]byte{
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][][]byte{
 		"snap.snap1.app1": {[]byte("connected-plug"), []byte("permanent-plug")},
 		"snap.snap2.app2": {[]byte("connected-slot"), []byte("permanent-slot")},
 	})
