@@ -37,6 +37,7 @@ var implicitSlots = []string{
 	"dcdbas-control",
 	"docker-support",
 	"firewall-control",
+	"framebuffer",
 	"hardware-observe",
 	"home",
 	"io-ports-control",
