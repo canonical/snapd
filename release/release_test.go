@@ -141,11 +141,16 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{id: "ubuntu-core", devmode: false},
 		{id: "linuxmint", devmode: true},
 		{id: "linuxmint", idVersion: "18.1", devmode: false},
+		{id: "galliumos", devmode: true},
+		{id: "galliumos", idVersion: "2.0", devmode: false},
+		{id: "peppermint", devmode: true},
+		{id: "peppermint", idVersion: "7.0", devmode: false},
+		{id: "zorin", idVersion: "", devmode: true},
+		{id: "zorin", idVersion: "12", devmode: false},
 	}
 	for _, distro := range distros {
 		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
-		c.Logf("checking distribution %#v", rel)
 		release.MockReleaseInfo(rel)
-		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode, Commentf("distro %#v incorrect", distro))
 	}
 }
