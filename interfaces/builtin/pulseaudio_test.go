@@ -37,14 +37,17 @@ type PulseAudioInterfaceSuite struct {
 
 var _ = Suite(&PulseAudioInterfaceSuite{
 	iface: &builtin.PulseAudioInterface{},
-	slot: &interfaces.Slot{
+})
+
+func (s *PulseAudioInterfaceSuite) SetUpTest(c *C) {
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "pulseaudio"},
 			Name:      "pulseaudio",
 			Interface: "pulseaudio",
 		},
-	},
-	plug: &interfaces.Plug{
+	}
+	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "pulseaudio",
@@ -56,8 +59,8 @@ var _ = Suite(&PulseAudioInterfaceSuite{
 					},
 					Name: "app2"}},
 		},
-	},
-})
+	}
+}
 
 func (s *PulseAudioInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "pulseaudio")
@@ -73,12 +76,40 @@ func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PulseAudioInterfaceSuite) TestSeccomp(c *C) {
+func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
+	// Classic
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(len(seccompSpec.Snippets), Equals, 1)
+	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(seccompSpec.Snippets["snap.other.app2"][0]), testutil.Contains, "shmctl\n")
+}
+
+func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
+	s.slot = &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "pulseaudio"},
+			Name:      "pulseaudio",
+			Interface: "pulseaudio",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "pulseaudio",
+					},
+					Name: "app1"}},
+		},
+	}
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(len(seccompSpec.Snippets), Equals, 2)
+	c.Assert(len(seccompSpec.Snippets["snap.pulseaudio.app1"]), Equals, 1)
+	c.Check(string(seccompSpec.Snippets["snap.pulseaudio.app1"][0]), testutil.Contains, "listen\n")
 	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
 	c.Check(string(seccompSpec.Snippets["snap.other.app2"][0]), testutil.Contains, "shmctl\n")
 }
