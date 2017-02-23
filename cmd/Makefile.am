@@ -230,6 +230,21 @@ snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
 endif
 
+# an extra build that has additional debugging enabled at compile time
+
+noinst_PROGRAMS += snap-confine/snap-confine-debug
+snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
+snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
+snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
+snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
+
+snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) $(LIBS)
+
+snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
 snap_confine_snap_confine_unit_tests_SOURCES = \
