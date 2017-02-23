@@ -211,7 +211,7 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 // fri@9:00-11:00/mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
 // fri@9:00-11:00/13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
 //
-// and returns a list of Schdule types or an error
+// and returns a list of Schedule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
