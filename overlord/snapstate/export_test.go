@@ -84,16 +84,16 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 	return func() { readInfo = old }
 }
 
-func MockLastUbuntuCoreTransitionAttempt(m *SnapManager, last time.Time) (restorer func()) {
-	orig := m.lastUbuntuCoreTransitionAttempt
-	m.lastUbuntuCoreTransitionAttempt = last
-	return func() { m.lastUbuntuCoreTransitionAttempt = orig }
-}
-
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
 	prevOpenSnapFile := openSnapFile
 	openSnapFile = mock
 	return func() { openSnapFile = prevOpenSnapFile }
+}
+
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
 }
 
 func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
