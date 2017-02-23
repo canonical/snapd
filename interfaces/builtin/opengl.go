@@ -25,7 +25,6 @@ import (
 
 const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
-# Usage: reserved
 
   # specific gl libs
   /var/lib/snapd/lib/gl/ r,

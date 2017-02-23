@@ -43,22 +43,11 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-const shutdownConnectedPlugSecComp = `
-# Description: Can reboot, power-off and halt the system.
-# Following things are needed for dbus connectivity
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-`
-
 // NewShutdownInterface returns a new "shutdown" interface.
 func NewShutdownInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "shutdown",
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
-		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

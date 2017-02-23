@@ -31,7 +31,6 @@ const browserSupportConnectedPlugAppArmor = `
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
-# Usage: reserved
 
 # This allows raising the OOM score of other processes owned by the user.
 owner @{PROC}/@{pid}/oom_score_adj rw,
@@ -187,12 +186,12 @@ const browserSupportConnectedPlugSecComp = `
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
-# Usage: reserved
 
 # for anonymous sockets
 bind
 listen
 accept
+accept4
 
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases

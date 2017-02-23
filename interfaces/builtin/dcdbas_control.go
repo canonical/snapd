@@ -33,8 +33,6 @@ const dcdbasControlConnectedPlugAppArmor = `
 #
 # See http://linux.dell.com/libsmbios/main/ for more information about the libsmbios project.
 
-# Usage: reserved
-
 # entries pertaining to System Management Interrupts (SMI)
 /sys/devices/platform/dcdbas/smi_data rw,
 /sys/devices/platform/dcdbas/smi_data_buf_phys_addr rw,

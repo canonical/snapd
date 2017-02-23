@@ -104,13 +104,6 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const dbusPermanentSlotSecComp = `
-# Description: Allow owning a name on DBus public bus
-recvmsg
-sendmsg
-sendto
-`
-
 const dbusPermanentSlotDBus = `
 <policy user="root">
     <allow own="###DBUS_NAME###"/>
@@ -181,12 +174,6 @@ dbus (receive, send)
     bus=###DBUS_BUS###
     path=###DBUS_PATH###
     peer=(label=###SLOT_SECURITY_TAGS###),
-`
-
-const dbusConnectedPlugSecComp = `
-recvmsg
-sendmsg
-sendto
 `
 
 type DbusInterface struct{}
@@ -316,8 +303,6 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		snippet = bytes.Replace(snippet, old, new, -1)
 
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(dbusConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -353,8 +338,6 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 		}
 
 		return snippets.Bytes(), nil
-	case interfaces.SecuritySecComp:
-		return []byte(dbusPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
 		bus, name, err := iface.getAttribs(slot.Attrs)
 		if err != nil {
