@@ -1,22 +1,31 @@
 summary: Check that snap-confine refuses to run unconfined 
 details: |
     snap-confine is setuid root but is only confined with an apparmor profile
-    when invoked as a system-installed package or when running in the core from
+    when invoked as a system-installed package and when running in the core from
     the usual location (/usr/lib/snapd/snap-confine). As a security precaution
-    it should detect and refuse to run if invoked from the core snap.
+    it should detect and refuse to run if invoked without confinement.
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
+restore: |
+    echo "Cleanup the copied snap-confine"
+    rm -f snap-confine
 execute: |
     . $TESTSLIB/names.sh
     # NOTE: This has to run as the test user because the protection is only
     # active if user gains elevated permissions as a result of using setuid
     # root snap-confine.
-    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/${core_name}/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
+
+    echo "Copy the suid root snap-confine over so that it runs outside "
+    echo "of the auto-genreated profile"
+    cp -a /snap/${core_name}/current/usr/lib/snapd/snap-confine .
+    
+    if su test -c "sh -c \"SNAP_NAME=test-snapd-tools ./snap-confine snap.test-snapd-tools.cmd /bin/true 2>/dev/null\""; then
         echo "snap-confine didn't refuse to run!"
         exit 1
     fi
-    su test -c "sh -c \"SNAP_NAME=test-snapd-tools /snap/${core_name}/current/usr/lib/snapd/snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
+    su test -c "sh -c \"SNAP_NAME=test-snapd-tools ./snap-confine snap.test-snapd-tools.cmd /bin/true 2>&1\"" | MATCH "Refusing to continue to avoid permission escalation attacks"
+
 debug: |
     ls -ld /snap/core/current/usr/lib/snapd/snap-confine || true
     ls -ld /snap/ubuntu-core/current/usr/lib/snapd/snap-confine || true

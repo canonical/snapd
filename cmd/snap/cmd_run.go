@@ -29,9 +29,13 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/reexec"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -220,9 +224,21 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{
-		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+	// check for host snap-confine
+	snapConfinePath := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	// check for core snap-confine, note the different libexec dirs
+	snapConfinePathInCore := filepath.Join(dirs.SnapMountDir, "/core/current/", dirs.CoreLibExecDir, "snap-confine")
+
+	shouldReexec := (reexec.Path(cmd.Version) != "")
+	cmd := []string{}
+	if release.OnClassic && shouldReexec && osutil.FileExists(snapConfinePathInCore) {
+		// FIXME: once https://github.com/snapcore/snapd/pull/2791
+		// lands use osutil.CommandFromCore() here
+		cmd = append(cmd, snapConfinePathInCore)
+	} else {
+		cmd = append(cmd, snapConfinePath)
 	}
+
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
