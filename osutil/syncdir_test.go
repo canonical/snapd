@@ -207,7 +207,7 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	})
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, DeepEquals, []string{"clash.snap", "prior.snap"})
-	c.Assert(err, ErrorMatches, "rename .* .*/clash.snap: is a directory")
+	c.Assert(err, ErrorMatches, "rename .* .*/clash.snap: (is a directory|file exists)")
 	// The clashing file is removed
 	_, err = os.Stat(clash)
 	c.Assert(os.IsNotExist(err), Equals, true)
