@@ -261,7 +261,11 @@ void sc_do_mount(const char *source, const char *target,
 	}
 
 	if (sc_is_debug_enabled()) {
+#ifdef SNAP_CONFINE_DEBUG_BUILD
 		ensure_mount_cmd();
+#else
+		mount_cmd = "(disabled) use debug build to see details";
+#endif
 		debug("performing operation: %s", mount_cmd);
 	}
 	if (sc_faulty("mount", NULL)
@@ -295,7 +299,11 @@ void sc_do_umount(const char *target, int flags)
 	}
 
 	if (sc_is_debug_enabled()) {
+#ifdef SNAP_CONFINE_DEBUG_BUILD
 		ensure_umount_cmd();
+#else
+		umount_cmd = "(disabled) use debug build to see details";
+#endif
 		debug("performing operation: %s", umount_cmd);
 	}
 	if (sc_faulty("umount", NULL) || umount2(target, flags) < 0) {
