@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type PulseAudioInterfaceSuite struct {
@@ -47,6 +49,12 @@ var _ = Suite(&PulseAudioInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "pulseaudio",
 			Interface: "pulseaudio",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "other",
+					},
+					Name: "app2"}},
 		},
 	},
 })
@@ -63,4 +71,14 @@ func (s *PulseAudioInterfaceSuite) TestSanitizeSlot(c *C) {
 func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
+}
+
+func (s *PulseAudioInterfaceSuite) TestSeccomp(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(seccompSpec.Snippets["snap.other.app2"][0]), testutil.Contains, "shmctl\n")
 }
