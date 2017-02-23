@@ -39,16 +39,16 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-plug")
+			return spec.AddMountEntry(mount.Entry{Name: "connected-plug"})
 		},
 		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-slot")
+			return spec.AddMountEntry(mount.Entry{Name: "connected-slot"})
 		},
 		MountPermanentPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet("permanent-plug")
+			return spec.AddMountEntry(mount.Entry{Name: "permanent-plug"})
 		},
 		MountPermanentSlotCallback: func(spec *mount.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet("permanent-slot")
+			return spec.AddMountEntry(mount.Entry{Name: "permanent-slot"})
 		},
 	},
 	plug: &interfaces.Plug{
@@ -73,11 +73,11 @@ func (s *specSuite) SetUpTest(c *C) {
 
 // AddMountEntry is not broken
 func (s *specSuite) TestSmoke(c *C) {
-	ent0 := "fs1"
-	ent1 := "fs2"
-	c.Assert(s.spec.AddSnippet(ent0), IsNil)
-	c.Assert(s.spec.AddSnippet(ent1), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, []string{ent0, ent1})
+	ent0 := mount.Entry{Name: "fs1"}
+	ent1 := mount.Entry{Name: "fs2"}
+	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
+	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
+	c.Assert(s.spec.MountEntries, DeepEquals, []mount.Entry{ent0, ent1})
 }
 
 // The mount.Specification can be used through the interfaces.Specification interface
@@ -87,6 +87,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets, DeepEquals, []string{
-		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
+	c.Assert(s.spec.MountEntries, DeepEquals, []mount.Entry{
+		{Name: "connected-plug"}, {Name: "connected-slot"},
+		{Name: "permanent-plug"}, {Name: "permanent-slot"}})
 }

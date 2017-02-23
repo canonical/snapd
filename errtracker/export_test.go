@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,32 @@
  *
  */
 
-package httputil
+package errtracker
 
-var (
-	GetFlags              = (*LoggedTransport).getFlags
-	StripUnsafeRunes      = stripUnsafeRunes
-	SanitizeKernelVersion = sanitizeKernelVersion
+import (
+	"time"
 )
 
-func MockUserAgent(mock string) (restore func()) {
-	old := userAgent
-	userAgent = mock
+func MockCrashDbURL(url string) (restorer func()) {
+	old := CrashDbURLBase
+	CrashDbURLBase = url
 	return func() {
-		userAgent = old
+		CrashDbURLBase = old
+	}
+}
+
+func MockMachineIDPath(path string) (restorer func()) {
+	old := machineID
+	machineID = path
+	return func() {
+		machineID = old
+	}
+}
+
+func MockTimeNow(f func() time.Time) (restorer func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
 	}
 }
