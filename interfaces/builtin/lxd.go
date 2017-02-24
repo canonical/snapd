@@ -69,7 +69,6 @@ func (iface *LxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plu
 	return spec.AddSnippet([]byte(lxdConnectedPlugSecComp))
 }
 
-
 func (iface *LxdInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))

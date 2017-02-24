@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const ioPortsControlConnectedPlugAppArmor = `
@@ -92,9 +93,6 @@ func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 	case interfaces.SecurityAppArmor:
 		return []byte(ioPortsControlConnectedPlugAppArmor), nil
 
-	case interfaces.SecuritySecComp:
-		return []byte(ioPortsControlConnectedPlugSecComp), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const udevRule = `KERNEL=="port", TAG+="%s"`
@@ -106,6 +104,10 @@ func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return tagSnippet.Bytes(), nil
 	}
 	return nil, nil
+}
+
+func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet([]byte(ioPortsControlConnectedPlugSecComp))
 }
 
 // No extra permissions granted on connection
