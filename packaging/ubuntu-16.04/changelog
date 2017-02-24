@@ -1,3 +1,11 @@
+snapd (2.22.7) xenial; urgency=medium
+
+  * New upstream release:
+    - errtracker,overlord/snapstate: more info in errtracker reports
+    - interfaces/apparmor: compensate for kernel behavior change
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 24 Feb 2017 19:24:11 +0100
+
 snapd (2.22.6) xenial; urgency=medium
 
   * New upstream release, LP: #1667105
