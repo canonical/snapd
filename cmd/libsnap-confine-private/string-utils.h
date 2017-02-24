@@ -64,6 +64,18 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str);
 size_t sc_string_append_char(char *dst, size_t dst_size, char c);
 
 /**
+ * Append a pair of characters to a buffer containing a string.
+ *
+ * This version is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
+ * then the function dies.
+ *
+ * Neither character cannot be the string terminator and both must fit into an
+ * eight-bit value.
+ **/
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, int c1, int c2);
+
+/**
  * Initialize a string (make it empty).
  *
  * Initialize a string as empty, ensuring buf is non-NULL buf_size is > 0.
