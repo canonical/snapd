@@ -3838,13 +3838,13 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
-	var errSnap, errChannel, errMsg string
+	var errSnap, errMsg, errSig string
 	var errExtra map[string]string
 	var n int
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aChannel, aErrMsg string, extra map[string]string) (string, error) {
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
 		errSnap = aSnap
-		errChannel = aChannel
 		errMsg = aErrMsg
+		errSig = aDupSig
 		errExtra = extra
 		n += 1
 		return "oopsid", nil
@@ -3883,11 +3883,26 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	// verify we generated a failure report
 	c.Check(n, Equals, 1)
 	c.Check(errSnap, Equals, "some-snap")
-	c.Check(errChannel, Equals, "some-channel")
 	c.Check(errExtra, DeepEquals, map[string]string{
 		"UbuntuCoreTransitionCount": "7",
+		"Channel":                   "some-channel",
+		"Revision":                  "11",
 	})
 	c.Check(errMsg, Matches, `(?sm)download-snap: Undoing
+ snap-setup: "some-snap" \(11\) "some-channel"
+validate-snap: Done
+.*
+link-snap: Error
+ INFO unlink
+ ERROR fail
+set-auto-aliases: Hold
+setup-aliases: Hold
+start-snap-services: Hold
+cleanup: Hold
+run-hook: Hold`)
+	c.Check(errSig, Matches, `(?sm)snap-install:
+download-snap: Undoing
+ snap-setup: "some-snap"
 validate-snap: Done
 .*
 link-snap: Error
@@ -3911,7 +3926,10 @@ run-hook: Hold`)
 	s.state.Lock()
 	// verify that we excluded this field from the bugreport
 	c.Check(n, Equals, 2)
-	c.Check(errExtra, DeepEquals, map[string]string{})
+	c.Check(errExtra, DeepEquals, map[string]string{
+		"Channel":  "some-channel",
+		"Revision": "11",
+	})
 }
 
 type snapmgrQuerySuite struct {

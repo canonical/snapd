@@ -551,13 +551,26 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if osutil.GetenvBool("SNAPPY_TESTING") {
 		return nil
 	}
-	if snapsup.SideInfo.RealName == "" {
+	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
 
 	var logMsg []string
+	var snapSetup string
+	dupSig := []string{"snap-install:"}
 	for _, t := range t.Change().Tasks() {
-		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
+		// TODO: report only tasks in intersecting lanes?
+		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
+		logMsg = append(logMsg, tintro)
+		dupSig = append(dupSig, tintro)
+		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
+			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
+			if snapSetup1 != snapSetup {
+				snapSetup = snapSetup1
+				logMsg = append(logMsg, snapSetup)
+				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
+			}
+		}
 		for _, l := range t.Log() {
 			// cut of the rfc339 timestamp to ensure duplicate
 			// detection works in daisy
@@ -566,7 +579,9 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 			// not tStampLen+1 because the indent is nice
-			logMsg = append(logMsg, l[tStampLen:])
+			entry := l[tStampLen:]
+			logMsg = append(logMsg, entry)
+			dupSig = append(dupSig, entry)
 		}
 	}
 
@@ -575,13 +590,16 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	extra := map[string]string{}
+	extra := map[string]string{
+		"Channel":  snapsup.Channel,
+		"Revision": snapsup.SideInfo.Revision.String(),
+	}
 	if ubuntuCoreTransitionCount > 0 {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
 	st.Unlock()
-	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"), extra)
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
