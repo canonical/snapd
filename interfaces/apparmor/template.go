@@ -426,4 +426,7 @@ var classicTemplate = []byte(`
 var classicJailmodeSnippet = []byte(`
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
+  # Read only access to the core snap to load libc from.
+  # This is related to LP: #1666897
+  @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 `)
