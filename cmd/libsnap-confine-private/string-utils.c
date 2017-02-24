@@ -99,6 +99,34 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str)
 	return strlen(dst);
 }
 
+size_t sc_string_append_char(char *dst, size_t dst_size, int c)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append character: buffer is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append character: dst is unterminated");
+	}
+	size_t max_str_len = dst_size - dst_len;
+	if (max_str_len < 2) {
+		die("cannot append character: not enough space");
+	}
+	if (c < 0 || c > 255) {
+		die("cannot append character: character out of range");
+	}
+	if (c == 0) {
+		die("cannot append character: cannot append string terminator");
+	}
+	// Append the character and terminate the string.
+	dst[dst_len + 0] = c;
+	dst[dst_len + 1] = '\0';
+	// Return the new size
+	return strlen(dst);
+}
+
 void sc_string_init(char *buf, size_t buf_size)
 {
 	errno = 0;
