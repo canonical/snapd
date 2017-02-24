@@ -53,6 +53,7 @@ var allInterfaces = []interfaces.Interface{
 	&PppInterface{},
 	&PulseAudioInterface{},
 	&SerialPortInterface{},
+	&StorageFrameworkInterface{},
 	&ThumbnailerInterface{},
 	&TimeControlInterface{},
 	&UDisks2Interface{},
