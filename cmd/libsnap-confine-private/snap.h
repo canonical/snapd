@@ -20,6 +20,29 @@
 
 #include <stdbool.h>
 
+#include "error.h"
+
+/**
+ * Error domain for errors related to the snap module.
+ **/
+#define SC_SNAP_DOMAIN "snap"
+
+enum {
+	/** The name of the snap is not valid. */
+	SC_SNAP_INVALID_NAME = 1,
+};
+
+/**
+ * Validate the given snap name.
+ *
+ * Snaps have strict naming requirements.
+ * Please refer to snapd source code for details.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
+
 bool verify_security_tag(const char *security_tag);
 
 #endif
