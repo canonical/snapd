@@ -1,7 +1,7 @@
 summary: Upgrade the core snap a few times and ensure no GC happens
 
 systems:
-    - ubuntu-core-16-64-fixme
+    - ubuntu-core-16-64
     - ubuntu-core-16-arm-64
     - ubuntu-core-16-arm-32
 
