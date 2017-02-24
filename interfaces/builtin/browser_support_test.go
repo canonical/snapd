@@ -129,6 +129,11 @@ plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: false
+apps:
+ app2:
+  command: foo
+  plugs:
+   - browser-support-plug
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -144,8 +149,8 @@ plugs:
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
-	snippet = seccompSpec.Snippets["snap.other.app2"][0]
+	c.Assert(len(seccompSpec.Snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	snippet = seccompSpec.Snippets["snap.browser-support-plug-snap.app2"][0]
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
 }
@@ -157,6 +162,11 @@ plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: true
+apps:
+ app2:
+  command: foo
+  plugs:
+   - browser-support-plug
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
@@ -171,8 +181,8 @@ plugs:
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
-	snippet = seccompSpec.Snippets["snap.other.app2"][0]
+	c.Assert(len(seccompSpec.Snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	snippet = seccompSpec.Snippets["snap.browser-support-plug-snap.app2"][0]
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), testutil.Contains, `chroot`)
 }
