@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,20 @@
  *
  */
 
-package seccomp
+package apparmor
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
-// Specification keeps all the seccomp snippets.
+// Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	// Snippets are indexed by security tag.
+	// snippets are indexed by security tag.
 	snippets     map[string][][]byte
 	securityTags []string
 }
 
-// AddSnippet adds a new seccomp snippet.
+// AddSnippet adds a new apparmor snippet.
 func (spec *Specification) AddSnippet(snippet []byte) error {
 	if len(spec.securityTags) == 0 {
 		return nil
@@ -60,54 +62,54 @@ func (spec *Specification) Snippets() map[string][][]byte {
 
 // Implementation of methods required by interfaces.Specification
 
-// AddConnectedPlug records seccomp-specific side-effects of having a connected plug.
+// AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		SecCompConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompConnectedPlug(spec, plug, slot)
+		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
-// AddConnectedSlot records seccomp-specific side-effects of having a connected slot.
+// AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		SecCompConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompConnectedSlot(spec, plug, slot)
+		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
-// AddPermanentPlug records seccomp-specific side-effects of having a plug.
+// AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		SecCompPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		AppArmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompPermanentPlug(spec, plug)
+		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
-// AddPermanentSlot records seccomp-specific side-effects of having a slot.
+// AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		SecCompPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		AppArmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.SecCompPermanentSlot(spec, slot)
+		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
 }

@@ -97,7 +97,9 @@ execute: |
     echo "classic snaps "
 
     echo "When multiple snaps have no update we have a good message"
-    snap refresh $SNAP_NAME core 2>&1 | MATCH "All snaps up to date."
+    . $TESTSLIB/snaps.sh
+    install_local basic
+    snap refresh $SNAP_NAME basic 2>&1 | MATCH "All snaps up to date."
 
     echo "When moving to stable"
     snap refresh --stable $SNAP_NAME
