@@ -128,11 +128,11 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":       true,
-		"core-support":  true,
-		"home":          true,
-		"lxd-support":   true,
-		"snapd-control": true,
+		"content":           true,
+		"core-support":      true,
+		"home":              true,
+		"lxd-support":       true,
+		"snapd-control":     true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -437,6 +437,7 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"storage-framework":       {"app"},
 		"thumbnailer":             {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
@@ -578,6 +579,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe":        true,
 		"lxd":                     true,
 		"mir":                     true,
+		"storage-framework":       true,
 		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
