@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -52,6 +53,12 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 			},
 			Name:      "docker-support",
 			Interface: "docker-support",
+			Apps: map[string]*snap.AppInfo{
+				"app": {
+					Snap: &snap.Info{
+						SuggestedName: "docker",
+					},
+					Name: "app"}},
 		},
 	},
 })
@@ -65,10 +72,6 @@ func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
@@ -76,9 +79,13 @@ func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
+	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "pivot_root\n")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -98,6 +105,11 @@ plugs:
  privileged:
   interface: docker-support
   privileged-containers: true
+apps:
+ app:
+  command: foo
+  plugs:
+   - privileged
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -111,9 +123,13 @@ plugs:
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `change_profile -> *,`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `@unrestricted`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
+	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
@@ -123,6 +139,11 @@ plugs:
  privileged:
   interface: docker-support
   privileged-containers: false
+apps:
+ app:
+  command: foo
+  plugs:
+   - privileged
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -136,9 +157,13 @@ plugs:
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), Not(testutil.Contains), `change_profile -> *,`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), Not(testutil.Contains), `@unrestricted`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
+	c.Check(string(snippets["snap.docker.app"][0]), Not(testutil.Contains), "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
