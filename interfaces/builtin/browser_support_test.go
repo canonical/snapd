@@ -115,9 +115,10 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
-	snippet = seccompSpec.Snippets["snap.other.app2"][0]
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	snippet = snippets["snap.other.app2"][0]
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
 }
@@ -148,9 +149,10 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	snippet = seccompSpec.Snippets["snap.browser-support-plug-snap.app2"][0]
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	snippet = snippets["snap.browser-support-plug-snap.app2"][0]
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
 }
@@ -180,9 +182,10 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	snippet = seccompSpec.Snippets["snap.browser-support-plug-snap.app2"][0]
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	snippet = snippets["snap.browser-support-plug-snap.app2"][0]
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), testutil.Contains, `chroot`)
 }

@@ -96,6 +96,7 @@ func (s *HardwareObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets["snap.other.app2"]), Equals, 1)
-	c.Check(string(seccompSpec.Snippets["snap.other.app2"][0]), testutil.Contains, "iopl\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "iopl\n")
 }

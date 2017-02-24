@@ -100,12 +100,13 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil.FileState, []string) {
-	if len(spec.Modules) == 0 {
+	specModules := spec.Modules()
+	if len(specModules) == 0 {
 		return nil, nil
 	}
 	content := make(map[string]*osutil.FileState)
 	var modules []string
-	for k := range spec.Modules {
+	for k := range specModules {
 		modules = append(modules, k)
 	}
 	sort.Strings(modules)

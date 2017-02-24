@@ -211,7 +211,8 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 1)
-	c.Assert(len(seccompSpec.Snippets["snap.udisks2.app1"]), Equals, 1)
-	c.Check(string(seccompSpec.Snippets["snap.udisks2.app1"][0]), testutil.Contains, "mount\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.udisks2.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.udisks2.app1"][0]), testutil.Contains, "mount\n")
 }

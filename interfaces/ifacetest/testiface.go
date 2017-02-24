@@ -350,33 +350,3 @@ func (t *TestInterface) KModPermanentSlot(spec *kmod.Specification, slot *interf
 	}
 	return nil
 }
-
-// Support for interacting with the seccomp backend.
-
-func (t *TestInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.SecCompConnectedPlugCallback != nil {
-		return t.SecCompConnectedPlugCallback(spec, plug, slot)
-	}
-	return nil
-}
-
-func (t *TestInterface) SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	if t.SecCompConnectedSlotCallback != nil {
-		return t.SecCompConnectedSlotCallback(spec, plug, slot)
-	}
-	return nil
-}
-
-func (t *TestInterface) SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
-	if t.SecCompPermanentPlugCallback != nil {
-		return t.SecCompPermanentPlugCallback(spec, plug)
-	}
-	return nil
-}
-
-func (t *TestInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	if t.SecCompPermanentSlotCallback != nil {
-		return t.SecCompPermanentSlotCallback(spec, slot)
-	}
-	return nil
-}

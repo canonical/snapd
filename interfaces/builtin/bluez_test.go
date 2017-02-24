@@ -146,6 +146,7 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets["snap.bluez.app1"]), Equals, 1)
-	c.Check(string(seccompSpec.Snippets["snap.bluez.app1"][0]), testutil.Contains, "listen\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.bluez.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.bluez.app1"][0]), testutil.Contains, "listen\n")
 }

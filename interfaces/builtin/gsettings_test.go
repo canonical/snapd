@@ -94,5 +94,6 @@ func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 0)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 0)
 }

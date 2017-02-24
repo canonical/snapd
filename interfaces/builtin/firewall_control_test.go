@@ -95,12 +95,13 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(len(seccompSpec.Snippets), Equals, 1)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
 
 	spec := &kmod.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Modules, DeepEquals, map[string]bool{
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ip6table_filter": true,
 		"iptable_filter":  true,
 	})
