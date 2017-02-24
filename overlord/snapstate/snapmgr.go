@@ -690,7 +690,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if osutil.GetenvBool("SNAPPY_TESTING") {
 		return nil
 	}
-	if snapsup.SideInfo.RealName == "" {
+	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
 
@@ -702,7 +702,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
 		logMsg = append(logMsg, tintro)
 		dupSig = append(dupSig, tintro)
-		if snapsup, err := TaskSnapSetup(t); err == nil {
+		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
 			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
 			if snapSetup1 != snapSetup {
 				snapSetup = snapSetup1
