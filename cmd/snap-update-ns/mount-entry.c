@@ -182,3 +182,44 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 		}
 	}
 }
+
+void sc_sort_mount_entries(struct sc_mount_entry **first)
+{
+	if (*first == NULL) {
+		// NULL list is an empty list
+		return;
+	}
+	// Count the items
+	size_t count;
+	struct sc_mount_entry *entry;
+	for (count = 0, entry = *first; entry != NULL;
+	     ++count, entry = entry->next) ;
+
+	// Allocate an array of pointers
+	struct sc_mount_entry **entryp_array = NULL;
+	entryp_array = calloc(count, sizeof *entryp_array);
+	if (entryp_array == NULL) {
+		die("cannot allocate memory");
+	}
+	// Populate the array
+	entry = *first;
+	for (size_t i = 0; i < count; ++i) {
+		entryp_array[i] = entry;
+		entry = entry->next;
+	}
+
+	// Sort the array according to lexical sorting of all the elements.
+	qsort(entryp_array, count, sizeof(void *),
+	      (int (*)(const void *, const void *))
+	      sc_indirect_compare_mount_entry);
+
+	// Rewrite all the next pointers of each element.
+	for (size_t i = 0; i < count - 1; ++i) {
+		entryp_array[i]->next = entryp_array[i + 1];
+	}
+	entryp_array[count - 1]->next = NULL;
+
+	// Rewrite the pointer to the head of the list.
+	*first = entryp_array[0];
+	free(entryp_array);
+}

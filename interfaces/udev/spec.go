@@ -17,40 +17,31 @@
  *
  */
 
-package kmod
+package udev
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// Specification assists in collecting kernel modules associated with an interface.
-//
-// Unlike the Backend itself (which is stateless and non-persistent) this type
-// holds internal state that is used by the kmod backend during the interface
-// setup process.
+// Specification assists in collecting udev snippets associated with an interface.
 type Specification struct {
-	modules map[string]bool
+	// Snippets are stored in a map for de-duplication
+	snippets map[string]bool
 }
 
-// AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
-func (spec *Specification) AddModule(module string) error {
-	m := strings.TrimSpace(module)
-	if m == "" {
-		return nil
+// AddSnippet adds a new udev snippet.
+func (spec *Specification) AddSnippet(snippet []byte) error {
+	if spec.snippets == nil {
+		spec.snippets = make(map[string]bool)
 	}
-	if spec.Modules == nil {
-		spec.Modules = make(map[string]bool)
-	}
-	spec.Modules[m] = true
+	spec.snippets[string(snippet)] = true
 	return nil
 }
 
-// Modules returns a copy of the kernel module names added.
-func (spec *Specification) Modules() map[string]bool {
-	result := make(map[string]bool, len(spec.modules))
-	for k, v := range spec.modules {
+// Snippets returns a copy of all the snippets added so far.
+func (spec *Specification) Snippets() map[string]bool {
+	result := make(map[string]bool, len(spec.snippets))
+	for k, v := range spec.snippets {
 		result[k] = v
 	}
 	return result
@@ -58,13 +49,13 @@ func (spec *Specification) Modules() map[string]bool {
 
 // Implementation of methods required by interfaces.Specification
 
-// AddConnectedPlug records kmod-specific side-effects of having a connected plug.
+// AddConnectedPlug records udev-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		KModConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		UdevConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedPlug(spec, plug, slot)
+		return iface.UdevConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
@@ -72,10 +63,10 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		KModConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		UdevConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedSlot(spec, plug, slot)
+		return iface.UdevConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
@@ -83,10 +74,10 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 // AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		KModPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		UdevPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModPermanentPlug(spec, plug)
+		return iface.UdevPermanentPlug(spec, plug)
 	}
 	return nil
 }
@@ -94,10 +85,10 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 // AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		KModPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		UdevPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModPermanentSlot(spec, slot)
+		return iface.UdevPermanentSlot(spec, slot)
 	}
 	return nil
 }
