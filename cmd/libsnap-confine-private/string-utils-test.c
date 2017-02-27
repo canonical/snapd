@@ -312,18 +312,24 @@ static void test_sc_string_append_char__invalid_zero()
 static void test_sc_string_append_char__normal()
 {
 	char buf[16];
+	size_t len;
 	sc_string_init(buf, sizeof buf);
 
-	sc_string_append_char(buf, sizeof buf, 'h');
+	len = sc_string_append_char(buf, sizeof buf, 'h');
 	g_assert_cmpstr(buf, ==, "h");
-	sc_string_append_char(buf, sizeof buf, 'e');
+	g_assert_cmpint(len, ==, 1);
+	len = sc_string_append_char(buf, sizeof buf, 'e');
 	g_assert_cmpstr(buf, ==, "he");
-	sc_string_append_char(buf, sizeof buf, 'l');
+	g_assert_cmpint(len, ==, 2);
+	len = sc_string_append_char(buf, sizeof buf, 'l');
 	g_assert_cmpstr(buf, ==, "hel");
-	sc_string_append_char(buf, sizeof buf, 'l');
+	g_assert_cmpint(len, ==, 3);
+	len = sc_string_append_char(buf, sizeof buf, 'l');
 	g_assert_cmpstr(buf, ==, "hell");
-	sc_string_append_char(buf, sizeof buf, 'o');
+	g_assert_cmpint(len, ==, 4);
+	len = sc_string_append_char(buf, sizeof buf, 'o');
 	g_assert_cmpstr(buf, ==, "hello");
+	g_assert_cmpint(len, ==, 5);
 }
 
 static void __attribute__ ((constructor)) init()

@@ -121,7 +121,7 @@ size_t sc_string_append_char(char *dst, size_t dst_size, char c)
 	dst[dst_len + 0] = c;
 	dst[dst_len + 1] = '\0';
 	// Return the new size
-	return strlen(dst);
+	return dst_len + 1;
 }
 
 void sc_string_init(char *buf, size_t buf_size)

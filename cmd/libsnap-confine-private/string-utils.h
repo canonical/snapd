@@ -58,6 +58,8 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str);
  * then the function dies.
  *
  * The character cannot be the string terminator.
+ *
+ * The return value is the new lenght of the string.
  **/
 size_t sc_string_append_char(char *dst, size_t dst_size, char c);
 
