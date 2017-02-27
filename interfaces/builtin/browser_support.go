@@ -45,6 +45,9 @@ owner /var/tmp/etilqs_* rw,
 owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 
+# Allow reading platform files
+/run/udev/data/+platform:* r,
+
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
 deny dbus (send)
@@ -107,7 +110,6 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
-/run/udev/data/+platform:* r,
 /sys/devices/**/bConfigurationValue r,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
