@@ -138,6 +138,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
+		"connectivity-observe":    true,
 		"gsettings":               true,
 		"mir":                     true,
 		"network":                 true,
@@ -417,6 +418,7 @@ var (
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
+		"connectivity-observe":    {"app", "core"},
 		"content":                 {"app", "gadget"},
 		"core-support":            {"core"},
 		"dbus":                    {"app"},
