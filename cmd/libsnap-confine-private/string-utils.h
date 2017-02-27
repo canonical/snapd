@@ -71,6 +71,8 @@ size_t sc_string_append_char(char *dst, size_t dst_size, char c);
  * then the function dies.
  *
  * Neither character cannot be the string terminator.
+ *
+ * The return value is the new lenght of the string.
  **/
 size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2);
 

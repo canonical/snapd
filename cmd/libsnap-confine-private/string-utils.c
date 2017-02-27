@@ -147,7 +147,7 @@ size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2)
 	dst[dst_len + 1] = c2;
 	dst[dst_len + 2] = '\0';
 	// Return the new size
-	return strlen(dst);
+	return dst_len + 2;
 }
 
 void sc_string_init(char *buf, size_t buf_size)

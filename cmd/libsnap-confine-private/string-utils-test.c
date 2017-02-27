@@ -419,14 +419,18 @@ static void test_sc_string_append_char_pair__invalid_zero_c2()
 static void test_sc_string_append_char_pair__normal()
 {
 	char buf[16];
+	size_t len;
 	sc_string_init(buf, sizeof buf);
 
-	sc_string_append_char_pair(buf, sizeof buf, 'h', 'e');
+	len = sc_string_append_char_pair(buf, sizeof buf, 'h', 'e');
 	g_assert_cmpstr(buf, ==, "he");
-	sc_string_append_char_pair(buf, sizeof buf, 'l', 'l');
+	g_assert_cmpint(len, ==, 2);
+	len = sc_string_append_char_pair(buf, sizeof buf, 'l', 'l');
 	g_assert_cmpstr(buf, ==, "hell");
-	sc_string_append_char_pair(buf, sizeof buf, 'o', '!');
+	g_assert_cmpint(len, ==, 4);
+	len = sc_string_append_char_pair(buf, sizeof buf, 'o', '!');
 	g_assert_cmpstr(buf, ==, "hello!");
+	g_assert_cmpint(len, ==, 6);
 }
 
 static void __attribute__ ((constructor)) init()
