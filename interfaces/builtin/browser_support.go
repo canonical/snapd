@@ -50,6 +50,10 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
