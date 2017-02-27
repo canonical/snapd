@@ -75,7 +75,7 @@ static void test_sc_snap_name_validate()
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"invalid snap name \"hello world\"");
+			"snap name is not valid (\"hello world\")");
 	sc_error_free(err);
 
 	// Smoke test: empty name is not valid
@@ -83,7 +83,15 @@ static void test_sc_snap_name_validate()
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
-	g_assert_cmpstr(sc_error_msg(err), ==, "invalid snap name \"\"");
+	g_assert_cmpstr(sc_error_msg(err), ==, "snap name is not valid (\"\")");
+	sc_error_free(err);
+
+	// Smoke test: NULL name is not valid
+	sc_snap_name_validate(NULL, &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==, "snap name cannot be NULL");
 	sc_error_free(err);
 }
 
@@ -97,7 +105,7 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr("invalid snap name \"hello world\"\n");
+	g_test_trap_assert_stderr("snap name is not valid (\"hello world\")\n");
 }
 
 static void __attribute__ ((constructor)) init()

@@ -54,6 +54,13 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 {
 	struct sc_error *err = NULL;
 
+	// Ensure that name is not NULL
+	if (snap_name == NULL) {
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name cannot be NULL");
+		goto out;
+	}
+	// Ensure that name matches regular expression
 	if (regexec(&sc_valid_snap_name_re, snap_name, 0, NULL, 0) != 0) {
 		char *quote_buf __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
@@ -70,7 +77,7 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 		sc_string_quote(quote_buf, quote_buf_size, snap_name);
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				  "invalid snap name %s", quote_buf);
+				  "snap name is not valid (%s)", quote_buf);
 	}
 
  out:

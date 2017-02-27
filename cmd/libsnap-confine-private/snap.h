@@ -35,8 +35,8 @@ enum {
 /**
  * Validate the given snap name.
  *
- * Snaps have strict naming requirements.
- * Please refer to snapd source code for details.
+ * Valid name cannot be NULL and must match a regular expression describing the
+ * strict naming requirements. Please refer to snapd source code for details.
  *
  * The error protocol is observed so if the caller doesn't provide an outgoing
  * error pointer the function will die on any error.
