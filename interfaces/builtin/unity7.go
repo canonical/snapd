@@ -457,7 +457,7 @@ dbus (send)
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
-deny /{,var/}{dev,run}/shm/lttng-ust-* r,
+deny /{dev,run,var/run}/shm/lttng-ust-* r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
