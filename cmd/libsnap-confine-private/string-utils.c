@@ -99,7 +99,7 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str)
 	return strlen(dst);
 }
 
-size_t sc_string_append_char(char *dst, size_t dst_size, int c)
+size_t sc_string_append_char(char *dst, size_t dst_size, char c)
 {
 	// Set errno in case we die.
 	errno = 0;
@@ -113,9 +113,6 @@ size_t sc_string_append_char(char *dst, size_t dst_size, int c)
 	size_t max_str_len = dst_size - dst_len;
 	if (max_str_len < 2) {
 		die("cannot append character: not enough space");
-	}
-	if (c < 0 || c > 255) {
-		die("cannot append character: character out of range");
 	}
 	if (c == 0) {
 		die("cannot append character: cannot append string terminator");
