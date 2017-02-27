@@ -293,38 +293,6 @@ static void test_sc_string_append_char__overflow()
 	    ("cannot append character: not enough space\n");
 }
 
-static void test_sc_string_append_char__invalid_too_small()
-{
-	if (g_test_subprocess()) {
-		char buf[2] = { 0 };
-		sc_string_append_char(buf, sizeof buf, -1);
-
-		g_test_message("expected sc_string_append_char not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character: character out of range\n");
-}
-
-static void test_sc_string_append_char__invalid_too_large()
-{
-	if (g_test_subprocess()) {
-		char buf[2] = { 0 };
-		sc_string_append_char(buf, sizeof buf, 256);
-
-		g_test_message("expected sc_string_append_char not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character: character out of range\n");
-}
-
 static void test_sc_string_append_char__invalid_zero()
 {
 	if (g_test_subprocess()) {
@@ -391,12 +359,6 @@ static void __attribute__ ((constructor)) init()
 			test_sc_string_append_char__NULL_buf);
 	g_test_add_func("/string-utils/sc_string_append_char__overflow",
 			test_sc_string_append_char__overflow);
-	g_test_add_func
-	    ("/string-utils/sc_string_append_char__invalid_too_large",
-	     test_sc_string_append_char__invalid_too_large);
-	g_test_add_func
-	    ("/string-utils/sc_string_append_char__invalid_too_small",
-	     test_sc_string_append_char__invalid_too_small);
 	g_test_add_func("/string-utils/sc_string_append_char__invalid_zero",
 			test_sc_string_append_char__invalid_zero);
 	g_test_add_func("/string-utils/sc_string_append_char__normal",
