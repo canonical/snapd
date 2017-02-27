@@ -1,0 +1,31 @@
+summary: check that /etc/os-release is genuine
+details: |
+    Software may rely on the /etc/os-release file to identify the system where
+    a snap is running.  On a core system this is always ID=ubuntu-core but on
+    classic it is expected to be the /etc/os-release file from the host
+    distribution.
+    Since the /etc/os-release file may be a symlink (and it typically is) it
+    may point to other places, places that originate from the core snap, not
+    from the host system. In practice this happens, e.g. on xenial, where
+    /etc/os-release points to /usr/lib/os-release.
+    Since the symlink is resolved only after the chroot is set in place we
+    don't really know what it was previously pointing at. To counter this
+    snap-confine now bind mounts /etc/os-release over itself from the classic
+    distribution.
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+execute: |
+    # The value on the host:
+    cat /etc/os-release > outside
+    test-snapd-tools.cmd cat /etc/os-release > inside 
+    cmp outside inside
+restore: |
+    rm -f outside inside
+debug: |
+    echo "/etc/os-release as seen on the outside of snaps"
+    cat outside
+    echo "/etc/os-release as seen on the inside of snaps"
+    cat inside
+
+

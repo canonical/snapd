@@ -404,6 +404,49 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    dst);
 		}
 	}
+	// Since we mountec /etc from the host filesystem the /etc/os-release file
+	// (which may not be present) may be a symbolic link. It is expected that
+	// we see the real /etc/os-release file so let's do our best to show
+	// /etc/os-release as it looks like on the clasic distribution.
+	//
+	// If the symbolic link in /etc is pointing to /usr/lib/os-release then
+	// bind mount /usr/lib/os-release over itself in the core snap. This way
+	// the symlink (which we cannot over-bind mount anything) will work as
+	// expected.
+	//
+	// https://bugs.launchpad.net/canonical-livepatch-client/+bug/1667470
+	if (config->on_classic) {
+		const char *etc_os_release = "/etc/os-release";
+		const char *expected_symlink = "../usr/lib/os-release";
+		const char *usr_lib_os_release = "/usr/lib/os-release";
+		char link_target[PATH_MAX];
+		// Try to read link target from /etc/os-release and special case EINVAL
+		// instead of trying to lstat it first.
+		if (readlink(etc_os_release, link_target, sizeof link_target) <
+		    0) {
+			if (errno != EINVAL) {
+				die("cannot read target of symbolic link from %s", etc_os_release);
+			}
+			goto skip_etc_os_release;
+		}
+		// Check if the link points to ../usr/lib/os-release (or just
+		// /usr/lib/os-release).  If not then we're not ready for that case and
+		// we can just bail out.
+		if (strcmp(link_target, expected_symlink) != 0) {
+			goto skip_etc_os_release;
+		}
+		// Bind mount /usr/lib/os-release over /usr/lib/os-release in the core snap.
+		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
+				 usr_lib_os_release);
+		debug("performing operation: mount --bind -o ro %s %s",
+		      usr_lib_os_release, dst);
+		if (mount
+		    (usr_lib_os_release, dst, NULL, MS_BIND | MS_RDONLY,
+		     NULL) != 0) {
+			die("cannot perform operation: mount --bind -o ro %s %s", usr_lib_os_release, dst);
+		}
+	}
+ skip_etc_os_release:
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the

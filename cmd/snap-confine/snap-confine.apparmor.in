@@ -118,6 +118,10 @@
     mount options=(rw rbind) /etc/ -> /tmp/snap.rootfs_*/etc/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/etc/,
 
+    # Allow bind mounting /usr/lib/os-release over itself in the core snap.
+    # See mount-support.c for a longer explanation.
+    mount options=(rw bind) /usr/lib/os-release -> /tmp/snap.rootfs_*/usr/lib/os-release,
+
     mount options=(rw rbind) /home/ -> /tmp/snap.rootfs_*/home/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/home/,
 
