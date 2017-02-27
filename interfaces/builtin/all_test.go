@@ -35,6 +35,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.BluezInterface{})
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BrowserSupportInterface{})
+	c.Check(all, Contains, &builtin.ConnectivityObserveInterface{})
 	c.Check(all, Contains, &builtin.DbusInterface{})
 	c.Check(all, Contains, &builtin.DockerInterface{})
 	c.Check(all, Contains, &builtin.DockerSupportInterface{})
