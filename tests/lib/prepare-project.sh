@@ -64,7 +64,9 @@ if [ "$SPREAD_BACKEND" = external ]; then
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   snap set core refresh.disabled=true
+   if [ -e /snap/core/current/meta/hooks/configure ]; then
+       snap set core refresh.disabled=true
+   fi
    exit 0
 fi
 
