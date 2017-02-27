@@ -170,6 +170,12 @@ dbus (receive)
     member=PrepareForSleep
     interface=org.freedesktop.login1.Manager
     peer=(label=unconfined),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Session{New,Removed}
+    peer=(label=unconfined),
 
 # Allow access to wpa-supplicant for managing WiFi networks
 dbus (receive, send)
