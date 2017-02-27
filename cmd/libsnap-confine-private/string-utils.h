@@ -70,10 +70,9 @@ size_t sc_string_append_char(char *dst, size_t dst_size, char c);
  * not to overflow it. If any argument is NULL or a buffer overflow is detected
  * then the function dies.
  *
- * Neither character cannot be the string terminator and both must fit into an
- * eight-bit value.
+ * Neither character cannot be the string terminator.
  **/
-size_t sc_string_append_char_pair(char *dst, size_t dst_size, int c1, int c2);
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2);
 
 /**
  * Initialize a string (make it empty).
