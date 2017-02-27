@@ -31,12 +31,16 @@ const mirPermanentSlotAppArmor = `
 
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-/{dev,run}/shm/\#* rw,
 /dev/tty[0-9]* rw,
-network netlink raw,
+
+/{dev,run}/shm/\#* rw,
 /run/mir_socket rw,
-#NOTE: this allows reading and inserting all input events
+
+# NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
+
+# For using udev
+network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
 `
