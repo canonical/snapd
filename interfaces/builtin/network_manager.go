@@ -216,22 +216,6 @@ bind
 listen
 sethostname
 shutdown
-# Needed for keyfile settings plugin to allow adding settings
-# for different users. This is currently at runtime only used
-# to make new created network settings files only editable by
-# root:root. The existence of this chown call is only that its
-# used for some tests where a different user:group combination
-# will be supplied.
-# FIXME: adjust after seccomp argument filtering lands so that
-# we only allow chown and its variant to be called for root:root
-# and nothing else (LP: #1446748)
-chown
-chown32
-fchown
-fchown32
-fchownat
-lchown
-lchown32
 `
 
 const networkManagerPermanentSlotDBus = `
