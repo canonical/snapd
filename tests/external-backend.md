@@ -25,3 +25,15 @@ $ spread -v -reuse external:ubuntu-core-16-64
 ```
 * You can execute again the suite by just reissuing the spread command, no need
 to run the prepare script again.
+
+Suppose a new core revision is published and you want to check if the core snap from stable
+can be safely refreshed to this new revision. Then, assuming you have a ubuntu-core instance
+created from the stable channel and the new core has been published to `<core_channel>` you
+can run the `tests/main/core-snap-refresh` test before executing the full suite:
+```
+$ export SPREAD_EXTERNAL_ADDRESS=<instance_ip>:<instance_port>
+$ ./tests/lib/external/prepare-ssh.sh <instance_ip> <instance_port>
+$ export SPREAD_NEW_CORE_CHANNEL=<core_channel>
+$ spread -v -reuse external:ubuntu-core-16-64:tests/main/core-snap-refresh
+$ spread -v -reuse external:ubuntu-core-16-64
+```

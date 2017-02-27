@@ -31,6 +31,7 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
 
 backends:
     linode:
