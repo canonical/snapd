@@ -382,40 +382,6 @@ static void test_sc_string_append_char_pair__overflow()
 	    ("cannot append character pair: not enough space\n");
 }
 
-static void test_sc_string_append_char_pair__invalid_too_small_c1()
-{
-	if (g_test_subprocess()) {
-		char buf[3] = { 0 };
-		sc_string_append_char_pair(buf, sizeof buf, -1, 'a');
-
-		g_test_message
-		    ("expected sc_string_append_char_pair not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character pair: character out of range\n");
-}
-
-static void test_sc_string_append_char_pair__invalid_too_large_c1()
-{
-	if (g_test_subprocess()) {
-		char buf[3] = { 0 };
-		sc_string_append_char_pair(buf, sizeof buf, 256, 'a');
-
-		g_test_message
-		    ("expected sc_string_append_char_pair not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character pair: character out of range\n");
-}
-
 static void test_sc_string_append_char_pair__invalid_zero_c1()
 {
 	if (g_test_subprocess()) {
@@ -431,40 +397,6 @@ static void test_sc_string_append_char_pair__invalid_zero_c1()
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
 	    ("cannot append character pair: cannot append string terminator\n");
-}
-
-static void test_sc_string_append_char_pair__invalid_too_small_c2()
-{
-	if (g_test_subprocess()) {
-		char buf[3] = { 0 };
-		sc_string_append_char_pair(buf, sizeof buf, 'a', -1);
-
-		g_test_message
-		    ("expected sc_string_append_char_pair not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character pair: character out of range\n");
-}
-
-static void test_sc_string_append_char_pair__invalid_too_large_c2()
-{
-	if (g_test_subprocess()) {
-		char buf[3] = { 0 };
-		sc_string_append_char_pair(buf, sizeof buf, 'a', 256);
-
-		g_test_message
-		    ("expected sc_string_append_char_pair not to return");
-		g_test_fail();
-		return;
-	}
-	g_test_trap_subprocess(NULL, 0, 0);
-	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr
-	    ("cannot append character pair: character out of range\n");
 }
 
 static void test_sc_string_append_char_pair__invalid_zero_c2()
@@ -540,20 +472,8 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/string-utils/sc_string_append_char_pair__overflow",
 			test_sc_string_append_char_pair__overflow);
 	g_test_add_func
-	    ("/string-utils/sc_string_append_char_pair__invalid_too_large_c1",
-	     test_sc_string_append_char_pair__invalid_too_large_c1);
-	g_test_add_func
-	    ("/string-utils/sc_string_append_char_pair__invalid_too_small_c1",
-	     test_sc_string_append_char_pair__invalid_too_small_c1);
-	g_test_add_func
 	    ("/string-utils/sc_string_append_char_pair__invalid_zero_c1",
 	     test_sc_string_append_char_pair__invalid_zero_c1);
-	g_test_add_func
-	    ("/string-utils/sc_string_append_char_pair__invalid_too_large_c2",
-	     test_sc_string_append_char_pair__invalid_too_large_c2);
-	g_test_add_func
-	    ("/string-utils/sc_string_append_char_pair__invalid_too_small_c2",
-	     test_sc_string_append_char_pair__invalid_too_small_c2);
 	g_test_add_func
 	    ("/string-utils/sc_string_append_char_pair__invalid_zero_c2",
 	     test_sc_string_append_char_pair__invalid_zero_c2);

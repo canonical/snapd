@@ -124,7 +124,7 @@ size_t sc_string_append_char(char *dst, size_t dst_size, char c)
 	return dst_len + 1;
 }
 
-size_t sc_string_append_char_pair(char *dst, size_t dst_size, int c1, int c2)
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2)
 {
 	// Set errno in case we die.
 	errno = 0;
@@ -138,9 +138,6 @@ size_t sc_string_append_char_pair(char *dst, size_t dst_size, int c1, int c2)
 	size_t max_str_len = dst_size - dst_len;
 	if (max_str_len < 3) {
 		die("cannot append character pair: not enough space");
-	}
-	if (c1 < 0 || c1 > 255 || c2 < 0 || c2 > 255) {
-		die("cannot append character pair: character out of range");
 	}
 	if (c1 == 0 || c2 == 0) {
 		die("cannot append character pair: cannot append string terminator");
