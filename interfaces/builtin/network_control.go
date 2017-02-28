@@ -129,6 +129,8 @@ capability setuid,
 /etc/networks r,
 /etc/ethers r,
 
+/etc/rpc r,
+
 # TUN/TAP
 /dev/net/tun rw,
 # These are dynamically created via ioctl() on /dev/net/tun
