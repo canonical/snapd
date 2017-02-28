@@ -358,7 +358,11 @@ noinst_PROGRAMS += snap-update-ns/unit-tests
 snap_update_ns_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
-	snap-update-ns/mount-entry-test.c
+	snap-update-ns/mount-entry-test.c \
+	snap-update-ns/test-data.c \
+	snap-update-ns/test-data.h \
+	snap-update-ns/test-utils.c \
+	snap-update-ns/test-utils.h
 snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
 snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)
