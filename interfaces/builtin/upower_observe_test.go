@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -178,20 +179,21 @@ func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "org.freedesktop.UPower")
 }
 
+const upowerObserveMockSlotSnapInfoYaml = `name: upower
+version: 1.0
+slots:
+ upower-observe:
+  interface: upower-observe
+apps:
+ app1:
+  command: foo
+  slots:
+   - upower-observe
+`
+
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "upower"},
-			Name:      "upower-observe",
-			Interface: "upower-observe",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "upower",
-					},
-					Name: "app1"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, upowerObserveMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["upower-observe"]}
 
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)

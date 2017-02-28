@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,9 +36,23 @@ type DockerSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&DockerSupportInterfaceSuite{
-	iface: &builtin.DockerSupportInterface{},
-	slot: &interfaces.Slot{
+const dockerSupportMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+plugs:
+ docker-support:
+  interface: docker-support
+apps:
+ app:
+  command: foo
+  plugs:
+   - docker-support
+`
+
+var _ = Suite(&DockerSupportInterfaceSuite{})
+
+func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.DockerSupportInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "core",
@@ -45,23 +60,10 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 			Name:      "docker-support",
 			Interface: "docker-support",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "docker",
-			},
-			Name:      "docker-support",
-			Interface: "docker-support",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "docker",
-					},
-					Name: "app"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, dockerSupportMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["docker-support"]}
+}
 
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker-support")

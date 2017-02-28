@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -39,27 +39,42 @@ var _ = Suite(&PulseAudioInterfaceSuite{
 	iface: &builtin.PulseAudioInterface{},
 })
 
+const paMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ pulseaudio:
+  interface: pulseaudio
+apps:
+ app2:
+  command: foo
+  plugs:
+   - pulseaudio
+`
+
+const paMockSlotSnapInfoYaml = `name: pulseaudio
+version: 1.0
+slots:
+ pulseaudio:
+  interface: pulseaudio
+apps:
+ app1:
+  command: foo
+  slots:
+   - pulseaudio
+`
+
+const paMockSlotOSSnapInfoYaml = `name: pulseaudio
+version: 1.0
+slots:
+ pulseaudio:
+  interface: pulseaudio
+`
+
 func (s *PulseAudioInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "pulseaudio"},
-			Name:      "pulseaudio",
-			Interface: "pulseaudio",
-		},
-	}
-	s.plug = &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "pulseaudio",
-			Interface: "pulseaudio",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, paMockSlotOSSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, paMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["pulseaudio"]}
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["pulseaudio"]}
 }
 
 func (s *PulseAudioInterfaceSuite) TestName(c *C) {
@@ -89,23 +104,13 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "pulseaudio"},
-			Name:      "pulseaudio",
-			Interface: "pulseaudio",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "pulseaudio",
-					},
-					Name: "app1"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, paMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["pulseaudio"]}
+
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 2)

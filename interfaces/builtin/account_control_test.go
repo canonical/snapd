@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,9 +36,23 @@ type AccountControlSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AccountControlSuite{
-	iface: builtin.NewAccountControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&AccountControlSuite{})
+
+const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ account-control:
+  interface: account-control
+apps:
+ app2:
+  command: foo
+  plugs:
+   - account-control
+`
+
+func (s *AccountControlSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewAccountControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "account-control",
@@ -49,21 +64,11 @@ var _ = Suite(&AccountControlSuite{
 					},
 					Name: "app1"}},
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "account-control",
-			Interface: "account-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["account-control"]}
+}
 
 func (s *AccountControlSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "account-control")

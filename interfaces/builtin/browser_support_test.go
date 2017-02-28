@@ -36,29 +36,32 @@ type BrowserSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BrowserSupportInterfaceSuite{
-	iface: &builtin.BrowserSupportInterface{},
-	slot: &interfaces.Slot{
+const browserMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ browser-support:
+  interface: browser-support
+apps:
+ app2:
+  command: foo
+  plugs:
+   - browser-support
+`
+
+var _ = Suite(&BrowserSupportInterfaceSuite{})
+
+func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.BrowserSupportInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "browser-support",
 			Interface: "browser-support",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "browser-support",
-			Interface: "browser-support",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, browserMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["browser-support"]}
+}
 
 func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "browser-support")
