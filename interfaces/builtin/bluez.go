@@ -83,7 +83,9 @@ const bluezPermanentSlotAppArmor = `
       interface=org.freedesktop.DBus.*
       peer=(label=unconfined),
 
-  # Allow traffic to/from org.freedesktop.DBus for bluez service
+  # Allow traffic to/from org.freedesktop.DBus for bluez service. This rule is
+  # not snap-specific and grants privileged access to the org.freedesktop.DBus
+  # on the system bus.
   dbus (receive, send)
       bus=system
       path=/
