@@ -107,7 +107,7 @@ func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 }
 
 func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(ioPortsControlConnectedPlugSecComp))
+	return spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
 }
 
 // No extra permissions granted on connection

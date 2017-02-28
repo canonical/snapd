@@ -101,21 +101,23 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		snippet := spec.snippets[hookInfo.SecurityTag()]
-		addContent(hookInfo.SecurityTag(), opts, snippet, content)
+		securityTag := hookInfo.SecurityTag()
+		snippet := spec.snippets[securityTag]
+		addContent(securityTag, opts, snippet, content)
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		snippet := spec.snippets[appInfo.SecurityTag()]
-		addContent(appInfo.SecurityTag(), opts, snippet, content)
+		securityTag := appInfo.SecurityTag()
+		snippet := spec.snippets[securityTag]
+		addContent(securityTag, opts, snippet, content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetsForTag [][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetsForTag []string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -127,9 +129,9 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 	}
 
 	buffer.Write(defaultTemplate)
-	sort.Sort(byByteContent(snippetsForTag))
+	sort.Strings(snippetsForTag)
 	for _, snippet := range snippetsForTag {
-		buffer.Write(snippet)
+		buffer.WriteString(snippet)
 		buffer.WriteRune('\n')
 	}
 
@@ -141,12 +143,4 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
-}
-
-type byByteContent [][]byte
-
-func (x byByteContent) Len() int      { return len(x) }
-func (x byByteContent) Swap(a, b int) { x[a], x[b] = x[b], x[a] }
-func (x byByteContent) Less(a, b int) bool {
-	return bytes.Compare(x[a], x[b]) < 0
 }

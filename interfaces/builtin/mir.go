@@ -42,7 +42,7 @@ network netlink raw,
 /run/udev/data/+input:input[0-9]* r,
 `)
 
-var mirPermanentSlotSecComp = []byte(`
+const mirPermanentSlotSecComp = `
 # Description: Allow operating as the mir server. This gives privileged access
 # to the system.
 # Needed for server launch
@@ -52,7 +52,7 @@ listen
 accept
 accept4
 shmctl
-`)
+`
 
 var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
@@ -97,7 +97,7 @@ func (iface *MirInterface) PermanentSlotSnippet(
 }
 
 func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(mirPermanentSlotSecComp))
+	return spec.AddSnippet(mirPermanentSlotSecComp)
 }
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -115,7 +115,7 @@ capability sys_rawio, # required by iopl
 }
 
 func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
-	expectedSnippet2 := []byte(`
+	expectedSnippet2 := `
 # Description: Allow changes to the I/O port permissions and
 # privilege level of the calling process.  In addition to granting
 # unrestricted I/O port access, running at a higher I/O privilege
@@ -123,7 +123,7 @@ func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 # probably crash the system, and is not recommended.
 ioperm
 iopl
-`)
+`
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)

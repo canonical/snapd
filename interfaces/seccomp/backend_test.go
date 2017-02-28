@@ -215,7 +215,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 			if scenario.snippet == "" {
 				return nil
 			}
-			return spec.AddSnippet([]byte(scenario.snippet))
+			return spec.AddSnippet(scenario.snippet)
 		}
 
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
@@ -249,10 +249,10 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	s.Repo.AddInterface(iface2)
 
 	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet([]byte("zzz"))
+		return spec.AddSnippet("zzz")
 	}
 	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet([]byte("aaa"))
+		return spec.AddSnippet("aaa")
 	}
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)

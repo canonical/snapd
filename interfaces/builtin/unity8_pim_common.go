@@ -145,7 +145,7 @@ func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slo
 }
 
 func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(unity8PimCommonPermanentSlotSecComp))
+	return spec.AddSnippet(unity8PimCommonPermanentSlotSecComp)
 }
 
 func (iface *unity8PimCommonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
