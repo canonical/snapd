@@ -22,102 +22,16 @@
 
 #include <glib.h>
 
-static const char *test_entry_str_1 = "fsname-1 dir-1 type-1 opts-1 1 2";
-static const char *test_entry_str_2 = "fsname-2 dir-2 type-2 opts-2 3 4";
-
-static const struct sc_mount_entry test_entry_1 = {
-	.entry = {
-		  .mnt_fsname = "fsname-1",
-		  .mnt_dir = "dir-1",
-		  .mnt_type = "type-1",
-		  .mnt_opts = "opts-1",
-		  .mnt_freq = 1,
-		  .mnt_passno = 2,
-		  }
-};
-
-static void test_looks_like_test_entry_1(const struct sc_mount_entry *entry)
-{
-	g_assert_cmpstr(entry->entry.mnt_fsname, ==, "fsname-1");
-	g_assert_cmpstr(entry->entry.mnt_dir, ==, "dir-1");
-	g_assert_cmpstr(entry->entry.mnt_type, ==, "type-1");
-	g_assert_cmpstr(entry->entry.mnt_opts, ==, "opts-1");
-	g_assert_cmpint(entry->entry.mnt_freq, ==, 1);
-	g_assert_cmpint(entry->entry.mnt_passno, ==, 2);
-}
-
-static const struct sc_mount_entry test_entry_2 = {
-	.entry = {
-		  .mnt_fsname = "fsname-2",
-		  .mnt_dir = "dir-2",
-		  .mnt_type = "type-2",
-		  .mnt_opts = "opts-2",
-		  .mnt_freq = 3,
-		  .mnt_passno = 4,
-		  }
-};
-
-static void test_looks_like_test_entry_2(const struct sc_mount_entry *entry)
-{
-	g_assert_cmpstr(entry->entry.mnt_fsname, ==, "fsname-2");
-	g_assert_cmpstr(entry->entry.mnt_dir, ==, "dir-2");
-	g_assert_cmpstr(entry->entry.mnt_type, ==, "type-2");
-	g_assert_cmpstr(entry->entry.mnt_opts, ==, "opts-2");
-	g_assert_cmpint(entry->entry.mnt_freq, ==, 3);
-	g_assert_cmpint(entry->entry.mnt_passno, ==, 4);
-}
-
-static const struct mntent test_mnt_1 = {
-	.mnt_fsname = "fsname-1",
-	.mnt_dir = "dir-1",
-	.mnt_type = "type-1",
-	.mnt_opts = "opts-1",
-	.mnt_freq = 1,
-	.mnt_passno = 2,
-};
-
-static const struct mntent test_mnt_2 = {
-	.mnt_fsname = "fsname-2",
-	.mnt_dir = "dir-2",
-	.mnt_type = "type-2",
-	.mnt_opts = "opts-2",
-	.mnt_freq = 3,
-	.mnt_passno = 4,
-};
-
-static void test_write_lines(const char *name, ...) __attribute__ ((sentinel));
-
-static void test_remove_file(const char *name)
-{
-	remove(name);
-}
-
-static void test_write_lines(const char *name, ...)
-{
-	FILE *f = NULL;
-	f = fopen(name, "wt");
-	va_list ap;
-	va_start(ap, name);
-	const char *line;
-	while ((line = va_arg(ap, const char *)) != NULL) {
-		fprintf(f, "%s\n", line);
-	}
-	va_end(ap);
-	fclose(f);
-
-	// Cast-away the const qualifier. This just calls unlink and we don't
-	// modify the name in any way. This way the signature is compatible with
-	// that of GDestroyNotify.
-	g_test_queue_destroy((GDestroyNotify) test_remove_file, (char *)name);
-}
+#include "test-utils.h"
+#include "test-data.h"
 
 static void test_sc_load_mount_profile()
 {
 	struct sc_mount_entry *fstab
 	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) = NULL;
 	struct sc_mount_entry *entry;
-	test_write_lines("test.fstab", test_entry_str_1, test_entry_str_2,
-			 NULL);
+	sc_test_write_lines("test.fstab", test_entry_str_1, test_entry_str_2,
+			    NULL);
 	fstab = sc_load_mount_profile("test.fstab");
 	g_assert_nonnull(fstab);
 
@@ -151,7 +65,7 @@ static void test_sc_save_mount_profile()
 	// Cast-away the const qualifier. This just calls unlink and we don't
 	// modify the name in any way. This way the signature is compatible with
 	// that of GDestroyNotify.
-	g_test_queue_destroy((GDestroyNotify) test_remove_file,
+	g_test_queue_destroy((GDestroyNotify) sc_test_remove_file,
 			     (char *)"test.fstab");
 
 	// After reading the generated file it looks as expected.
@@ -225,6 +139,31 @@ static void test_sc_clone_mount_entry_from_mntent()
 	g_assert_null(next);
 }
 
+static void test_sc_sort_mount_entries()
+{
+	struct sc_mount_entry *list;
+
+	// Sort an empty list, it should not blow up.
+	list = NULL;
+	sc_sort_mount_entries(&list);
+	g_assert(list == NULL);
+
+	// Create a list with two items in wrong order (backwards).
+	struct sc_mount_entry entry_1 = test_entry_1;
+	struct sc_mount_entry entry_2 = test_entry_2;
+	list = &entry_2;
+	entry_2.next = &entry_1;
+	entry_1.next = NULL;
+
+	// Sort the list
+	sc_sort_mount_entries(&list);
+
+	// Ensure that the linkage now follows the right order.
+	g_assert(list == &entry_1);
+	g_assert(entry_1.next == &entry_2);
+	g_assert(entry_2.next == NULL);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount-entry/sc_load_mount_profile",
@@ -237,4 +176,6 @@ static void __attribute__ ((constructor)) init()
 			test_sc_compare_mount_entry);
 	g_test_add_func("/mount-entry/test_sc_clone_mount_entry_from_mntent",
 			test_sc_clone_mount_entry_from_mntent);
+	g_test_add_func("/mount-entry/test_sort_mount_entries",
+			test_sc_sort_mount_entries);
 }

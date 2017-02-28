@@ -92,7 +92,7 @@ func (s *specSuite) TestSmoke(c *C) {
 	m2 := "module2"
 	c.Assert(s.spec.AddModule(m1), IsNil)
 	c.Assert(s.spec.AddModule(m2), IsNil)
-	c.Assert(s.spec.Modules, DeepEquals, map[string]bool{
+	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
 		"module1": true, "module2": true})
 }
 
@@ -101,7 +101,7 @@ func (s *specSuite) TestDeduplication(c *C) {
 	mod := "module1"
 	c.Assert(s.spec.AddModule(mod), IsNil)
 	c.Assert(s.spec.AddModule(mod), IsNil)
-	c.Assert(s.spec.Modules, DeepEquals, map[string]bool{"module1": true})
+	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{"module1": true})
 
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, s.slot), IsNil)
@@ -113,7 +113,7 @@ func (s *specSuite) TestDeduplication(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface2, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface2, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface2, s.slot), IsNil)
-	c.Assert(s.spec.Modules, DeepEquals, map[string]bool{
+	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
 		"module1": true, "module2": true, "module3": true, "module4": true, "module5": true, "module6": true})
 }
 
@@ -124,6 +124,6 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface1, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface1, s.slot), IsNil)
-	c.Assert(s.spec.Modules, DeepEquals, map[string]bool{
+	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
 		"module1": true, "module2": true, "module3": true, "module4": true})
 }

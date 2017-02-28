@@ -17,54 +17,60 @@
  *
  */
 
-package kmod
+package apparmor
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// Specification assists in collecting kernel modules associated with an interface.
-//
-// Unlike the Backend itself (which is stateless and non-persistent) this type
-// holds internal state that is used by the kmod backend during the interface
-// setup process.
+// Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	modules map[string]bool
+	// snippets are indexed by security tag.
+	snippets     map[string][][]byte
+	securityTags []string
 }
 
-// AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
-func (spec *Specification) AddModule(module string) error {
-	m := strings.TrimSpace(module)
-	if m == "" {
+// AddSnippet adds a new apparmor snippet.
+func (spec *Specification) AddSnippet(snippet []byte) error {
+	if len(spec.securityTags) == 0 {
 		return nil
 	}
-	if spec.Modules == nil {
-		spec.Modules = make(map[string]bool)
+	if spec.snippets == nil {
+		spec.snippets = make(map[string][][]byte)
 	}
-	spec.Modules[m] = true
+	for _, tag := range spec.securityTags {
+		spec.snippets[tag] = append(spec.snippets[tag], snippet)
+	}
+
 	return nil
 }
 
-// Modules returns a copy of the kernel module names added.
-func (spec *Specification) Modules() map[string]bool {
-	result := make(map[string]bool, len(spec.modules))
-	for k, v := range spec.modules {
-		result[k] = v
+// Snippets returns a deep copy of all the added snippets.
+func (spec *Specification) Snippets() map[string][][]byte {
+	result := make(map[string][][]byte, len(spec.snippets))
+	for k, v := range spec.snippets {
+		vCopy := make([][]byte, 0, len(v))
+		for _, vElem := range v {
+			vElemCopy := make([]byte, len(vElem))
+			copy(vElemCopy, vElem)
+			vCopy = append(vCopy, vElemCopy)
+		}
+		result[k] = vCopy
 	}
 	return result
 }
 
 // Implementation of methods required by interfaces.Specification
 
-// AddConnectedPlug records kmod-specific side-effects of having a connected plug.
+// AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		KModConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedPlug(spec, plug, slot)
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
+		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
@@ -72,10 +78,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		KModConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModConnectedSlot(spec, plug, slot)
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
+		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
@@ -83,10 +91,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 // AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		KModPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		AppArmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModPermanentPlug(spec, plug)
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
+		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
 }
@@ -94,10 +104,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 // AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		KModPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		AppArmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.KModPermanentSlot(spec, slot)
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
+		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
 }

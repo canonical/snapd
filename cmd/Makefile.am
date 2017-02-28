@@ -20,7 +20,7 @@ check-syntax-c:
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
-	       indent -linux "$$f" -o "$$out"; \
+	       HOME=$(srcdir) indent "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
 
@@ -47,7 +47,7 @@ endif
 
 .PHONY: fmt
 fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
-	indent -linux $^
+	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
@@ -358,7 +358,11 @@ noinst_PROGRAMS += snap-update-ns/unit-tests
 snap_update_ns_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
-	snap-update-ns/mount-entry-test.c
+	snap-update-ns/mount-entry-test.c \
+	snap-update-ns/test-data.c \
+	snap-update-ns/test-data.h \
+	snap-update-ns/test-utils.c \
+	snap-update-ns/test-utils.h
 snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
 snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)

@@ -212,7 +212,7 @@ slots:
 		Dir:     "/snap/consumer/7/import",
 		Options: []string{"bind", "ro"},
 	}}
-	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 }
 
 // Check that sharing of read-only snap content is possible
@@ -240,7 +240,7 @@ slots:
 		Dir:     "/snap/consumer/7/import",
 		Options: []string{"bind", "ro"},
 	}}
-	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -278,7 +278,7 @@ slots:
 		Dir:     "/var/snap/consumer/7/import",
 		Options: []string{"bind"},
 	}}
-	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -318,7 +318,7 @@ slots:
 		Dir:     "/var/snap/consumer/common/import",
 		Options: []string{"bind"},
 	}}
-	c.Assert(spec.MountEntries, DeepEquals, expectedMnt)
+	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
