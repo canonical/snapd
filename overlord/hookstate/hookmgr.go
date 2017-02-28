@@ -218,7 +218,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 				return handlerErr
 			}
 
-			return err
+			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
 		}
 	}
 
