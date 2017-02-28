@@ -441,15 +441,24 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (strcmp(link_target, expected_symlink) != 0) {
 			goto skip_etc_os_release;
 		}
-		// Bind mount /usr/lib/os-release over /usr/lib/os-release in the core snap.
+		// Bind mount whatever /etc/os-release is effectively pointing to
+		// (effectively because we only considered the first level of symbolic
+		// links) to /usr/lib/os-release in the core snap.
+		//
+		// This way once inside the core snap we will see /etc/os-release
+		// (which is a symlink to ../usr/lib/os-release as we've checked above)
+		// pointing to a bind mount to $(realpath /etc/os-release).
+		//
+		// This is because the mount operation below will follow all the symbolic links
+		// so /etc/os-release is followed to its final destination.
 		sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir,
 				 usr_lib_os_release);
 		debug("performing operation: mount --bind -o ro %s %s",
-		      usr_lib_os_release, dst);
+		      etc_os_release, dst);
 		if (mount
-		    (usr_lib_os_release, dst, NULL, MS_BIND | MS_RDONLY,
+		    (etc_os_release, dst, NULL, MS_BIND | MS_RDONLY,
 		     NULL) < 0) {
-			die("cannot perform operation: mount --bind -o ro %s %s", usr_lib_os_release, dst);
+			die("cannot perform operation: mount --bind -o ro %s %s", etc_os_release, dst);
 		}
 	}
  skip_etc_os_release:
