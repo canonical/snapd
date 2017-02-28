@@ -21,6 +21,7 @@ package release_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -120,30 +121,34 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
-	// Restore real OS info at the end of this function.
-	defer release.MockReleaseInfo(&release.OS{})()
-	distros := []struct {
-		id        string
-		idVersion string
-		devmode   bool
+	versionSignaturePath := filepath.Join(c.MkDir(), "version_signature")
+	restorer := release.MockVersionSignature(versionSignaturePath)
+	defer restorer()
+	apparmorPath := filepath.Join(c.MkDir(), "apparmor")
+	restorer = release.MockApparmorSysPath(apparmorPath)
+	defer restorer()
+
+	for _, t := range []struct {
+		sig string
+		aa  bool
+
+		isDevmode bool
 	}{
-		// Please keep this list sorted
-		{id: "arch", devmode: true},
-		{id: "debian", devmode: true},
-		{id: "elementary", devmode: true},
-		{id: "elementary", idVersion: "0.4", devmode: false},
-		{id: "fedora", devmode: true},
-		{id: "gentoo", devmode: true},
-		{id: "neon", devmode: false},
-		{id: "opensuse", devmode: true},
-		{id: "rhel", devmode: true},
-		{id: "ubuntu", devmode: false},
-		{id: "ubuntu-core", devmode: false},
-	}
-	for _, distro := range distros {
-		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
-		c.Logf("checking distribution %#v", rel)
-		release.MockReleaseInfo(rel)
-		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)
+		{sig: "Ubuntu 4.8.0-39.42-generic 4.8.17", aa: true, isDevmode: false},
+		{sig: "Ubuntu 4.8.0-39.42-generic 4.8.17", aa: false, isDevmode: true},
+		{sig: "Debian 4.8.0-39.42-generic 4.8.17", aa: true, isDevmode: true},
+		{sig: "Debian 4.8.0-39.42-generic 4.8.17", aa: false, isDevmode: true},
+	} {
+		err := ioutil.WriteFile(versionSignaturePath, []byte(t.sig), 0644)
+		c.Assert(err, IsNil)
+		if t.aa {
+			err := os.Mkdir(apparmorPath, 0755)
+			c.Assert(err, IsNil)
+		} else {
+			err := os.RemoveAll(apparmorPath)
+			c.Assert(err, IsNil)
+
+		}
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, t.isDevmode, Commentf("wrong result for %#v", t))
 	}
 }
