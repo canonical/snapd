@@ -443,7 +443,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		      usr_lib_os_release, dst);
 		if (mount
 		    (usr_lib_os_release, dst, NULL, MS_BIND | MS_RDONLY,
-		     NULL) != 0) {
+		     NULL) < 0) {
 			die("cannot perform operation: mount --bind -o ro %s %s", usr_lib_os_release, dst);
 		}
 	}
