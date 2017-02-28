@@ -21,7 +21,9 @@ package release
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -35,47 +37,33 @@ type OS struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+var (
+	versionSignaturePath = "/proc/version_signature"
+	apparmorSysPath      = "/sys/kernel/security/apparmor/"
+)
+
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
-func (os *OS) ForceDevMode() bool {
-	switch os.ID {
-	case "neon":
-		return false
-	case "ubuntu":
-		return false
-	case "ubuntu-core":
-		return false
-	case "elementary":
-		switch os.VersionID {
-		case "0.4":
-			return false
-		}
-	case "linuxmint":
-		// NOTE: mint uses "LinuxMint" (mixed capitalization) but this is
-		// normalized by readOSRelease.
-		switch os.VersionID {
-		case "18.1":
-			// Linux Mint 18.1 aka "serena" should use apparmor confinement
-			// given that it shares packages with Ubuntu 16.04.
-			return false
-		}
-	case "galliumos":
-
-		switch os.VersionID {
-		case "1.0":
-			// 1.0 is based on 15.04
-			return true
-
-		default:
-			// GalliumOS is build on top of ubuntu-16.04
-			return false
-		}
+func (o *OS) ForceDevMode() bool {
+	// Check if kernel signature contains "Ubuntu", currently only
+	// the Ubuntu kernels have all the required apparmor patches
+	// (but those are getting upstreamed so at some point we need
+	// to make this check smater)
+	versionSig, err := ioutil.ReadFile(versionSignaturePath)
+	if err != nil {
+		return true
+	}
+	if !strings.HasPrefix(string(versionSig), "Ubuntu ") {
+		return true
 	}
 
-	// NOTE: Other distributions can move out of devmode by
-	// integrating with the interface security backends. This will
-	// be documented separately in the porting guide.
-	return true
+	// Also ensure appamor is enabled (cannot use osutil.FileExists() here
+	// because of cyclic imports)
+	if _, err := os.Stat(apparmorSysPath); err != nil {
+		return true
+	}
+
+	return false
 }
 
 var (
@@ -158,4 +146,36 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 	old := ReleaseInfo
 	ReleaseInfo = *osRelease
 	return func() { ReleaseInfo = old }
+}
+
+// MockForcedDevmode fake the system to believe its in a distro
+// that is in ForcedDevmode
+func MockForcedDevmode(isDevmode bool) (restore func()) {
+	oldVersionSignaturePath := versionSignaturePath
+	oldApparmorSysPath := apparmorSysPath
+
+	temp, err := ioutil.TempDir("", "mock-forced-devmode")
+	if err != nil {
+		panic(err)
+	}
+	fakeVersionSignaturePath := filepath.Join(temp, "version_signature")
+	fakeApparmorSysPath := filepath.Join(temp, "apparmor")
+	if !isDevmode {
+		if err := ioutil.WriteFile(fakeVersionSignaturePath, []byte("Ubuntu 4.8.0-39.42-generic 4.8.17"), 0644); err != nil {
+			panic(err)
+		}
+		if err := os.MkdirAll(fakeApparmorSysPath, 0755); err != nil {
+			panic(err)
+		}
+	}
+	versionSignaturePath = fakeVersionSignaturePath
+	apparmorSysPath = fakeApparmorSysPath
+
+	return func() {
+		if err := os.RemoveAll(temp); err != nil {
+			panic(err)
+		}
+		versionSignaturePath = oldVersionSignaturePath
+		apparmorSysPath = oldApparmorSysPath
+	}
 }
