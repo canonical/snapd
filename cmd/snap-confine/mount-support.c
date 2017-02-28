@@ -404,10 +404,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    dst);
 		}
 	}
-	// Since we mountec /etc from the host filesystem the /etc/os-release file
+	// Since we mounted /etc from the host filesystem the /etc/os-release file
 	// (which may not be present) may be a symbolic link. It is expected that
 	// we see the real /etc/os-release file so let's do our best to show
-	// /etc/os-release as it looks like on the clasic distribution.
+	// /etc/os-release as it looks like on the classic distribution.
 	//
 	// If the symbolic link in /etc is pointing to /usr/lib/os-release then
 	// bind mount /usr/lib/os-release over itself in the core snap. This way
