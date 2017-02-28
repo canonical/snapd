@@ -138,9 +138,13 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{sig: "Ubuntu 4.8.0-39.42-generic 4.8.17", aa: false, isDevmode: true},
 		{sig: "xxx whatnot 4.8.17", aa: true, isDevmode: true},
 		{sig: "xxx whatnot 4.8.17", aa: false, isDevmode: true},
+		{sig: "", aa: true, isDevmode: true},
+		{sig: "", aa: false, isDevmode: true},
 	} {
-		err := ioutil.WriteFile(versionSignaturePath, []byte(t.sig), 0644)
-		c.Assert(err, IsNil)
+		if t.sig != "" {
+			err := ioutil.WriteFile(versionSignaturePath, []byte(t.sig), 0644)
+			c.Assert(err, IsNil)
+		}
 		if t.aa {
 			err := os.Mkdir(apparmorPath, 0755)
 			c.Assert(err, IsNil)

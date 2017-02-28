@@ -26,8 +26,6 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
-
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
