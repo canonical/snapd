@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 var fwupdPermanentSlotAppArmor = []byte(`
@@ -183,14 +184,11 @@ func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
 func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return fwupdConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -202,8 +200,6 @@ func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return fwupdPermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return fwupdPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return fwupdPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }
@@ -218,6 +214,14 @@ func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	}
 	return nil, nil
+}
+
+func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(fwupdConnectedPlugSecComp)
+}
+
+func (iface *FwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(fwupdPermanentSlotSecComp)
 }
 
 // SanitizePlug checks the plug definition is valid

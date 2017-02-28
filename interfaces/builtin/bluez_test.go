@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,6 +42,12 @@ var _ = Suite(&BluezInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "bluez"},
 			Name:      "bluez",
 			Interface: "bluez",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "bluez",
+					},
+					Name: "app1"}},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -48,6 +55,12 @@ var _ = Suite(&BluezInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "bluez"},
 			Name:      "bluezctl",
 			Interface: "bluez",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "bluez",
+					},
+					Name: "app2"}},
 		},
 	},
 })
@@ -129,7 +142,11 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.bluez.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.bluez.app1"][0]), testutil.Contains, "listen\n")
 }

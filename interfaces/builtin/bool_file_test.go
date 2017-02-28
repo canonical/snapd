@@ -174,12 +174,8 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlo
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
-		// No extra seccomp permissions for plug
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
@@ -194,12 +190,8 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 }
 
 func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
-	// No extra seccomp permissions for plug
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
 	// No extra dbus permissions for plug
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
+	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	// No extra udev permissions for plug
