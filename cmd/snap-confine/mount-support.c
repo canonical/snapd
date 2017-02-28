@@ -411,8 +411,9 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	//
 	// If the symbolic link in /etc is pointing to /usr/lib/os-release then
 	// bind mount /usr/lib/os-release over itself in the core snap. This way
-	// the symlink (which we cannot over-bind mount anything) will work as
-	// expected.
+	// the symlink (which we cannot be the target of a bind mount as the kernel
+	// will always follow the link when performing the mount operation) will
+	// work as expected.
 	//
 	// https://bugs.launchpad.net/canonical-livepatch-client/+bug/1667470
 	if (config->on_classic) {
