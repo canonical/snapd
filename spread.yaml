@@ -39,6 +39,7 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -48,11 +49,7 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-            # FIXME restore of ubuntu-core does not properly reset
-            # boot variables and key snaps to their pristine state.
-            - ubuntu-core-16-64-fixme:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -228,7 +225,9 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        snap set core refresh.disabled=false
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            snap set core refresh.disabled=false
+        fi
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
@@ -236,7 +235,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -258,7 +256,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -277,7 +274,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        systems: [-ubuntu-core-16-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -293,7 +290,6 @@ suites:
 
     tests/unit/:
         summary: Suite to run non-go unit tests and go unit tests for other runtimes
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

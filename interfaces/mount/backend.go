@@ -84,13 +84,13 @@ func (b *Backend) Remove(snapName string) error {
 // deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
 	// No entries? Nothing to do!
-	if len(spec.MountEntries) == 0 {
+	if len(spec.mountEntries) == 0 {
 		return nil
 	}
 	// Compute the contents of the fstab file. It should contain all the mount
 	// rules collected by the backend controller.
 	var buffer bytes.Buffer
-	for _, entry := range spec.MountEntries {
+	for _, entry := range spec.mountEntries {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
