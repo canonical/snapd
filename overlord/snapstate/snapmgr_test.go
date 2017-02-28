@@ -131,6 +131,7 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
+	maybeCore
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -160,6 +161,11 @@ func verifyInstallUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *s
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+	)
+	if opts&maybeCore != 0 {
+		expected = append(expected, "setup-profiles")
+	}
+	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -247,6 +253,28 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	verifyInstallUpdateTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestCoreInstallTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "some-core", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallUpdateTasks(c, maybeCore, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	var phase2 *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "setup-profiles" {
+			phase2 = t
+		}
+	}
+	c.Assert(phase2, NotNil)
+	var flag bool
+	err = phase2.Get("core-phase-2", &flag)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, true)
 }
 
 func (s *snapmgrTestSuite) testRevertTasks(flags snapstate.Flags, c *C) {
@@ -549,7 +577,8 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
+		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(1)},
 			{RealName: "some-snap", Revision: snap.R(2)},
@@ -2382,7 +2411,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2397,8 +2426,9 @@ version: 1.0`)
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
-	c.Check(s.fakeBackend.ops[7].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[7].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[6].op, Equals, "setup-profiles:Doing") // core phase 2
+	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2457,7 +2487,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops, HasLen, 12)
+	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/x2")
 	// and setup-snap
@@ -2492,8 +2522,9 @@ version: 1.0`)
 	})
 	c.Check(ops[8].op, Equals, "link-snap")
 	c.Check(ops[8].name, Equals, "/snap/mock/x3")
-	c.Check(ops[10].op, Equals, "start-snap-services")
-	c.Check(ops[10].name, Equals, "/snap/mock/x3")
+	c.Check(ops[9].op, Equals, "setup-profiles:Doing") // core phase 2
+	c.Check(ops[11].op, Equals, "start-snap-services")
+	c.Check(ops[11].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2553,7 +2584,7 @@ version: 1.0`)
 
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	ops := s.fakeBackend.ops
-	c.Assert(ops, HasLen, 12)
+	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, "/snap/mock/100001")
 	// and setup-snap
@@ -2607,7 +2638,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2619,8 +2650,8 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
-	c.Check(s.fakeBackend.ops[7].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[7].name, Equals, "/snap/some-snap/42")
+	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
+	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/some-snap/42")
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -3312,6 +3343,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{&siOld, &si},
 		Current:  si.Revision,
 	})
@@ -3403,6 +3435,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{&siOld, &si},
 		Current:  si.Revision,
 	})
@@ -3445,6 +3478,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{&si, &siNew},
 		Current:  snap.R(2),
 		Channel:  "edge",
@@ -3527,6 +3561,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{&si, &si2},
 		Current:  si2.Revision,
 	})
@@ -3645,6 +3680,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{&si, &si2},
 		Current:  si2.Revision,
 	})
@@ -4602,6 +4638,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -5445,7 +5482,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallUpdateTasks(c, 0, 0, tsl[0], s.state)
+	verifyInstallUpdateTasks(c, maybeCore, 0, tsl[0], s.state)
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -5564,6 +5601,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: "/snap/core/11",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
 		},
 		{
 			op: "update-aliases",
