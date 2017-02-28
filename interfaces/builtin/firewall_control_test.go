@@ -92,7 +92,7 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	spec := &kmod.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Modules, DeepEquals, map[string]bool{
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ip6table_filter": true,
 		"iptable_filter":  true,
 	})

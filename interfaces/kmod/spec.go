@@ -40,10 +40,10 @@ func (spec *Specification) AddModule(module string) error {
 	if m == "" {
 		return nil
 	}
-	if spec.Modules == nil {
-		spec.Modules = make(map[string]bool)
+	if spec.modules == nil {
+		spec.modules = make(map[string]bool)
 	}
-	spec.Modules[m] = true
+	spec.modules[m] = true
 	return nil
 }
 
