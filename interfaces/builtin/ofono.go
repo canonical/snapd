@@ -271,7 +271,7 @@ func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 }
 
 func (iface *OfonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(ofonoPermanentSlotSecComp))
+	return spec.AddSnippet(ofonoPermanentSlotSecComp)
 }
 
 func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

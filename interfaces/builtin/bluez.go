@@ -127,7 +127,7 @@ dbus (receive)
     peer=(label=unconfined),
 `)
 
-var bluezPermanentSlotSecComp = []byte(`
+const bluezPermanentSlotSecComp = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
 accept
@@ -135,7 +135,7 @@ accept4
 bind
 listen
 shutdown
-`)
+`
 
 var bluezPermanentSlotDBus = []byte(`
 <policy user="root">

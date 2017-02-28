@@ -265,9 +265,9 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 
 func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
-	snippet := []byte(browserSupportConnectedPlugSecComp)
+	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
-		snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
+		snippet += browserSupportConnectedPlugSecCompWithSandbox
 	}
 	return spec.AddSnippet(snippet)
 }

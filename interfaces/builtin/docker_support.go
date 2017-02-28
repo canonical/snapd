@@ -543,9 +543,9 @@ func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 
 func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
-	snippet := []byte(dockerSupportConnectedPlugSecComp)
+	snippet := dockerSupportConnectedPlugSecComp
 	if privileged {
-		snippet = append(snippet, dockerSupportPrivilegedSecComp...)
+		snippet += dockerSupportPrivilegedSecComp
 	}
 	return spec.AddSnippet(snippet)
 }

@@ -195,7 +195,7 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
-var networkManagerPermanentSlotSecComp = []byte(`
+const networkManagerPermanentSlotSecComp = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
 accept
@@ -220,7 +220,7 @@ fchown32
 fchownat
 lchown
 lchown32
-`)
+`
 
 var networkManagerPermanentSlotDBus = []byte(`
 <!-- DBus policy for NetworkManager (upstream version 1.2.2) -->

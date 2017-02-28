@@ -133,7 +133,7 @@ dbus (receive, send)
     peer=(label=unconfined),
 `)
 
-var modemManagerPermanentSlotSecComp = []byte(`
+const modemManagerPermanentSlotSecComp = `
 # Description: Allow operating as the ModemManager service. This gives
 # privileged access to the system.
 
@@ -143,7 +143,7 @@ accept4
 bind
 listen
 shutdown
-`)
+`
 
 var modemManagerPermanentSlotDBus = []byte(`
 <policy user="root">
@@ -1190,7 +1190,7 @@ func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 }
 
 func (iface *ModemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(modemManagerPermanentSlotSecComp))
+	return spec.AddSnippet(modemManagerPermanentSlotSecComp)
 }
 
 func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

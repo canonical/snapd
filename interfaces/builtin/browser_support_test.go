@@ -118,9 +118,9 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
 	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
-	snippet = snippets["snap.other.app2"][0]
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+	secCompSnippet := snippets["snap.other.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
@@ -152,9 +152,9 @@ apps:
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
 	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	snippet = snippets["snap.browser-support-plug-snap.app2"][0]
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
@@ -185,9 +185,9 @@ apps:
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
 	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	snippet = snippets["snap.browser-support-plug-snap.app2"][0]
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), testutil.Contains, `chroot`)
+	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, testutil.Contains, `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {

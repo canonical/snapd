@@ -363,7 +363,7 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 }
 
 func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(udisks2PermanentSlotSecComp))
+	return spec.AddSnippet(udisks2PermanentSlotSecComp)
 }
 
 func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

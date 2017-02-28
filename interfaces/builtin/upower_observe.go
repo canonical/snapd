@@ -217,7 +217,7 @@ func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 }
 
 func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet([]byte(upowerObservePermanentSlotSeccomp))
+	return spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 }
 
 func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

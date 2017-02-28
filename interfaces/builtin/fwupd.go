@@ -156,18 +156,18 @@ var fwupdPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-var fwupdPermanentSlotSecComp = []byte(`
+const fwupdPermanentSlotSecComp = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
 # Can communicate with DBus system service
 bind
-`)
+`
 
-var fwupdConnectedPlugSecComp = []byte(`
+const fwupdConnectedPlugSecComp = `
 # Description: Allow using fwupd service. Reserved because this gives
 # privileged access to the fwupd service.
 bind
-`)
+`
 
 // FwupdInterface type
 type FwupdInterface struct{}
