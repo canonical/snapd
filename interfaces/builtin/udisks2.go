@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -92,7 +92,7 @@ umount /{,run/}media/**,
 capability sys_rawio,
 `
 
-var udisks2ConnectedSlotAppArmor = []byte(`
+const udisks2ConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service. This gives privileged
 # access to the system.
 
@@ -115,9 +115,9 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var udisks2ConnectedPlugAppArmor = []byte(`
+const udisks2ConnectedPlugAppArmor = `
 # Description: Allow using udisks service. This gives privileged access to the
 # service.
 
@@ -142,7 +142,7 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
 const udisks2PermanentSlotSecComp = `
 bind
@@ -344,7 +344,7 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(udisks2ConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return []byte(udisks2ConnectedPlugDBus), nil
@@ -371,7 +371,7 @@ func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(udisks2ConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
