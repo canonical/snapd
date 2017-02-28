@@ -425,6 +425,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// instead of trying to lstat it first.
 		if (readlink(etc_os_release, link_target, sizeof link_target) <
 		    0) {
+			// readlink returns EINVAL when the buffer size is negative or when
+			// the specified file is not a symbolic link. Since the buffer has
+			// a constant size and we know it's not negative we can special
+			// case EINVAL as an indicator that /etc/os-release is not a
+			// symbolic link and that we can just skip this whole section.
 			if (errno != EINVAL) {
 				die("cannot read target of symbolic link from %s", etc_os_release);
 			}
