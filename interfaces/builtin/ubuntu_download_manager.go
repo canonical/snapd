@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,7 @@ import (
 
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
    are deliberately left out of this profile due to their privileged nature. */
-var downloadConnectedPlugAppArmor = []byte(`
+const downloadConnectedPlugAppArmor = `
 # Description: Can access the download manager.
 
 #include <abstractions/dbus-session-strict>
@@ -103,9 +103,9 @@ dbus (send)
      interface=com.canonical.applications.DownloadManager
      member=isGSMDownloadAllowed
      peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var downloadPermanentSlotAppArmor = []byte(`
+const downloadPermanentSlotAppArmor = `
 # Description: Allow operating as a download manager.
 
 # DBus accesses
@@ -137,9 +137,9 @@ dbus (send)
     interface=org.freedesktop.DBus
     member="GetConnectionAppArmorSecurityContext"
     peer=(name=org.freedesktop.DBus, label=unconfined),
-`)
+`
 
-var downloadConnectedSlotAppArmor = []byte(`
+const downloadConnectedSlotAppArmor = `
 # Allow connected clients to interact with the download manager
 dbus (receive)
      bus=session
@@ -182,7 +182,7 @@ dbus (send)
 # Allow writing to app download directories
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/    rw,
 owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
-`)
+`
 
 type UbuntuDownloadManagerInterface struct{}
 
@@ -203,7 +203,7 @@ func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfac
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(downloadConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(downloadConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -212,7 +212,7 @@ func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfac
 func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return downloadPermanentSlotAppArmor, nil
+		return []byte(downloadPermanentSlotAppArmor), nil
 	}
 	return nil, nil
 }
@@ -222,7 +222,7 @@ func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfac
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(downloadConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(downloadConnectedSlotAppArmor), old, new, -1)
 		old = []byte("###PLUG_NAME###")
 		new = []byte(plug.Snap.Name())
 		snippet = bytes.Replace(snippet, old, new, -1)
