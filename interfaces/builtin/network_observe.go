@@ -86,6 +86,8 @@ network inet6 raw,
 /etc/networks r,
 /etc/ethers r,
 
+/etc/rpc r,
+
 # network devices
 /sys/devices/**/net/** r,
 `
