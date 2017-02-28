@@ -28,14 +28,27 @@ import (
 
 const maliitInputMethodPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
+# Communication with maliit happens in the following stages:
+#  * An application connects to the address service: org.maliit.Server.Address.
+#  * The server responds with a private unix socket of the form
+#    @/tmp/maliit-server/dbus-* on which the server is running a peer-to-peer
+#    dbus session.
+#  * All further communication happens over this channel
+#  * An application wishing to receive input then requests that it be made the
+#    active context.
+#  * At this point maliit retrieves the application's PID based on the dbus
+#    channel and verifies with Unity 8 that the application is currently
+#    focused.
+#  * Only if the application is focused is it then able to receive input from
+#    the on-screen keyboard.
 
 # DBus accesses
 #include <abstractions/dbus-session>
 
 /usr/share/glib-2.0/schemas/ r,
 
-# maliit uses peer-to-peer dbus over a unix socket after address negotiation
-# each application has its own one-to-one communication channel with the maliit
+# maliit uses peer-to-peer dbus over a unix socket after address negotiation.
+# Each application has its own one-to-one communication channel with the maliit
 # server, over which all further communication happens.
 unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 `
@@ -49,13 +62,12 @@ dbus (receive)
     path=/org/maliit/server/address
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# provide access to the peer-to-peer dbus socket assigned by the address service
+# Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const maliitInputMethodConnectedPlugAppArmor = `
 # Description: Allow applications to connect to a maliit socket
-# Usage: common
 
 #include <abstractions/dbus-session>
 
@@ -68,7 +80,7 @@ dbus (send)
     path=/org/maliit/server/address
     peer=(label=###SLOT_SECURITY_TAGS###),
 
-# provide access to the peer-to-peer dbus socket assigned by the address service
+# Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
 `
 
