@@ -85,6 +85,21 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		if snapInfo.Type != snap.TypeOS {
+			// not core, nothing to do
+			return nil
+		}
+		if task.State().Restarting() {
+			// don't continue until we are in the restarted snapd
+			return &state.Retry{}
+		}
+	}
+
 	opts := confinementOptions(snapsup.Flags)
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts)
 }
@@ -194,6 +209,15 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		// let the first setup-profiles deal with this
+		return nil
+	}
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
