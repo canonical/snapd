@@ -46,11 +46,22 @@ owner /var/tmp/etilqs_* rw,
 owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 
+# Allow reading platform files
+/run/udev/data/+platform:* r,
+
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* r,
+
+# webbrowser-app/webapp-container tries to read this file to determine if it is
+# confined or not, so explicitly deny to avoid noise in the logs.
+deny @{PROC}/@{pid}/attr/current r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -104,7 +115,6 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
-/run/udev/data/+platform:* r,
 /sys/devices/**/bConfigurationValue r,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,

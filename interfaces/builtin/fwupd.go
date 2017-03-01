@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-var fwupdPermanentSlotAppArmor = []byte(`
+const fwupdPermanentSlotAppArmor = `
 # Description: Allow operating as the fwupd service. This gives privileged
 # access to the system.
 
@@ -84,9 +84,9 @@ var fwupdPermanentSlotAppArmor = []byte(`
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
-`)
+`
 
-var fwupdConnectedPlugAppArmor = []byte(`
+const fwupdConnectedPlugAppArmor = `
 # Description: Allow using fwupd service. This gives # privileged access to the
 # fwupd service.
 
@@ -109,9 +109,9 @@ var fwupdConnectedPlugAppArmor = []byte(`
       path=/
       interface=org.freedesktop.DBus.Properties
       peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var fwupdConnectedSlotAppArmor = []byte(`
+const fwupdConnectedSlotAppArmor = `
 # Description: Allow firmware update using fwupd service. This gives privileged
 # access to the fwupd service.
 
@@ -140,9 +140,9 @@ var fwupdConnectedSlotAppArmor = []byte(`
       path=/org/freedesktop/fwupd{,/**}
       interface=org.freedesktop.fwupd
       peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var fwupdPermanentSlotDBus = []byte(`
+const fwupdPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
@@ -154,7 +154,7 @@ var fwupdPermanentSlotDBus = []byte(`
     <deny own="org.freedesktop.fwupd"/>
     <deny send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
 </policy>
-`)
+`
 
 const fwupdPermanentSlotSecComp = `
 # Description: Allow operating as the fwupd service. This gives privileged
@@ -187,7 +187,7 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	if securitySystem == interfaces.SecurityAppArmor {
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(fwupdConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -197,9 +197,9 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return fwupdPermanentSlotAppArmor, nil
+		return []byte(fwupdPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
-		return fwupdPermanentSlotDBus, nil
+		return []byte(fwupdPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
@@ -210,7 +210,7 @@ func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(fwupdConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
