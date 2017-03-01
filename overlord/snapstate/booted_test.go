@@ -231,7 +231,8 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	chg := st.Changes()[0]
 	c.Assert(chg.Kind(), Equals, "update-revisions")
 	c.Assert(chg.IsReady(), Equals, true)
-	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "core" \(1\) available to the system \(fail\).*`)
+	// - Make snap "core" (1) available to the system (cannot make snap "core" available to the system: fail)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "core" \(1\) available to the system \(cannot .*: fail\).*`)
 }
 
 func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {

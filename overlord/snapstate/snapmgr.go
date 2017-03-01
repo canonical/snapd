@@ -965,7 +965,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get setup and state data needed to make a snap available to the system: %s", err)
 	}
 
 	cand := snapsup.SideInfo
@@ -1002,7 +1002,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read meta-data of snap %q: %s", snapsup.Name(), err)
 	}
 
 	// record type
@@ -1022,7 +1022,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	st.Lock()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot make snap %q available to the system: %s", newInfo.Name(), err)
 	}
 
 	// save for undoLinkSnap
@@ -1064,42 +1064,42 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get setup and state data needed to undo making a snap available to the system: %s", err)
 	}
 
 	var oldChannel string
 	err = t.Get("old-channel", &oldChannel)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-channel: %s", err)
 	}
 	var oldTryMode bool
 	err = t.Get("old-trymode", &oldTryMode)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-trymode: %s", err)
 	}
 	var oldDevMode bool
 	err = t.Get("old-devmode", &oldDevMode)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-devmode: %s", err)
 	}
 	var oldJailMode bool
 	err = t.Get("old-jailmode", &oldJailMode)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-jailmode: %s", err)
 	}
 	var oldClassic bool
 	err = t.Get("old-classic", &oldClassic)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-classic: %s", err)
 	}
 	var oldCurrent snap.Revision
 	err = t.Get("old-current", &oldCurrent)
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-current: %s", err)
 	}
 	var oldCandidateIndex int
 	if err := t.Get("old-candidate-index", &oldCandidateIndex); err != nil {
-		return err
+		return fmt.Errorf("(internal error) cannot get old-candidate-index: %s", err)
 	}
 
 	isRevert := snapsup.Revert
