@@ -57,7 +57,7 @@ type waitMixin struct {
 // TODO: use waitMixin outside of cmd_snap_op.go
 
 var waitDescs = mixinDescs{
-	"no-wait": i18n.G("Do wait for the op to finish but just print the change id."),
+	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
 }
 
 var noWait = errors.New("no wait for op")
