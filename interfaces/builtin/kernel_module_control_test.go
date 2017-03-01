@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,32 @@ type KernelModuleControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&KernelModuleControlInterfaceSuite{
-	iface: builtin.NewKernelModuleControlInterface(),
-	slot: &interfaces.Slot{
+const kernelmodctlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ kernel-module-control:
+  interface: kernel-module-control
+apps:
+ app2:
+  command: foo
+  plugs:
+   - kernel-module-control
+`
+
+var _ = Suite(&KernelModuleControlInterfaceSuite{})
+
+func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewKernelModuleControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "kernel-module-control",
 			Interface: "kernel-module-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "kernel-module-control",
-			Interface: "kernel-module-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, kernelmodctlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["kernel-module-control"]}
+}
 
 func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kernel-module-control")

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,30 +36,32 @@ type NetworkBindInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkBindInterfaceSuite{
-	iface: builtin.NewNetworkBindInterface(),
-	slot: &interfaces.Slot{
+const netbindMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ network-bind:
+  interface: network-bind
+apps:
+ app2:
+  command: foo
+  plugs:
+   - network-bind
+`
+
+var _ = Suite(&NetworkBindInterfaceSuite{})
+
+func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewNetworkBindInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "network-bind",
 			Interface: "network-bind",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-bind",
-			Interface: "network-bind",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
-
+	}
+	plugSnap := snaptest.MockInfo(c, netbindMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-bind"]}
+}
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-bind")
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,32 @@ type SystemObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SystemObserveInterfaceSuite{
-	iface: builtin.NewSystemObserveInterface(),
-	slot: &interfaces.Slot{
+const sysobsMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ system-observe:
+  interface: system-observe
+apps:
+ app2:
+  command: foo
+  plugs:
+   - system-observe
+`
+
+var _ = Suite(&SystemObserveInterfaceSuite{})
+
+func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewSystemObserveInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "system-observe",
 			Interface: "system-observe",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "system-observe",
-			Interface: "system-observe",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, sysobsMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["system-observe"]}
+}
 
 func (s *SystemObserveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "system-observe")

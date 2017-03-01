@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -36,29 +37,32 @@ type ModemManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ModemManagerInterfaceSuite{
-	iface: &builtin.ModemManagerInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "modem-manager"},
-			Name:      "modem-manager",
-			Interface: "modem-manager",
-			Apps: map[string]*snap.AppInfo{
-				"mm": {
-					Snap: &snap.Info{
-						SuggestedName: "modem-manager",
-					},
-					Name: "mm"}},
-		},
-	},
-	plug: &interfaces.Plug{
+const modemmgrMockSlotSnapInfoYaml = `name: modem-manager
+version: 1.0
+slots:
+ modem-manager:
+  interface: modem-manager
+apps:
+ mm:
+  command: foo
+  slots:
+   - modem-manager
+`
+
+var _ = Suite(&ModemManagerInterfaceSuite{})
+
+func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.ModemManagerInterface{}
+	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "modem-manager"},
 			Name:      "mmcli",
 			Interface: "modem-manager",
 		},
-	},
-})
+	}
+	slotSnap := snaptest.MockInfo(c, modemmgrMockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["modem-manager"]}
+}
 
 func (s *ModemManagerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "modem-manager")

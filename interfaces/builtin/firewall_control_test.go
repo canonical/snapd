@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type FirewallControlInterfaceSuite struct {
@@ -35,29 +36,32 @@ type FirewallControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FirewallControlInterfaceSuite{
-	iface: builtin.NewFirewallControlInterface(),
-	slot: &interfaces.Slot{
+const firewallControlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ firewall-control:
+  interface: firewall-control
+apps:
+ app2:
+  command: foo
+  plugs:
+   - firewall-control
+`
+
+var _ = Suite(&FirewallControlInterfaceSuite{})
+
+func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewFirewallControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "firewall-control",
-			Interface: "firewall-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, firewallControlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["firewall-control"]}
+}
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "firewall-control")

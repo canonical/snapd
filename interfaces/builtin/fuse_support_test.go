@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,32 @@ type FuseSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FuseSupportInterfaceSuite{
-	iface: builtin.NewFuseSupportInterface(),
-	slot: &interfaces.Slot{
+const fuseSupportMockPlugSnapInfoYaml = `name: other
+version: 1.0
+plugs:
+ fuse-support:
+  interface: fuse-support
+apps:
+ app2:
+  command: foo
+  plugs:
+   - fuse-support
+`
+
+var _ = Suite(&FuseSupportInterfaceSuite{})
+
+func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewFuseSupportInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "fuse-support",
 			Interface: "fuse-support",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "fuse-support",
-			Interface: "fuse-support",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, fuseSupportMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fuse-support"]}
+}
 
 func (s *FuseSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "fuse-support")

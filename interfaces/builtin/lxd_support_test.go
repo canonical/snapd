@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,32 +36,32 @@ type LxdSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LxdSupportInterfaceSuite{
-	iface: &builtin.LxdSupportInterface{},
-	slot: &interfaces.Slot{
+const lxdsupportMockPlugSnapInfoYaml = `name: lxd
+version: 1.0
+plugs:
+ lxd-support:
+  interface: lxd-support
+apps:
+ app:
+  command: foo
+  plugs:
+   - lxd-support
+`
+
+var _ = Suite(&LxdSupportInterfaceSuite{})
+
+func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.LxdSupportInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "lxd-support",
 			Interface: "lxd-support",
 		},
-	},
-
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "lxd",
-			},
-			Name:      "lxd-support",
-			Interface: "lxd-support",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "lxd",
-					},
-					Name: "app"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, lxdsupportMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["lxd-support"]}
+}
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "lxd-support")
