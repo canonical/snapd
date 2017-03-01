@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-var bluezPermanentSlotAppArmor = []byte(`
+const bluezPermanentSlotAppArmor = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
 
@@ -93,9 +93,9 @@ var bluezPermanentSlotAppArmor = []byte(`
       path=/org/freedesktop/hostname1
       interface=org.freedesktop.DBus.Properties
       peer=(label=unconfined),
-`)
+`
 
-var bluezConnectedPlugAppArmor = []byte(`
+const bluezConnectedPlugAppArmor = `
 # Description: Allow using bluez service. This gives privileged access to the
 # bluez service.
 
@@ -125,7 +125,7 @@ dbus (receive)
     path=/org/bluez{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
-`)
+`
 
 const bluezPermanentSlotSecComp = `
 # Description: Allow operating as the bluez service. This gives privileged
@@ -137,7 +137,7 @@ listen
 shutdown
 `
 
-var bluezPermanentSlotDBus = []byte(`
+const bluezPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -157,7 +157,7 @@ var bluezPermanentSlotDBus = []byte(`
 <policy context="default">
     <deny send_destination="org.bluez"/>
 </policy>
-`)
+`
 
 type BluezInterface struct{}
 
@@ -174,7 +174,7 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(bluezConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -183,9 +183,9 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return bluezPermanentSlotAppArmor, nil
+		return []byte(bluezPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
-		return bluezPermanentSlotDBus, nil
+		return []byte(bluezPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
