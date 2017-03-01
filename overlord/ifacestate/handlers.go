@@ -96,6 +96,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		}
 		if task.State().Restarting() {
 			// don't continue until we are in the restarted snapd
+			task.Logf("Waiting for restart...")
 			return &state.Retry{}
 		}
 	}
