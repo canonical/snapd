@@ -537,8 +537,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	// int because we might want to come back and do a second pass
-	// at cleanup
+	// int because we might want to come back and do a second pass at cleanup
 	var fixed int
 	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
 		return err
@@ -552,7 +551,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if err := m.state.Get("snaps", &snaps); err != nil {
 		if err == state.ErrNoState {
 			// no snaps -> no problem
-			return nil
+			goto done
 		}
 		return err
 	}
@@ -577,6 +576,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 		snaps[name] = &raw
 	}
 	m.state.Set("snaps", snaps)
+done:
 	m.state.Set("fix-forced-devmode", 1)
 
 	return nil

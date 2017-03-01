@@ -5808,6 +5808,116 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 	c.Check(ts, NotNil)
 }
 
+func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsForUbuntuCore(c *C) {
+	s.checkForceDevModeCleanupRuns(c, "ubuntu-core", true)
+}
+
+func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsForCore(c *C) {
+	s.checkForceDevModeCleanupRuns(c, "core", true)
+}
+
+func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
+	s.checkForceDevModeCleanupRuns(c, "rando", false)
+}
+
+func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
+
+	defer release.MockReleaseInfo(&release.OS{ID: "unsupported"})()
+
+	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, name, &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{{
+			RealName: name,
+			SnapID:   "id-id-id",
+			Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Flags:    snapstate.Flags{DevMode: true},
+	})
+
+	var snapst1 snapstate.SnapState
+	// sanity check
+	snapstate.Get(s.state, name, &snapst1)
+	c.Assert(snapst1.DevMode, Equals, true)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	var snapst2 snapstate.SnapState
+	snapstate.Get(s.state, name, &snapst2)
+
+	c.Check(snapst2.DevMode, Equals, !shouldBeReset)
+
+	var n int
+	s.state.Get("fix-forced-devmode", &n)
+	c.Check(n, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
+
+	defer release.MockReleaseInfo(&release.OS{ID: "unsupported"})()
+
+	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var n int
+	s.state.Get("fix-forced-devmode", &n)
+	c.Check(n, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
+
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
+
+	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, false)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{{
+			RealName: "core",
+			SnapID:   "id-id-id",
+			Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Flags:    snapstate.Flags{DevMode: true},
+	})
+
+	var snapst1 snapstate.SnapState
+	// sanity check
+	snapstate.Get(s.state, "core", &snapst1)
+	c.Assert(snapst1.DevMode, Equals, true)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	var snapst2 snapstate.SnapState
+	snapstate.Get(s.state, "core", &snapst2)
+
+	// no change
+	c.Check(snapst2.DevMode, Equals, true)
+
+	// not really run at all in fact
+	var n int
+	s.state.Get("fix-forced-devmode", &n)
+	c.Check(n, Equals, 0)
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})
