@@ -235,8 +235,10 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 # foo.bar.froz The inner subst replaces slashes with dots and the outer
 # patsubst strips the leading dot
 install-data-local:: snap-confine/snap-confine.apparmor
+if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+endif
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
@@ -271,7 +273,7 @@ EXTRA_DIST += \
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
 # Install udev rules
-install-data-local:: snap-confine/snap-confine.apparmor
+install-data-local::
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 
