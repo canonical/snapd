@@ -64,6 +64,7 @@ const networkObserveConnectedPlugAppArmor = `
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routel ixr,
 /{,usr/}{,s}bin/rtacct ixr,
+/{,usr/}{,s}bin/ss ixr,
 /{,usr/}{,s}bin/sysctl ixr,
 /{,usr/}{,s}bin/tc ixr,
 
@@ -101,6 +102,10 @@ capset
 # for network diagnostics
 socket AF_NETLINK - NETLINK_INET_DIAG
 socket PF_NETLINK - NETLINK_INET_DIAG
+
+# arp
+socket AF_NETLINK - NETLINK_ROUTE
+socket PF_NETLINK - NETLINK_ROUTE
 `
 
 // NewNetworkObserveInterface returns a new "network-observe" interface.
