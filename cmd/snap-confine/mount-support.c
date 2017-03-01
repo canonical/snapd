@@ -33,6 +33,7 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -77,7 +78,7 @@ static const char *sc_get_outer_core_mount_point()
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
-static void setup_private_mount(const char *security_tag)
+static void setup_private_mount(const char *snap_name)
 {
 	uid_t uid = getuid();
 	gid_t gid = getgid();
@@ -89,7 +90,7 @@ static void setup_private_mount(const char *security_tag)
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
 	sc_must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-			 security_tag);
+			 snap_name);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("cannot create temporary directory essential for private /tmp");
 	}
@@ -190,16 +191,16 @@ static void setup_private_pts()
  * either the core snap on an all-snap system or the core snap + punched holes
  * on a classic system.
  **/
-static void sc_setup_mount_profiles(const char *security_tag)
+static void sc_setup_mount_profiles(const char *snap_name)
 {
-	debug("%s: %s", __FUNCTION__, security_tag);
+	debug("%s: %s", __FUNCTION__, snap_name);
 
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	const char *mount_profile_dir = "/var/lib/snapd/mount";
 
 	char profile_path[PATH_MAX];
-	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
-			 mount_profile_dir, security_tag);
+	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/snap.%s.fstab",
+			 mount_profile_dir, snap_name);
 
 	debug("opening mount profile %s", profile_path);
 	f = setmntent(profile_path, "r");
@@ -429,6 +430,20 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			    SC_HOSTFS_DIR);
 		}
 	}
+	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
+	// created the directory as the user who first ran a snap on a given
+	// system and the group identity of that user is visilbe on disk.
+	// This was LP:#1665004
+	struct stat sb;
+	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
+		die("cannot stat %s", SC_HOSTFS_DIR);
+	}
+	if (sb.st_uid != 0 || sb.st_gid != 0) {
+		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+			die("cannot change user/group owner of %s to root",
+			    SC_HOSTFS_DIR);
+		}
+	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
 	// has a number of undocumented requirements and one of them is that the
@@ -581,7 +596,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_populate_mount_ns(const char *security_tag)
+void sc_populate_mount_ns(const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -643,7 +658,7 @@ void sc_populate_mount_ns(const char *security_tag)
 
 	// set up private mounts
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(security_tag);
+	setup_private_mount(snap_name);
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
@@ -654,7 +669,7 @@ void sc_populate_mount_ns(const char *security_tag)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(security_tag);
+	sc_setup_mount_profiles(snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.

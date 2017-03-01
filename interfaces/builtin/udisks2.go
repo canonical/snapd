@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,9 +26,8 @@ import (
 )
 
 const udisks2PermanentSlotAppArmor = `
-# Description: Allow operating as the udisks2. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+# Description: Allow operating as the udisks2. This gives privileged access to
+# the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -88,12 +87,14 @@ umount /{,run/}media/**,
 # give raw read access to the system disks and therefore the entire system.
 /dev/sd* r,
 /dev/mmcblk* r,
+
+# Needed for probing raw devices
+capability sys_rawio,
 `
 
-var udisks2ConnectedSlotAppArmor = []byte(`
-# Allow connected clients to interact with the service. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+const udisks2ConnectedSlotAppArmor = `
+# Allow connected clients to interact with the service. This gives privileged
+# access to the system.
 
 dbus (send)
     bus=system
@@ -114,12 +115,11 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var udisks2ConnectedPlugAppArmor = []byte(`
-# Description: Allow using udisks service. Reserved because this gives
-# privileged access to the service.
-# Usage: reserved
+const udisks2ConnectedPlugAppArmor = `
+# Description: Allow using udisks service. This gives privileged access to the
+# service.
 
 #include <abstractions/dbus-strict>
 
@@ -142,7 +142,7 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
 const udisks2PermanentSlotSecComp = `
 bind
@@ -153,24 +153,9 @@ fchownat
 lchown
 lchown32
 mount
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 shmctl
 umount
 umount2
-`
-
-const udisks2ConnectedPlugSecComp = `
-recv
-recvfrom
-recvmsg
-send
-sendmsg
-sendto
 `
 
 const udisks2PermanentSlotDBus = `
@@ -359,12 +344,10 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(udisks2ConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus:
 		return []byte(udisks2ConnectedPlugDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2ConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -388,7 +371,7 @@ func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(udisks2ConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil

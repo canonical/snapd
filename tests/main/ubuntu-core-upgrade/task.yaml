@@ -1,11 +1,12 @@
 summary: Upgrade the core snap and revert a few times
 
 systems:
-    - ubuntu-core-16-64-fixme
+    - ubuntu-core-16-64
     - ubuntu-core-16-arm-64
     - ubuntu-core-16-arm-32
 
 debug: |
+    snap list
     . $TESTSLIB/boot.sh
     bootenv
     cat /proc/cmdline
