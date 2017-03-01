@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -526,6 +527,57 @@ func (m *SnapManager) ensureRefreshes() error {
 	return nil
 }
 
+// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// in snapstate for forced devmode distros.
+func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
+	if !release.ReleaseInfo.ForceDevMode() {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// int because we might want to come back and do a second pass
+	// at cleanup
+	var fixed int
+	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if fixed > 0 {
+		return nil
+	}
+
+	var snaps map[string]*json.RawMessage
+	if err := m.state.Get("snaps", &snaps); err != nil {
+		if err == state.ErrNoState {
+			// no snaps -> no problem
+			return nil
+		}
+		return err
+	}
+
+	for _, name := range []string{"core", "ubuntu-core"} {
+		var snapst *SnapState
+		if snaps[name] == nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(*snaps[name]), &snapst); err != nil {
+			return err
+		}
+		snapst.DevMode = false
+		data, err := json.Marshal(snapst)
+		if err != nil {
+			return err
+		}
+		raw := json.RawMessage(data)
+		snaps[name] = &raw
+	}
+	m.state.Set("snaps", snaps)
+
+	return nil
+}
+
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
@@ -586,17 +638,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
-	err1 := m.ensureUbuntuCoreTransition()
-
-	err2 := m.ensureRefreshes()
+	errs := []error{
+		m.ensureForceDevmodeDropsDevmodeFromState(),
+		m.ensureUbuntuCoreTransition(),
+		m.ensureRefreshes(),
+	}
 
 	m.runner.Ensure()
 
 	//FIXME: use firstErr helper
-	if err1 != nil {
-		return err1
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
 	}
-	return err2
+
+	return nil
 }
 
 // Wait implements StateManager.Wait.
