@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,10 +23,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var pppConnectedPlugAppArmor = []byte(`
-# Description: Allow operating ppp daemon. Reserved because this gives
-#  privileged access to the ppp daemon.
-# Usage: reserved
+const pppConnectedPlugAppArmor = `
+# Description: Allow operating ppp daemon. This gives privileged access to the
+# ppp daemon.
 
 # Needed for modem connections using PPP
 /usr/sbin/pppd ix,
@@ -41,7 +40,7 @@ var pppConnectedPlugAppArmor = []byte(`
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,
-`)
+`
 
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
 // by the kernel on different ioctl calls for this device. Note also that
@@ -63,7 +62,7 @@ func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return pppConnectedPlugAppArmor, nil
+		return []byte(pppConnectedPlugAppArmor), nil
 	case interfaces.SecurityKMod:
 		return pppConnectedPlugKmod, nil
 	}

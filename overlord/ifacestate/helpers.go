@@ -50,6 +50,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
+	if err := m.regenerateAllSecurityProfiles(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -92,6 +95,61 @@ func (m *InterfaceManager) addSnaps() error {
 			logger.Noticef("%s", err)
 		}
 	}
+	return nil
+}
+
+// regenerateAllSecurityProfiles will regenerate the security profiles
+// for apparmor and seccomp. This is needed because:
+// - for seccomp we may have "terms" on disk that the current snap-confine
+//   does not understand (e.g. in a rollback scenario). a refresh ensures
+//   we have a profile that matches what snap-confine understand
+// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
+//   change that breaks existing profiles for installed snaps. With a
+//   refresh those get fixed.
+func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
+	// Get all the security backends
+	securityBackends := m.repo.Backends()
+
+	// Get all the snap infos
+	snaps, err := snapstate.ActiveInfos(m.state)
+	if err != nil {
+		return err
+	}
+	// Add implicit slots to all snaps
+	for _, snapInfo := range snaps {
+		snap.AddImplicitSlots(snapInfo)
+	}
+
+	// For each snap:
+	for _, snapInfo := range snaps {
+		snapName := snapInfo.Name()
+		// Get the state of the snap so we can compute the confinement option
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
+			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+		}
+
+		// Compute confinement options
+		opts := confinementOptions(snapst.Flags)
+
+		// For each backend:
+		for _, backend := range securityBackends {
+			// The issue this is attempting to fix is only
+			// affecting seccomp/apparmor so limit the work just to
+			// this backend.
+			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
+			if !shouldRefresh {
+				continue
+			}
+			// Refresh security of this snap and backend
+			if err := backend.Setup(snapInfo, opts, m.repo); err != nil {
+				// Let's log this but carry on
+				logger.Noticef("cannot regenerate %s profile for snap %q: %s",
+					backend.Name(), snapName, err)
+			}
+		}
+	}
+
 	return nil
 }
 

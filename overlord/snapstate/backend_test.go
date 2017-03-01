@@ -39,11 +39,12 @@ import (
 type fakeOp struct {
 	op string
 
-	name  string
-	revno snap.Revision
-	sinfo snap.SideInfo
-	stype snap.Type
-	cand  store.RefreshCandidate
+	name    string
+	channel string
+	revno   snap.Revision
+	sinfo   snap.SideInfo
+	stype   snap.Type
+	cand    store.RefreshCandidate
 
 	old string
 

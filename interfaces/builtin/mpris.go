@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,9 +28,8 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var mprisPermanentSlotAppArmor = []byte(`
+const mprisPermanentSlotAppArmor = `
 # Description: Allow operating as an MPRIS player.
-# Usage: common
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -74,9 +73,9 @@ dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=@{profile_name}),
-`)
+`
 
-var mprisConnectedSlotAppArmor = []byte(`
+const mprisConnectedSlotAppArmor = `
 # Allow connected clients to interact with the player
 dbus (receive)
     bus=session
@@ -93,9 +92,9 @@ dbus (receive)
     interface="org.mpris.MediaPlayer2{,.*}"
     path=/org/mpris/MediaPlayer2
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var mprisConnectedSlotAppArmorClassic = []byte(`
+const mprisConnectedSlotAppArmorClassic = `
 # Allow unconfined clients to interact with the player on classic
 dbus (receive)
     bus=session
@@ -105,11 +104,10 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
-`)
+`
 
-var mprisConnectedPlugAppArmor = []byte(`
+const mprisConnectedPlugAppArmor = `
 # Description: Allow connecting to an MPRIS player.
-# Usage: common
 
 #include <abstractions/dbus-session-strict>
 
@@ -137,19 +135,7 @@ dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
-
-var mprisPermanentSlotSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
-
-var mprisConnectedPlugSecComp = []byte(`
-recvmsg
-sendmsg
-sendto
-`)
+`
 
 type MprisInterface struct{}
 
@@ -166,10 +152,8 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(mprisConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mprisConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -184,15 +168,13 @@ func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 
 		old := []byte("###MPRIS_NAME###")
 		new := []byte(name)
-		snippet := bytes.Replace(mprisPermanentSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mprisPermanentSlotAppArmor), old, new, -1)
 		// on classic, allow unconfined remotes to control the player
 		// (eg, indicator-sound)
 		if release.OnClassic {
 			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mprisPermanentSlotSecComp, nil
 	}
 	return nil, nil
 }
@@ -202,7 +184,7 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(mprisConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mprisConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil

@@ -344,6 +344,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 	}
 	// Check if we got an nsfs-based file or a regular file. This can be
 	// reliably tested because nsfs has an unique filesystem type NSFS_MAGIC.
+	// On older kernels that don't support nsfs yet we can look for
+	// PROC_SUPER_MAGIC instead.
 	// We can just ensure that this is the case thanks to fstatfs.
 	struct statfs buf;
 	if (fstatfs(mnt_fd, &buf) < 0) {
@@ -353,7 +355,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
 #define NSFS_MAGIC 0x6e736673
 #endif
-	if (buf.f_type == NSFS_MAGIC) {
+	if (buf.f_type == NSFS_MAGIC || buf.f_type == PROC_SUPER_MAGIC) {
 		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
 		vanilla_cwd = get_current_dir_name();
