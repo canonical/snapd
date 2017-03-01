@@ -45,6 +45,7 @@ const maliitInputMethodPermanentSlotAppArmor = `
 # DBus accesses
 #include <abstractions/dbus-session>
 
+# TODO: should this be somewhere else?
 /usr/share/glib-2.0/schemas/ r,
 
 # maliit uses peer-to-peer dbus over a unix socket after address negotiation.
