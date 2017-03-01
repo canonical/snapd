@@ -397,6 +397,8 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
+	const fnName = "ensureUbuntuCoreTransition"
+
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -406,7 +408,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return nil
 	}
 	if err != nil && err != state.ErrNoState {
-		return err
+		return fmt.Errorf("(internal error, %s) cannot get state of the ubuntu-core snap: %s", fnName, err)
 	}
 
 	// check that there is no change in flight already, this is a
@@ -422,7 +424,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	var lastUbuntuCoreTransitionAttempt time.Time
 	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
 	if err != nil && err != state.ErrNoState {
-		return err
+		return fmt.Errorf("(internal error, %s) cannot get ubuntu core transition retry count: %s", fnName, err)
 	}
 	now := time.Now()
 	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
@@ -439,7 +441,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
 	if err != nil {
-		return err
+		return fmt.Errorf("(internal error, %s) cannot transition from ubuntu-core to core: %s", fnName, err)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Transition ubuntu-core to core"))
