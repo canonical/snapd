@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -193,17 +194,51 @@ func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 }
 
 func (s *MaliitInputMethodInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
+	// connected plugs have a non-nil security snippet for apparmor
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+}
+
+func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
+	release.OnClassic = false
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	// verify apparmor connected
+	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session>")
+	// verify classic didn't connect
+	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
+}
+
+func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "send\n")
+}
+
+func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "org.maliit.Server.Address")
+}
+
+func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "send\n")
+}
+
+func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.maliit-input-method.*\")")
 }
