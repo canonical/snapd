@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var networkManagerPermanentSlotAppArmor = []byte(`
+const networkManagerPermanentSlotAppArmor = `
 # Description: Allow operating as the NetworkManager service. This gives
 # privileged access to the system.
 
@@ -180,9 +180,9 @@ dbus (receive, send)
     path=/fi/w1/wpa_supplicant1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
-`)
+`
 
-var networkManagerConnectedPlugAppArmor = []byte(`
+const networkManagerConnectedPlugAppArmor = `
 # Description: Allow using NetworkManager service. This gives privileged access
 # to the NetworkManager service.
 
@@ -193,7 +193,7 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
 const networkManagerPermanentSlotSecComp = `
 # Description: Allow operating as the NetworkManager service. This gives
@@ -222,7 +222,7 @@ lchown
 lchown32
 `
 
-var networkManagerPermanentSlotDBus = []byte(`
+const networkManagerPermanentSlotDBus = `
 <!-- DBus policy for NetworkManager (upstream version 1.2.2) -->
 <policy user="root">
     <allow own="org.freedesktop.NetworkManager"/>
@@ -364,7 +364,7 @@ var networkManagerPermanentSlotDBus = []byte(`
 
 <limit name="max_replies_per_connection">1024</limit>
 <limit name="max_match_rules_per_connection">2048</limit>
-`)
+`
 
 type NetworkManagerInterface struct{}
 
@@ -390,7 +390,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		} else {
 			new = slotAppLabelExpr(slot)
 		}
-		snippet := bytes.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(networkManagerConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -399,9 +399,9 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return networkManagerPermanentSlotAppArmor, nil
+		return []byte(networkManagerPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
-		return networkManagerPermanentSlotDBus, nil
+		return []byte(networkManagerPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
