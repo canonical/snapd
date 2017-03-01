@@ -109,11 +109,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	switch release.ReleaseInfo.ID {
-	case "fedora":
-		fallthrough
-	case "centos":
-		fallthrough
-	case "rhel":
+	case "fedora", "centos", "rhel":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
 		SnapMountDir = filepath.Join(rootdir, "/snap")
@@ -157,11 +153,7 @@ func SetRootDir(rootdir string) {
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
 	switch release.ReleaseInfo.ID {
-	case "fedora":
-		fallthrough
-	case "centos":
-		fallthrough
-	case "rhel":
+	case "fedora", "centos", "rhel":
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
 	default:
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
