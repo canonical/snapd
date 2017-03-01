@@ -46,7 +46,7 @@ capability setuid,
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
 // by the kernel on different ioctl calls for this device. Note also that
 // in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
-var pppConnectedPlugKmod = "ppp_generic"
+const pppConnectedPlugKmod = "ppp_generic"
 
 type PppInterface struct{}
 

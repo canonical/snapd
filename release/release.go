@@ -52,7 +52,7 @@ func (os *OS) ForceDevMode() bool {
 		{"elementary", "0.4"},
 		// NOTE: mint uses "LinuxMint" (mixed capitalization)
 		// but this is normalized by readOSRelease.
-		{"linuxmint", "18.1"},
+		{"linuxmint", "18"},
 		{"galliumos", "2.0"},
 		{"peppermint", "7.0"},
 		// NOTE: zorin is "Zorin OS" but normalization applies
