@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
 const unity8ConnectedPlugAppArmor = `
@@ -55,38 +54,6 @@ dbus (send)
      interface=com.canonical.URLDispatcher
      member=DispatchURL
      peer=(name=com.canonical.URLDispatcher,label=###SLOT_SECURITY_TAGS###),
-
-# This is needed when the app is already running and needs to be passed in
-# a URL to open. This is most often used with content-hub providers and
-# url-dispatcher, but is actually supported by Qt generally.
-dbus (receive)
-     bus=session
-     path=/@{PROFILE_DBUS}
-     interface=org.freedesktop.Application
-     member=Open
-     peer=(label=###SLOT_SECURITY_TAGS###),
-
-# FIXME: workaround rule while UAL is using click-style AppID. This does not
-# provide isolation since 'foo' can access 'barfoobaz'
-dbus (receive)
-     bus=session
-     path=/###PLUG_DBUS_APPIDS###
-     interface=org.freedesktop.Application
-     member=Open
-     peer=(label=###SLOT_SECURITY_TAGS###),
-
-# Unity launcher (e.g. app counter, progress, alert)
-dbus (receive, send)
-     bus=session
-     path=/com/canonical/Unity/Launcher/@{PROFILE_DBUS}
-     peer=(name=com.canonical.Unity.Launcher,label=###SLOT_SECURITY_TAGS###),
-
-# FIXME: workaround rule while UAL is using click-style AppID. This does not
-# provide isolation since 'foo' can access 'barfoobaz'
-dbus (receive, send)
-     bus=session
-     path=/com/canonical/Unity/Launcher/###PLUG_DBUS_APPIDS###
-     peer=(name=com.canonical.Unity.Launcher,label=###SLOT_SECURITY_TAGS###),
 
 # Note: content-hub may become its own interface, but for now include it here
 # Pasteboard via Content Hub. Unity8 with mir has safeguards that ensure snaps
@@ -133,17 +100,6 @@ func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		oldTags := []byte("###SLOT_SECURITY_TAGS###")
 		newTags := slotAppLabelExpr(slot)
 		snippet := bytes.Replace([]byte(unity8ConnectedPlugAppArmor), oldTags, newTags, -1)
-
-		// FIXME: Until we decide whether unity8 is going to use Snappy-style
-		//        appIDs (snap.NAME.COMMAND) or Touch-style ones
-		//        (NAME_COMMAND_REVISION), we'll use a simpler *NAME* glob
-		//        here. This glob does not provide isolation because 'foo' can
-		//        access 'barfoobaz'. The base declaration restriction cannot
-		//        be lifted until this is properly mediated.
-		appidsOld := []byte("###PLUG_DBUS_APPIDS###")
-		appidsNew := fmt.Sprintf("*%s*", dbus.SafePath(plug.Snap.Name()))
-		snippet = bytes.Replace(snippet, appidsOld, []byte(appidsNew), -1)
-
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return []byte(unity8ConnectedPlugSecComp), nil

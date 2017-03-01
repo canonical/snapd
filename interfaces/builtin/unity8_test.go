@@ -96,7 +96,7 @@ func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "name=com.canonical.Unity.Launcher")
+	c.Check(string(snippet), testutil.Contains, "name=com.canonical.URLDispatcher")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
@@ -108,31 +108,5 @@ func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.unity8-session.*\")")
-}
-
-func (s *unity8InterfaceSuite) TestDbusPaths(c *C) {
-	// One command
-	plug := createMockFooPlug(c, `
-name: one-cmd
-apps:
- one:
-  plugs: [unity8]
-`)
-	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "path=/*one_2dcmd*")
-
-	// Two commands
-	plug = createMockFooPlug(c, `
-name: two-cmds
-apps:
- one:
-  plugs: [unity8]
- two:
-  plugs: [unity8]
-`)
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "path=/*two_2dcmds*")
+	c.Check(string(snippet), testutil.Contains, "label=\"snap.unity8-session.*\"")
 }
