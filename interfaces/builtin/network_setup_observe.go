@@ -25,7 +25,6 @@ import (
 
 const networkSetupObserveConnectedPlugAppArmor = `
 # Description: Can read netplan configuration files
-# Usage: reserved
 
 /etc/netplan/{,**} r,
 /etc/network/{,**} r,

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var locationControlPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the location service. Reserved because this
-#  gives privileged access to the system.
-# Usage: reserved
+const locationControlPermanentSlotAppArmor = `
+# Description: Allow operating as the location service. This gives privileged
+# access to the system.
 
 # DBus accesses
 #include <abstractions/dbus-strict>
@@ -56,9 +55,9 @@ dbus (receive, send)
     path=/com/ubuntu/location/Service{,/**}
     interface=org.freedesktop.DBus**
     peer=(label=unconfined),
-`)
+`
 
-var locationControlConnectedSlotAppArmor = []byte(`
+const locationControlConnectedSlotAppArmor = `
 # Allow connected clients to interact with the service
 
 # Allow clients to register providers
@@ -83,12 +82,11 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var locationControlConnectedPlugAppArmor = []byte(`
-# Description: Allow using location service. Reserved because this gives
-#  privileged access to the service.
-# Usage: reserved
+const locationControlConnectedPlugAppArmor = `
+# Description: Allow using location service. This gives privileged access to
+# the service.
 
 #include <abstractions/dbus-strict>
 
@@ -120,37 +118,23 @@ dbus (receive)
     path=/
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
-`)
+`
 
-var locationControlPermanentSlotSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationControlConnectedPlugSecComp = []byte(`
-getsockname
-recvmsg
-sendmsg
-sendto
-`)
-
-var locationControlPermanentSlotDBus = []byte(`
+const locationControlPermanentSlotDBus = `
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
 </policy>
-`)
+`
 
-var locationControlConnectedPlugDBus = []byte(`
+const locationControlConnectedPlugDBus = `
 <policy context="default">
     <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
 </policy>
-`)
+`
 
 type LocationControlInterface struct{}
 
@@ -167,12 +151,10 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(locationControlConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus:
-		return locationControlConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlConnectedPlugSecComp, nil
+		return []byte(locationControlConnectedPlugDBus), nil
 	}
 	return nil, nil
 }
@@ -180,11 +162,9 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return locationControlPermanentSlotAppArmor, nil
+		return []byte(locationControlPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
-		return locationControlPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp:
-		return locationControlPermanentSlotSecComp, nil
+		return []byte(locationControlPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
@@ -194,7 +174,7 @@ func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(locationControlConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil

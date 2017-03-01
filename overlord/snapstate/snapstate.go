@@ -189,12 +189,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	var defaults map[string]interface{}
 
 	if !snapst.HasCurrent() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+		// FIXME: this doesn't work during seeding itself
 		gadget, err := GadgetInfo(st)
 		if err != nil && err != state.ErrNoState {
 			return nil, err
 		}
 		if err == nil {
-			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
+			gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 			if err != nil {
 				return nil, err
 			}
@@ -203,9 +204,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	}
 
 	installSet := state.NewTaskSet(tasks...)
-	configSet := Configure(st, snapsup.Name(), defaults)
-	configSet.WaitAll(installSet)
-	installSet.AddAll(configSet)
+
+	// gross hack, do not run configure hook on classic (LP: #1668738)
+	// for now until we understand why it is failing for some people
+	if !(release.OnClassic && snapsup.Name() == "core") {
+		configSet := Configure(st, snapsup.Name(), defaults)
+		configSet.WaitAll(installSet)
+		installSet.AddAll(configSet)
+	}
 
 	return installSet, nil
 }
@@ -719,6 +725,28 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 	if err != nil {
 		return nil, err
 	}
+
+	// see if we need to update the channel
+	if snap.IsNoUpdateAvailableError(infoErr) && snapst.Channel != channel {
+		snapsup := &SnapSetup{
+			SideInfo: snapst.CurrentSideInfo(),
+			// update the tracked channel
+			Channel: channel,
+		}
+		// Update the current snap channel as well. This ensures that
+		// the UI displays the right values.
+		snapsup.SideInfo.Channel = channel
+
+		switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))
+		switchSnap.Set("snap-setup", &snapsup)
+
+		switchSnapTs := state.NewTaskSet(switchSnap)
+		for _, ts := range tts {
+			switchSnapTs.WaitAll(ts)
+		}
+		tts = append(tts, switchSnapTs)
+	}
+
 	if len(tts) == 0 && len(updates) == 0 {
 		// really nothing to do, return the original no-update-available error
 		return nil, infoErr
@@ -1361,6 +1389,25 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
+}
+
+// AutoRefreshAssertions allows to hook fetching of important assertions
+// into the Autorefresh function.
+var AutoRefreshAssertions func(st *state.State, userID int) error
+
+// AutoRefresh is the wrapper that will do a refresh of all the installed
+// snaps on the system. In addition to that it will also refresh important
+// assertions.
+func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+	userID := 0
+
+	if AutoRefreshAssertions != nil {
+		if err := AutoRefreshAssertions(st, userID); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return UpdateMany(st, nil, userID)
 }
 
 // CoreInfo finds the current OS snap's info. If both

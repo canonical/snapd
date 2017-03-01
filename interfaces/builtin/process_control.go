@@ -27,9 +27,9 @@ const processControlConnectedPlugAppArmor = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
 # all processes under root or processes running under the same UID otherwise.
-# Usage: reserved
 
-/{,usr/}bin/nice ixr,
+# /{,usr/}bin/nice is already in default policy, so just allow renice here
+/{,usr/}bin/renice ixr,
 
 capability sys_resource,
 capability sys_nice,
@@ -41,8 +41,9 @@ const processControlConnectedPlugSecComp = `
 # Description: This interface allows for controlling other processes via
 # signals and nice. This is reserved because it grants privileged access to
 # all processes under root or processes running under the same UID otherwise.
-# Usage: reserved
 
+# Allow setting the nice value/priority for any process
+nice
 setpriority
 sched_setaffinity
 sched_setparam

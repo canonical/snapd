@@ -287,6 +287,8 @@ type ServerVersion struct {
 	OSID        string
 	OSVersionID string
 	OnClassic   bool
+
+	KernelVersion string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -301,6 +303,8 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSID:        sysInfo.OSRelease.ID,
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
+
+		KernelVersion: sysInfo.KernelVersion,
 	}, nil
 }
 
@@ -339,6 +343,8 @@ const (
 	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
 	ErrorKindSnapNotInstalled     = "snap-not-installed"
 	ErrorKindNoUpdateAvailable    = "snap-no-update-available"
+
+	ErrorKindNotSnap = "snap-not-a-snap"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -365,6 +371,8 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
+
+	KernelVersion string `json:"kernel-version,omitempty"`
 }
 
 func (rsp *response) err() error {

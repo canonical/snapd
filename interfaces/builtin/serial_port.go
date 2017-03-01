@@ -43,7 +43,13 @@ func (iface *SerialPortInterface) String() string {
 
 // Pattern to match allowed serial device nodes, path attributes will be
 // compared to this for validity when not using udev identification
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$")
+// Known device node patterns we need to support
+//  - ttyUSBX  (UART over USB devices)
+//  - ttyACMX  (ACM modem devices )
+//  - ttyXRUSBx  (Exar Corp. USB UART devices)
+//  - ttySX (UART serial ports)
+//  - ttyOX (UART serial ports on ARM)
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|XRUSB|S|O)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
@@ -148,9 +154,10 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if iface.hasUsbAttrs(slot) {
-			// This apparmor rule must match serialDeviceNodePattern
+			// This apparmor rule is an approximation of serialDeviceNodePattern
+			// (AARE is different than regex, so we must approximate).
 			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,\n"), nil
+			return []byte("/dev/tty[A-Z]*[0-9] rw,\n"), nil
 		}
 
 		// Path to fixed device node (no udev tagging)

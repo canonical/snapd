@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (c) 2016 Canonical Ltd
+ * Copyright (c) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,68 +25,49 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var mirPermanentSlotAppArmor = []byte(`
-# Description: Allow operating as the Mir server. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
+const mirPermanentSlotAppArmor = `
+# Description: Allow operating as the Mir server. This gives privileged access
+# to the system.
+
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-/{dev,run}/shm/\#* rw,
 /dev/tty[0-9]* rw,
-network netlink raw,
+
+/{dev,run}/shm/\#* rw,
 /run/mir_socket rw,
-#NOTE: this allows reading and inserting all input events
+
+# NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
+
+# For using udev
+network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
-`)
+`
 
-var mirPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the mir server. Reserved because this
-# gives privileged access to the system.
+const mirPermanentSlotSecComp = `
+# Description: Allow operating as the mir server. This gives privileged access
+# to the system.
 # Needed for server launch
 bind
 listen
-setsockopt
-getsockname
 # Needed by server upon client connect
-send
-sendto
-sendmsg
 accept
+accept4
 shmctl
-open
-getsockopt
-recv
-recvmsg
-recvfrom
-`)
+`
 
-var mirConnectedSlotAppArmor = []byte(`
+const mirConnectedSlotAppArmor = `
 # Description: Permit clients to use Mir
-# Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var mirConnectedPlugAppArmor = []byte(`
+const mirConnectedPlugAppArmor = `
 # Description: Permit clients to use Mir
-# Usage: common
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
-`)
-
-var mirConnectedPlugSecComp = []byte(`
-# Description: Permit clients to use Mir
-# Usage: common
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-
-`)
+`
 
 type MirInterface struct{}
 
@@ -103,10 +84,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mirConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mirConnectedPlugSecComp, nil
 	}
 	return nil, nil
 }
@@ -116,9 +95,9 @@ func (iface *MirInterface) PermanentSlotSnippet(
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return mirPermanentSlotAppArmor, nil
+		return []byte(mirPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return mirPermanentSlotSecComp, nil
+		return []byte(mirPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
@@ -128,7 +107,7 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(mirConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil

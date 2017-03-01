@@ -18,6 +18,8 @@ AC_LANG([C])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
+AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
+AC_CHECK_HEADERS([xfs/xqm.h],   [], [AC_MSG_ERROR(xfs/xqm.h unavailable)])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -100,6 +102,9 @@ AS_IF([test "x$enable_apparmor" = "xyes"], [
 # Those are now used unconditionally even if apparmor is disabled.
 PKG_CHECK_MODULES([LIBUDEV], [libudev])
 PKG_CHECK_MODULES([UDEV], [udev])
+
+# Check if libcap is available.
+# PKG_CHECK_MODULES([LIBCAP], [libcap])
 
 # Enable special support for hosts with proprietary nvidia drivers on Ubuntu.
 AC_ARG_ENABLE([nvidia-ubuntu],

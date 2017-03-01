@@ -142,6 +142,10 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		ID:        "ubuntu",
 		VersionID: "mocked",
 	})
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		return false, nil
+	}
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
@@ -225,6 +229,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
+	// mark as already seeded
+	st.Set("seeded", true)
 
 	s.d = d
 	return d
@@ -386,6 +392,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"trymode":          false,
 			"apps":             []appJSON{},
 			"broken":           "",
+			"contact":          "",
 		},
 		Meta: meta,
 	}
@@ -558,6 +565,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	// Ensure that we had a kernel-verrsion but don't check the actual value.
+	const kernelVersionKey = "kernel-version"
+	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -1725,7 +1736,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.Flags{DevMode: true, RemoveSnapPath: true}
+	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1788,7 +1799,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1812,7 +1823,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1829,7 +1840,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 	// add the assertions first
@@ -1911,7 +1922,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1954,7 +1965,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 }
 
 func (s *apiSuite) TestTrySnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2069,7 +2080,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2327,9 +2338,7 @@ func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	flags := snapstate.Flags{}
-	flags.DevMode = true
-	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, flags, snap.R(0))
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallRevision(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(42))

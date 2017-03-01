@@ -108,15 +108,6 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
-	# we want the auto-update timer enabled by default
-	dh_systemd_enable \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but the auto-update service disabled
-	dh_systemd_enable \
-		--no-enable \
-		-psnapd \
-		data/systemd/snapd.refresh.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
@@ -129,15 +120,6 @@ override_dh_systemd_enable:
 		data/systemd/snapd.system-shutdown.service
 
 override_dh_systemd_start:
-	# we want to start the auto-update timer
-	dh_systemd_start \
-		-psnapd \
-		data/systemd/snapd.refresh.timer
-	# but not start the service
-	dh_systemd_start \
-		--no-start \
-		-psnapd \
-		data/systemd/snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
@@ -168,8 +150,6 @@ override_dh_install:
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
