@@ -238,6 +238,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
 		"managed":    len(users) > 0,
+
+		"kernel-version": release.KernelVersion(),
 	}
 
 	// TODO: set the store-id here from the model information
@@ -826,7 +828,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	// confinement.
 	flags.JailMode = jailMode
 	flags.Classic = classic
-	flags.DevMode = devMode || devModeOS && !classic
+	flags.DevMode = devMode
 	return flags, nil
 }
 

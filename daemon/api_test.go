@@ -565,6 +565,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	// Ensure that we had a kernel-verrsion but don't check the actual value.
+	const kernelVersionKey = "kernel-version"
+	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -1732,7 +1736,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.Flags{DevMode: true, RemoveSnapPath: true}
+	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -2334,9 +2338,7 @@ func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	flags := snapstate.Flags{}
-	flags.DevMode = true
-	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, flags, snap.R(0))
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallRevision(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(42))
