@@ -70,7 +70,7 @@ size_t sc_string_append_char(char *dst, size_t dst_size, char c);
  * not to overflow it. If any argument is NULL or a buffer overflow is detected
  * then the function dies.
  *
- * Neither character cannot be the string terminator.
+ * Neither character can be the string terminator.
  *
  * The return value is the new length of the string.
  **/
