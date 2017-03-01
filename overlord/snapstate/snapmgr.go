@@ -565,6 +565,9 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 		if err := json.Unmarshal([]byte(*snaps[name]), &snapst); err != nil {
 			return err
 		}
+		if info := snapst.CurrentSideInfo(); info == nil || info.SnapID == "" {
+			continue
+		}
 		snapst.DevMode = false
 		data, err := json.Marshal(snapst)
 		if err != nil {
@@ -574,6 +577,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 		snaps[name] = &raw
 	}
 	m.state.Set("snaps", snaps)
+	m.state.Set("fix-forced-devmode", 1)
 
 	return nil
 }
