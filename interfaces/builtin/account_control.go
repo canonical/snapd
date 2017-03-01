@@ -59,6 +59,7 @@ fchown - 0 42
 fchown32 - 0 42
 
 # from libaudit1
+bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 

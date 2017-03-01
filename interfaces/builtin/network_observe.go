@@ -99,6 +99,9 @@ const networkObserveConnectedPlugSecComp = `
 # for ping and ping6
 capset
 
+# for using socket(AF_NETLINK, ...)
+bind
+
 # for ss
 socket AF_NETLINK - NETLINK_INET_DIAG
 

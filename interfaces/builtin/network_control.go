@@ -188,11 +188,6 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
-socket AF_NETLINK - NETLINK_ROUTE
-socket AF_NETLINK - NETLINK_FIB_LOOKUP
-socket AF_NETLINK - NETLINK_INET_DIAG
-socket AF_NETLINK - NETLINK_XFRM
-socket AF_NETLINK - NETLINK_DNRTMSG
 
 mount
 umount
@@ -200,6 +195,13 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# For various network related netlink sockets
+socket AF_NETLINK - NETLINK_ROUTE
+socket AF_NETLINK - NETLINK_FIB_LOOKUP
+socket AF_NETLINK - NETLINK_INET_DIAG
+socket AF_NETLINK - NETLINK_XFRM
+socket AF_NETLINK - NETLINK_DNRTMSG
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.
