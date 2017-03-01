@@ -145,7 +145,6 @@ listen
 shutdown
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
-socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const modemManagerPermanentSlotDBus = `

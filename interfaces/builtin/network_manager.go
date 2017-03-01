@@ -222,7 +222,6 @@ sethostname
 shutdown
 # netlink
 socket AF_NETLINK - -
-socket PF_NETLINK - -
 `
 
 const networkManagerPermanentSlotDBus = `

@@ -93,13 +93,9 @@ const firewallControlConnectedPlugSecComp = `
 # for connecting to xtables abstract socket
 bind
 socket AF_NETLINK - NETLINK_FIREWALL
-socket PF_NETLINK - NETLINK_FIREWALL
 socket AF_NETLINK - NETLINK_NFLOG
-socket PF_NETLINK - NETLINK_NFLOG
 socket AF_NETLINK - NETLINK_NETFILTER
-socket PF_NETLINK - NETLINK_NETFILTER
 socket AF_NETLINK - NETLINK_IP6_FW
-socket PF_NETLINK - NETLINK_IP6_FW
 
 # for ping and ping6
 capset

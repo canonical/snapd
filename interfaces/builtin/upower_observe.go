@@ -106,7 +106,6 @@ const upowerObservePermanentSlotSeccomp = `
 bind
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
-socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `

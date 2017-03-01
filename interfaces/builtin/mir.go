@@ -57,7 +57,6 @@ accept4
 shmctl
 # for udev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
-socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const mirConnectedSlotAppArmor = `
