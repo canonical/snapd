@@ -437,6 +437,19 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
+// hasDeviceSession returns true if given store has a device session setup
+func hasDeviceSession(s *Store) (bool, error) {
+	var device *auth.DeviceState
+	var err error
+	if s.authContext != nil {
+		device, err = s.authContext.Device()
+		if err != nil {
+			return false, err
+		}
+	}
+	return device != nil && device.SessionMacaroon != "", nil
+}
+
 // hasStoreAuth returns true if given user has store macaroons setup
 func hasStoreAuth(user *auth.UserState) bool {
 	return user != nil && user.StoreMacaroon != ""
@@ -1290,8 +1303,13 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 	}()
 
+	deviceSessionSet, err := hasDeviceSession(s)
+	if err != nil {
+		return err
+	}
+
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || hasStoreAuth(user) || deviceSessionSet {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -1435,8 +1453,13 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
+	deviceSessionSet, err := hasDeviceSession(s)
+	if err != nil {
+		return err
+	}
+
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || hasStoreAuth(user) || deviceSessionSet {
 		url = deltaInfo.DownloadURL
 	}
 
