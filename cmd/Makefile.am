@@ -20,7 +20,7 @@ check-syntax-c:
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
-	       indent -linux "$$f" -o "$$out"; \
+	       HOME=$(srcdir) indent "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
 
@@ -47,7 +47,7 @@ endif
 
 .PHONY: fmt
 fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
-	indent -linux $^
+	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
@@ -70,6 +70,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cleanup-funcs.h \
 	libsnap-confine-private/error.c \
 	libsnap-confine-private/error.h \
+	libsnap-confine-private/fault-injection.c \
+	libsnap-confine-private/fault-injection.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
@@ -104,8 +106,18 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/utils-test.c
 libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
-libsnap_confine_private_unit_tests_LDADD += -lcap
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
+
+# XXX: This injects a dependency on libcap in a way that makes automake happy
+# and allows us to link libcap statically. We need to link in libcap statically
+# as at this time adding runtime dependencies to snap-confine is tricky.
+
+libsnap-confine-private/unit-tests$(EXEEXT): $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_DEPENDENCIES) $(EXTRA_libsnap_confine_private_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f libsnap-confine-private/unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(libsnap_confine_private_unit_tests_LINK) $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_LDADD) $(LIBS)
+
+libsnap-confine-private/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 endif
 
 ##
@@ -117,6 +129,14 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
 decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
+# XXX: this makes automake generate decode_mount_opts_decode_mount_opts_LINK
+decode_mount_opts_decode_mount_opts_CFLAGS = -D_fake
+
+decode-mount-opts/decode-mount-opts$(EXEEXT): $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_DEPENDENCIES) $(EXTRA_decode_mount_opts_decode_mount_opts_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f decode-mount-opts/decode-mount-opts$(EXEEXT)
+	$(AM_V_CCLD)$(decode_mount_opts_decode_mount_opts_LINK) $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_LDADD) $(LIBS)
+
+decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
 ##
 ## snap-confine
@@ -186,6 +206,12 @@ snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
 
+snap-confine/snap-confine$(EXEEXT): $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) $(LIBS)
+
+snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
 snap_confine_snap_confine_CFLAGS += $(SUID_CFLAGS)
@@ -204,6 +230,21 @@ snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
 endif
 
+# an extra build that has additional debugging enabled at compile time
+
+noinst_PROGRAMS += snap-confine/snap-confine-debug
+snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
+snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
+snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
+snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
+
+snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) $(LIBS)
+
+snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
 snap_confine_snap_confine_unit_tests_SOURCES = \
@@ -220,6 +261,14 @@ snap_confine_snap_confine_unit_tests_SOURCES = \
 snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+
+
+snap-confine/snap-confine-unit-tests$(EXEEXT): $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/snap-confine-unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_unit_tests_LINK) $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_LDADD) $(LIBS)
+
+snap-confine/snap-confine-unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+
 endif
 
 snap-confine/%.5: snap-confine/%.rst
@@ -235,8 +284,10 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 # foo.bar.froz The inner subst replaces slashes with dots and the outer
 # patsubst strips the leading dot
 install-data-local:: snap-confine/snap-confine.apparmor
+if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+endif
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
@@ -271,7 +322,7 @@ EXTRA_DIST += \
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
 # Install udev rules
-install-data-local:: snap-confine/snap-confine.apparmor
+install-data-local::
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 
@@ -358,7 +409,11 @@ noinst_PROGRAMS += snap-update-ns/unit-tests
 snap_update_ns_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
-	snap-update-ns/mount-entry-test.c
+	snap-update-ns/mount-entry-test.c \
+	snap-update-ns/test-data.c \
+	snap-update-ns/test-data.h \
+	snap-update-ns/test-utils.c \
+	snap-update-ns/test-utils.h
 snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
 snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)

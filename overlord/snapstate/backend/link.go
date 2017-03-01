@@ -58,6 +58,10 @@ func updateCurrentSymlinks(info *snap.Info) error {
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info) error {
+	if info.Revision.Unset() {
+		return fmt.Errorf("cannot link snap %q with unset revision", info.Name())
+	}
+
 	if err := generateWrappers(info); err != nil {
 		return err
 	}
