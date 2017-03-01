@@ -44,7 +44,7 @@ dbus (bind)
 `)
 
 var connectivityObserveConnectedSlotAppArmor = []byte(`
-# Description: allow access to NetworkingStatus service
+# Description: Allow access to NetworkingStatus service.
 
 dbus (receive)
     bus=system
