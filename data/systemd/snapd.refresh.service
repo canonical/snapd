@@ -8,4 +8,4 @@ Documentation=man:snap(1)
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/snap refresh
-Environment=SNAP_REFRESH_FROM_EMERGENRY_TIMER=1
+Environment=SNAP_REFRESH_FROM_EMERGENCY_TIMER=1
