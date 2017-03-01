@@ -170,7 +170,7 @@ static void sc_map_init()
 	// man 2 socket - domain and man 5 apparmor.d. AF_ and PF_ are
 	// synonymous in the kernel and can be used interchangeably in
 	// policy (ie, if use AF_UNIX, don't need a corresponding PF_UNIX
-	// rule)
+	// rule). See include/linux/socket.h
 	sc_map_add(AF_UNIX);
 	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);
@@ -395,7 +395,7 @@ static void sc_map_init()
 	sc_map_add(NETLINK_ECRYPTFS);
 	sc_map_add(NETLINK_RDMA);
 	sc_map_add(NETLINK_CRYPTO);
-	sc_map_add(NETLINK_INET_DIAG);
+	sc_map_add(NETLINK_INET_DIAG);  // synonymous with NETLINK_SOCK_DIAG
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
