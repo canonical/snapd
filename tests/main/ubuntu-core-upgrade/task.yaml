@@ -41,13 +41,19 @@ execute: |
 
     case $SPREAD_REBOOT in
 
-    0) snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap ;;
-    1) snap revert ${core_name} ;;
-    2) snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap ;;
-    3) snap revert ${core_name} ;;
+    0) cmd="snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap" ;;
+    1) cmd="snap revert ${core_name}" ;;
+    2) cmd="snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap" ;;
+    3) cmd="snap revert ${core_name}" ;;
     4) exit 0 ;;
 
     esac
+
+    # start the op and get the change id
+    chg_id=$(eval ${cmd} --no-wait)
+
+    # wait for the link task to be done
+    while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
 
     echo "Ensure the bootloader is correct before reboot"
     snap list | awk "/^${core_name} / {print(\$3)}" > nextBoot
