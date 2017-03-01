@@ -31,3 +31,19 @@ func MockOSReleasePath(filename string) (restore func()) {
 		fallbackOsReleasePath = oldFallback
 	}
 }
+
+func MockVersionSignature(path string) (restorer func()) {
+	old := versionSignaturePath
+	versionSignaturePath = path
+	return func() {
+		versionSignaturePath = old
+	}
+}
+
+func MockApparmorSysPath(path string) (restorer func()) {
+	old := apparmorSysPath
+	apparmorSysPath = path
+	return func() {
+		apparmorSysPath = old
+	}
+}
