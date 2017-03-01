@@ -31,6 +31,7 @@ var implicitSlots = []string{
 	"account-control",
 	"alsa",
 	"bluetooth-control",
+	"browser-support",
 	"camera",
 	"classic-support",
 	"core-support",
@@ -73,7 +74,6 @@ var implicitSlots = []string{
 
 var implicitClassicSlots = []string{
 	"avahi-observe",
-	"browser-support",
 	"cups-control",
 	"gsettings",
 	"libvirt",
