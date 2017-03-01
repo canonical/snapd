@@ -108,7 +108,7 @@ dbus (send)
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
    member={Request,Release}Name
-   peer=(name=org.freedesktop.DBus),
+   peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive, send)
    bus=system
@@ -129,17 +129,20 @@ dbus (bind)
     bus=system
     name="org.freedesktop.NetworkManager",
 
-# Allow traffic to/from our path and interface with any method
+# Allow traffic to/from our path and interface with any method for unconfined
+# clients to talk to our service.
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
-    interface=org.freedesktop.NetworkManager*,
+    interface=org.freedesktop.NetworkManager*
+    peer=(label=unconfined),
 
 # Allow traffic to/from org.freedesktop.DBus for NetworkManager service
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
-    interface=org.freedesktop.DBus.*,
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
 
 # Allow access to hostname system service
 dbus (receive, send)
@@ -167,6 +170,12 @@ dbus (receive)
     member=PrepareForSleep
     interface=org.freedesktop.login1.Manager
     peer=(label=unconfined),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Session{New,Removed}
+    peer=(label=unconfined),
 
 # Allow access to wpa-supplicant for managing WiFi networks
 dbus (receive, send)
@@ -179,6 +188,16 @@ dbus (receive, send)
     path=/fi/w1/wpa_supplicant1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+`
+
+const networkManagerConnectedSlotAppArmor = `
+# Allow connected clients to interact with the service
+
+# Allow traffic to/from our DBus path
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop/NetworkManager{,/**}
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const networkManagerConnectedPlugAppArmor = `
@@ -203,22 +222,6 @@ bind
 listen
 sethostname
 shutdown
-# Needed for keyfile settings plugin to allow adding settings
-# for different users. This is currently at runtime only used
-# to make new created network settings files only editable by
-# root:root. The existence of this chown call is only that its
-# used for some tests where a different user:group combination
-# will be supplied.
-# FIXME: adjust after seccomp argument filtering lands so that
-# we only allow chown and its variant to be called for root:root
-# and nothign else (LP: #1446748)
-chown
-chown32
-fchown
-fchown32
-fchownat
-lchown
-lchown32
 `
 
 const networkManagerPermanentSlotDBus = `
@@ -408,6 +411,13 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 }
 
 func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace([]byte(networkManagerConnectedSlotAppArmor), old, new, -1)
+		return snippet, nil
+	}
 	return nil, nil
 }
 
