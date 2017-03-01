@@ -36,7 +36,19 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, maybeCore bool) (*state.TaskSet, error) {
+// control flags for doInstall
+const (
+	maybeCore = 1 << iota
+)
+
+func needsMaybeCore(typ snap.Type) int {
+	if typ == snap.TypeOS {
+		return maybeCore
+	}
+	return 0
+}
+
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Flags.Classic && !release.OnClassic {
 		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 	}
@@ -126,7 +138,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, maybeCore
 	prev = linkSnap
 
 	// security: phase 2, no-op unless core
-	if maybeCore {
+	if flags&maybeCore != 0 {
 		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
 		setupSecurityPhase2.Set("core-phase-2", true)
 		addTask(setupSecurityPhase2)
@@ -302,7 +314,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		Flags:    flags.ForSnapSetup(),
 	}
 
-	return doInstall(st, &snapst, snapsup, true)
+	return doInstall(st, &snapst, snapsup, maybeCore)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -346,7 +358,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		SideInfo:     &info.SideInfo,
 	}
 
-	return doInstall(st, &snapst, snapsup, info.Type == snap.TypeOS)
+	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
 }
 
 // InstallMany installs everything from the given list of names.
@@ -553,7 +565,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			SideInfo:     &update.SideInfo,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, update.Type == snap.TypeOS)
+		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -1157,7 +1169,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
 	}
-	return doInstall(st, &snapst, snapsup, typ == snap.TypeOS)
+	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1197,7 +1209,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		}, true)
+		}, maybeCore)
 		if err != nil {
 			return nil, err
 		}
