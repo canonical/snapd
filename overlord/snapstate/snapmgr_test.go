@@ -3888,7 +3888,8 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 		"Channel":                   "some-channel",
 		"Revision":                  "11",
 	})
-	c.Check(errMsg, Matches, `(?sm)download-snap: Undoing
+	c.Check(errMsg, Matches, `(?sm)change "install": "install a snap"
+download-snap: Undoing
  snap-setup: "some-snap" \(11\) "some-channel"
 validate-snap: Done
 .*
