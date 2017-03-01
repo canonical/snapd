@@ -62,7 +62,7 @@ func ExecInCoreSnap() {
 
 	// can we re-exec? some distributions will need extra work before re-exec really works.
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel":
+	case "fedora", "centos", "rhel", "opensuse", "suse":
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return
 	}
