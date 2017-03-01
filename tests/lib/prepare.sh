@@ -113,6 +113,7 @@ EOF
 
         # ensure no auto-refresh happens during the tests
         if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl disable --now snapd.refresh.timer
             snap set core refresh.disabled=true
         fi
 
@@ -337,6 +338,7 @@ prepare_all_snap() {
 
     # ensure no auto-refresh happens during the tests
     if [ -e /snap/core/current/meta/hooks/configure ]; then
+        systemctl disable --now snapd.refresh.timer
         snap set core refresh.disabled=true
     fi
 
