@@ -402,86 +402,10 @@ sigwaitinfo
 # domains via 'network' rules. We won't allow bare 'network' AppArmor rules, so
 # we can allow 'socket' for all domains except AF_NETLINK and let AppArmor
 # handle the rest.
-socket AF_UNIX - -
-socket PF_UNIX - -
-socket AF_LOCAL - -
-socket PF_LOCAL - -
-socket AF_INET - -
-socket PF_INET - -
-socket AF_INET6 - -
-socket PF_INET6 - -
-socket AF_IPX - -
-socket PF_IPX - -
-socket AF_X25 - -
-socket PF_X25 - -
-socket AF_AX25 - -
-socket PF_AX25 - -
-socket AF_ATMPVC - -
-socket PF_ATMPVC - -
-socket AF_APPLETALK - -
-socket PF_APPLETALK - -
-socket AF_PACKET - -
-socket PF_PACKET - -
-socket AF_ALG - -
-socket PF_ALG - -
-socket AF_CAN - -
-socket PF_CAN - -
-socket AF_BRIDGE - -
-socket PF_BRIDGE - -
-socket AF_NETROM - -
-socket PF_NETROM - -
-socket AF_ROSE - -
-socket PF_ROSE - -
-socket AF_NETBEUI - -
-socket PF_NETBEUI - -
-socket AF_SECURITY - -
-socket PF_SECURITY - -
-socket AF_KEY - -
-socket PF_KEY - -
-socket AF_ASH - -
-socket PF_ASH - -
-socket AF_ECONET - -
-socket PF_ECONET - -
-socket AF_SNA - -
-socket PF_SNA - -
-socket AF_IRDA - -
-socket PF_IRDA - -
-socket AF_PPPOX - -
-socket PF_PPPOX - -
-socket AF_WANPIPE - -
-socket PF_WANPIPE - -
-socket AF_BLUETOOTH - -
-socket PF_BLUETOOTH - -
-socket AF_RDS - -
-socket PF_RDS - -
-socket AF_LLC - -
-socket PF_LLC - -
-socket AF_TIPC - -
-socket PF_TIPC - -
-socket AF_IUCV - -
-socket PF_IUCV - -
-socket AF_RXRPC - -
-socket PF_RXRPC - -
-socket AF_ISDN - -
-socket PF_ISDN - -
-socket AF_PHONET - -
-socket PF_PHONET - -
-socket AF_IEEE802154 - -
-socket PF_IEEE802154 - -
-socket AF_CAIF - -
-socket PF_CAIF - -
-socket AF_NFC - -
-socket PF_NFC - -
-socket AF_VSOCK - -
-socket PF_VSOCK - -
-socket AF_MPLS - -
-socket PF_MPLS - -
-socket AF_IB - -
-socket PF_IB - -
-# For AF_NETLINK/PF_NETLINK, we'll use a combination of AppArmor coarse
-# mediation and seccomp arg filtering of netlink families
+socket !AF_NETLINK - -
+# For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
+# seccomp arg filtering of netlink families.
 # socket AF_NETLINK - -
-# socket PF_NETLINK - -
 
 # needed by snapctl
 getsockopt

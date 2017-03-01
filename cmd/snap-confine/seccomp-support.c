@@ -167,7 +167,10 @@ static void sc_map_init()
 
 	// build up the map linked list
 
-	// man 2 socket - domain and man 5 apparmor.d
+	// man 2 socket - domain and man 5 apparmor.d. AF_ and PF_ are
+	// synonymous in the kernel and can be used interchangeably in
+	// policy (ie, if use AF_UNIX, don't need a corresponding PF_UNIX
+	// rule)
 	sc_map_add(AF_UNIX);
 	sc_map_add(PF_UNIX);
 	sc_map_add(AF_LOCAL);

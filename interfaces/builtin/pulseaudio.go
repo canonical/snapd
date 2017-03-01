@@ -109,7 +109,6 @@ setgroups
 setgroups32
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
-socket PF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 type PulseAudioInterface struct{}
