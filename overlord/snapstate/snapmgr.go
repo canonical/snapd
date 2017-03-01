@@ -558,7 +558,9 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	var logMsg []string
 	var snapSetup string
 	dupSig := []string{"snap-install:"}
-	for _, t := range t.Change().Tasks() {
+	chg := t.Change()
+	logMsg = append(logMsg, fmt.Sprintf("change %q: %q", chg.Kind(), chg.Summary()))
+	for _, t := range chg.Tasks() {
 		// TODO: report only tasks in intersecting lanes?
 		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
 		logMsg = append(logMsg, tintro)
