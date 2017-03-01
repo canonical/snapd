@@ -20,7 +20,7 @@ check-syntax-c:
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
 	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
-	       indent -linux "$$f" -o "$$out"; \
+	       HOME=$(srcdir) indent "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
 
@@ -47,7 +47,7 @@ endif
 
 .PHONY: fmt
 fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
-	indent -linux $^
+	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
@@ -235,8 +235,10 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 # foo.bar.froz The inner subst replaces slashes with dots and the outer
 # patsubst strips the leading dot
 install-data-local:: snap-confine/snap-confine.apparmor
+if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+endif
 
 # NOTE: The 'void' directory *has to* be chmod 000
 install-data-local::
@@ -271,7 +273,7 @@ EXTRA_DIST += \
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
 # Install udev rules
-install-data-local:: snap-confine/snap-confine.apparmor
+install-data-local::
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 
@@ -358,7 +360,11 @@ noinst_PROGRAMS += snap-update-ns/unit-tests
 snap_update_ns_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
-	snap-update-ns/mount-entry-test.c
+	snap-update-ns/mount-entry-test.c \
+	snap-update-ns/test-data.c \
+	snap-update-ns/test-data.h \
+	snap-update-ns/test-utils.c \
+	snap-update-ns/test-utils.h
 snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
 snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)

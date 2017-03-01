@@ -31,6 +31,16 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 
 /**
+ * Compare two mount entries (through indirect pointers).
+ **/
+static int
+sc_indirect_compare_mount_entry(const struct sc_mount_entry **a,
+				const struct sc_mount_entry **b)
+{
+	return sc_compare_mount_entry(*a, *b);
+}
+
+/**
  * Copy struct mntent into a freshly-allocated struct sc_mount_entry.
  *
  * The next pointer is initialized to NULL, it should be managed by the caller.
@@ -94,6 +104,37 @@ void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp)
 	}
 }
 
+int sc_compare_mount_entry(const struct sc_mount_entry *a,
+			   const struct sc_mount_entry *b)
+{
+	int result;
+	if (a == NULL || b == NULL) {
+		die("cannot compare NULL mount entry");
+	}
+	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_type, b->entry.mnt_type);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_opts, b->entry.mnt_opts);
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_freq - b->entry.mnt_freq;
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_passno - b->entry.mnt_passno;
+	return result;
+}
+
 struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
 {
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
@@ -140,4 +181,45 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 			die("cannot add mount entry to %s", pathname);
 		}
 	}
+}
+
+void sc_sort_mount_entries(struct sc_mount_entry **first)
+{
+	if (*first == NULL) {
+		// NULL list is an empty list
+		return;
+	}
+	// Count the items
+	size_t count;
+	struct sc_mount_entry *entry;
+	for (count = 0, entry = *first; entry != NULL;
+	     ++count, entry = entry->next) ;
+
+	// Allocate an array of pointers
+	struct sc_mount_entry **entryp_array = NULL;
+	entryp_array = calloc(count, sizeof *entryp_array);
+	if (entryp_array == NULL) {
+		die("cannot allocate memory");
+	}
+	// Populate the array
+	entry = *first;
+	for (size_t i = 0; i < count; ++i) {
+		entryp_array[i] = entry;
+		entry = entry->next;
+	}
+
+	// Sort the array according to lexical sorting of all the elements.
+	qsort(entryp_array, count, sizeof(void *),
+	      (int (*)(const void *, const void *))
+	      sc_indirect_compare_mount_entry);
+
+	// Rewrite all the next pointers of each element.
+	for (size_t i = 0; i < count - 1; ++i) {
+		entryp_array[i]->next = entryp_array[i + 1];
+	}
+	entryp_array[count - 1]->next = NULL;
+
+	// Rewrite the pointer to the head of the list.
+	*first = entryp_array[0];
+	free(entryp_array);
 }
