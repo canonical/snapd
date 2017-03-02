@@ -395,7 +395,7 @@ static void sc_map_init()
 	sc_map_add(NETLINK_ECRYPTFS);
 	sc_map_add(NETLINK_RDMA);
 	sc_map_add(NETLINK_CRYPTO);
-	sc_map_add(NETLINK_INET_DIAG);  // synonymous with NETLINK_SOCK_DIAG
+	sc_map_add(NETLINK_INET_DIAG);	// synonymous with NETLINK_SOCK_DIAG
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
