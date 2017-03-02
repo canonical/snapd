@@ -243,10 +243,18 @@ static void sc_map_init()
 	sc_map_add(PF_NFC);
 	sc_map_add(AF_VSOCK);
 	sc_map_add(PF_VSOCK);
-	sc_map_add(AF_MPLS);
-	sc_map_add(PF_MPLS);
+#ifndef AF_IB
+#define AF_IB 27
+#define PF_IB AF_IB
+#endif				// AF_IB
 	sc_map_add(AF_IB);
 	sc_map_add(PF_IB);
+#ifndef AF_MPLS
+#define AF_MPLS 28
+#define PF_MPLS AF_MPLS
+#endif				// AF_MPLS
+	sc_map_add(AF_MPLS);
+	sc_map_add(PF_MPLS);
 	// linux/can.h
 	sc_map_add(AF_CAN);
 	sc_map_add(PF_CAN);
