@@ -79,6 +79,7 @@ var allInterfaces = []interfaces.Interface{
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
 	NewMountObserveInterface(),
+	NewNetlinkAuditInterface(),
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkInterface(),
