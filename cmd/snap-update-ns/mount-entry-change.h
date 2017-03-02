@@ -50,10 +50,10 @@ struct sc_mount_change {
  *
  * Both lists *must* be sorted by the caller prior to using this function.
  *
- * The result is written back to all the there pointers passed to the
- * functions. Both desired and current are advanced as the algorithm traverses
- * the list. The change is always written. The caller should stop when desired
- * and current both become NULL. At that time the resulting change will become
+ * The result is written back to all the pointers passed to the functions. Both
+ * desired and current are advanced as the algorithm traverses the list. The
+ * change is always written. The caller should stop when desired and current
+ * both become NULL. At that time the resulting change will become
  * SC_ACTION_NONE.
  **/
 void
