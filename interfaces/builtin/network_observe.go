@@ -110,6 +110,9 @@ socket AF_NETLINK - NETLINK_INET_DIAG
 
 # arp
 socket AF_NETLINK - NETLINK_ROUTE
+
+# multicast statistics
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkObserveInterface returns a new "network-observe" interface.
