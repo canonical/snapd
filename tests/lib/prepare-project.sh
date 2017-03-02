@@ -65,6 +65,7 @@ if [ "$SPREAD_BACKEND" = external ]; then
    fi
    # stop and disable autorefresh
    if [ -e /snap/core/current/meta/hooks/configure ]; then
+       systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
    exit 0
