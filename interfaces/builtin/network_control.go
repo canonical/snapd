@@ -127,6 +127,9 @@ capability setuid,
 
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # TUN/TAP
 /dev/net/tun rw,
