@@ -207,6 +207,7 @@ socket AF_NETLINK - NETLINK_XFRM
 socket AF_NETLINK - NETLINK_DNRTMSG
 socket AF_NETLINK - NETLINK_ISCSI
 socket AF_NETLINK - NETLINK_RDMA
+socket AF_NETLINK - NETLINK_GENERIC
 `
 
 // NewNetworkControlInterface returns a new "network-control" interface.
