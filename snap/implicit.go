@@ -48,6 +48,7 @@ var implicitSlots = []string{
 	"log-observe",
 	"lxd-support",
 	"mount-observe",
+	"netlink-audit",
 	"network",
 	"network-bind",
 	"network-control",
