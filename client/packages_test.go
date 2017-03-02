@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
@@ -217,6 +218,118 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Private:       true,
 		DevMode:       true,
 		TryMode:       true,
+		Screenshots: []client.Screenshot{
+			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
+			{URL: "http://example.com/shot2.png"},
+		},
+	})
+}
+
+func (cs *clientSuite) TestClientHistoryNoSnap(c *check.C) {
+	_, err := cs.cli.History(pkgName)
+	c.Assert(err, check.NotNil)
+}
+
+func (cs *clientSuite) TestClientHistory(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": [{
+			"id": "funky-snap-id",
+			"summary": "bla bla",
+			"description": "WebRTC Video chat server for Snappy",
+			"download-size": 6930947,
+			"icon": "/v2/icons/chatroom.ogra/icon",
+			"installed-size": 18976651,
+			"install-date": "2016-01-02T15:04:05Z",
+			"name": "chatroom",
+			"developer": "ogra",
+			"resource": "/v2/snaps/chatroom.ogra",
+			"status": "active",
+			"type": "app",
+			"version": "0.1-8",
+			"confinement": "strict",
+			"private": true,
+			"devmode": true,
+			"trymode": true,
+      "revision": "x2",
+			"screenshots": [
+					{"url":"http://example.com/shot1.png", "width":640, "height":480},
+					{"url":"http://example.com/shot2.png"}
+			]
+		}, {
+			"id": "funky-snap-id",
+			"summary": "bla bla",
+			"description": "WebRTC Video chat server for Snappy",
+			"download-size": 6930947,
+			"icon": "/v2/icons/chatroom.ogra/icon",
+			"installed-size": 18976651,
+			"install-date": "2016-01-02T15:04:05Z",
+			"name": "chatroom",
+			"developer": "ogra",
+			"resource": "/v2/snaps/chatroom.ogra",
+			"status": "active",
+			"type": "app",
+			"version": "0.1-8",
+			"confinement": "strict",
+			"private": true,
+			"devmode": true,
+			"trymode": true,
+      "revision": "x1",
+			"screenshots": [
+					{"url":"http://example.com/shot1.png", "width":640, "height":480},
+					{"url":"http://example.com/shot2.png"}
+			]
+		}]
+	}`
+
+	pkgs, err := cs.cli.History(pkgName)
+	c.Assert(cs.req.Method, check.Equals, "GET")
+	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s/history", pkgName))
+	c.Assert(err, check.IsNil)
+	c.Assert(len(pkgs), check.Equals, 2)
+
+	c.Assert(pkgs[0], check.DeepEquals, &client.Snap{
+		ID:            "funky-snap-id",
+		Summary:       "bla bla",
+		Description:   "WebRTC Video chat server for Snappy",
+		DownloadSize:  6930947,
+		Icon:          "/v2/icons/chatroom.ogra/icon",
+		InstalledSize: 18976651,
+		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
+		Name:          "chatroom",
+		Developer:     "ogra",
+		Status:        client.StatusActive,
+		Type:          client.TypeApp,
+		Version:       "0.1-8",
+		Confinement:   client.StrictConfinement,
+		Private:       true,
+		DevMode:       true,
+		TryMode:       true,
+		Revision:      snap.R("x2"),
+		Screenshots: []client.Screenshot{
+			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
+			{URL: "http://example.com/shot2.png"},
+		},
+	})
+
+	c.Assert(pkgs[1], check.DeepEquals, &client.Snap{
+		ID:            "funky-snap-id",
+		Summary:       "bla bla",
+		Description:   "WebRTC Video chat server for Snappy",
+		DownloadSize:  6930947,
+		Icon:          "/v2/icons/chatroom.ogra/icon",
+		InstalledSize: 18976651,
+		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
+		Name:          "chatroom",
+		Developer:     "ogra",
+		Status:        client.StatusActive,
+		Type:          client.TypeApp,
+		Version:       "0.1-8",
+		Confinement:   client.StrictConfinement,
+		Private:       true,
+		DevMode:       true,
+		TryMode:       true,
+		Revision:      snap.R("x1"),
 		Screenshots: []client.Screenshot{
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},

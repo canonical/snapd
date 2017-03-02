@@ -5024,3 +5024,113 @@ func (s *apiSuite) TestAliases(c *check.C) {
 	})
 
 }
+
+func (s *apiSuite) TestHistoryRoute(c *check.C) {
+	c.Check(snapHistoryCmd.PUT, check.IsNil)
+	c.Check(snapHistoryCmd.POST, check.IsNil)
+	c.Check(snapHistoryCmd.DELETE, check.IsNil)
+	c.Assert(snapHistoryCmd.GET, check.NotNil)
+	c.Assert(snapHistoryCmd.Path, check.Equals, "/v2/snaps/{name}/history")
+}
+
+func (s *apiSuite) TestHistoryNoSnap(c *check.C) {
+	s.daemon(c)
+
+	s.vars = map[string]string{"name": "no-such-snap"}
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/v2/snaps/no-such-snap/history", nil)
+	c.Assert(err, check.IsNil)
+
+	snapHistoryCmd.GET(snapHistoryCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Assert(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Assert(rec.Code, check.Equals, http.StatusNotFound)
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Assert(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
+func (s *apiSuite) TestHistory(c *check.C) {
+	d := s.daemon(c)
+
+	s.mkInstalledInState(c, d, "test-snap", "bar", "v1", snap.R(2), true, "description: description\nsummary: summary")
+	s.mkInstalledInState(c, d, "test-snap", "bar", "v0", snap.R(1), false, "")
+
+	s.vars = map[string]string{"name": "test-snap"}
+	rec := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/history", nil)
+	c.Assert(err, check.IsNil)
+
+	snapHistoryCmd.GET(snapHistoryCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Assert(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Assert(rec.Code, check.Equals, http.StatusOK)
+
+	meta := &Meta{}
+	expected := &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: []interface{}{map[string]interface{}{
+			"apps":             []interface{}{},
+			"broken":           "",
+			"channel":          "stable",
+			"confinement":      "strict",
+			"contact":          "",
+			"description":      "description",
+			"developer":        "bar",
+			"devmode":          false,
+			"icon":             "/v2/icons/test-snap/icon",
+			"id":               "test-snap-id",
+			"jailmode":         false,
+			"name":             "test-snap",
+			"private":          false,
+			"resource":         "/v2/snaps/test-snap",
+			"revision":         "2",
+			"status":           "installed",
+			"summary":          "summary",
+			"tracking-channel": "beta",
+			"trymode":          false,
+			"type":             "app",
+			"version":          "v1",
+		}, map[string]interface{}{
+			"apps":             []interface{}{},
+			"broken":           "",
+			"channel":          "stable",
+			"confinement":      "strict",
+			"contact":          "",
+			"description":      "",
+			"developer":        "bar",
+			"devmode":          false,
+			"icon":             "/v2/icons/test-snap/icon",
+			"id":               "test-snap-id",
+			"jailmode":         false,
+			"name":             "test-snap",
+			"private":          false,
+			"resource":         "/v2/snaps/test-snap",
+			"revision":         "1",
+			"status":           "installed",
+			"summary":          "",
+			"tracking-channel": "beta",
+			"trymode":          false,
+			"type":             "app",
+			"version":          "v0",
+		},
+		},
+		Meta: meta,
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Assert(rsp.Status, check.Equals, http.StatusOK)
+
+	result := rsp.Result.([]interface{})
+	c.Check(len(result), check.Equals, 2)
+
+	for _, v := range result {
+		rv := v.(map[string]interface{})
+		delete(rv, "installed-size")
+		delete(rv, "install-date")
+	}
+
+	c.Assert(result, check.DeepEquals, expected.Result.([]interface{}))
+}

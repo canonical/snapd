@@ -104,6 +104,31 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	}, nil
 }
 
+func allLocalRevisions(st *state.State, name string) ([]aboutSnap, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
+	if err != nil {
+		return []aboutSnap{}, err
+	}
+
+	var allRevisions []aboutSnap
+
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		info, _ := snapst.RevisionInfo(snapst.Sequence[i].Revision)
+		publisher, _ := publisherName(st, info)
+		allRevisions = append(allRevisions, aboutSnap{
+			info:      info,
+			snapst:    &snapst,
+			publisher: publisher,
+		})
+	}
+
+	return allRevisions, nil
+}
+
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
 func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	st.Lock()

@@ -264,6 +264,16 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(cur.RealName, cur)
 }
 
+func (snapst *SnapState) RevisionInfo(revision snap.Revision) (*snap.Info, error) {
+	index := snapst.LastIndex(revision)
+	if index == -1 {
+		return nil, errors.New("No revision found")
+	}
+
+	sideInfo := snapst.Sequence[index]
+	return readInfo(sideInfo.RealName, sideInfo)
+}
+
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	for _, si := range snapst.Sequence {
 		if si.Revision == needle {

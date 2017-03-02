@@ -73,6 +73,7 @@ var api = []*Command{
 	snapsCmd,
 	snapCmd,
 	snapConfCmd,
+	snapHistoryCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
@@ -141,6 +142,11 @@ var (
 		Path: "/v2/snaps/{name}/conf",
 		GET:  getSnapConf,
 		PUT:  setSnapConf,
+	}
+
+	snapHistoryCmd = &Command{
+		Path: "/v2/snaps/{name}/history",
+		GET:  getSnapHistory,
 	}
 
 	interfacesCmd = &Command{
@@ -1479,6 +1485,36 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+}
+
+func getSnapHistory(c *Command, r *http.Request, user *auth.UserState) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	url, err := route.URL("name", name)
+	if err != nil {
+		return InternalError("cannot build URL for %q snap: %v", name, err)
+	}
+
+	var history []map[string]interface{}
+	snapRevisions, err := allLocalRevisions(c.d.overlord.State(), name)
+	if err != nil {
+		if err == state.ErrNoState {
+			return NotFound(err.Error())
+		}
+		return InternalError(err.Error())
+	}
+
+	for i := len(snapRevisions) - 1; i >= 0; i-- {
+		history = append(history, webify(mapLocal(snapRevisions[i]), url.String()))
+	}
+
+	return SyncResponse(history, nil)
 }
 
 // getInterfaces returns all plugs and slots.
