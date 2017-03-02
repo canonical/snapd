@@ -840,8 +840,10 @@ type: os
 		"snap_mode":     "try",
 	})
 
-	// simulate restart happened
+	// simulate successful restart happened
 	state.MockRestarting(st, false)
+	bootloader.BootVars["snap_mode"] = ""
+	bootloader.BootVars["snap_core"] = "core_x1.snap"
 
 	st.Unlock()
 	err = ms.o.Settle()

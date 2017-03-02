@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -57,6 +58,15 @@ func UpdateBootRevisions(st *state.State) error {
 
 	if release.OnClassic {
 		return nil
+	}
+
+	// nothing to check if there's no kernel
+	_, err := KernelInfo(st)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	bootloader, err := partition.FindBootloader()
@@ -104,4 +114,56 @@ func UpdateBootRevisions(st *state.State) error {
 	st.EnsureBefore(0)
 
 	return nil
+}
+
+var ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
+
+// CurrentBootNameAndRevision returns the currently set name and
+// revision for boot for the given type of snap, which can be core or
+// kernel. Returns ErrBootNameAndRevisionAgain if the value are not
+// temporarily established.
+func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revision, err error) {
+	var kind string
+	var bootVar string
+
+	switch typ {
+	case snap.TypeKernel:
+		kind = "kernel"
+		bootVar = "snap_kernel"
+	case snap.TypeOS:
+		kind = "core"
+		bootVar = "snap_core"
+	default:
+		return "", snap.Revision{}, fmt.Errorf("cannot find boot revision for anything but core and kernel")
+	}
+
+	errorPrefix := fmt.Sprintf("cannot retrieve boot revision for %s: ", kind)
+	if release.OnClassic {
+		return "", snap.Revision{}, fmt.Errorf(errorPrefix + "classic system")
+	}
+
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
+	}
+
+	m, err := bootloader.GetBootVars(bootVar, "snap_mode")
+	if err != nil {
+		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
+	}
+
+	if m["snap_mode"] != "" {
+		return "", snap.Revision{}, ErrBootNameAndRevisionAgain
+	}
+
+	snapNameAndRevno := m[bootVar]
+	if snapNameAndRevno == "" {
+		return "", snap.Revision{}, fmt.Errorf(errorPrefix + "unset")
+	}
+	name, rev, err := nameAndRevnoFromSnap(snapNameAndRevno)
+	if err != nil {
+		return "", snap.Revision{}, fmt.Errorf(errorPrefix+"%s", err)
+	}
+
+	return name, rev, nil
 }
