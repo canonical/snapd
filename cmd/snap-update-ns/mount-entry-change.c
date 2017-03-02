@@ -71,7 +71,7 @@ sc_compute_required_mount_changes(struct sc_mount_entry * *desiredp,
 				again = true;
 				continue;
 			} else {
-				// Non-identail entries mean that we need to unmount the current
+				// Non-identical entries mean that we need to unmount the current
 				// entry and mount the desired entry.
 				//
 				// Let's process all the unmounts first. This way we can "clear the
