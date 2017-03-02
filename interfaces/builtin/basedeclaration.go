@@ -396,6 +396,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  netlink-connector:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   network:
     allow-installation:
       slot-snap-type:

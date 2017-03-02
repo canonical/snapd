@@ -80,6 +80,7 @@ var allInterfaces = []interfaces.Interface{
 	NewLogObserveInterface(),
 	NewMountObserveInterface(),
 	NewNetlinkAuditInterface(),
+	NewNetlinkConnectorInterface(),
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkInterface(),
