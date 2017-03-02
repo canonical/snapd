@@ -1,0 +1,12 @@
+# ensure /snap is MS_SHARED so that lxd works correctly (LP: #1668659)
+[Unit]
+Description=Setup /snap mountpoint
+
+[Mount]
+What=/snap
+Where=/snap
+Type=none
+Options=bind,shared
+
+[Install]
+WantedBy=multi-user.target
