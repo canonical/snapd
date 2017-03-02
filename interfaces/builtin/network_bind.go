@@ -66,7 +66,7 @@ accept4
 bind
 listen
 shutdown
-# Java needs this
+# For address changes
 socket AF_NETLINK - NETLINK_ROUTE
 `
 
