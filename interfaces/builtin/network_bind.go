@@ -66,6 +66,8 @@ accept4
 bind
 listen
 shutdown
+# Java needs this
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
 // NewNetworkBindInterface returns a new "network-bind" interface.
