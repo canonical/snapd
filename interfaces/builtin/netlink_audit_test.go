@@ -90,7 +90,6 @@ func (s *NetlinkAuditInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-// The shutdown system call is allowed
 func (s *NetlinkAuditInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
