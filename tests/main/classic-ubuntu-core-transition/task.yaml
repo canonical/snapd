@@ -35,9 +35,8 @@ execute: |
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
 
-    echo "Start/stop snapd so that the transition is triggered"
-    systemctl stop snapd.service snapd.socket
-    systemctl start snapd.service snapd.socket
+    echo "Ensure transition is triggered"
+    snap ensure-state-soon
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do

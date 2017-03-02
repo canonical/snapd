@@ -85,6 +85,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	debugCmd,
 }
 
 var (
@@ -173,6 +174,11 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
+	}
+
+	debugCmd = &Command{
+		Path: "/v2/debug",
+		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -2115,6 +2121,30 @@ func convertBuyError(err error) Response {
 	default:
 		return InternalError("%v", err)
 	}
+}
+
+type debugAction struct {
+	Action string `json:"action"`
+}
+
+func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
+	var a debugAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into a debug action: %v", err)
+	}
+
+	switch a.Action {
+	case "ensure-state-soon":
+		st := c.d.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+		ensureStateSoon(st)
+	default:
+		return BadRequest("unknown debug action: %v", a.Action)
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {

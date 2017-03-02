@@ -516,3 +516,17 @@ func (client *Client) Users() ([]*User, error) {
 	}
 	return result, nil
 }
+
+type debugAction struct {
+	Action string `json:"action"`
+}
+
+func (client *Client) EnsureStateSoon() error {
+	body, err := json.Marshal(debugAction{Action: "ensure-state-soon"})
+	if err != nil {
+		return err
+	}
+
+	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), nil)
+	return err
+}
