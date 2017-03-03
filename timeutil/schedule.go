@@ -80,7 +80,7 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 			continue
 		}
 		// same inteval as last update, move forward
-		if (last == a || last.After(a)) && (last == b || last.Before(b)) {
+		if (last.Equal(a) || last.After(a)) && (last.Equal(b) || last.Before(b)) {
 			continue
 		}
 		if b.Before(now) {
