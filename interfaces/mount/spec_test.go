@@ -77,7 +77,7 @@ func (s *specSuite) TestSmoke(c *C) {
 	ent1 := mount.Entry{Name: "fs2"}
 	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
 	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
-	c.Assert(s.spec.MountEntries, DeepEquals, []mount.Entry{ent0, ent1})
+	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{ent0, ent1})
 }
 
 // The mount.Specification can be used through the interfaces.Specification interface
@@ -87,7 +87,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.MountEntries, DeepEquals, []mount.Entry{
+	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
 		{Name: "connected-plug"}, {Name: "connected-slot"},
 		{Name: "permanent-plug"}, {Name: "permanent-slot"}})
 }
