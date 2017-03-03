@@ -118,7 +118,7 @@ snapd (2.23~14.04) trusty; urgency=medium
       test
     - interfaces/builtin/core-support: Allow modifying logind
       configuration from the core snap
-    - tests: fix "snap managed" output check and supress output from
+    - tests: fix "snap managed" output check and suppress output from
       expect in the authenticated login tests
     - interfaces: shutdown: also allow shutdown/reboot/suspend via
       logind
