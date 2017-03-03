@@ -36,8 +36,10 @@ execute: |
     curl http://localhost | MATCH "XKCD rocks"
 
     echo "Start/stop snapd so that the transition is triggered"
-    systemctl stop snapd.service snapd.socket
-    systemctl start snapd.service snapd.socket
+    if ! snap changes | grep "Transition ubuntu-core to core"; then
+        systemctl stop snapd.service snapd.socket
+        systemctl start snapd.service snapd.socket
+    fi
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
