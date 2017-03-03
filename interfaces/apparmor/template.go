@@ -121,6 +121,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
   /{,usr/}bin/gzip ixr,

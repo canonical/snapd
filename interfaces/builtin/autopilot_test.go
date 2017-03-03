@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,66 +24,70 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type OpenvSwitchSupportInterfaceSuite struct {
+type AutopilotInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OpenvSwitchSupportInterfaceSuite{
-	iface: builtin.NewOpenvSwitchSupportInterface(),
+var _ = Suite(&AutopilotInterfaceSuite{
+	iface: builtin.NewAutopilotIntrospectionInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "openvswitch-support",
-			Interface: "openvswitch-support",
+			Name:      "autopilot-introspection",
+			Interface: "autopilot-introspection",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "openvswitch-support",
-			Interface: "openvswitch-support",
+			Name:      "autopilot-introspection",
+			Interface: "autopilot-introspection",
 		},
 	},
 })
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "openvswitch-support")
+func (s *AutopilotInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "autopilot-introspection")
 }
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *AutopilotInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "openvswitch-support",
-		Interface: "openvswitch-support",
+		Name:      "autopilot-introspection",
+		Interface: "autopilot-introspection",
 	}})
-	c.Assert(err, ErrorMatches, "openvswitch-support slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "autopilot-introspection slots are reserved for the operating system snap")
 }
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *AutopilotInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *AutopilotInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "openvswitch-support"`)
+		PanicMatches, `slot is not of interface "autopilot-introspection"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "openvswitch-support"`)
+		PanicMatches, `plug is not of interface "autopilot-introspection"`)
 }
 
-func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	spec := &kmod.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
-		"openvswitch": true,
-	})
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "path=/com/canonical/Autopilot/Introspection\n")
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
 }
