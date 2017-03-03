@@ -139,6 +139,14 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLab
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
+func (s *NetworkManagerInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.network-manager.*\")")
+}
+
 func (s *NetworkManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
