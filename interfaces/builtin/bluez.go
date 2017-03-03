@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var bluezPermanentSlotAppArmor = []byte(`
+const bluezPermanentSlotAppArmor = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
 
@@ -52,7 +52,7 @@ var bluezPermanentSlotAppArmor = []byte(`
      path=/org/freedesktop/DBus
      interface=org.freedesktop.DBus
      member={Request,Release}Name
-     peer=(name=org.freedesktop.DBus),
+     peer=(name=org.freedesktop.DBus, label=unconfined),
 
   dbus (send)
     bus=system
@@ -70,21 +70,27 @@ var bluezPermanentSlotAppArmor = []byte(`
       bus=system
       name="org.bluez.obex",
 
-  # Allow traffic to/from our path and interface with any method
+  # Allow traffic to/from our path and interface with any method for unconfined
+  # cliens to talk to our bluez services.
   dbus (receive, send)
       bus=system
       path=/org/bluez{,/**}
-      interface=org.bluez.*,
+      interface=org.bluez.*
+      peer=(label=unconfined),
+  dbus (receive, send)
+      bus=system
+      path=/org/bluez{,/**}
+      interface=org.freedesktop.DBus.*
+      peer=(label=unconfined),
 
-  # Allow traffic to/from org.freedesktop.DBus for bluez service
+  # Allow traffic to/from org.freedesktop.DBus for bluez service. This rule is
+  # not snap-specific and grants privileged access to the org.freedesktop.DBus
+  # on the system bus.
   dbus (receive, send)
       bus=system
       path=/
-      interface=org.freedesktop.DBus.**,
-  dbus (receive, send)
-      bus=system
-      path=/org/bluez{,/**}
-      interface=org.freedesktop.DBus.**,
+      interface=org.freedesktop.DBus.*
+      peer=(label=unconfined),
 
   # Allow access to hostname system service
   dbus (receive, send)
@@ -92,9 +98,18 @@ var bluezPermanentSlotAppArmor = []byte(`
       path=/org/freedesktop/hostname1
       interface=org.freedesktop.DBus.Properties
       peer=(label=unconfined),
-`)
+`
 
-var bluezConnectedPlugAppArmor = []byte(`
+const bluezConnectedSlotAppArmor = `
+# Allow connected clients to interact with the service
+
+# Allow all access to bluez service
+dbus (receive, send)
+    bus=system
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
+const bluezConnectedPlugAppArmor = `
 # Description: Allow using bluez service. This gives privileged access to the
 # bluez service.
 
@@ -124,9 +139,9 @@ dbus (receive)
     path=/org/bluez{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
-`)
+`
 
-var bluezPermanentSlotSecComp = []byte(`
+const bluezPermanentSlotSecComp = `
 # Description: Allow operating as the bluez service. This gives privileged
 # access to the system.
 accept
@@ -134,9 +149,9 @@ accept4
 bind
 listen
 shutdown
-`)
+`
 
-var bluezPermanentSlotDBus = []byte(`
+const bluezPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -156,7 +171,7 @@ var bluezPermanentSlotDBus = []byte(`
 <policy context="default">
     <deny send_destination="org.bluez"/>
 </policy>
-`)
+`
 
 type BluezInterface struct{}
 
@@ -173,7 +188,7 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(bluezConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -182,16 +197,23 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return bluezPermanentSlotAppArmor, nil
+		return []byte(bluezPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return bluezPermanentSlotSecComp, nil
+		return []byte(bluezPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
-		return bluezPermanentSlotDBus, nil
+		return []byte(bluezPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace([]byte(bluezConnectedSlotAppArmor), old, new, -1)
+		return snippet, nil
+	}
 	return nil, nil
 }
 

@@ -414,6 +414,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},

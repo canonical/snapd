@@ -58,7 +58,7 @@ func distroRelease() string {
 	return fmt.Sprintf("%s %s", ID, release.ReleaseInfo.VersionID)
 }
 
-func Report(snap, channel, errMsg string, extra map[string]string) (string, error) {
+func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
 	}
@@ -98,10 +98,9 @@ func Report(snap, channel, errMsg string, extra map[string]string) (string, erro
 		"CoreSnapdBuildID":   coreBuildID,
 		"Date":               timeNow().Format(time.ANSIC),
 		"Snap":               snap,
-		"Channel":            channel,
 		"KernelVersion":      release.KernelVersion(),
 		"ErrorMessage":       errMsg,
-		"DuplicateSignature": fmt.Sprintf("snap-install: %s", errMsg),
+		"DuplicateSignature": dupSig,
 	}
 	for k, v := range extra {
 		// only set if empty
