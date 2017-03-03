@@ -24,7 +24,9 @@ import (
 )
 
 const netlinkConnectorConnectedPlugSecComp = `
-# Description: Can use netlink to communicate with kernel connector
+# Description: Can use netlink to communicate with kernel connector. Because
+# NETLINK_CONNECTOR is not finely mediated and app-specific, use of this
+# interface allows communications via all netlink connectors.
 # https://github.com/torvalds/linux/blob/master/Documentation/connector/connector.txt
 bind
 socket AF_NETLINK - NETLINK_CONNECTOR
