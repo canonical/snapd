@@ -504,7 +504,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"setupLocalUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
-		"postDebug",
 		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
