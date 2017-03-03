@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -83,6 +85,36 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	snapInfo, err := snap.ReadInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
 		return err
+	}
+
+	// TODO: this whole bit seems maybe that it should belong (largely) to a snapstate helper
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		if snapInfo.Type != snap.TypeOS {
+			// not core, nothing to do
+			return nil
+		}
+		if task.State().Restarting() {
+			// don't continue until we are in the restarted snapd
+			task.Logf("Waiting for restart...")
+			return &state.Retry{}
+		}
+		// if not on classic check there was no rollback
+		if !release.OnClassic {
+			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
+			if err == snapstate.ErrBootNameAndRevisionAgain {
+				return &state.Retry{After: 5 * time.Second}
+			}
+			if err != nil {
+				return err
+			}
+			if snapsup.Name() != name || snapInfo.Revision != rev {
+				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+			}
+		}
 	}
 
 	opts := confinementOptions(snapsup.Flags)
@@ -194,6 +226,15 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
+
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if corePhase2 {
+		// let the first setup-profiles deal with this
+		return nil
+	}
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
