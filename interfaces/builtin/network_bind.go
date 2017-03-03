@@ -45,11 +45,10 @@ const networkBindConnectedPlugAppArmor = `
 @{PROC}/@{pid}/net/ipv6_route r,
 
 # java apps attempt this, presumably to handle interface changes, but a
-# corresponding AppArmor rule is required (eg, network netlink dgram) to use
-# netlink. When fine-grained netlink mediation is implemented (LP: #1669552),
-# we can perhaps allow 'read' with NETLINK_ROUTE, but for now we omit it here
-# and don't explicitly deny this noisy denial so --devmode isn't broken.
-# LP: #1499897s
+# corresponding seccomp socket rule is required to use netlink. When
+# fine-grained netlink mediation is implemented (LP: #1669552), we can perhaps
+# allow 'read' with NETLINK_ROUTE, but for now we omit it here and don't
+# explicitly deny this noisy denial so --devmode isn't broken. LP: #1499897
 #deny network netlink dgram,
 `
 
