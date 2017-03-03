@@ -132,6 +132,10 @@ version: 1
 apps:
  app:
    command: foo
+ app2:
+   command: bar
+ sample:
+   command: foobar
 `
 
 const sampleContents = "SNAP"
@@ -500,4 +504,43 @@ func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	c.Check(info.DataHomeDir(), Equals, "/home/*/snap/name/1")
 	c.Check(info.CommonDataHomeDir(), Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
+}
+
+func makeFakeDesktopFile(c *C, name, content string) string {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, []byte(content), 0644)
+	c.Assert(err, IsNil)
+	return df
+}
+
+func (s *infoSuite) TestAppDesktopFiles(c *C) {
+	fakeDesktopFileContentApp1 := `[Desktop]
+Exec=sample.app %U
+`
+	fakeDesktopFileContentApp1_2 := `[Desktop]
+Exec=sample.app --args-for-app
+`
+	fakeDesktopFileContentAppSample := `[Desktop]
+Exec=sample --file %U
+`
+	fakeDesktopFileContentUnrelated := `[Desktop]
+Exec=sample.something-else
+`
+
+	snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{})
+	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
+	c.Assert(err, IsNil)
+
+	df1 := makeFakeDesktopFile(c, "sample_1.desktop", fakeDesktopFileContentApp1)
+	df2 := makeFakeDesktopFile(c, "sample_2.desktop", fakeDesktopFileContentApp1_2)
+	dfSample := makeFakeDesktopFile(c, "sample_sample.desktop", fakeDesktopFileContentAppSample)
+	makeFakeDesktopFile(c, "sample_4.desktop", fakeDesktopFileContentUnrelated)
+
+	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.Apps["app"].DesktopFiles(), DeepEquals, []string{df1, df2})
+	c.Check(snapInfo.Apps["sample"].DesktopFiles(), DeepEquals, []string{dfSample})
+	// no desktop file for app2
+	c.Check(snapInfo.Apps["app2"].DesktopFiles(), IsNil)
 }

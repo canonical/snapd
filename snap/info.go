@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -400,6 +401,30 @@ type HookInfo struct {
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
+}
+
+func (app *AppInfo) DesktopFiles() []string {
+	dfs, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_*.desktop", app.Snap.Name())))
+	if err != nil {
+		return nil
+	}
+	appName := filepath.Base(app.WrapperPath())
+	re, err := regexp.Compile(fmt.Sprintf(`(?m)^Exec=%s .*`, appName))
+	if err != nil {
+		return nil
+	}
+
+	var res []string
+	for _, df := range dfs {
+		content, err := ioutil.ReadFile(df)
+		if err != nil {
+			continue
+		}
+		if re.Match(content) {
+			res = append(res, df)
+		}
+	}
+	return res
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
