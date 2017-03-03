@@ -98,7 +98,7 @@ func randDur(dur time.Duration) time.Duration {
 var (
 	timeNow = time.Now
 
-	// FIMXE: pass in as a paramter for next
+	// FIMXE: pass in as a parameter for next
 	maxDuration = 14 * 24 * time.Hour
 )
 
