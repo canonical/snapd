@@ -24,7 +24,7 @@ import (
 )
 
 const netlinkAuditConnectedPlugSecComp = `
-# Description: Can use netlink to communicate with kernel audit
+# Description: Can use netlink to read/write to kernel audit system.
 bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
