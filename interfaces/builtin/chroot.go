@@ -31,6 +31,8 @@ const chrootConnectedPlugAppArmor = `
 # Description: Can chroot into a directory.
 
 capability sys_chroot,
+
+/{,usr/}sbin/chroot ixr,
 `
 
 const chrootConnectedPlugSecComp = `
