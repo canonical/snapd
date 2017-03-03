@@ -521,6 +521,9 @@ type debugAction struct {
 	Action string `json:"action"`
 }
 
+// EnsureStateSoon is only useful when writing test code, it will trigger
+// the internal "ensure" loop of the state engine to be run as soon as
+// possible.
 func (client *Client) EnsureStateSoon() error {
 	body, err := json.Marshal(debugAction{Action: "ensure-state-soon"})
 	if err != nil {
