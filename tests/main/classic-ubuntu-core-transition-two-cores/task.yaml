@@ -31,7 +31,7 @@ execute: |
     snap list | MATCH "core "
 
     echo "Ensure transition is triggered"
-    snap ensure-state-soon
+    snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do

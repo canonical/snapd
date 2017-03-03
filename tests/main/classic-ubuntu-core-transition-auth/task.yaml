@@ -19,7 +19,7 @@ execute: |
     echo '{}' > /home/test/.snap/auth.json
     
     echo "Ensure transition is triggered"
-    snap ensure-state-soon
+    snap debug ensure-state-soon
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
