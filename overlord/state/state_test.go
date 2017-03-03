@@ -884,9 +884,13 @@ func (ss *stateSuite) TestRequestRestart(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)
 
+	c.Check(st.Restarting(), Equals, false)
+
 	st.RequestRestart(state.RestartDaemon)
 
 	c.Check(b.restartRequested, Equals, true)
+
+	c.Check(st.Restarting(), Equals, true)
 }
 
 func (ss *stateSuite) TestReadStateInitsCache(c *C) {
