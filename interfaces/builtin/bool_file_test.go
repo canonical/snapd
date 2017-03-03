@@ -196,6 +196,11 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 }
 
 func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
+	// No extra seccomp permissions for plug
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentPlug(s.iface, s.plug)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 	// No extra dbus permissions for plug
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
