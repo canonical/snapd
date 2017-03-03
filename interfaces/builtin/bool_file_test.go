@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -174,6 +175,11 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlo
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
+		// No extra seccomp permissions for plug
+		seccompSpec := &seccomp.Specification{}
+		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, slot)
+		c.Assert(err, IsNil)
+		c.Assert(seccompSpec.Snippets(), HasLen, 0)
 		// No extra dbus permissions for plug
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
