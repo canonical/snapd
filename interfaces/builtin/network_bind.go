@@ -65,7 +65,7 @@ shutdown
 # corresponding AppArmor rule is required (eg, network netlink dgram) to use
 # netlink. We allow it here but not network-bind policy for AppArmor since java
 # falls back gracefully when faced with an EPERM. Without this rule, the
-# application would be KILLed due to out default seccomp policy.
+# application would be KILLed due to our default seccomp policy.
 socket AF_NETLINK - NETLINK_ROUTE
 `
 
