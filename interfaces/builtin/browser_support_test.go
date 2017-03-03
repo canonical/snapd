@@ -203,4 +203,9 @@ func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	// connected plugs have a non-nil security snippet for apparmor
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }

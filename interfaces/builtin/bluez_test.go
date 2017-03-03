@@ -138,7 +138,7 @@ func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.bluez.*\")")
+	c.Check(string(snippet), testutil.Contains, `peer=(label="snap.bluez.app2")`)
 }
 
 func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
