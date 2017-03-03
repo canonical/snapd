@@ -1,6 +1,6 @@
 summary: check that the core and kernel snaps roll back correctly after a failed upgrade
 
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-32, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
 
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental

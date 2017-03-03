@@ -1,6 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.

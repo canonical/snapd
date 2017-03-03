@@ -144,6 +144,11 @@ backends:
                     TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
+            - ubuntu-core-16-32:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
             - ubuntu-core-16-arm-64:
                 username: test
                 password: ubuntu

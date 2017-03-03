@@ -1,5 +1,5 @@
 summary: Ensure that the writable paths on the image are correct
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-64, ubuntu-core-16-32, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 execute: |
     echo "Ensure everything in writable-paths is actually writable"
     cat /etc/system-image/writable-paths | while read -r line; do

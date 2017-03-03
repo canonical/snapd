@@ -18,8 +18,7 @@ script, if that's not the case you can pass the created username as a third argu
 to the script.
 
 * From the snapd project's root execute the suite selecting the type of system of
-the instance, currently `ubuntu-core-16-64`, `ubuntu-core-16-arm-32` and
-`ubuntu-core-16-arm-64` are supported:
+the instance, currently `ubuntu-core-16-64`, `ubuntu-core-16-32`, `ubuntu-core-16-arm-32` and `ubuntu-core-16-arm-64` are supported:
 ```
 $ spread -v -reuse external:ubuntu-core-16-64
 ```

@@ -1,5 +1,5 @@
 summary: check that os-release is correct
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-64, ubuntu-core-16-32, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 execute: |
     cat /etc/os-release
     grep "ID=ubuntu-core" /etc/os-release

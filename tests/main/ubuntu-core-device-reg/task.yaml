@@ -1,7 +1,7 @@
 summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-64, ubuntu-core-16-32, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
