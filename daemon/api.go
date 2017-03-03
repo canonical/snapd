@@ -828,7 +828,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	// confinement.
 	flags.JailMode = jailMode
 	flags.Classic = classic
-	flags.DevMode = devMode || devModeOS && !classic
+	flags.DevMode = devMode
 	return flags, nil
 }
 

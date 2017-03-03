@@ -1038,6 +1038,14 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	siKernel1 := &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)}
+	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siKernel1},
+		Current:  siKernel1.Revision,
+	})
+
 	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
 	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
