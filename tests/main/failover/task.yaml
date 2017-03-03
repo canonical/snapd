@@ -58,6 +58,8 @@ execute: |
     [Install]
     RequiredBy=sysinit.target
     EOF
+        # FIXME: we need to add an unit to reboot the system after some time, the system should be
+        # able to detect the failure condition and issue a reboot by itself
         cat <<EOF > /tmp/unpack/lib/systemd/system/autoreboot.service
     [Unit]
     DefaultDependencies=no
