@@ -433,10 +433,22 @@ func (cs *clientSuite) TestUsers(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      [{"username": "foo","email":"foo@example.com"},
                       {"username": "bar","email":"bar@example.com"}]}`
-	sysInfo, err := cs.cli.Users()
+	users, err := cs.cli.Users()
 	c.Check(err, IsNil)
-	c.Check(sysInfo, DeepEquals, []*client.User{
+	c.Check(users, DeepEquals, []*client.User{
 		{Username: "foo", Email: "foo@example.com"},
 		{Username: "bar", Email: "bar@example.com"},
 	})
+}
+
+func (cs *clientSuite) TestEnsureStateSoon(c *C) {
+	cs.rsp = `{"type": "sync", "result":true}`
+	err := cs.cli.EnsureStateSoon()
+	c.Check(err, IsNil)
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(data, DeepEquals, []byte(`{"action":"ensure-state-soon"}`))
 }
