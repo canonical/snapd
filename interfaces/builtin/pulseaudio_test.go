@@ -107,10 +107,5 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 2)
-	c.Assert(len(snippets["snap.pulseaudio.app1"]), Equals, 1)
-	c.Check(string(snippets["snap.pulseaudio.app1"][0]), testutil.Contains, "listen\n")
-	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
-	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "shmctl\n")
+	testutil.NewSecCompSpecChecker(c, seccompSpec, 2).Contains("snap.pulseaudio.app1", "listen\n").Contains("snap.other.app2", "shmctl\n")
 }
