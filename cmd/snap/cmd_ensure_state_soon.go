@@ -20,8 +20,6 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
 )
 
@@ -29,8 +27,8 @@ type cmdEnsureStateSoon struct{}
 
 func init() {
 	cmd := addDebugCommand("ensure-state-soon",
-		i18n.G("internal"),
-		i18n.G("internal"),
+		"(internal) trigger an ensure runn in the state engine",
+		"(internal) trigger an ensure runn in the state engine",
 		func() flags.Commander {
 			return &cmdEnsureStateSoon{}
 		})
