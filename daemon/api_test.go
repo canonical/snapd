@@ -5024,3 +5024,20 @@ func (s *apiSuite) TestAliases(c *check.C) {
 	})
 
 }
+
+var _ = check.Suite(&postDebugSuite{})
+
+type postDebugSuite struct {
+	apiBaseSuite
+}
+
+func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
+	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.Equals, true)
+}
