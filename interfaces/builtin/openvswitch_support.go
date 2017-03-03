@@ -23,15 +23,13 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const openvswitchSupportConnectedPlugKmod = `
-openvswitch
-`
+var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
 
 // NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
 func NewOpenvSwitchSupportInterface() interfaces.Interface {
 	return &commonInterface{
-		name:              "openvswitch-support",
-		connectedPlugKMod: openvswitchSupportConnectedPlugKmod,
-		reservedForOS:     true,
+		name: "openvswitch-support",
+		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
+		reservedForOS:            true,
 	}
 }
