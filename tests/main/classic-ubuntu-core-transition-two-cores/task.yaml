@@ -1,6 +1,8 @@
 summary: Ensure that the ubuntu-core -> core transition works with two cores
 
-systems: [-ubuntu-core-16-64,-ubuntu-core-16-arm-32,-ubuntu-core-16-arm-64]
+# we never test on core because the transition can only happen on "classic"
+# we disable on ppc64el because the downloads are very slow there
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -20,7 +22,7 @@ execute: |
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
-    snap install ubuntu-core
+    snap install --${CORE_CHANNEL} ubuntu-core
 
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
     cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="os"' > /var/lib/snapd/state.json
@@ -29,11 +31,15 @@ execute: |
     snap list | MATCH "core "
 
     echo "Start/stop snapd so that the transition is triggered"
-    systemctl stop snapd.service snapd.socket
-    systemctl start snapd.service snapd.socket
+    if ! snap changes | grep "Transition ubuntu-core to core"; then
+        systemctl stop snapd.service snapd.socket
+        systemctl start snapd.service snapd.socket
+    fi
 
+    . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes
+        snap change $(change_id "Transition ubuntu-core to core")||true
         sleep 1
     done
 

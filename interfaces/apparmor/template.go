@@ -121,6 +121,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
   /{,usr/}bin/gzip ixr,
@@ -143,6 +144,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/mktemp ixr,
   /{,usr/}bin/more ixr,
   /{,usr/}bin/mv ixr,
+  /{,usr/}bin/nice ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
@@ -257,6 +259,7 @@ var defaultTemplate = []byte(`
   @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
+  /etc/{,writable/}mailname r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
   owner @{PROC}/@{pid}/limits r,
@@ -276,6 +279,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/random/boot_id r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
@@ -340,12 +344,17 @@ var defaultTemplate = []byte(`
   /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
   unix peer=(label=snap.@{SNAP_NAME}.*),
+
+  # Allow apps from the same package to communicate with each other via DBus.
+  # Note: this does not grant access to the DBus sockets of well known buses
+  # (will still need to use an appropriate interface for that).
+  dbus (receive, send) peer=(label=snap.@{SNAP_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
@@ -426,4 +435,7 @@ var classicTemplate = []byte(`
 var classicJailmodeSnippet = []byte(`
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
+  # Read only access to the core snap to load libc from.
+  # This is related to LP: #1666897
+  @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 `)

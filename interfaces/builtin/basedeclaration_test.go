@@ -147,6 +147,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
+		"unity8":                  true,
 		"ubuntu-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
@@ -176,9 +177,10 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":     true,
-		"home":        true,
-		"lxd-support": true,
+		"classic-support": true,
+		"content":         true,
+		"home":            true,
+		"lxd-support":     true,
 	}
 
 	for _, iface := range all {
@@ -220,10 +222,57 @@ plugs:
 }
 
 func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
-	// content will also depend for now AutoConnect(plug, slot)
 	// random snaps cannot connect with content
+	// (Sanitize* will now also block this)
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 }
 
@@ -296,6 +345,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
+	cand := s.connectCand(c, "classic-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"classic-support\"")
+
+	plugsSlots := `
+plugs:
+  classic-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "classic", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -347,6 +414,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -370,15 +438,18 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"thumbnailer":             {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
+		"unity8":                  {"app"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"ubuntu-download-manager": {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
-		"docker": nil,
-		"lxd":    nil,
+		"classic-support": nil,
+		"docker":          nil,
+		"lxd":             nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -456,10 +527,12 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -499,12 +572,14 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"bluez":                   true,
+		"content":                 true,
 		"docker":                  true,
 		"fwupd":                   true,
 		"location-control":        true,
 		"location-observe":        true,
 		"lxd":                     true,
 		"mir":                     true,
+		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
@@ -572,11 +647,13 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,
 		"kernel-module-control": true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -593,4 +670,60 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 			}
 		}
 	}
+}
+
+func (s *baseDeclSuite) TestConnectionContent(c *C) {
+	// we let connect explicitly as long as content matches (or is absent on both sides)
+
+	// random (Sanitize* will now also block this)
+	cand := s.connectCand(c, "content", "", "")
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same content
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// different publisher, same content
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// same publisher, different content
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+slots:
+  stuff:
+    interface: content
+    content: mk1
+`, `
+name: plug-snap
+plugs:
+  stuff:
+    interface: content
+    content: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, NotNil)
 }

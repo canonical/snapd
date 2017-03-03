@@ -48,15 +48,7 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
-getsockopt
-setsockopt
-connect
-sendto
 shmctl
-getsockname
-getpeername
-sendmsg
-recvmsg
 `
 
 const pulseaudioPermanentSlotAppArmor = `
@@ -106,18 +98,11 @@ const pulseaudioPermanentSlotSecComp = `
 # The following are needed for UNIX sockets
 personality
 setpriority
-setsockopt
-getsockname
 bind
 listen
-sendto
-recvfrom
+accept
 accept4
 shmctl
-getsockname
-getpeername
-sendmsg
-recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups

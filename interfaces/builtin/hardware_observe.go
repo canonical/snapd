@@ -23,28 +23,36 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
-# from the system.  this is reserved because it allows reading potentially sensitive information.
-# Usage: reserved
+# from the system. This is reserved because it allows reading potentially
+# sensitive information.
 
-# used by lscpu
+# used by lscpu and 'lspci -A intel-conf1/intel-conf2'
 capability sys_rawio,
 
-# files in /sys pertaining to hardware
+# used by lspci
+capability sys_admin,
+/etc/modprobe.d/{,*} r,
+
+# files in /sys pertaining to hardware (eg, 'lspci -A linux-sysfs')
 /sys/{block,bus,class,devices,firmware}/{,**} r,
+
+# files in /proc/bus/pci (eg, 'lspci -A linux-proc')
+@{PROC}/bus/pci/{,**} r,
 
 # DMI tables
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
+
+# interrupts
+@{PROC}/interrupts r,
 
 # Needed for udevadm
 /run/udev/data/** r,
 
 # util-linux
 /{,usr/}bin/lscpu ixr,
-@{PROC}/bus/pci/devices r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic
@@ -53,6 +61,23 @@ capability sys_rawio,
 /dev/ r,
 /dev/bus/usb/{,**/} r,
 /etc/udev/udev.conf r,
+
+# lshw -quiet (note, lshw also tries to create /dev/fb-*, but fails gracefully)
+@{PROC}/devices r,
+@{PROC}/ide/{,**} r,
+@{PROC}/scsi/{,**} r,
+@{PROC}/device-tree/{,**} r,
+/sys/kernel/debug/usb/devices r,
+@{PROC}/sys/abi/{,*} r,
+`
+
+const hardwareObserveConnectedPlugSecComp = `
+# Description: This interface allows for getting hardware information
+# from the system. This is reserved because it allows reading potentially
+# sensitive information.
+
+# used by 'lspci -A intel-conf1/intel-conf2'
+iopl
 `
 
 // NewHardwareObserveInterface returns a new "hardware-observe" interface.
@@ -60,6 +85,7 @@ func NewHardwareObserveInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "hardware-observe",
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
+		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

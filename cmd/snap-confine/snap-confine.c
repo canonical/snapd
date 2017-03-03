@@ -120,7 +120,8 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *group_name = getenv("SNAP_NAME");
+			const char *snap_name = getenv("SNAP_NAME");
+			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
 			}
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
 			sc_lock_ns_mutex(group);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(security_tag);
+				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
 			sc_unlock_ns_mutex(group);
@@ -143,7 +144,12 @@ int main(int argc, char **argv)
 			debug
 			    ("resetting PATH to values in sync with core snap");
 			setenv("PATH",
-			       "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
+			       "/usr/local/sbin:"
+			       "/usr/local/bin:"
+			       "/usr/sbin:"
+			       "/usr/bin:"
+			       "/sbin:"
+			       "/bin:" "/usr/games:" "/usr/local/games", 1);
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);

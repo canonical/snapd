@@ -35,7 +35,7 @@ build_deb(){
 download_from_ppa(){
     local ppa_version="$1"
 
-    for pkg in snap-confine ubuntu-core-launcher snapd; do
+    for pkg in snapd; do
         file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
     done
@@ -59,13 +59,15 @@ if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
-       snap install --devmode --edge classic
-       classic "sudo apt update && apt install -y git golang-go build-essential"
-       classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
-       snap remove classic
+       snap install --edge test-snapd-snapbuild
+       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   systemctl disable --now snapd.refresh.timer
+   if [ -e /snap/core/current/meta/hooks/configure ]; then
+       systemctl disable --now snapd.refresh.timer
+       snap set core refresh.disabled=true
+   fi
    exit 0
 fi
 
@@ -100,7 +102,7 @@ if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
     quiet apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
 fi
 
-quiet apt-get purge -y snapd snap-confine
+quiet apt-get purge -y snapd
 # utilities
 # XXX: build-essential seems to be required. Otherwise package build
 # fails with unmet dependency on "build-essential:native"

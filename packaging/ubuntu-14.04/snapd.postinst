@@ -20,4 +20,12 @@ case "$1" in
             systemctl -f enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service snap.mount.service snapd.system-shutdown.service
             systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service snap.mount.service
         fi
+
+	case ":$PATH:" in
+	    *:"/snap/bin":*)
+		;;
+	    *)
+		echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
+		;;
+	esac
 esac

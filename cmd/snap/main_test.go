@@ -151,7 +151,7 @@ func mockVersion(v string) (restore func()) {
 	return func() { cmd.Version = old }
 }
 
-const TestAuthFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+const TestAuthFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
 const TestAuthFileContents = `{"id":123,"email":"hello@mail.com","macaroon":"MDAxM2xvY2F0aW9uIHNuYXBkCjAwMTJpZGVudGlmaWVyIDQzCjAwMmZzaWduYXR1cmUg5RfMua72uYop4t3cPOBmGUuaoRmoDH1HV62nMJq7eqAK"}`
 
 func (s *SnapSuite) TestErrorResult(c *C) {

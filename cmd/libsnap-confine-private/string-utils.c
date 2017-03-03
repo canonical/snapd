@@ -17,6 +17,7 @@
 
 #include "string-utils.h"
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -68,4 +69,95 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 		die("cannot format string: %s", str);
 
 	return n;
+}
+
+size_t sc_string_append(char *dst, size_t dst_size, const char *str)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append string: buffer is NULL");
+	}
+	if (str == NULL) {
+		die("cannot append string: string is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append string: dst is unterminated");
+	}
+
+	size_t max_str_len = dst_size - dst_len;
+	size_t str_len = strnlen(str, max_str_len);
+	if (str_len == max_str_len) {
+		die("cannot append string: str is too long or unterminated");
+	}
+	// Append the string
+	memcpy(dst + dst_len, str, str_len);
+	// Ensure we are terminated
+	dst[dst_len + str_len] = '\0';
+	// return the new size
+	return strlen(dst);
+}
+
+size_t sc_string_append_char(char *dst, size_t dst_size, char c)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append character: buffer is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append character: dst is unterminated");
+	}
+	size_t max_str_len = dst_size - dst_len;
+	if (max_str_len < 2) {
+		die("cannot append character: not enough space");
+	}
+	if (c == 0) {
+		die("cannot append character: cannot append string terminator");
+	}
+	// Append the character and terminate the string.
+	dst[dst_len + 0] = c;
+	dst[dst_len + 1] = '\0';
+	// Return the new size
+	return dst_len + 1;
+}
+
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append character pair: buffer is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append character pair: dst is unterminated");
+	}
+	size_t max_str_len = dst_size - dst_len;
+	if (max_str_len < 3) {
+		die("cannot append character pair: not enough space");
+	}
+	if (c1 == 0 || c2 == 0) {
+		die("cannot append character pair: cannot append string terminator");
+	}
+	// Append the two characters and terminate the string.
+	dst[dst_len + 0] = c1;
+	dst[dst_len + 1] = c2;
+	dst[dst_len + 2] = '\0';
+	// Return the new size
+	return dst_len + 2;
+}
+
+void sc_string_init(char *buf, size_t buf_size)
+{
+	errno = 0;
+	if (buf == NULL) {
+		die("cannot initialize string, buffer is NULL");
+	}
+	if (buf_size == 0) {
+		die("cannot initialize string, buffer is too small");
+	}
+	buf[0] = '\0';
 }

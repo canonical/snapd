@@ -2,9 +2,9 @@
 Description=Timer to automatically refresh installed snaps
 
 [Timer]
-# spread the requests gently
-# https://bugs.launchpad.net/snappy/+bug/1537793
-OnCalendar=23,05,11,17:00
+# do a weekly refresh using the time to ensure that we can still
+# fix any potential errors in the internal timer handling
+OnCalendar=weekly
 RandomizedDelaySec=6h
 AccuracySec=10min
 Persistent=true

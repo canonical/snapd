@@ -673,6 +673,30 @@ func (s *SnapOpSuite) TestTryClassic(c *check.C) {
 	s.runTryTest(c, &client.SnapOptions{Classic: true})
 }
 
+func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, `
+{
+  "type": "error",
+  "result": {
+    "message":"error from server",
+    "kind":"snap-not-a-snap"
+  },
+  "status-code": 400
+}
+`)
+
+	})
+
+	cmd := []string{"try", "/"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
+
+Try "snapcraft prime" in your project directory, then "snap try" again.`)
+}
+
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
@@ -862,4 +886,34 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestNoWait(c *check.C) {
+	s.srv.checker = func(r *http.Request) {}
+
+	cmds := [][]string{
+		{"remove", "--no-wait", "foo"},
+		{"remove", "--no-wait", "foo", "bar"},
+		{"install", "--no-wait", "foo"},
+		{"install", "--no-wait", "foo", "bar"},
+		{"revert", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo", "bar"},
+		{"enable", "--no-wait", "foo"},
+		{"disable", "--no-wait", "foo"},
+		{"try", "--no-wait", "."},
+	}
+
+	for _, cmd := range cmds {
+		s.RedirectClientToTestServer(s.srv.handle)
+		rest, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.IsNil, check.Commentf("%v", cmd))
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Matches, "(?sm)42\n")
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.srv.n, check.Equals, 1)
+		// reset
+		s.srv.n = 0
+		s.stdout.Reset()
+	}
 }
