@@ -1,7 +1,5 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +15,21 @@
  *
  */
 
-package builtin
+#ifndef SNAP_CONFINE_TEST_DATA_H
+#define SNAP_CONFINE_TEST_DATA_H
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+#include "mount-entry.h"
 
-var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
+extern const char *test_entry_str_1;
+extern const char *test_entry_str_2;
 
-// NewOpenvSwitchSupportInterface returns a new "openvswitch-support" interface.
-func NewOpenvSwitchSupportInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "openvswitch-support",
-		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
-		reservedForOS:            true,
-	}
-}
+extern const struct sc_mount_entry test_entry_1;
+extern const struct sc_mount_entry test_entry_2;
+
+extern const struct mntent test_mnt_1;
+extern const struct mntent test_mnt_2;
+
+void test_looks_like_test_entry_1(const struct sc_mount_entry *entry);
+void test_looks_like_test_entry_2(const struct sc_mount_entry *entry);
+
+#endif

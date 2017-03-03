@@ -7,7 +7,7 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
-    rmdir /var/lib/snapd/hostfs
+    if [ -d /var/lib/snapd/hostfs ]; then rmdir /var/lib/snapd/hostfs; fi
 execute: |
     test-snapd-tools.cmd true
     [ $(stat -c '%g' /var/lib/snapd/hostfs) -eq 0 ] 
