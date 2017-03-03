@@ -38,7 +38,7 @@ type AccountControlSuite struct {
 
 var _ = Suite(&AccountControlSuite{})
 
-const mockPlugSnapInfo = `name: other
+const accountCtlMockPlugSnapInfo = `name: other
 version: 1.0
 plugs:
  account-control:
@@ -66,7 +66,7 @@ func (s *AccountControlSuite) SetUpTest(c *C) {
 		},
 	}
 
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugSnap := snaptest.MockInfo(c, accountCtlMockPlugSnapInfo, nil)
 	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["account-control"]}
 }
 
