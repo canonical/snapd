@@ -36,8 +36,6 @@ const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 bind
 shutdown
-# For address changes
-socket AF_NETLINK - NETLINK_ROUTE
 `
 
 // NewNetworkInterface returns a new "network" interface.
