@@ -31,6 +31,9 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    http_proxy: "$(HOST: echo $http_proxy)"
+    https_proxy: "$(HOST: echo $https_proxy)"
+    no_proxy: "127.0.0.1"
 
 backends:
     linode:
