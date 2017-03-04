@@ -548,13 +548,10 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
-		switch err := Get(m.state, name, &snapst); err {
-		case state.ErrNoState:
+		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
 			// nothing to see here
 			continue
-		case nil:
-			// good
-		default:
+		} else if err != nil {
 			// bad
 			return err
 		}
