@@ -176,6 +176,42 @@ static void test_sc_compute_required_mount_changes__scenario4()
 	g_assert_null(change.entry);
 }
 
+// Scenario: desired A, B current B, C behaves correctly (B is untouched).
+static void test_sc_compute_required_mount_changes__scenario5()
+{
+	struct sc_mount_entry *current;
+	struct sc_mount_entry *desired;
+	struct sc_mount_change change;
+
+	sc_test_write_lines("desired.fstab", "A A A A 0 0", "B B B B 0 0",
+			    NULL);
+	sc_test_write_lines("current.fstab", "B B B B 0 0", "C C C C 0 0",
+			    NULL);
+
+	current = sc_load_mount_profile("current.fstab");
+	desired = sc_load_mount_profile("desired.fstab");
+	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
+			     current);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
+			     desired);
+
+	sc_compute_required_mount_changes(&desired, &current, &change);
+	g_assert_cmpint(change.action, ==, SC_ACTION_UNMOUNT);
+	g_assert_nonnull(change.entry);
+	g_assert_cmpstr(change.entry->entry.mnt_fsname, ==, "C");
+
+	sc_compute_required_mount_changes(&desired, &current, &change);
+	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change.entry);
+	g_assert_cmpstr(change.entry->entry.mnt_fsname, ==, "A");
+
+	sc_compute_required_mount_changes(&desired, &current, &change);
+	g_assert_null(desired);
+	g_assert_null(current);
+	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
+	g_assert_null(change.entry);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func
@@ -193,4 +229,7 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func
 	    ("/mount-entry-change/sc_compute_required_mount_changes/4",
 	     test_sc_compute_required_mount_changes__scenario4);
+	g_test_add_func
+	    ("/mount-entry-change/sc_compute_required_mount_changes/5",
+	     test_sc_compute_required_mount_changes__scenario5);
 }

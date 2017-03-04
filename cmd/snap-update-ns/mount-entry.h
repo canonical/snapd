@@ -30,6 +30,7 @@
 struct sc_mount_entry {
 	struct mntent entry;
 	struct sc_mount_entry *next;
+	unsigned flag;		// general-purpose flag, not compared
 };
 
 /**
