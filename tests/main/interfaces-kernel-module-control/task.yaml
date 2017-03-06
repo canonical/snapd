@@ -9,7 +9,7 @@ details: |
     usual, must be able to be reconnected.
 
     A snap declaring a plug on this interface must be able to list the modules
-    loaded, insert and remove a module. For the test we use the floppy module.
+    loaded, insert and remove a module. For the test we use the binfmt_misc module.
 
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
@@ -17,8 +17,8 @@ prepare: |
 
 restore: |
     rm -f list.error remove.error
-    if ! lsmod | MATCH floppy; then
-        insmod /lib/modules/$(uname -r)/kernel/drivers/block/floppy.ko
+    if lsmod | MATCH binfmt_misc; then
+        rmmod binfmt_misc
     fi
 
 execute: |
@@ -37,14 +37,14 @@ execute: |
     echo "Then the snap is able to list the existing modules"
     [ $(su -l -c "test-snapd-kernel-module-control-consumer.lsmod" test | wc -l) -gt 2 ]
 
-    echo "And the snap is able to remove a module"
-    lsmod | MATCH floppy
-    test-snapd-kernel-module-control-consumer.rmmod floppy
-    lsmod | MATCH -v floppy
-
     echo "And the snap is able to insert a module"
-    test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/drivers/block/floppy.ko
-    lsmod | MATCH floppy
+    lsmod | MATCH -v binfmt_misc
+    test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
+    lsmod | MATCH binfmt_misc
+
+    echo "And the snap is able to remove a module"
+    test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
+    lsmod | MATCH -v binfmt_misc
 
     echo "==================================="
 
@@ -59,18 +59,19 @@ execute: |
     fi
     cat list.error | MATCH "Permission denied"
 
+    echo "And the snap is not able to insert a module"
+    if test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko; then
+        echo "Expected permission error inserting module with disconnected plug"
+        exit 1
+    fi
+
     echo "And the snap is not able to remove a module"
-    if test-snapd-kernel-module-control-consumer.rmmod floppy 2>${PWD}/remove.error; then
+    # first we need to insert the module
+    lsmod | MATCH -v binfmt_misc
+    insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
+    lsmod | MATCH binfmt_misc
+    if test-snapd-kernel-module-control-consumer.rmmod binfmt_misc 2>${PWD}/remove.error; then
         echo "Expected permission error removing module with disconnected plug"
         exit 1
     fi
     cat remove.error | MATCH "Permission denied"
-
-    echo "And the snap is not able to insert a module"
-    # first we need to remove it
-    rmmod floppy
-    lsmod | MATCH -v floppy
-    if test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/drivers/block/floppy.ko; then
-        echo "Expected permission error inserting module with disconnected plug"
-        exit 1
-    fi
