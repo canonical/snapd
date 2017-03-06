@@ -19,8 +19,42 @@
 
 package builtin
 
+import (
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/testutil"
+	"strings"
+)
+
 func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
 	return iface.getName(attribs)
 }
 
 var ResolveSpecialVariable = resolveSpecialVariable
+
+type SecCompSpecChecker struct {
+	c        *C
+	snippets map[string]string
+}
+
+func NewSecCompSpecChecker(c *C, spec *seccomp.Specification, expectedLen int) *SecCompSpecChecker {
+	origSnippets := spec.Snippets()
+	c.Assert(len(origSnippets), Equals, expectedLen)
+
+	// flatten the snippets per-security tag for easy testing
+	snippets := make(map[string]string)
+	for k, v := range origSnippets {
+		snippets[k] = strings.Join(v, "\n")
+	}
+	return &SecCompSpecChecker{
+		c:        c,
+		snippets: snippets,
+	}
+}
+
+func (s *SecCompSpecChecker) Contains(securityTag string, val string) *SecCompSpecChecker {
+	s.c.Assert(s.snippets[securityTag], NotNil)
+	s.c.Check(s.snippets[securityTag], testutil.Contains, val)
+	return s
+}
