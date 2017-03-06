@@ -44,6 +44,7 @@ capability sys_tty_config,
 network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
+/run/udev/data/+platform:* r,
 `
 
 const mirPermanentSlotSecComp = `
