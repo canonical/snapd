@@ -127,6 +127,7 @@ override_dh_install:
 	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.mount debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	# and now the normal install rules
