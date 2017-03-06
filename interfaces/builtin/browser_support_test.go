@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -49,6 +50,12 @@ var _ = Suite(&BrowserSupportInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "browser-support",
 			Interface: "browser-support",
+			Apps: map[string]*snap.AppInfo{
+				"app2": {
+					Snap: &snap.Info{
+						SuggestedName: "other",
+					},
+					Name: "app2"}},
 		},
 	},
 })
@@ -105,10 +112,15 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
 	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	secCompSnippet := snippets["snap.other.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
@@ -118,6 +130,11 @@ plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: false
+apps:
+ app2:
+  command: foo
+  plugs:
+   - browser-support-plug
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -129,10 +146,15 @@ plugs:
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
 	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
@@ -142,6 +164,11 @@ plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: true
+apps:
+ app2:
+  command: foo
+  plugs:
+   - browser-support-plug
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
@@ -152,10 +179,15 @@ plugs:
 	c.Assert(string(snippet), testutil.Contains, `ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 	c.Assert(string(snippet), Not(testutil.Contains), `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), testutil.Contains, `chroot`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
+	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(secCompSnippet, testutil.Contains, `chroot`)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
@@ -164,12 +196,13 @@ func (s *BrowserSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor and
-	// seccomp
+	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	// connected plugs have a non-nil security snippet for apparmor
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }

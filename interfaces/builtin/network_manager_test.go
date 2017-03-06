@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -42,6 +43,12 @@ var _ = Suite(&NetworkManagerInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "network-manager"},
 			Name:      "network-manager",
 			Interface: "network-manager",
+			Apps: map[string]*snap.AppInfo{
+				"nm": {
+					Snap: &snap.Info{
+						SuggestedName: "network-manager",
+					},
+					Name: "nm"}},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -149,7 +156,14 @@ func (s *NetworkManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+}
+
+func (s *NetworkManagerInterfaceSuite) TestSecCompPermanentSlot(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.network-manager.nm"]), Equals, 1)
+	c.Check(string(snippets["snap.network-manager.nm"][0]), testutil.Contains, "listen\n")
 }
