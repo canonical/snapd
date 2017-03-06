@@ -38,10 +38,8 @@ type SecCompSpecChecker struct {
 	snippets map[string]string
 }
 
-func NewSecCompSpecChecker(c *C, spec *seccomp.Specification, expectedLen int) *SecCompSpecChecker {
+func NewSecCompSpecChecker(c *C, spec *seccomp.Specification) *SecCompSpecChecker {
 	origSnippets := spec.Snippets()
-	c.Assert(len(origSnippets), Equals, expectedLen)
-
 	// flatten the snippets per-security tag for easy testing
 	snippets := make(map[string]string)
 	for k, v := range origSnippets {
@@ -51,6 +49,11 @@ func NewSecCompSpecChecker(c *C, spec *seccomp.Specification, expectedLen int) *
 		c:        c,
 		snippets: snippets,
 	}
+}
+
+func (s *SecCompSpecChecker) HasLen(expectedLen int) *SecCompSpecChecker {
+	s.c.Assert(len(s.snippets), Equals, expectedLen)
+	return s
 }
 
 func (s *SecCompSpecChecker) Contains(securityTag string, val string) *SecCompSpecChecker {
