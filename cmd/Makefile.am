@@ -98,12 +98,12 @@ snap-seccomp/snap-seccomp: snap-seccomp/*.go
 	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
 ##
-## libsnap-confine-private.a
+## libsnap-confine-private.la
 ##
 
-noinst_LIBRARIES += libsnap-confine-private.a
+noinst_LTLIBRARIES = libsnap-confine-private.la
 
-libsnap_confine_private_a_SOURCES = \
+libsnap_confine_private_la_SOURCES = \
 	libsnap-confine-private/apparmor-support.c \
 	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
@@ -141,11 +141,11 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
-libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
+libsnap_confine_private_la_CFLAGS = $(CHECK_CFLAGS)
 
-noinst_LIBRARIES += libsnap-confine-private-debug.a
-libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
-libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+noinst_LTLIBRARIES += libsnap-confine-private-debug.la
+libsnap_confine_private_debug_la_SOURCES = $(libsnap_confine_private_la_SOURCES)
+libsnap_confine_private_debug_la_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -196,7 +196,7 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
-decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
+decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.la
 decode_mount_opts_decode_mount_opts_STATIC =
 
 if STATIC_LIBCAP
@@ -252,7 +252,7 @@ snap_confine_snap_confine_SOURCES = \
 
 snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
-snap_confine_snap_confine_LDADD = libsnap-confine-private.a
+snap_confine_snap_confine_LDADD = libsnap-confine-private.la
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
 # _STATIC is where we collect statically linked in libraries
@@ -308,7 +308,7 @@ noinst_PROGRAMS += snap-confine/snap-confine-debug
 snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
 snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(snap_confine_snap_confine_extra_libs)
+snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.la $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
@@ -443,7 +443,7 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-discard-ns/snap-discard-ns.c
 snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
-snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
+snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.la
 snap_discard_ns_snap_discard_ns_STATIC =
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -463,7 +463,7 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.c \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
-system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
+system_shutdown_system_shutdown_LDADD = libsnap-confine-private.la
 system_shutdown_system_shutdown_CFLAGS = $(CHECK_CFLAGS) $(filter-out -fPIE -pie,$(CFLAGS)) -static
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
@@ -473,7 +473,7 @@ system_shutdown_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
-system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
+system_shutdown_unit_tests_LDADD = libsnap-confine-private.la
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
@@ -487,7 +487,7 @@ libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
 snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
-snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.la
 
 ##
 ## snapd-generator
@@ -497,7 +497,7 @@ systemdsystemgeneratordir = $(SYSTEMD_SYSTEM_GENERATOR_DIR)
 systemdsystemgenerator_PROGRAMS = snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
-snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
+snapd_generator_snapd_generator_LDADD = libsnap-confine-private.la
 
 ##
 ## snapd-env-generator
@@ -507,7 +507,7 @@ systemdsystemenvgeneratordir=$(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
 systemdsystemenvgenerator_PROGRAMS = snapd-env-generator/snapd-env-generator
 
 snapd_env_generator_snapd_env_generator_SOURCES = snapd-env-generator/main.c
-snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.a
+snapd_env_generator_snapd_env_generator_LDADD = libsnap-confine-private.la
 EXTRA_DIST += snapd-env-generator/snapd-env-generator.rst
 
 if HAVE_RST2MAN
