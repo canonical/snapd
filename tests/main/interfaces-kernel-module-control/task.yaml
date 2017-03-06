@@ -17,9 +17,12 @@ prepare: |
 
 restore: |
     rm -f list.error remove.error
-    if lsmod | MATCH binfmt_misc; then
+    if lsmod | MATCH binfmt_misc && ! -f module_present; then
         rmmod binfmt_misc
+    elif [ -f module_present ]; then
+        insmod binfmt_misc
     fi
+    rm -f module_present
 
 execute: |
     CONNECTED_PATTERN=":kernel-module-control +test-snapd-kernel-module-control-consumer"
@@ -38,9 +41,12 @@ execute: |
     [ $(su -l -c "test-snapd-kernel-module-control-consumer.lsmod" test | wc -l) -gt 2 ]
 
     echo "And the snap is able to insert a module"
+    if lsmod | MATCH binfmt_misc; then
+        touch module_present
+        rmmod binfmt_misc
+    fi
     lsmod | MATCH -v binfmt_misc
     test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
-    lsmod | MATCH binfmt_misc
 
     echo "And the snap is able to remove a module"
     test-snapd-kernel-module-control-consumer.rmmod binfmt_misc
