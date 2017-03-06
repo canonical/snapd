@@ -32,18 +32,10 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
-func MockVersionSignature(path string) (restorer func()) {
-	old := versionSignaturePath
-	versionSignaturePath = path
+func MockApparmorFeaturesSysPath(path string) (restorer func()) {
+	old := apparmorFeaturesSysPath
+	apparmorFeaturesSysPath = path
 	return func() {
-		versionSignaturePath = old
-	}
-}
-
-func MockApparmorSysPath(path string) (restorer func()) {
-	old := apparmorSysPath
-	apparmorSysPath = path
-	return func() {
-		apparmorSysPath = old
+		apparmorFeaturesSysPath = old
 	}
 }

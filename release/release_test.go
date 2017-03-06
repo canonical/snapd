@@ -21,7 +21,6 @@ package release_test
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -121,38 +120,8 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
-	versionSignaturePath := filepath.Join(c.MkDir(), "version_signature")
-	restorer := release.MockVersionSignature(versionSignaturePath)
-	defer restorer()
-	apparmorPath := filepath.Join(c.MkDir(), "apparmor")
-	restorer = release.MockApparmorSysPath(apparmorPath)
-	defer restorer()
-
-	for _, t := range []struct {
-		sig string
-		aa  bool
-
-		isDevmode bool
-	}{
-		{sig: "Ubuntu 4.8.0-39.42-generic 4.8.17", aa: true, isDevmode: false},
-		{sig: "Ubuntu 4.8.0-39.42-generic 4.8.17", aa: false, isDevmode: true},
-		{sig: "xxx whatnot 4.8.17", aa: true, isDevmode: true},
-		{sig: "xxx whatnot 4.8.17", aa: false, isDevmode: true},
-		{sig: "", aa: true, isDevmode: true},
-		{sig: "", aa: false, isDevmode: true},
-	} {
-		if t.sig != "" {
-			err := ioutil.WriteFile(versionSignaturePath, []byte(t.sig), 0644)
-			c.Assert(err, IsNil)
-		}
-		if t.aa {
-			err := os.Mkdir(apparmorPath, 0755)
-			c.Assert(err, IsNil)
-		} else {
-			err := os.RemoveAll(apparmorPath)
-			c.Assert(err, IsNil)
-
-		}
-		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, t.isDevmode, Commentf("wrong result for %#v", t))
+	for _, devmode := range []bool{true, false} {
+		release.MockForcedDevmode(devmode)
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }

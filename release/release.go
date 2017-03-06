@@ -38,29 +38,20 @@ type OS struct {
 }
 
 var (
-	versionSignaturePath = "/proc/version_signature"
-	apparmorSysPath      = "/sys/kernel/security/apparmor/"
+	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
+	requiredApparmorFeatures = []string{"dbus", "mount", "namespaces", "networking", "ptrace", "signal"}
 )
 
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	// Check if kernel signature contains "Ubuntu", currently only
-	// the Ubuntu kernels have all the required apparmor patches
-	// (but those are getting upstreamed so at some point we need
-	// to make this check smater)
-	versionSig, err := ioutil.ReadFile(versionSignaturePath)
-	if err != nil {
-		return true
-	}
-	if !strings.HasPrefix(string(versionSig), "Ubuntu ") {
-		return true
-	}
-
-	// Also ensure appamor is enabled (cannot use osutil.FileExists() here
-	// because of cyclic imports)
-	if _, err := os.Stat(apparmorSysPath); err != nil {
-		return true
+	for _, req := range requiredApparmorFeatures {
+		// Also ensure appamor is enabled (cannot use
+		// osutil.FileExists() here because of cyclic imports)
+		p := filepath.Join(apparmorFeaturesSysPath, req)
+		if _, err := os.Stat(p); err != nil {
+			return true
+		}
 	}
 
 	return false
@@ -151,31 +142,26 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	oldVersionSignaturePath := versionSignaturePath
-	oldApparmorSysPath := apparmorSysPath
+	oldApparmorFeaturesSysPath := apparmorFeaturesSysPath
 
 	temp, err := ioutil.TempDir("", "mock-forced-devmode")
 	if err != nil {
 		panic(err)
 	}
-	fakeVersionSignaturePath := filepath.Join(temp, "version_signature")
-	fakeApparmorSysPath := filepath.Join(temp, "apparmor")
+	fakeApparmorFeaturesSysPath := filepath.Join(temp, "apparmor")
 	if !isDevmode {
-		if err := ioutil.WriteFile(fakeVersionSignaturePath, []byte("Ubuntu 4.8.0-39.42-generic 4.8.17"), 0644); err != nil {
-			panic(err)
-		}
-		if err := os.MkdirAll(fakeApparmorSysPath, 0755); err != nil {
-			panic(err)
+		for _, req := range requiredApparmorFeatures {
+			if err := os.MkdirAll(filepath.Join(fakeApparmorFeaturesSysPath, req), 0755); err != nil {
+				panic(err)
+			}
 		}
 	}
-	versionSignaturePath = fakeVersionSignaturePath
-	apparmorSysPath = fakeApparmorSysPath
+	apparmorFeaturesSysPath = fakeApparmorFeaturesSysPath
 
 	return func() {
 		if err := os.RemoveAll(temp); err != nil {
 			panic(err)
 		}
-		versionSignaturePath = oldVersionSignaturePath
-		apparmorSysPath = oldApparmorSysPath
+		apparmorFeaturesSysPath = oldApparmorFeaturesSysPath
 	}
 }
