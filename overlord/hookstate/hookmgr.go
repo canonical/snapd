@@ -31,9 +31,11 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -169,6 +171,14 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	info, err := snapst.CurrentInfo()
 	if err != nil {
 		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+	}
+
+	// FIXME: gross hack, do not run configure hook on classic
+	// (LP: #1668738) for now until we understand why it is
+	// failing for some people
+	if release.OnClassic && hooksup.Snap == "core" && hooksup.Optional {
+		logger.Noticef("skipping configure hook for core on classic")
+		return nil
 	}
 
 	hookExists := info.Hooks[hooksup.Hook] != nil

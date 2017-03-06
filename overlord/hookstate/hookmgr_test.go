@@ -31,24 +31,13 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 func TestHookManager(t *testing.T) { TestingT(t) }
-
-type hookManagerSuite struct {
-	state       *state.State
-	manager     *hookstate.HookManager
-	context     *hookstate.Context
-	mockHandler *hooktest.MockHandler
-	task        *state.Task
-	change      *state.Change
-	command     *testutil.MockCmd
-}
-
-var _ = Suite(&hookManagerSuite{})
 
 var snapYaml = `
 name: test-snap
@@ -59,38 +48,24 @@ hooks:
 `
 var snapContents = ""
 
-func (s *hookManagerSuite) SetUpTest(c *C) {
+type baseHookManagerSuite struct {
+	state       *state.State
+	manager     *hookstate.HookManager
+	context     *hookstate.Context
+	mockHandler *hooktest.MockHandler
+	task        *state.Task
+	change      *state.Change
+	command     *testutil.MockCmd
+
+	hookOptional bool
+}
+
+func (s *baseHookManagerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
 	manager, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
-
-	hooksup := &hookstate.HookSetup{
-		Snap:     "test-snap",
-		Hook:     "configure",
-		Revision: snap.R(1),
-	}
-
-	initialContext := map[string]interface{}{
-		"test-key": "test-value",
-	}
-
-	s.state.Lock()
-	s.task = hookstate.HookTask(s.state, "test summary", hooksup, initialContext)
-	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
-
-	s.change = s.state.NewChange("kind", "summary")
-	s.change.AddTask(s.task)
-
-	sideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml, snapContents, sideInfo)
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(1),
-	})
-	s.state.Unlock()
 
 	s.command = testutil.MockCommand(c, "snap", "")
 
@@ -102,10 +77,50 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	})
 }
 
-func (s *hookManagerSuite) TearDownTest(c *C) {
+func (s *baseHookManagerSuite) TearDownTest(c *C) {
 	s.manager.Stop()
 	dirs.SetRootDir("")
 }
+
+func (s *baseHookManagerSuite) insertFakeHookChange(c *C, snapName string) {
+	hooksup := &hookstate.HookSetup{
+		Snap:     snapName,
+		Hook:     "configure",
+		Revision: snap.R(1),
+		Optional: s.hookOptional,
+	}
+
+	initialContext := map[string]interface{}{
+		"test-key": "test-value",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.task = hookstate.HookTask(s.state, "test summary", hooksup, initialContext)
+	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
+
+	s.change = s.state.NewChange("kind", "summary")
+	s.change.AddTask(s.task)
+
+	sideInfo := &snap.SideInfo{RealName: snapName, SnapID: "some-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapYaml, snapContents, sideInfo)
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  snap.R(1),
+	})
+}
+
+type hookManagerSuite struct {
+	baseHookManagerSuite
+}
+
+func (s *hookManagerSuite) SetUpTest(c *C) {
+	s.baseHookManagerSuite.SetUpTest(c)
+	s.insertFakeHookChange(c, "test-snap")
+}
+
+var _ = Suite(&hookManagerSuite{})
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.manager.Ensure()
@@ -430,4 +445,46 @@ func checkTaskLogContains(c *C, task *state.Task, pattern string) {
 	}
 
 	c.Check(found, Equals, true, Commentf("Expected to find regex %q in task log: %v", pattern, task.Log()))
+}
+
+type coreHookManagerSuite struct {
+	baseHookManagerSuite
+}
+
+func (s *coreHookManagerSuite) SetUpTest(c *C) {
+	s.hookOptional = true
+
+	s.baseHookManagerSuite.SetUpTest(c)
+	s.insertFakeHookChange(c, "core")
+}
+
+var _ = Suite(&coreHookManagerSuite{})
+
+func (s *coreHookManagerSuite) TestHookTaskConfigureNotRunOnClassicForCore(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), IsNil)
+}
+
+func (s *coreHookManagerSuite) TestHookTaskConfigureRunOnAllSnaps(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(s.context, NotNil)
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+		"snap", "run", "--hook", "configure", "-r", "1", "core",
+	}})
 }
