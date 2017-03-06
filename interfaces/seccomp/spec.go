@@ -19,7 +19,12 @@
 
 package seccomp
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"bytes"
+	"sort"
+
+	"github.com/snapcore/snapd/interfaces"
+)
 
 // Specification keeps all the seccomp snippets.
 type Specification struct {
@@ -54,6 +59,28 @@ func (spec *Specification) Snippets() map[string][]string {
 		result[k] = vCopy
 	}
 	return result
+}
+
+// SnippetForTag returns a combined snippet for given security tag with individual snippets
+// joined with newline character. Empty string is returned for non-existing security tag.
+func (spec *Specification) SnippetForTag(tag string) string {
+	var buffer bytes.Buffer
+	sort.Strings(spec.snippets[tag])
+	for _, snippet := range spec.snippets[tag] {
+		buffer.WriteString(snippet)
+		buffer.WriteRune('\n')
+	}
+	return buffer.String()
+}
+
+// SecurityTags returns a list of security tags which have a snippet.
+func (spec *Specification) SecurityTags() []string {
+	var tags []string
+	for t, _ := range spec.snippets {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 // Implementation of methods required by interfaces.Specification
