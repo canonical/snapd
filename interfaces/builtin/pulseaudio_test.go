@@ -39,7 +39,7 @@ var _ = Suite(&PulseAudioInterfaceSuite{
 	iface: &builtin.PulseAudioInterface{},
 })
 
-const paMockPlugSnapInfoYaml = `name: other
+const pulseaudioMockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  pulseaudio:
@@ -51,7 +51,7 @@ apps:
    - pulseaudio
 `
 
-const paMockSlotSnapInfoYaml = `name: pulseaudio
+const pulseaudioMockSlotSnapInfoYaml = `name: pulseaudio
 version: 1.0
 slots:
  pulseaudio:
@@ -63,7 +63,7 @@ apps:
    - pulseaudio
 `
 
-const paMockSlotOSSnapInfoYaml = `name: pulseaudio
+const pulseaudioMockSlotOSSnapInfoYaml = `name: pulseaudio
 version: 1.0
 slots:
  pulseaudio:
@@ -71,8 +71,8 @@ slots:
 `
 
 func (s *PulseAudioInterfaceSuite) SetUpTest(c *C) {
-	slotSnap := snaptest.MockInfo(c, paMockSlotOSSnapInfoYaml, nil)
-	plugSnap := snaptest.MockInfo(c, paMockPlugSnapInfoYaml, nil)
+	slotSnap := snaptest.MockInfo(c, pulseaudioMockSlotOSSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, pulseaudioMockPlugSnapInfoYaml, nil)
 	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["pulseaudio"]}
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["pulseaudio"]}
 }
@@ -104,7 +104,7 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
-	slotSnap := snaptest.MockInfo(c, paMockSlotSnapInfoYaml, nil)
+	slotSnap := snaptest.MockInfo(c, pulseaudioMockSlotSnapInfoYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["pulseaudio"]}
 
 	seccompSpec := &seccomp.Specification{}
