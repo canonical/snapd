@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const lxdConnectedPlugAppArmor = `
@@ -50,11 +51,8 @@ func (iface *LxdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 }
 
 func (iface *LxdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		return []byte(lxdConnectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(lxdConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -65,6 +63,10 @@ func (iface *LxdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 
 func (iface *LxdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *LxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(lxdConnectedPlugSecComp)
 }
 
 func (iface *LxdInterface) SanitizePlug(plug *interfaces.Plug) error {

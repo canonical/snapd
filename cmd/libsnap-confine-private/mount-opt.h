@@ -60,4 +60,16 @@ const char *sc_mount_cmd(char *buf, size_t buf_size, const char *source, const c
 const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 			  int flags);
 
+/**
+ * A thin wrapper around mount(2) with logging and error checks.
+ **/
+void sc_do_mount(const char *source, const char *target,
+		 const char *fs_type, unsigned long mountflags,
+		 const void *data);
+
+/**
+ * A thin wrapper around umount(2) with logging and error checks.
+ **/
+void sc_do_umount(const char *target, int flags);
+
 #endif				// SNAP_CONFINE_MOUNT_OPT_H

@@ -526,6 +526,46 @@ func (m *SnapManager) ensureRefreshes() error {
 	return nil
 }
 
+// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// in snapstate for forced devmode distros.
+func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
+	if !release.ReleaseInfo.ForceDevMode() {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// int because we might want to come back and do a second pass at cleanup
+	var fixed int
+	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if fixed > 0 {
+		return nil
+	}
+
+	for _, name := range []string{"core", "ubuntu-core"} {
+		var snapst SnapState
+		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
+			// nothing to see here
+			continue
+		} else if err != nil {
+			// bad
+			return err
+		}
+		if info := snapst.CurrentSideInfo(); info == nil || info.SnapID == "" {
+			continue
+		}
+		snapst.DevMode = false
+		Set(m.state, name, &snapst)
+	}
+	m.state.Set("fix-forced-devmode", 1)
+
+	return nil
+}
+
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
@@ -586,17 +626,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
-	err1 := m.ensureUbuntuCoreTransition()
-
-	err2 := m.ensureRefreshes()
+	errs := []error{
+		m.ensureForceDevmodeDropsDevmodeFromState(),
+		m.ensureUbuntuCoreTransition(),
+		m.ensureRefreshes(),
+	}
 
 	m.runner.Ensure()
 
 	//FIXME: use firstErr helper
-	if err1 != nil {
-		return err1
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
 	}
-	return err2
+
+	return nil
 }
 
 // Wait implements StateManager.Wait.
@@ -690,13 +735,28 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if osutil.GetenvBool("SNAPPY_TESTING") {
 		return nil
 	}
-	if snapsup.SideInfo.RealName == "" {
+	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
 
 	var logMsg []string
-	for _, t := range t.Change().Tasks() {
-		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
+	var snapSetup string
+	dupSig := []string{"snap-install:"}
+	chg := t.Change()
+	logMsg = append(logMsg, fmt.Sprintf("change %q: %q", chg.Kind(), chg.Summary()))
+	for _, t := range chg.Tasks() {
+		// TODO: report only tasks in intersecting lanes?
+		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
+		logMsg = append(logMsg, tintro)
+		dupSig = append(dupSig, tintro)
+		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
+			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
+			if snapSetup1 != snapSetup {
+				snapSetup = snapSetup1
+				logMsg = append(logMsg, snapSetup)
+				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
+			}
+		}
 		for _, l := range t.Log() {
 			// cut of the rfc339 timestamp to ensure duplicate
 			// detection works in daisy
@@ -705,7 +765,9 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 			// not tStampLen+1 because the indent is nice
-			logMsg = append(logMsg, l[tStampLen:])
+			entry := l[tStampLen:]
+			logMsg = append(logMsg, entry)
+			dupSig = append(dupSig, entry)
 		}
 	}
 
@@ -714,13 +776,16 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	extra := map[string]string{}
+	extra := map[string]string{
+		"Channel":  snapsup.Channel,
+		"Revision": snapsup.SideInfo.Revision.String(),
+	}
 	if ubuntuCoreTransitionCount > 0 {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
 	st.Unlock()
-	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"), extra)
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
