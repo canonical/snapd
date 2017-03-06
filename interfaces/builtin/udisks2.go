@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const udisks2PermanentSlotAppArmor = `
@@ -358,12 +359,14 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		return []byte(udisks2PermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
 		return []byte(udisks2PermanentSlotDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2PermanentSlotSecComp), nil
 	case interfaces.SecurityUDev:
 		return []byte(udisks2PermanentSlotUDev), nil
 	}
 	return nil, nil
+}
+
+func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(udisks2PermanentSlotSecComp)
 }
 
 func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

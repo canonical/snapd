@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -123,16 +124,58 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+}
+
+func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	slot := &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "fwupd"},
+			Name:      "fwupd",
+			Interface: "fwupd",
+			Apps: map[string]*snap.AppInfo{
+				"app": {
+					Snap: &snap.Info{
+						SuggestedName: "fwupd",
+					},
+					Name: "app"}},
+		},
+	}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.fwupd.app"]), Equals, 1)
+	c.Check(string(snippets["snap.fwupd.app"][0]), testutil.Contains, "bind\n")
+}
+
+func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+	plug := &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
+			Name:      "fwupdmgr",
+			Interface: "fwupd",
+			Apps: map[string]*snap.AppInfo{
+				"app": {
+					Snap: &snap.Info{
+						SuggestedName: "uefi-fw-tools",
+					},
+					Name: "app"}},
+		},
+	}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.uefi-fw-tools.app"]), Equals, 1)
+	c.Check(string(snippets["snap.uefi-fw-tools.app"][0]), testutil.Contains, "bind\n")
 }
