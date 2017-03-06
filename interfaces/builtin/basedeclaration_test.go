@@ -128,11 +128,11 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":           true,
-		"core-support":      true,
-		"home":              true,
-		"lxd-support":       true,
-		"snapd-control":     true,
+		"content":       true,
+		"core-support":  true,
+		"home":          true,
+		"lxd-support":   true,
+		"snapd-control": true,
 	}
 
 	// these simply auto-connect, anything else doesn't
