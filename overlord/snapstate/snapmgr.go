@@ -21,7 +21,6 @@
 package snapstate
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -547,36 +546,21 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 		return nil
 	}
 
-	var snaps map[string]*json.RawMessage
-	if err := m.state.Get("snaps", &snaps); err != nil {
-		if err == state.ErrNoState {
-			// no snaps -> no problem
-			goto done
-		}
-		return err
-	}
-
 	for _, name := range []string{"core", "ubuntu-core"} {
-		var snapst *SnapState
-		if snaps[name] == nil {
+		var snapst SnapState
+		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
+			// nothing to see here
 			continue
-		}
-		if err := json.Unmarshal([]byte(*snaps[name]), &snapst); err != nil {
+		} else if err != nil {
+			// bad
 			return err
 		}
 		if info := snapst.CurrentSideInfo(); info == nil || info.SnapID == "" {
 			continue
 		}
 		snapst.DevMode = false
-		data, err := json.Marshal(snapst)
-		if err != nil {
-			return err
-		}
-		raw := json.RawMessage(data)
-		snaps[name] = &raw
+		Set(m.state, name, &snapst)
 	}
-	m.state.Set("snaps", snaps)
-done:
 	m.state.Set("fix-forced-devmode", 1)
 
 	return nil
