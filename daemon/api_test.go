@@ -5032,6 +5032,10 @@ type postDebugSuite struct {
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
