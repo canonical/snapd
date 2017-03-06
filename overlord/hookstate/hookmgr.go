@@ -176,7 +176,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	// FIXME: gross hack, do not run configure hook on classic
 	// (LP: #1668738) for now until we understand why it is
 	// failing for some people
-	if release.OnClassic && hooksup.Snap == "core" && hooksup.Optional {
+	if release.OnClassic && hooksup.Snap == "core" && hooksup.Hook == "configure" && hooksup.Optional {
 		logger.Noticef("skipping configure hook for core on classic")
 		return nil
 	}
