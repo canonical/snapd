@@ -180,18 +180,18 @@ func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 const unity8mockSlotInfoYaml = `name: cal
 version: 1.0
 slots:
- cal:
+ unity8-calendar:
   interface: unity8-calendar
 apps:
  app:
   command: foo
   slots:
-   - cal
+   - unity8-calendar
 `
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	slotSnap := snaptest.MockInfo(c, unity8mockSlotInfoYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["cal"]}
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-calendar"]}
 
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)

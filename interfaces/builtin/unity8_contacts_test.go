@@ -180,18 +180,18 @@ func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 const unity8contactsMockSlotInfoYaml = `name: contacts
 version: 1.0
 slots:
- ctc:
+ unity8-contacts:
   interface: unity8-contacts
 apps:
  app:
   command: foo
   slots:
-   - ctc
+   - unity8-contacts
 `
 
 func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	slotSnap := snaptest.MockInfo(c, unity8contactsMockSlotInfoYaml, nil)
-	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["ctc"]}
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-contacts"]}
 
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)
