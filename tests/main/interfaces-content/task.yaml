@@ -10,14 +10,14 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
-    snap install --edge test-snapd-content-slot
+    snap install --beta test-snapd-content-slot
 
     echo "And a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug
+    snap install --beta test-snapd-content-plug
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
-    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot:shared-content-slot +-.*?- +test-snapd-content-plug:shared-content-plug"
+    CONNECTED_PATTERN="test-snapd-content-slot:shared-content +test-snapd-content-plug"
+    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot:shared-content +-.*?- +test-snapd-content-plug"
 
     echo "Then the snap is listed as connected"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
@@ -31,14 +31,14 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+    snap disconnect test-snapd-content-plug:shared-content test-snapd-content-slot:shared-content
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the fstab files are removed"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
 
     echo "When the plug is reconnected"
-    snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+    snap connect test-snapd-content-plug:shared-content test-snapd-content-slot:shared-content
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the fstab files are recreated"

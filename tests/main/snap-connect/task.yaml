@@ -36,11 +36,11 @@ execute: |
     # NOTE: Those only work when installed from the store as otherwise we don't
     # have snap declaration assertion and cannot check if a given connection
     # should be allowed.
-    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug'
+    CONTENT_CONNECTED_PATTERN='test-snapd-content-slot +test-snapd-content-plug'
 
     echo "The plug side auto-connects when content is installed"
-    snap install --edge test-snapd-content-slot
-    snap install --edge test-snapd-content-plug
+    snap install --beta test-snapd-content-slot
+    snap install --beta test-snapd-content-plug
 
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
 
