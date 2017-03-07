@@ -11,7 +11,7 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    mounts=$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
+    mounts=$(systemctl list-unit-files -l | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
     services=$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
 
     for unit in $mounts; do
