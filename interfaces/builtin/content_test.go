@@ -57,7 +57,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizeSlotNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
@@ -134,7 +134,7 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizePlugNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 plugs:
