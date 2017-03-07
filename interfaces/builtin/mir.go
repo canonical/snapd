@@ -37,6 +37,9 @@ capability sys_tty_config,
 /{dev,run}/shm/\#* rw,
 /run/mir_socket rw,
 
+# Needed for mode setting via drmSetMaster() and drmDropMaster()
+capability sys_admin,
+
 # NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
 
