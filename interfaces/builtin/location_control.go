@@ -68,6 +68,27 @@ dbus (receive)
     member="AddProvider"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+dbus (send)
+    bus=system
+    path=/providers/{,/**}
+    interface=com.ubuntu.location.Service.Provider
+    member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/providers/{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member="{Get,Set}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # Allow clients to query/modify service properties
 dbus (receive)
     bus=system
@@ -96,6 +117,27 @@ dbus (send)
     path=/com/ubuntu/location/Service
     interface=com.ubuntu.location.Service
     member="AddProvider"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,/**}
+    interface=com.ubuntu.location.Service.Provider
+    member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/providers/{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=system
+    path=/providers/{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member="PropertiesChanged"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to query service properties
