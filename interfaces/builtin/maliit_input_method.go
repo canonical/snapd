@@ -43,7 +43,12 @@ const maliitInputMethodPermanentSlotAppArmor = `
 #    the on-screen keyboard.
 
 # DBus accesses
-#include <abstractions/dbus-session>
+#include <abstractions/dbus-session-strict>
+
+# allow binding to the maliit dbus server for address negotiation
+dbus (bind)
+    bus=session
+    name="org.maliit.server",
 
 # TODO: should this be somewhere else?
 /usr/share/glib-2.0/schemas/ r,
@@ -63,6 +68,12 @@ dbus (receive)
     path=/org/maliit/server/address
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+dbus (receive)
+    bus=session
+    path=/org/maliit/server/address
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
 `
@@ -70,7 +81,7 @@ unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=#
 const maliitInputMethodConnectedPlugAppArmor = `
 # Description: Allow applications to connect to a maliit socket
 
-#include <abstractions/dbus-session>
+#include <abstractions/dbus-session-strict>
 
 # Allow applications to communicate with the maliit address service
 # which assigns an individual unix socket for all further communication
@@ -80,6 +91,12 @@ dbus (send)
     interface="org.maliit.Server.Address"
     path=/org/maliit/server/address
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+     bus=session
+     path=/org/maliit/server/address
+     interface=org.freedesktop.DBus.Properties
+     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),

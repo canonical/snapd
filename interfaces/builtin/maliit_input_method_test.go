@@ -209,7 +209,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C)
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	// verify apparmor connected
-	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session>")
+	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic didn't connect
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
 }
