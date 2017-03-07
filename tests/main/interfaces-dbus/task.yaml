@@ -1,0 +1,63 @@
+summary: Ensure that the dbus interface works
+
+details: |
+    The dbus interface allows
+
+    The test uses two snaps, a provider declaring a dbus slot and a consumer
+    with a plug with the same attributes as the slot. The provider requests
+    a dbus name and, when the plug is connected, the consumer can call the
+    method exposed by the provider.
+
+environment:
+    DISPLAY: :0
+
+prepare: |
+    echo "Give a snap declaring a dbus slot in installed"
+    snap install --edge test-snapd-dbus-provider
+
+    echo "And the D-bus X11 dependencies are installed"
+    apt install -y dbus-x11
+
+    echo "And a snap declaring a matching dbus plug is installed"
+    snap install --edge test-snapd-dbus-consumer
+
+    echo "And the provider dbus loop is started"
+    dbus-launch > dbus.env
+    export $(cat dbus.env | xargs)
+    systemd-run --unit dbus-provider \
+                --setenv=DISPLAY=$DISPLAY \
+                --setenv=DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
+                --setenv=DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID \
+                /snap/bin/test-snapd-dbus-provider.provider
+
+restore: |
+    rm -f call.error dbus.env
+    apt remove --purge -y dbus-x11
+    systemctl stop dbus-provider
+
+execute: |
+    CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
+    DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
+    export $(cat dbus.env | xargs)
+
+    echo "Then the dbus name is properly reserved by the provider and the method is accessible"
+    while ! dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; do
+        sleep 1
+    done
+
+    echo "And plug is disconnected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "And the consumer is not able to access the provided method"
+    if test-snapd-dbus-consumer.dbus-consumer 2>${PWD}/call.error; then
+        echo "Expected permission error calling dbus method with disconnected plug"
+        exit 1
+    fi
+    cat call.error | MATCH "Permission denied"
+
+    echo "When the plug is connected"
+    snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the consumer is able to call the provided method"
+    test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"
