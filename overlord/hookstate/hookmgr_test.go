@@ -21,6 +21,8 @@ package hookstate_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -430,4 +432,29 @@ func checkTaskLogContains(c *C, task *state.Task, pattern string) {
 	}
 
 	c.Check(found, Equals, true, Commentf("Expected to find regex %q in task log: %v", pattern, task.Log()))
+}
+
+func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
+	coreSnapCmdPath := filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap")
+	err := os.MkdirAll(filepath.Dir(coreSnapCmdPath), 0755)
+	c.Assert(err, IsNil)
+	s.command = testutil.MockCommand(c, coreSnapCmdPath, "")
+
+	r := hookstate.MockReadlink(func(p string) (string, error) {
+		c.Assert(p, Equals, "/proc/self/exe")
+		return filepath.Join(dirs.SnapMountDir, "core/12/usr/lib/snapd/snapd"), nil
+	})
+	defer r()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(s.context, NotNil, Commentf("Expected handler generator to be called with a valid context"))
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
+	}})
+
 }
