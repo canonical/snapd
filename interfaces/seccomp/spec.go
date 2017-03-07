@@ -76,7 +76,7 @@ func (spec *Specification) SnippetForTag(tag string) string {
 // SecurityTags returns a list of security tags which have a snippet.
 func (spec *Specification) SecurityTags() []string {
 	var tags []string
-	for t, _ := range spec.snippets {
+	for t := range spec.snippets {
 		tags = append(tags, t)
 	}
 	sort.Strings(tags)
