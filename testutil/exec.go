@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -52,14 +53,22 @@ echo >> %[1]q
 // script behaves (exit code and any extra behavior). If script is empty then
 // the command exits successfully without any other side-effect.
 func MockCommand(c *check.C, basename, script string) *MockCmd {
-	binDir := c.MkDir()
-	exeFile := path.Join(binDir, basename)
-	logFile := path.Join(binDir, basename+".log")
+	var binDir, exeFile, logFile string
+	if strings.HasPrefix(basename, "/") {
+		binDir = filepath.Dir(basename)
+		exeFile = basename
+		logFile = basename + ".log"
+	} else {
+		binDir = c.MkDir()
+		exeFile = path.Join(binDir, basename)
+		logFile = path.Join(binDir, basename+".log")
+		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	}
 	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, logFile, script)), 0700)
 	if err != nil {
 		panic(err)
 	}
-	os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
 
