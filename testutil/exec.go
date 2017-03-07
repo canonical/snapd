@@ -54,7 +54,7 @@ echo >> %[1]q
 // the command exits successfully without any other side-effect.
 func MockCommand(c *check.C, basename, script string) *MockCmd {
 	var binDir, exeFile, logFile string
-	if strings.HasPrefix(basename, "/") {
+	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
 		exeFile = basename
 		logFile = basename + ".log"
