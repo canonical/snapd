@@ -57,7 +57,7 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizeSlotNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
@@ -69,7 +69,8 @@ slots:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 	err := s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, `content slot must have a content attribute set`)
+	c.Assert(err, IsNil)
+	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
@@ -133,7 +134,7 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
-func (s *ContentSuite) TestSanitizePlugNoContentLabel(c *C) {
+func (s *ContentSuite) TestSanitizePlugContentLabelDefault(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
 plugs:
@@ -144,7 +145,8 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
 	err := s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, `content plug must have a content attribute set`)
+	c.Assert(err, IsNil)
+	c.Assert(plug.Attrs["content"], Equals, plug.Name)
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleNoTarget(c *C) {
