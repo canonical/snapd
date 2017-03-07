@@ -103,24 +103,9 @@ unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY
 `
 
 const maliitInputMethodPermanentSlotSecComp = `
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
 listen
 accept
 accept4
-`
-
-const maliitInputMethodConnectedPlugSecComp = `
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
 `
 
 type MaliitInputMethodInterface struct{}
@@ -140,8 +125,6 @@ func (iface *MaliitInputMethodInterface) ConnectedPlugSnippet(plug *interfaces.P
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace([]byte(maliitInputMethodConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(maliitInputMethodConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
