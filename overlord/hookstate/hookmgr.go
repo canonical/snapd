@@ -264,6 +264,7 @@ func snapCmd() string {
 
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap command", err)
 		return snapCmd
 	}
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
