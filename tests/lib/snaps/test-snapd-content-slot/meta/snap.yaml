@@ -1,8 +1,7 @@
 name: test-snapd-content-slot
 version: 1.0
 slots:
-    shared-content-slot:
+    shared-content:
         interface: content
-        content: mylib
         read:
             - /

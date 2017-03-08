@@ -3,10 +3,9 @@ version: 1.0
 apps:
     content-plug:
         command: bin/content-plug
-        plugs: [shared-content-plug]
+        plugs: [shared-content]
 plugs:
-    shared-content-plug:
+    shared-content:
         interface: content
         target: import
-        content: mylib
         default-provider: test-snapd-tools
