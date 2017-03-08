@@ -33,7 +33,7 @@ import (
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
 func grubEditenvCmd() string {
-	for _, exe := range []string{"grub-editenv", "grub2-editenv"} {
+	for _, exe := range []string{"grub2-editenv", "grub-editenv"} {
 		if osutil.ExecutableExists(exe) {
 			return exe
 		}
