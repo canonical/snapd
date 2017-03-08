@@ -84,9 +84,15 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			var data map[string]string
 			err = bson.Unmarshal(b, &data)
 			c.Assert(err, IsNil)
+			var distroRelease string
+			if release.ReleaseInfo.ID == "ubuntu" {
+				distroRelease = fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID)
+			} else {
+				distroRelease = fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID)
+			}
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
-				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
+				"DistroRelease":      distroRelease,
 				"HostSnapdBuildID":   hostBuildID,
 				"CoreSnapdBuildID":   coreBuildID,
 				"SnapdVersion":       "some-snapd-version",

@@ -664,8 +664,9 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	query := r.URL.Query()
 	var all bool
-	sel := r.URL.Query().Get("select")
+	sel := query.Get("select")
 	switch sel {
 	case "all":
 		all = true
@@ -674,7 +675,19 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
+	var wanted map[string]bool
+	if ns := query.Get("snaps"); len(ns) > 0 {
+		nsl := strings.Split(ns, ",")
+		wanted = make(map[string]bool, len(nsl))
+		for _, name := range nsl {
+			name = strings.TrimSpace(name)
+			if len(name) > 0 {
+				wanted[name] = true
+			}
+		}
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}

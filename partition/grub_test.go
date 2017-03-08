@@ -46,11 +46,19 @@ func grubEnvPath() string {
 }
 
 func grubEditenvSet(c *C, key, value string) {
+	if grubEditenvCmd() == "" {
+		c.Skip("grub{,2}-editenv is not available")
+	}
+
 	_, err := runCommand(grubEditenvCmd(), grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value))
 	c.Assert(err, IsNil)
 }
 
 func grubEditenvGet(c *C, key string) string {
+	if grubEditenvCmd() == "" {
+		c.Skip("grub{,2}-editenv is not available")
+	}
+
 	output, err := runCommand(grubEditenvCmd(), grubEnvPath(), "list")
 	c.Assert(err, IsNil)
 	cfg := goconfigparser.New()
