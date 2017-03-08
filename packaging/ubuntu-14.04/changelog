@@ -1,3 +1,16 @@
+snapd (2.23.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1665608
+    - packaging, tests: use "systemctl list-unit-files --full"
+      everywhere
+    - interfaces: fix default content attribute value
+    - tests: do not nuke the entire snapd.conf.d dir when changing
+      store settings
+    - hookstate: run the right "snap" command in the hookmanager 
+    - snapstate: revert PR#2958, run configure hook again everywhere
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Mar 2017 14:29:56 +0100
+
 snapd (2.23~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1665608
