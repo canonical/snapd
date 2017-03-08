@@ -179,14 +179,10 @@ func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 
 const unity8mockSlotInfoYaml = `name: cal
 version: 1.0
-slots:
- unity8-calendar:
-  interface: unity8-calendar
 apps:
  app:
   command: foo
-  slots:
-   - unity8-calendar
+  slots: [unity8-calendar]
 `
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {

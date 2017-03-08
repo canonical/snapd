@@ -181,14 +181,10 @@ func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 
 const upowerObserveMockSlotSnapInfoYaml = `name: upower
 version: 1.0
-slots:
- upower-observe:
-  interface: upower-observe
 apps:
  app1:
   command: foo
-  slots:
-   - upower-observe
+  slots: [upower-observe]
 `
 
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {

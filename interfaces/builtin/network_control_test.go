@@ -38,14 +38,10 @@ type NetworkControlInterfaceSuite struct {
 
 const netctlMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- network-control:
-  interface: network-control
 apps:
  app2:
   command: foo
-  plugs:
-   - network-control
+  plugs: [network-control]
 `
 
 var _ = Suite(&NetworkControlInterfaceSuite{})

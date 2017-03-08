@@ -38,14 +38,10 @@ type FuseSupportInterfaceSuite struct {
 
 const fuseSupportMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- fuse-support:
-  interface: fuse-support
 apps:
  app2:
   command: foo
-  plugs:
-   - fuse-support
+  plugs: [fuse-support]
 `
 
 var _ = Suite(&FuseSupportInterfaceSuite{})

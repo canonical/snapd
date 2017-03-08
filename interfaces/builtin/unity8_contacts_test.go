@@ -179,14 +179,10 @@ func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 
 const unity8contactsMockSlotInfoYaml = `name: contacts
 version: 1.0
-slots:
- unity8-contacts:
-  interface: unity8-contacts
 apps:
  app:
   command: foo
-  slots:
-   - unity8-contacts
+  slots: [unity8-contacts]
 `
 
 func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {

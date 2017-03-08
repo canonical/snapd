@@ -39,14 +39,10 @@ type ModemManagerInterfaceSuite struct {
 
 const modemmgrMockSlotSnapInfoYaml = `name: modem-manager
 version: 1.0
-slots:
- modem-manager:
-  interface: modem-manager
 apps:
  mm:
   command: foo
-  slots:
-   - modem-manager
+  slots: [modem-manager]
 `
 
 var _ = Suite(&ModemManagerInterfaceSuite{})

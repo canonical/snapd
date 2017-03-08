@@ -166,8 +166,7 @@ slots:
 apps:
  app:
   command: foo
-  slots:
-   - ofono
+  slots: [ofono]
 `
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {

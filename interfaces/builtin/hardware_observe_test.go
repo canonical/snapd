@@ -38,14 +38,10 @@ type HardwareObserveInterfaceSuite struct {
 
 const hwobserveMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- hardware-observe:
-  interface: hardware-observe
 apps:
  app2:
   command: foo
-  plugs:
-   - hardware-observe
+  plugs: [hardware-observe]
 `
 
 var _ = Suite(&HardwareObserveInterfaceSuite{})

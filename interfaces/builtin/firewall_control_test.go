@@ -38,14 +38,10 @@ type FirewallControlInterfaceSuite struct {
 
 const firewallControlMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- firewall-control:
-  interface: firewall-control
 apps:
  app2:
   command: foo
-  plugs:
-   - firewall-control
+  plugs: [firewall-control]
 `
 
 var _ = Suite(&FirewallControlInterfaceSuite{})

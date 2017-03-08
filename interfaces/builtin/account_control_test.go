@@ -40,14 +40,10 @@ var _ = Suite(&AccountControlSuite{})
 
 const accountCtlMockPlugSnapInfo = `name: other
 version: 1.0
-plugs:
- account-control:
-  interface: account-control
 apps:
  app2:
   command: foo
-  plugs:
-   - account-control
+  plugs: [account-control]
 `
 
 func (s *AccountControlSuite) SetUpTest(c *C) {

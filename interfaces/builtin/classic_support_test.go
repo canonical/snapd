@@ -38,14 +38,10 @@ type ClassicSupportInterfaceSuite struct {
 
 const classicSupportMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- classic-support:
-  interface: classic-support
 apps:
  app2:
   command: foo
-  plugs:
-   - classic-support
+  plugs: [classic-support]
 `
 
 var _ = Suite(&ClassicSupportInterfaceSuite{})

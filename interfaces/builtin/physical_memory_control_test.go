@@ -52,15 +52,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-physical-memory:
-    interface: physical-memory-control
 apps:
   app-accessing-physical-memory:
     command: foo
-    plugs: [plug-for-physical-memory]
+    plugs: [physical-memory-control]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-physical-memory"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["physical-memory-control"]}
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {

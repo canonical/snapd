@@ -38,14 +38,10 @@ type X11InterfaceSuite struct {
 
 const x11MockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- x11:
-  interface: x11
 apps:
  app2:
   command: foo
-  plugs:
-   - x11
+  plugs: [x11]
 `
 
 var _ = Suite(&X11InterfaceSuite{})

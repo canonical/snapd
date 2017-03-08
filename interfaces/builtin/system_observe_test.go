@@ -38,14 +38,10 @@ type SystemObserveInterfaceSuite struct {
 
 const sysobsMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- system-observe:
-  interface: system-observe
 apps:
  app2:
   command: foo
-  plugs:
-   - system-observe
+  plugs: [system-observe]
 `
 
 var _ = Suite(&SystemObserveInterfaceSuite{})

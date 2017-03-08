@@ -38,26 +38,18 @@ type UDisks2InterfaceSuite struct {
 
 const udisks2mockPlugSnapInfoYaml = `name: udisks2
 version: 1.0
-plugs:
- udisks2:
-  interface: udisks2
 apps:
  app:
   command: foo
-  plugs:
-   - udisks2
+  plugs: [udisks2]
 `
 
 const udisks2mockSlotSnapInfoYaml = `name: udisks2
 version: 1.0
-slots:
- udisks2:
-  interface: udisks2
 apps:
  app1:
   command: foo
-  slots:
-   - udisks2
+  slots: [udisks2]
 `
 
 var _ = Suite(&UDisks2InterfaceSuite{})

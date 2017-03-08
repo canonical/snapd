@@ -38,14 +38,10 @@ type DockerSupportInterfaceSuite struct {
 
 const dockerSupportMockPlugSnapInfoYaml = `name: docker
 version: 1.0
-plugs:
- docker-support:
-  interface: docker-support
 apps:
  app:
   command: foo
-  plugs:
-   - docker-support
+  plugs: [docker-support]
 `
 
 var _ = Suite(&DockerSupportInterfaceSuite{})

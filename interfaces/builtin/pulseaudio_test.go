@@ -41,26 +41,18 @@ var _ = Suite(&PulseAudioInterfaceSuite{
 
 const pulseaudioMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- pulseaudio:
-  interface: pulseaudio
 apps:
  app2:
   command: foo
-  plugs:
-   - pulseaudio
+  plugs: [pulseaudio]
 `
 
 const pulseaudioMockSlotSnapInfoYaml = `name: pulseaudio
 version: 1.0
-slots:
- pulseaudio:
-  interface: pulseaudio
 apps:
  app1:
   command: foo
-  slots:
-   - pulseaudio
+  slots: [pulseaudio]
 `
 
 const pulseaudioMockSlotOSSnapInfoYaml = `name: pulseaudio

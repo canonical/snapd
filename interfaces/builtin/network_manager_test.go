@@ -39,14 +39,10 @@ type NetworkManagerInterfaceSuite struct {
 
 const netmgrMockSlotSnapInfoYaml = `name: network-manager
 version: 1.0
-slots:
- network-manager:
-  interface: network-manager
 apps:
  nm:
   command: foo
-  slots:
-   - network-manager
+  slots: [network-manager]
 `
 
 var _ = Suite(&NetworkManagerInterfaceSuite{})

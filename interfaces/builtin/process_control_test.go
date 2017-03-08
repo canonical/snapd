@@ -38,14 +38,10 @@ type ProcessControlInterfaceSuite struct {
 
 const procctlMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- process-control:
-  interface: process-control
 apps:
  app2:
   command: foo
-  plugs:
-   - process-control
+  plugs: [process-control]
 `
 
 var _ = Suite(&ProcessControlInterfaceSuite{})

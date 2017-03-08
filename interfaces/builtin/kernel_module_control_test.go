@@ -38,14 +38,10 @@ type KernelModuleControlInterfaceSuite struct {
 
 const kernelmodctlMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- kernel-module-control:
-  interface: kernel-module-control
 apps:
  app2:
   command: foo
-  plugs:
-   - kernel-module-control
+  plugs: [kernel-module-control]
 `
 
 var _ = Suite(&KernelModuleControlInterfaceSuite{})

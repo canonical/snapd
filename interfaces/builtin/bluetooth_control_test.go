@@ -38,14 +38,10 @@ type BluetoothControlInterfaceSuite struct {
 
 const btcontrolMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- bluetooth-control:
-  interface: bluetooth-control
 apps:
  app2:
   command: foo
-  plugs:
-   - bluetooth-control
+  plugs: [bluetooth-control]
 `
 
 var _ = Suite(&BluetoothControlInterfaceSuite{})

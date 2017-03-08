@@ -38,14 +38,10 @@ type LxdSupportInterfaceSuite struct {
 
 const lxdsupportMockPlugSnapInfoYaml = `name: lxd
 version: 1.0
-plugs:
- lxd-support:
-  interface: lxd-support
 apps:
  app:
   command: foo
-  plugs:
-   - lxd-support
+  plugs: [lxd-support]
 `
 
 var _ = Suite(&LxdSupportInterfaceSuite{})

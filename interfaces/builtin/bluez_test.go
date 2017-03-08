@@ -40,25 +40,17 @@ var _ = Suite(&BluezInterfaceSuite{})
 
 const bluezMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- bluezctl:
-  interface: bluez
 apps:
  app2:
   command: foo
-  plugs:
-   - bluezctl
+  plugs: [bluez]
 `
 const bluezMockSlotSnapInfoYaml = `name: bluez
 version: 1.0
-slots:
- bluez:
-  interface: bluez
 apps:
  app1:
   command: foo
-  slots:
-   - bluez
+  slots: [bluez]
 `
 
 func (s *BluezInterfaceSuite) SetUpTest(c *C) {
@@ -66,7 +58,7 @@ func (s *BluezInterfaceSuite) SetUpTest(c *C) {
 	slotSnap := snaptest.MockInfo(c, bluezMockSlotSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["bluez"]}
 	plugSnap := snaptest.MockInfo(c, bluezMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluezctl"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluez"]}
 }
 
 func (s *BluezInterfaceSuite) TestName(c *C) {

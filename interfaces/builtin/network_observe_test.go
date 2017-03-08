@@ -38,14 +38,10 @@ type NetworkObserveInterfaceSuite struct {
 
 const netobsMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- network-observe:
-  interface: network-observe
 apps:
  app2:
   command: foo
-  plugs:
-   - network-observe
+  plugs: [network-observe]
 `
 
 var _ = Suite(&NetworkObserveInterfaceSuite{})

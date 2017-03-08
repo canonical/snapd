@@ -37,14 +37,10 @@ type GsettingsInterfaceSuite struct {
 
 const gsettingsMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- gsettings:
-  interface: gsettings
 apps:
  app2:
   command: foo
-  plugs:
-   - gsettings
+  plugs: [gsettings]
 `
 
 var _ = Suite(&GsettingsInterfaceSuite{})

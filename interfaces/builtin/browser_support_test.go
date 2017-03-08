@@ -38,14 +38,10 @@ type BrowserSupportInterfaceSuite struct {
 
 const browserMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- browser-support:
-  interface: browser-support
 apps:
  app2:
   command: foo
-  plugs:
-   - browser-support
+  plugs: [browser-support]
 `
 
 var _ = Suite(&BrowserSupportInterfaceSuite{})
@@ -81,13 +77,12 @@ func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
 	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
- browser-support-plug:
-  interface: browser-support
+ browser-support:
   allow-sandbox: true
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
 	err := s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 }
@@ -96,13 +91,12 @@ func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
 	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
- browser-support-plug:
-  interface: browser-support
+ browser-support:
   allow-sandbox: bad
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
 	err := s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "browser-support plug requires bool with 'allow-sandbox'")
@@ -130,18 +124,16 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c
 	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
- browser-support-plug:
-  interface: browser-support
+ browser-support:
   allow-sandbox: false
 apps:
  app2:
   command: foo
-  plugs:
-   - browser-support-plug
+  plugs: [browser-support]
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -164,17 +156,15 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c 
 	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
- browser-support-plug:
-  interface: browser-support
+ browser-support:
   allow-sandbox: true
 apps:
  app2:
   command: foo
-  plugs:
-   - browser-support-plug
+  plugs: [browser-support]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)

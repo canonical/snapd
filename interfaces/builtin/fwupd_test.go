@@ -38,26 +38,18 @@ type FwupdInterfaceSuite struct {
 
 const mockPlugSnapInfoYaml = `name: uefi-fw-tools
 version: 1.0
-plugs:
- fwupdmgr:
-  interface: fwupd
 apps:
  app:
   command: foo
-  plugs:
-   - fwupdmgr
+  plugs: [fwupd]
 `
 
 const mockSlotSnapInfoYaml = `name: uefi-fw-tools
 version: 1.0
-slots:
- fwupd:
-  interface: fwupd
 apps:
  app:
   command: foo
-  slots:
-   - fwupd
+  slots: [fwupd]
 `
 
 var _ = Suite(&FwupdInterfaceSuite{})
@@ -67,7 +59,7 @@ func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
 	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
 	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fwupdmgr"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fwupd"]}
 }
 
 func (s *FwupdInterfaceSuite) TestName(c *C) {

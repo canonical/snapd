@@ -38,14 +38,10 @@ type NetworkBindInterfaceSuite struct {
 
 const netbindMockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- network-bind:
-  interface: network-bind
 apps:
  app2:
   command: foo
-  plugs:
-   - network-bind
+  plugs: [network-bind]
 `
 
 var _ = Suite(&NetworkBindInterfaceSuite{})

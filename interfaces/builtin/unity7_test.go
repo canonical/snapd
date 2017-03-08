@@ -40,14 +40,10 @@ var _ = Suite(&Unity7InterfaceSuite{})
 
 const unity7mockPlugSnapInfoYaml = `name: other
 version: 1.0
-plugs:
- unity7:
-  interface: unity7
 apps:
  app2:
   command: foo
-  plugs:
-   - unity7
+  plugs: [unity7]
 `
 
 func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
