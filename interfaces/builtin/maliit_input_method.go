@@ -153,17 +153,17 @@ func (iface *MaliitInputMethodInterface) ConnectedSlotSnippet(plug *interfaces.P
 }
 
 func (iface *MaliitInputMethodInterface) SanitizePlug(slot *interfaces.Plug) error {
-    if iface.Name() != slot.Interface {
-        panic(fmt.Sprintf("plug is not of interface %q", iface))
-    }
-    return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+	return nil
 }
 
 func (iface *MaliitInputMethodInterface) SanitizeSlot(slot *interfaces.Slot) error {
-    if iface.Name() != slot.Interface {
-        panic(fmt.Sprintf("slot is not of interface %q", iface))
-    }
-    return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+	return nil
 }
 
 func (iface *MaliitInputMethodInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
