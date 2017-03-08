@@ -12,7 +12,7 @@ systemctl_stop() {
 
 if [ "$1" = "purge" ]; then
     mounts=$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
-    services=$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
+    services=$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snapp mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
