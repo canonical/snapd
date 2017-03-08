@@ -34,6 +34,8 @@ type DbusInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
+	snapInfo *snap.Info
+
 	sessionPlug          *interfaces.Plug
 	systemPlug           *interfaces.Plug
 	connectedSessionPlug *interfaces.Plug
@@ -49,8 +51,8 @@ var _ = Suite(&DbusInterfaceSuite{
 	iface: &builtin.DbusInterface{},
 })
 
-func (s *DbusInterfaceSuite) SetUpTest(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+func (s *DbusInterfaceSuite) SetUpSuite(c *C) {
+	s.snapInfo = snaptest.MockInfo(c, `
 name: test-dbus
 slots:
   test-session-slot:
@@ -101,18 +103,19 @@ apps:
   test-system-consumer:
     plugs:
     - test-system-plug
-`))
-	c.Assert(err, IsNil)
+`, nil)
+}
 
-	s.sessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session-slot"]}
-	s.systemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system-slot"]}
-	s.connectedSessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session-connected-slot"]}
-	s.connectedSystemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system-connected-slot"]}
+func (s *DbusInterfaceSuite) SetUpTest(c *C) {
+	s.sessionSlot = &interfaces.Slot{SlotInfo: s.snapInfo.Slots["test-session-slot"]}
+	s.systemSlot = &interfaces.Slot{SlotInfo: s.snapInfo.Slots["test-system-slot"]}
+	s.connectedSessionSlot = &interfaces.Slot{SlotInfo: s.snapInfo.Slots["test-session-connected-slot"]}
+	s.connectedSystemSlot = &interfaces.Slot{SlotInfo: s.snapInfo.Slots["test-system-connected-slot"]}
 
-	s.sessionPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-session-plug"]}
-	s.systemPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-system-plug"]}
-	s.connectedSessionPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-session-connected-plug"]}
-	s.connectedSystemPlug = &interfaces.Plug{PlugInfo: info.Plugs["test-system-connected-plug"]}
+	s.sessionPlug = &interfaces.Plug{PlugInfo: s.snapInfo.Plugs["test-session-plug"]}
+	s.systemPlug = &interfaces.Plug{PlugInfo: s.snapInfo.Plugs["test-system-plug"]}
+	s.connectedSessionPlug = &interfaces.Plug{PlugInfo: s.snapInfo.Plugs["test-session-connected-plug"]}
+	s.connectedSystemPlug = &interfaces.Plug{PlugInfo: s.snapInfo.Plugs["test-system-connected-plug"]}
 }
 
 func (s *DbusInterfaceSuite) TestName(c *C) {
