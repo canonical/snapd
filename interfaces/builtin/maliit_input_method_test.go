@@ -101,9 +101,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelS
 func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "recvfrom\n")
+	c.Assert(snippet, IsNil)
 }
 
 // The label uses short form when exactly one app is bound to the maliit-input-method slot
@@ -201,7 +199,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for seccomp
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(snippet, IsNil)
 }
 
 func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
@@ -217,8 +215,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C)
 func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "send\n")
+	c.Assert(snippet, IsNil)
 }
 
 func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
@@ -232,7 +229,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) 
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "send\n")
+	c.Check(string(snippet), testutil.Contains, "listen\n")
 }
 
 func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
