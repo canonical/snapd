@@ -214,3 +214,14 @@ func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
 	}
 	return snap, ri, nil
 }
+
+// History returns the history of snap installs on the system
+func (client *Client) History(name string) ([]*Snap, error) {
+	var history []*Snap
+	path := fmt.Sprintf("/v2/snaps/%s/history", name)
+	_, err := client.doSync("GET", path, nil, nil, nil, &history)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve snap history for snap %q: %s", name, err)
+	}
+	return history, nil
+}
