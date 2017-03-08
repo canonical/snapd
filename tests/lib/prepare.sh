@@ -133,7 +133,7 @@ EOF
 
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
