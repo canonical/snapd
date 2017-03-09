@@ -5036,6 +5036,12 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
 	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
@@ -5044,4 +5050,5 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.Equals, true)
+	c.Check(soon, check.Equals, 1)
 }

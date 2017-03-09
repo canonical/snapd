@@ -441,9 +441,9 @@ func (cs *clientSuite) TestUsers(c *C) {
 	})
 }
 
-func (cs *clientSuite) TestEnsureStateSoon(c *C) {
+func (cs *clientSuite) TestDebugEnsureStateSoon(c *C) {
 	cs.rsp = `{"type": "sync", "result":true}`
-	err := cs.cli.EnsureStateSoon()
+	err := cs.cli.Debug("ensure-state-soon", nil, nil)
 	c.Check(err, IsNil)
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
@@ -451,4 +451,19 @@ func (cs *clientSuite) TestEnsureStateSoon(c *C) {
 	data, err := ioutil.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(data, DeepEquals, []byte(`{"action":"ensure-state-soon"}`))
+}
+
+func (cs *clientSuite) TestDebugGeneric(c *C) {
+	cs.rsp = `{"type": "sync", "result":["res1","res2"]}`
+
+	var result []string
+	err := cs.cli.Debug("do-something", []string{"param1", "param2"}, &result)
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, []string{"res1", "res2"})
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
 }
