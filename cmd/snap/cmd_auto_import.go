@@ -84,6 +84,10 @@ func autoImportCandidates() ([]string, error) {
 		if strings.HasPrefix(mountSrc, "/dev/loop") {
 			continue
 		}
+		// skip all ram disks (unless in tests)
+		if !osutil.GetenvBool("SNAPD_DEBUG") && strings.HasPrefix(mountSrc, "/dev/ram") {
+			continue
+		}
 
 		mountPoint := l[4]
 		cand := filepath.Join(mountPoint, autoImportsName)

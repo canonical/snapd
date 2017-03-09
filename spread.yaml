@@ -9,6 +9,7 @@ environment:
     PATH: $GOPATH/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     SNAPPY_TESTING: 1
+    SNAPD_DEBUG: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
     # snapd from the deb that re-execs into new snapd in core.  To
