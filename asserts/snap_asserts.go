@@ -804,8 +804,6 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 }
 
 func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, error) {
-	// TODO:
-	// - reject overlapping date ranges?
 	value, ok := headers["developers"]
 	if !ok {
 		return nil, nil
