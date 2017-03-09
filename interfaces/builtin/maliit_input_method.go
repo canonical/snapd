@@ -39,6 +39,7 @@ const maliitInputMethodPermanentSlotAppArmor = `
 #  * At this point maliit retrieves the application's PID based on the dbus
 #    channel and verifies with Unity 8 that the application is currently
 #    focused.
+#    TODO: In the future this will be based on surface ID instead of PID
 #  * Only if the application is focused is it then able to receive input from
 #    the on-screen keyboard.
 
