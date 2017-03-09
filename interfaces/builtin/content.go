@@ -76,7 +76,7 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
-		// content defaults to "slot" name if unspecified
+		// content defaults to "plug" name if unspecified
 		plug.Attrs["content"] = plug.Name
 	}
 	target, ok := plug.Attrs["target"].(string)
