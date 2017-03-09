@@ -36,64 +36,72 @@ static struct sc_mount_entry *sc_mount_entry_find(struct sc_mount_entry
 	return NULL;
 }
 
-void
-sc_compute_required_mount_changes(struct sc_mount_entry * *desiredp,
-				  struct sc_mount_entry * *currentp,
-				  struct sc_mount_change *change)
+static struct sc_mount_change *sc_mount_change_alloc()
+{
+	struct sc_mount_change *change = calloc(1, sizeof *change);
+	if (change == NULL) {
+		die("cannot allocate sc_mount_change object");
+	}
+	return change;
+}
+
+static void sc_mount_change_free_chain(struct sc_mount_change *change)
+{
+	struct sc_mount_change *c = change, *n;
+	while (c != NULL) {
+		n = c->next;
+		free(c);
+		c = n;
+	}
+}
+
+struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
+							  *desired, struct sc_mount_entry
+							  *current)
 {
 	struct sc_mount_entry *d, *c;
-	if (desiredp == NULL) {
-		die("cannot compute required mount changes, desiredp is NULL");
-	}
-	if (currentp == NULL) {
-		die("cannot compute required mount changes, currentp is NULL");
-	}
-	if (change == NULL) {
-		die("cannot compute required mount changes, change is NULL");
-	}
-	d = *desiredp;
-	c = *currentp;
+	d = desired;
+	c = current;
 
-	bool again;
-	do {
-		again = false;
-		if (c == NULL && d == NULL) {
-			// Both profiles exhausted. There is nothing to do left.
-			change->action = SC_ACTION_NONE;
-			change->entry = NULL;
-			*currentp = NULL;
-			*desiredp = NULL;
-		} else if (c == NULL && d != NULL) {
+	struct sc_mount_change *first_change = NULL;
+	struct sc_mount_change *last_change = NULL;
+
+	void append_change(const struct sc_mount_entry *entry,
+			   enum sc_mount_action action) {
+		struct sc_mount_change *change = sc_mount_change_alloc();
+		change->action = action;
+		change->entry = entry;
+		if (first_change == NULL) {
+			first_change = change;
+		}
+		if (last_change != NULL) {
+			last_change->next = change;
+		}
+		last_change = change;
+	}
+
+	// Do a pass over the two lists advancing them in the body of the loop.
+	while (c != NULL || d != NULL) {
+		if (c == NULL && d != NULL) {
 			// Current profile exhausted but desired profile is not.
-			if (d->flag) {
-				// The desired entry is flagged so it was reused and does not
-				// need to be mounted. Advance the desired profile and try
-				// again.
-				d = d->next;
-				again = true;
-			} else {
-				// Generate a MOUNT action based on desired profile and advance it.
-				change->action = SC_ACTION_MOUNT;
-				change->entry = d;
-				*currentp = NULL;
-				*desiredp = d->next;
+			// Unless the desired profile is flagged (it was reused earlier)
+			// we want to mount the desired entry now.
+			if (!d->flag) {
+				append_change(d, SC_ACTION_MOUNT);
 			}
+			d = d->next;
 		} else if (c != NULL && d == NULL) {
 			// Current profile is not exhausted but the desired profile is.
-			// Generate an UNMOUNT action based on the current profile and advance it.
-			change->action = SC_ACTION_UNMOUNT;
-			change->entry = c;
-			*currentp = c->next;
-			*desiredp = NULL;
+			// Generate an UNMOUNT action based on the current entry and
+			// advance it.
+			append_change(c, SC_ACTION_UNMOUNT);
+			c = c->next;
 		} else if (c != NULL && d != NULL) {
 			// Both profiles have entries to consider.
 			if (sc_compare_mount_entry(c, d) == 0) {
 				// Identical entries are just skipped and the algorithm continues.
 				c = c->next;
 				d = d->next;
-				// Do another pass over the algorithm.
-				again = true;
-				continue;
 			} else {
 				// Non-identical entries mean that we need to unmount the current
 				// entry and mount the desired entry.
@@ -105,7 +113,7 @@ sc_compute_required_mount_changes(struct sc_mount_entry * *desiredp,
 				// code above will start to process items in the desired profile
 				// (which will cause all the mount calls to happen).
 				struct sc_mount_entry *found =
-				    sc_mount_entry_find(*desiredp, c);
+				    sc_mount_entry_find(desired, c);
 				if (found != NULL) {
 					// If the current mount entry is further down the desired
 					// profile chain then we don't need to unmount it. We want
@@ -113,15 +121,14 @@ sc_compute_required_mount_changes(struct sc_mount_entry * *desiredp,
 					// processing the leftovers of the desired list.
 					found->flag = 1;
 					c = c->next;
-					again = true;
 				} else {
 					// If the current entry is not desired then just unmount it.
-					change->action = SC_ACTION_UNMOUNT;
-					change->entry = c;
-					*currentp = c->next;
-					*desiredp = d;
+					append_change(c, SC_ACTION_UNMOUNT);
+					c = c->next;
 				}
 			}
 		}
-	} while (again);
+	}
+	// Both profiles exhausted. There is nothing to do left.
+	return first_change;
 }

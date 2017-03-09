@@ -28,13 +28,14 @@ static void test_sc_compute_required_mount_changes__scenario0()
 {
 	struct sc_mount_entry *current = NULL;
 	struct sc_mount_entry *desired = NULL;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
+
+	g_assert_null(change);
+
 }
 
 // Scenario: the current profile contains things but the desired profile does
@@ -43,7 +44,7 @@ static void test_sc_compute_required_mount_changes__scenario1()
 {
 	struct sc_mount_entry *current;
 	struct sc_mount_entry *desired;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
 	sc_test_write_lines("current.fstab",
 			    test_entry_str_1, test_entry_str_2, NULL);
@@ -56,21 +57,25 @@ static void test_sc_compute_required_mount_changes__scenario1()
 	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
 			     desired);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_1(change.entry);
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_2(change.entry);
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_1(change->entry);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	change = change->next;
+
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_2(change->entry);
+
+	change = change->next;
+
+	g_assert_null(change);
 }
 
 // Scenario: the current profile is empty but the desired profile
@@ -79,7 +84,7 @@ static void test_sc_compute_required_mount_changes__scenario2()
 {
 	struct sc_mount_entry *current;
 	struct sc_mount_entry *desired;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
 	sc_test_write_lines("current.fstab", NULL);
 	sc_test_write_lines("desired.fstab",
@@ -92,21 +97,25 @@ static void test_sc_compute_required_mount_changes__scenario2()
 	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
 			     desired);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_1(change.entry);
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_2(change.entry);
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_1(change->entry);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	change = change->next;
+
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_2(change->entry);
+
+	change = change->next;
+
+	g_assert_null(change);
 }
 
 // Scenario: the current profile contains one entry but the desired profile
@@ -115,7 +124,7 @@ static void test_sc_compute_required_mount_changes__scenario3()
 {
 	struct sc_mount_entry *current;
 	struct sc_mount_entry *desired;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
 	sc_test_write_lines("current.fstab", test_entry_str_1, NULL);
 	sc_test_write_lines("desired.fstab",
@@ -128,16 +137,18 @@ static void test_sc_compute_required_mount_changes__scenario3()
 	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
 			     desired);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_2(change.entry);
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_2(change->entry);
+
+	change = change->next;
+
+	g_assert_null(change);
 }
 
 // Scenario: the current profile contains one entry and the desired profile
@@ -147,7 +158,7 @@ static void test_sc_compute_required_mount_changes__scenario4()
 {
 	struct sc_mount_entry *current;
 	struct sc_mount_entry *desired;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
 	sc_test_write_lines("current.fstab", test_entry_str_1, NULL);
 	sc_test_write_lines("desired.fstab", test_entry_str_2, NULL);
@@ -159,21 +170,25 @@ static void test_sc_compute_required_mount_changes__scenario4()
 	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
 			     desired);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_1(change.entry);
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change.entry);
-	test_looks_like_test_entry_2(change.entry);
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_1(change->entry);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	change = change->next;
+
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change->entry);
+	test_looks_like_test_entry_2(change->entry);
+
+	change = change->next;
+
+	g_assert_null(change);
 }
 
 // Scenario: desired A, B current B, C behaves correctly (B is untouched).
@@ -181,7 +196,7 @@ static void test_sc_compute_required_mount_changes__scenario5()
 {
 	struct sc_mount_entry *current;
 	struct sc_mount_entry *desired;
-	struct sc_mount_change change;
+	struct sc_mount_change *change;
 
 	sc_test_write_lines("desired.fstab", "A A A A 0 0", "B B B B 0 0",
 			    NULL);
@@ -195,21 +210,25 @@ static void test_sc_compute_required_mount_changes__scenario5()
 	g_test_queue_destroy((GDestroyNotify) sc_free_mount_entry_list,
 			     desired);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change.entry);
-	g_assert_cmpstr(change.entry->entry.mnt_fsname, ==, "C");
+	change = sc_compute_required_mount_changes(desired, current);
+	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
+			     change);
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_cmpint(change.action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change.entry);
-	g_assert_cmpstr(change.entry->entry.mnt_fsname, ==, "A");
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
+	g_assert_nonnull(change->entry);
+	g_assert_cmpstr(change->entry->entry.mnt_fsname, ==, "C");
 
-	sc_compute_required_mount_changes(&desired, &current, &change);
-	g_assert_null(desired);
-	g_assert_null(current);
-	g_assert_cmpint(change.action, ==, SC_ACTION_NONE);
-	g_assert_null(change.entry);
+	change = change->next;
+
+	g_assert_nonnull(change);
+	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
+	g_assert_nonnull(change->entry);
+	g_assert_cmpstr(change->entry->entry.mnt_fsname, ==, "A");
+
+	change = change->next;
+
+	g_assert_null(change);
 }
 
 static void __attribute__ ((constructor)) init()
