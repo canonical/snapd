@@ -772,7 +772,7 @@ var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
-	// Capacity for the snap-declation, the publisher and all developers.
+	// Capacity for the snap-declaration, the publisher and all developers.
 	refs := make([]*Ref, 0, 2+len(snapdev.developerRanges))
 
 	// snap-declaration
