@@ -77,11 +77,11 @@ type cmdInfo struct {
 	argDescs                  []argDesc
 }
 
-// commands holds information about all non-experimental commands.
+// commands holds information about all non-debug commands.
 var commands []*cmdInfo
 
-// experimentalCommands holds information about all experimental commands.
-var experimentalCommands []*cmdInfo
+// debugCommands holds information about all debug commands.
+var debugCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
@@ -98,17 +98,17 @@ func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander
 	return info
 }
 
-// addExperimentalCommand replaces parser.addCommand() in a way that is
+// addDebugCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
-// adding experimental commands.
-func addExperimentalCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+// adding debug commands.
+func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
 	}
-	experimentalCommands = append(experimentalCommands, info)
+	debugCommands = append(debugCommands, info)
 	return info
 }
 
@@ -204,6 +204,20 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 			arg.Name = name
 			arg.Description = desc
 		}
+	}
+	// Add the debug command
+	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
+	debugCommand.Hidden = true
+	if err != nil {
+		logger.Panicf("cannot add command %q: %v", "debug", err)
+	}
+	// Add all the sub-commands of the debug command
+	for _, c := range debugCommands {
+		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		if err != nil {
+			logger.Panicf("cannot add debug command %q: %v", c.name, err)
+		}
+		cmd.Hidden = c.hidden
 	}
 	return parser
 }

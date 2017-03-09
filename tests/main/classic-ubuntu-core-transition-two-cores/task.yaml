@@ -30,11 +30,8 @@ execute: |
     snap list | MATCH "ubuntu-core "
     snap list | MATCH "core "
 
-    echo "Start/stop snapd so that the transition is triggered"
-    if ! snap changes | grep "Transition ubuntu-core to core"; then
-        systemctl stop snapd.service snapd.socket
-        systemctl start snapd.service snapd.socket
-    fi
+    echo "Ensure transition is triggered"
+    snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
