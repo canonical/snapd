@@ -21,7 +21,39 @@
 #include "test-utils.h"
 #include "test-data.h"
 
+#include <stdarg.h>
+
 #include <glib.h>
+
+__attribute__ ((sentinel))
+static void test_assert_change_list(const struct sc_mount_change *change, ...);
+
+static void test_assert_change_list(const struct sc_mount_change *change, ...)
+{
+	va_list ap;
+
+	const struct sc_mount_entry *entry;
+	enum sc_mount_action action;
+
+	va_start(ap, change);
+	while ((entry = va_arg(ap, struct sc_mount_entry *)) != NULL) {
+		action = va_arg(ap, enum sc_mount_action);
+
+		g_assert_nonnull(change);
+
+		if (change == NULL) {
+			// break in case data and test disagree
+			break;
+		}
+
+		g_assert_cmpint(sc_compare_mount_entry(change->entry, entry),
+				==, 0);
+		g_assert_cmpint(change->action, ==, action);
+		change = change->next;
+	}
+	g_assert_null(change);
+	va_end(ap);
+}
 
 // Scenario: there is nothing to do yet at all.
 static void test_sc_compute_required_mount_changes__scenario0()
@@ -34,8 +66,7 @@ static void test_sc_compute_required_mount_changes__scenario0()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_null(change);
-
+	test_assert_change_list(change, NULL);
 }
 
 // Scenario: the current profile contains things but the desired profile does
@@ -61,21 +92,9 @@ static void test_sc_compute_required_mount_changes__scenario1()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_1(change->entry);
-
-	change = change->next;
-
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_2(change->entry);
-
-	change = change->next;
-
-	g_assert_null(change);
+	test_assert_change_list(change,
+				&test_entry_1, SC_ACTION_UNMOUNT,
+				&test_entry_2, SC_ACTION_UNMOUNT, NULL);
 }
 
 // Scenario: the current profile is empty but the desired profile
@@ -101,21 +120,9 @@ static void test_sc_compute_required_mount_changes__scenario2()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_1(change->entry);
-
-	change = change->next;
-
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_2(change->entry);
-
-	change = change->next;
-
-	g_assert_null(change);
+	test_assert_change_list(change,
+				&test_entry_1, SC_ACTION_MOUNT,
+				&test_entry_2, SC_ACTION_MOUNT, NULL);
 }
 
 // Scenario: the current profile contains one entry but the desired profile
@@ -141,14 +148,7 @@ static void test_sc_compute_required_mount_changes__scenario3()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_2(change->entry);
-
-	change = change->next;
-
-	g_assert_null(change);
+	test_assert_change_list(change, &test_entry_2, SC_ACTION_MOUNT, NULL);
 }
 
 // Scenario: the current profile contains one entry and the desired profile
@@ -174,21 +174,9 @@ static void test_sc_compute_required_mount_changes__scenario4()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_1(change->entry);
-
-	change = change->next;
-
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change->entry);
-	test_looks_like_test_entry_2(change->entry);
-
-	change = change->next;
-
-	g_assert_null(change);
+	test_assert_change_list(change,
+				&test_entry_1, SC_ACTION_UNMOUNT,
+				&test_entry_2, SC_ACTION_MOUNT, NULL);
 }
 
 // Scenario: desired A, B current B, C behaves correctly (B is untouched).
@@ -214,21 +202,11 @@ static void test_sc_compute_required_mount_changes__scenario5()
 	g_test_queue_destroy((GDestroyNotify) sc_mount_change_free_chain,
 			     change);
 
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_UNMOUNT);
-	g_assert_nonnull(change->entry);
-	g_assert_cmpstr(change->entry->entry.mnt_fsname, ==, "C");
-
-	change = change->next;
-
-	g_assert_nonnull(change);
-	g_assert_cmpint(change->action, ==, SC_ACTION_MOUNT);
-	g_assert_nonnull(change->entry);
-	g_assert_cmpstr(change->entry->entry.mnt_fsname, ==, "A");
-
-	change = change->next;
-
-	g_assert_null(change);
+	const struct sc_mount_entry C = {.entry = {"C", "C", "C", "C"} };
+	const struct sc_mount_entry A = {.entry = {"A", "A", "A", "A"} };
+	test_assert_change_list(change,
+				&C, SC_ACTION_UNMOUNT,
+				&A, SC_ACTION_MOUNT, NULL);
 }
 
 static void __attribute__ ((constructor)) init()
