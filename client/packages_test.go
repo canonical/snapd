@@ -140,9 +140,6 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Private:       true,
 		DevMode:       false,
 	}})
-	otherApps, err := cs.cli.List([]string{"foo"}, nil)
-	c.Check(err, check.IsNil)
-	c.Check(otherApps, check.HasLen, 0)
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
