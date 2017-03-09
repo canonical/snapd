@@ -57,8 +57,7 @@ prepare: |
     systemctl enable --now gpio-mock.service
 
     echo "And the gpio plug is connected"
-    . "$TESTSLIB/names.sh"
-    snap connect gpio-consumer:gpio ${core_name}:gpio-pin
+    snap connect gpio-consumer:gpio gpio-pin
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
