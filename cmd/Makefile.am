@@ -28,7 +28,7 @@ check-syntax-c:
 .PHONY: check-syntax-sh
 check-syntax-sh: $(filter-out %.log %.trs,$(wildcard $(srcdir)/snap-confine/tests/test_*)) snap-confine/tests/common.sh
 if HAVE_SHELLCHECK
-	$(HAVE_SHELLCHECK) --format=gcc $^
+	$(HAVE_SHELLCHECK) -x --format=gcc $^
 else
 	echo "shellcheck is not installed, skipping (non-critical) syntax test"
 endif
