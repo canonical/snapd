@@ -59,10 +59,6 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 							  *desired, struct sc_mount_entry
 							  *current)
 {
-	struct sc_mount_entry *d, *c;
-	d = desired;
-	c = current;
-
 	struct sc_mount_change *first_change = NULL;
 	struct sc_mount_change *last_change = NULL;
 
@@ -80,55 +76,48 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 		last_change = change;
 	}
 
-	// Do a pass over the two lists advancing them in the body of the loop.
-	while (c != NULL || d != NULL) {
-		if (c == NULL && d != NULL) {
-			// Current profile exhausted but desired profile is not.
-			// Unless the desired profile is flagged (it was reused earlier)
-			// we want to mount the desired entry now.
-			if (!d->flag) {
-				append_change(d, SC_ACTION_MOUNT);
-			}
-			d = d->next;
-		} else if (c != NULL && d == NULL) {
-			// Current profile is not exhausted but the desired profile is.
-			// Generate an UNMOUNT action based on the current entry and
-			// advance it.
-			append_change(c, SC_ACTION_UNMOUNT);
-			c = c->next;
-		} else if (c != NULL && d != NULL) {
-			// Both profiles have entries to consider.
-			if (sc_compare_mount_entry(c, d) == 0) {
-				// Identical entries are just skipped and the algorithm continues.
-				c = c->next;
-				d = d->next;
-			} else {
-				// Non-identical entries mean that we need to unmount the current
-				// entry and mount the desired entry.
-				//
-				// Let's process all the unmounts first. This way we can "clear the
-				// stage" (so to speak). Either the tip of the current profile and
-				// tip of the desired profile become identical (we're in sync) or
-				// we're eventually going to exhaust the current profile and the
-				// code above will start to process items in the desired profile
-				// (which will cause all the mount calls to happen).
-				struct sc_mount_entry *found =
-				    sc_mount_entry_find(desired, c);
-				if (found != NULL) {
-					// If the current mount entry is further down the desired
-					// profile chain then we don't need to unmount it. We want
-					// to flag it though, so that we don't try to mount it when
-					// processing the leftovers of the desired list.
-					found->flag = 1;
-					c = c->next;
-				} else {
-					// If the current entry is not desired then just unmount it.
-					append_change(c, SC_ACTION_UNMOUNT);
-					c = c->next;
-				}
-			}
+	struct sc_mount_entry *entry;
+
+	// Reset flags in both lists as we use them to track reused entries.
+	for (entry = current; entry != NULL; entry = entry->next) {
+		entry->flag = 0;
+	}
+	for (entry = desired; entry != NULL; entry = entry->next) {
+		entry->flag = 0;
+	}
+
+	// Do a pass over the current list to see if they are present in the
+	// desired list. Such entries are flagged so that they are not toched by
+	// either loops below.
+	//
+	// NOTE: This will linearly search the desired list. If this is going to
+	// get expensive it should be changed to a more efficient operation. For
+	// the sizes of mount profiles we are working with (typically close to one)
+	// this is sufficient though.
+	for (entry = current; entry != NULL; entry = entry->next) {
+		struct sc_mount_entry *found =
+		    sc_mount_entry_find(desired, entry);
+		if (found != NULL) {
+			// NOTE: we flag both in the current and desired lists as we
+			// iterate over both lists below.
+			entry->flag = 1;
+			found->flag = 1;
 		}
 	}
-	// Both profiles exhausted. There is nothing to do left.
+
+	// Do a pass over the current list and unmount unflagged entries.
+	for (entry = current; entry != NULL; entry = entry->next) {
+		if (entry->flag == 0) {
+			append_change(entry, SC_ACTION_UNMOUNT);
+		}
+	}
+
+	// Do a pass over the desired list and mount the unflagged entries.
+	for (entry = desired; entry != NULL; entry = entry->next) {
+		if (entry->flag == 0) {
+			append_change(entry, SC_ACTION_MOUNT);
+		}
+	}
+
 	return first_change;
 }
