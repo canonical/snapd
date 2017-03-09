@@ -40,5 +40,5 @@ func (x *cmdEnsureStateSoon) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return Client().EnsureStateSoon()
+	return Client().Debug("ensure-state-soon", nil, nil)
 }

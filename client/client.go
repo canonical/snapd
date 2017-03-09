@@ -518,18 +518,21 @@ func (client *Client) Users() ([]*User, error) {
 }
 
 type debugAction struct {
-	Action string `json:"action"`
+	Action string      `json:"action"`
+	Params interface{} `json:"params,omitempty"`
 }
 
-// EnsureStateSoon is only useful when writing test code, it will trigger
-// the internal "ensure" loop of the state engine to be run as soon as
-// possible.
-func (client *Client) EnsureStateSoon() error {
-	body, err := json.Marshal(debugAction{Action: "ensure-state-soon"})
+// Debug is only useful when writing test code, it will trigger
+// an internal action with the given parameters.
+func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+	body, err := json.Marshal(debugAction{
+		Action: action,
+		Params: params,
+	})
 	if err != nil {
 		return err
 	}
 
-	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), nil)
+	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
 	return err
 }
