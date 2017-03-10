@@ -48,6 +48,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, Contains, &builtin.LxdSupportInterface{})
+	c.Check(all, Contains, &builtin.MaliitInterface{})
 	c.Check(all, Contains, &builtin.MirInterface{})
 	c.Check(all, Contains, &builtin.MprisInterface{})
 	c.Check(all, Contains, &builtin.PhysicalMemoryControlInterface{})
