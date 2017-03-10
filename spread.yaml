@@ -225,7 +225,10 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        snap set core refresh.disabled=false
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl enable --now snapd.refresh.timer
+            snap set core refresh.disabled=false
+        fi
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz

@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ConnectivityObserveSuite struct {
@@ -67,17 +68,26 @@ func (s *ConnectivityObserveSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "interface=org.freedesktop.DBus.*")
+	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.client.*\"")
+
 	// slots have a permanent non-nil security snippet for apparmor
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)")
+	c.Check(string(snippet), testutil.Contains, "name=\"com.ubuntu.connectivity1.NetworkingStatus\"")
+
 	// slots have a permanent non-nil security snippet for dbus
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "<policy user=\"root\">")
+	c.Check(string(snippet), testutil.Contains, "<allow send_destination=\"com.ubuntu.connectivity1.NetworkingStatus\"/>")
 
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.server.*\"")
+	c.Check(string(snippet), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
 }

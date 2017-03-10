@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -215,14 +216,16 @@ func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 	return nil, nil
 }
 
+func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+}
+
 func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
 		return []byte(upowerObservePermanentSlotDBus), nil
 	case interfaces.SecurityAppArmor:
 		return []byte(upowerObservePermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObservePermanentSlotSeccomp), nil
 	}
 	return nil, nil
 }

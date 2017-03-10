@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var connectivityObservePermanentSlotAppArmor = []byte(`
+const connectivityObservePermanentSlotAppArmor = `
 # Description: Allow owning the NetworkingStatus bus name on the system bus
 
 # DBus accesses
@@ -36,40 +36,43 @@ dbus (send)
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
    member={Request,Release}Name
-   peer=(name=org.freedesktop.DBus),
+   peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (bind)
    bus=system
    name="com.ubuntu.connectivity1.NetworkingStatus",
-`)
+`
 
-var connectivityObserveConnectedSlotAppArmor = []byte(`
-# Description: Allow access to NetworkingStatus service.
+const connectivityObserveConnectedSlotAppArmor = `
+# Description: allow access to NetworkingStatus service
 
 dbus (receive)
     bus=system
     path=/com/ubuntu/connectivity1/NetworkingStatus{,/**}
-    interface=org.freedesktop.DBus.*,
-`)
+    interface=org.freedesktop.DBus.*
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
 
-var connectivityObserveConnectedPlugAppArmor = []byte(`
+const connectivityObserveConnectedPlugAppArmor = `
 # Description: Allow using NetworkingStatus service.
 
 #include <abstractions/dbus-strict>
 
 # Allow all access to NetworkingStatus service
-dbus (receive, send)
+dbus (send)
     bus=system
     interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}
-    path=/com/ubuntu/connectivity1/NetworkingStatus,
+    path=/com/ubuntu/connectivity1/NetworkingStatus
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/com/ubuntu/connectivity1/NetworkingStatus{,/**}
-    interface=org.freedesktop.DBus.*,
-`)
+    interface=org.freedesktop.DBus.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
 
-var connectivityObservePermanentSlotDBus = []byte(`
+const connectivityObservePermanentSlotDBus = `
 <policy user="root">
     <allow own="com.ubuntu.connectivity1.NetworkingStatus"/>
     <allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>
@@ -77,13 +80,12 @@ var connectivityObservePermanentSlotDBus = []byte(`
 
 <policy context="default">
     <deny own="com.ubuntu.connectivity1.NetworkingStatus"/>
-
-    <deny send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>
+    <allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>
 </policy>
 
 <limit name="max_replies_per_connection">1024</limit>
 <limit name="max_match_rules_per_connection">2048</limit>
-`)
+`
 
 type ConnectivityObserveInterface struct{}
 
@@ -99,7 +101,7 @@ func (iface *ConnectivityObserveInterface) ConnectedPlugSnippet(plug *interfaces
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(connectivityObserveConnectedPlugAppArmor)
-		old := []byte("###PLUG_SECURITY_TAGS###")
+		old := []byte("###SLOT_SECURITY_TAGS###")
 		var new []byte
 		new = slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
@@ -111,14 +113,9 @@ func (iface *ConnectivityObserveInterface) ConnectedPlugSnippet(plug *interfaces
 func (iface *ConnectivityObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
-		return connectivityObservePermanentSlotDBus, nil
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(connectivityObservePermanentSlotAppArmor)
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		var new []byte
-		new = slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
+		return []byte(connectivityObservePermanentSlotDBus), nil
+    case interfaces.SecurityAppArmor:
+        return []byte(connectivityObservePermanentSlotAppArmor), nil
 	}
 	return nil, nil
 }
@@ -127,9 +124,9 @@ func (iface *ConnectivityObserveInterface) ConnectedSlotSnippet(plug *interfaces
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(connectivityObserveConnectedSlotAppArmor)
-		old := []byte("###SLOT_SECURITY_TAGS###")
+		old := []byte("###PLUG_SECURITY_TAGS###")
 		var new []byte
-		new = slotAppLabelExpr(slot)
+		new = plugAppLabelExpr(plug)
 		snippet = bytes.Replace(snippet, old, new, -1)
 		return snippet, nil
 	}

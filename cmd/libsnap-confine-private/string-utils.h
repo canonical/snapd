@@ -51,6 +51,32 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...);
 size_t sc_string_append(char *dst, size_t dst_size, const char *str);
 
 /**
+ * Append a single character to a buffer containing a string.
+ *
+ * This version is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
+ * then the function dies.
+ *
+ * The character cannot be the string terminator.
+ *
+ * The return value is the new length of the string.
+ **/
+size_t sc_string_append_char(char *dst, size_t dst_size, char c);
+
+/**
+ * Append a pair of characters to a buffer containing a string.
+ *
+ * This version is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
+ * then the function dies.
+ *
+ * Neither character can be the string terminator.
+ *
+ * The return value is the new length of the string.
+ **/
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2);
+
+/**
  * Initialize a string (make it empty).
  *
  * Initialize a string as empty, ensuring buf is non-NULL buf_size is > 0.
