@@ -214,6 +214,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  connectivity-observe:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection: true
   content:
     allow-installation:
       slot-snap-type:
