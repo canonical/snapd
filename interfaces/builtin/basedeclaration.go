@@ -425,7 +425,7 @@ slots:
     deny-auto-connection: true
     deny-connection:
       on-classic: false
-  online-accounts:
+  online-accounts-service:
     allow-installation:
       slot-snap-type:
         - app
