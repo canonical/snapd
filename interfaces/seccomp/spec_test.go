@@ -94,4 +94,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1", "snap.snap2.app2"})
+	c.Assert(s.spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+
+	c.Assert(s.spec.SnippetForTag("non-existing"), Equals, "")
 }

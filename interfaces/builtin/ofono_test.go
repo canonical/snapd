@@ -176,8 +176,6 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.ofono.app"]), Equals, 1)
-	c.Check(string(snippets["snap.ofono.app"][0]), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
 }
