@@ -142,7 +142,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
-		"online-accounts":         true,
 		"opengl":                  true,
 		"optical-drive":           true,
 		"pulseaudio":              true,
@@ -150,6 +149,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"unity7":                  true,
 		"unity8":                  true,
 		"ubuntu-download-manager": true,
+		"ubuntu-online-accounts":  true,
 		"upower-observe":          true,
 		"x11":                     true,
 	}
@@ -435,7 +435,6 @@ var (
 		"mpris":                   {"app"},
 		"network-manager":         {"app", "core"},
 		"ofono":                   {"app", "core"},
-		"online-accounts":         {"app"},
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
@@ -446,6 +445,7 @@ var (
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"ubuntu-download-manager": {"app"},
+		"ubuntu-online-accounts":  {"app"},
 		"upower-observe":          {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
@@ -580,12 +580,12 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe":        true,
 		"lxd":                     true,
 		"mir":                     true,
-		"online-accounts":         true,
 		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
 		"ubuntu-download-manager": true,
+		"ubuntu-online-accounts":  true,
 	}
 
 	for _, iface := range all {

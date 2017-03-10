@@ -425,11 +425,6 @@ slots:
     deny-auto-connection: true
     deny-connection:
       on-classic: false
-  online-accounts:
-    allow-installation:
-      slot-snap-type:
-        - app
-    deny-connection: true
   opengl:
     allow-installation:
       slot-snap-type:
@@ -541,6 +536,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  ubuntu-online-accounts:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   udisks2:
     allow-installation:
       slot-snap-type:
