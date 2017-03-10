@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var ubuntuOnlineAccountsPermanentSlotAppArmor = []byte(`
+var onlineAccountsPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the Online Accounts service. Reserved because
 # this gives privileged access to the system.
 
@@ -46,7 +46,7 @@ dbus (bind)
 	name="com.ubuntu.OnlineAccounts.Manager",
 `)
 
-var ubuntuOnlineAccountsConnectedSlotAppArmor = []byte(`
+var onlineAccountsConnectedSlotAppArmor = []byte(`
 # Allow service to interact with connected clients
 dbus (receive, send)
 	bus=session
@@ -55,7 +55,7 @@ dbus (receive, send)
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
-var ubuntuOnlineAccountsConnectedPlugAppArmor = []byte(`
+var onlineAccountsConnectedPlugAppArmor = []byte(`
 # Description: Allow using Online Accounts service. Common because the access
 # to user data is actually mediated by the Online Accounts service itself.
 # Usage: common
@@ -69,7 +69,7 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
-var ubuntuOnlineAccountsPermanentSlotSecComp = []byte(`
+var onlineAccountsPermanentSlotSecComp = []byte(`
 # dbus
 accept
 accept4
@@ -86,7 +86,7 @@ sendto
 shutdown
 `)
 
-var ubuntuOnlineAccountsConnectedPlugSecComp = []byte(`
+var onlineAccountsConnectedPlugSecComp = []byte(`
 # dbus
 recv
 recvmsg
@@ -95,7 +95,7 @@ sendto
 sendmsg
 `)
 
-var ubuntuOnlineAccountsPermanentSlotDBus = []byte(`
+var onlineAccountsPermanentSlotDBus = []byte(`
 <policy user="default">
     <allow own="com.ubuntu.OnlineAccounts.Manager"/>
     <allow send_destination="com.ubuntu.OnlineAccounts.Manager"/>
@@ -103,7 +103,7 @@ var ubuntuOnlineAccountsPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-var ubuntuOnlineAccountsConnectedPlugDBus = []byte(`
+var onlineAccountsConnectedPlugDBus = []byte(`
 <policy context="default">
     <deny own="com.ubuntu.OnlineAccounts.Manager"/>
     <allow send_destination="com.ubuntu.OnlineAccounts.Manager"/>
@@ -111,13 +111,13 @@ var ubuntuOnlineAccountsConnectedPlugDBus = []byte(`
 </policy>
 `)
 
-type UbuntuOnlineAccountsInterface struct{}
+type OnlineAccountsInterface struct{}
 
-func (iface *UbuntuOnlineAccountsInterface) Name() string {
-	return "ubuntu-online-accounts"
+func (iface *OnlineAccountsInterface) Name() string {
+	return "online-accounts"
 }
 
-func (iface *UbuntuOnlineAccountsInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OnlineAccountsInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -126,14 +126,14 @@ func (iface *UbuntuOnlineAccountsInterface) PermanentPlugSnippet(plug *interface
 	}
 }
 
-func (iface *UbuntuOnlineAccountsInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OnlineAccountsInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return ubuntuOnlineAccountsConnectedPlugAppArmor, nil
+		return onlineAccountsConnectedPlugAppArmor, nil
 	case interfaces.SecurityDBus:
-		return ubuntuOnlineAccountsConnectedPlugDBus, nil
+		return onlineAccountsConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
-		return ubuntuOnlineAccountsConnectedPlugSecComp, nil
+		return onlineAccountsConnectedPlugSecComp, nil
 	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
@@ -141,25 +141,25 @@ func (iface *UbuntuOnlineAccountsInterface) ConnectedPlugSnippet(plug *interface
 	}
 }
 
-func (iface *UbuntuOnlineAccountsInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OnlineAccountsInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(ubuntuOnlineAccountsConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace(onlineAccountsConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
 }
 
-func (iface *UbuntuOnlineAccountsInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *OnlineAccountsInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return ubuntuOnlineAccountsPermanentSlotAppArmor, nil
+		return onlineAccountsPermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
-		return ubuntuOnlineAccountsPermanentSlotDBus, nil
+		return onlineAccountsPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
-		return ubuntuOnlineAccountsPermanentSlotSecComp, nil
+		return onlineAccountsPermanentSlotSecComp, nil
 	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
@@ -167,20 +167,20 @@ func (iface *UbuntuOnlineAccountsInterface) PermanentSlotSnippet(slot *interface
 	}
 }
 
-func (iface *UbuntuOnlineAccountsInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *OnlineAccountsInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *UbuntuOnlineAccountsInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *OnlineAccountsInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface \"%s\"", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *UbuntuOnlineAccountsInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *OnlineAccountsInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
