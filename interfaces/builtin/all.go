@@ -47,7 +47,7 @@ var allInterfaces = []interfaces.Interface{
 	&MprisInterface{},
 	&NetworkManagerInterface{},
 	&OfonoInterface{},
-	&OnlineAccountsInterface{},
+	&OnlineAccountsServiceInterface{},
 	&PhysicalMemoryControlInterface{},
 	&PhysicalMemoryObserveInterface{},
 	&PppInterface{},
