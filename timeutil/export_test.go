@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,12 @@
  *
  */
 
-package hookstate
+package timeutil
 
-func MockReadlink(f func(string) (string, error)) func() {
-	oldReadlink := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = oldReadlink
-	}
+import "time"
+
+func MockTimeNow(f func() time.Time) (restorer func()) {
+	origTimeNow := timeNow
+	timeNow = f
+	return func() { timeNow = origTimeNow }
 }

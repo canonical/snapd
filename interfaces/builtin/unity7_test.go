@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,28 @@ type Unity7InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&Unity7InterfaceSuite{
-	iface: builtin.NewUnity7Interface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&Unity7InterfaceSuite{})
+
+const unity7mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [unity7]
+`
+
+func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewUnity7Interface()
+	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity7"]}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "unity7",
 			Interface: "unity7",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "unity7",
-			Interface: "unity7",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+}
 
 func (s *Unity7InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity7")

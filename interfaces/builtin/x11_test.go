@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,28 @@ type X11InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&X11InterfaceSuite{
-	iface: builtin.NewX11Interface(),
-	slot: &interfaces.Slot{
+const x11MockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [x11]
+`
+
+var _ = Suite(&X11InterfaceSuite{})
+
+func (s *X11InterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewX11Interface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "x11",
 			Interface: "x11",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "x11",
-			Interface: "x11",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, x11MockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["x11"]}
+}
 
 func (s *X11InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "x11")
