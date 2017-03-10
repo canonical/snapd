@@ -121,6 +121,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/find ixr,
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
   /{,usr/}bin/groups ixr,
   /{,usr/}bin/gzip ixr,
@@ -343,8 +344,8 @@ var defaultTemplate = []byte(`
   /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
-  owner /{dev,run}/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
+  owner /run/user/[0-9]*/snap.@{SNAP_NAME}/** mrwklix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
@@ -434,4 +435,7 @@ var classicTemplate = []byte(`
 var classicJailmodeSnippet = []byte(`
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
+  # Read only access to the core snap to load libc from.
+  # This is related to LP: #1666897
+  @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 `)

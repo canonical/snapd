@@ -23,12 +23,12 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const dockerConnectedPlugAppArmor = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
 # Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
@@ -37,7 +37,6 @@ const dockerConnectedPlugAppArmor = `
 const dockerConnectedPlugSecComp = `
 # Description: allow access to the Docker daemon socket. This gives privileged
 # access to the system via Docker's socket API.
-# Usage: reserved
 
 bind
 `
@@ -53,12 +52,8 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 }
 
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		snippet := []byte(dockerConnectedPlugAppArmor)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(dockerConnectedPlugSecComp)
 		return snippet, nil
 	}
 	return nil, nil
@@ -66,6 +61,10 @@ func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 
 func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(dockerConnectedPlugSecComp)
 }
 
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

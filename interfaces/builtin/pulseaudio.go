@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -48,10 +49,7 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
-sendto
 shmctl
-sendmsg
-recvmsg
 `
 
 const pulseaudioPermanentSlotAppArmor = `
@@ -103,12 +101,9 @@ personality
 setpriority
 bind
 listen
-sendto
-recvfrom
+accept
 accept4
 shmctl
-sendmsg
-recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
@@ -126,8 +121,7 @@ func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 }
 
 func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		if release.OnClassic {
 			b := bytes.NewBuffer([]byte(pulseaudioConnectedPlugAppArmor))
 			b.Write([]byte(pulseaudioConnectedPlugAppArmorDesktop))
@@ -135,18 +129,21 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		} else {
 			return []byte(pulseaudioConnectedPlugAppArmor), nil
 		}
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
 
+func (iface *PulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+}
+
+func (iface *PulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+}
+
 func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		return []byte(pulseaudioPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }

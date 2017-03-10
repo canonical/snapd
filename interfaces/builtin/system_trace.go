@@ -27,7 +27,6 @@ const systemTraceConnectedPlugAppArmor = `
 # Description: Can use kernel tracing facilities. This is restricted because it
 # gives privileged access to all processes on the system and should only be
 # used with trusted apps.
-# Usage: reserved
 
   # For the bpf() syscall and manipulating bpf map types
   capability sys_admin,
@@ -51,7 +50,6 @@ const systemTraceConnectedPlugSecComp = `
 # Description: Can use kernel tracing facilities. This is restricted because it
 # gives privileged access to all processes on the system and should only be
 # used with trusted apps.
-# Usage: reserved
 
 bpf
 perf_event_open

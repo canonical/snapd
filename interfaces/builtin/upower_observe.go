@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -104,12 +105,6 @@ dbus (receive, send)
 
 const upowerObservePermanentSlotSeccomp = `
 bind
-recvmsg
-sendmsg
-sendto
-recvfrom
-send
-recv
 `
 
 const upowerObservePermanentSlotDBus = `
@@ -196,18 +191,6 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const upowerObserveConnectedPlugSecComp = `
-# Description: Can query UPower for power devices, history and statistics.
-
-# dbus
-recv
-recvfrom
-recvmsg
-send
-sendto
-sendmsg
-`
-
 type UpowerObserveInterface struct{}
 
 func (iface *UpowerObserveInterface) Name() string {
@@ -229,10 +212,12 @@ func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 		}
 		snippet := bytes.Replace([]byte(upowerObserveConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObserveConnectedPlugSecComp), nil
 	}
 	return nil, nil
+}
+
+func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 }
 
 func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -241,8 +226,6 @@ func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot,
 		return []byte(upowerObservePermanentSlotDBus), nil
 	case interfaces.SecurityAppArmor:
 		return []byte(upowerObservePermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(upowerObservePermanentSlotSeccomp), nil
 	}
 	return nil, nil
 }

@@ -61,6 +61,10 @@ network sna,
 @{PROC}/sys/net/netfilter/** rw,
 @{PROC}/sys/net/nf_conntrack_max rw,
 
+# read netfilter module parameters
+/sys/module/nf_*/                r,
+/sys/module/nf_*/parameters/{,*} r,
+
 # networking tools
 /{,usr/}{,s}bin/arp ixr,
 /{,usr/}{,s}bin/arpd ixr,
@@ -123,6 +127,9 @@ capability setuid,
 
 # route
 /etc/networks r,
+/etc/ethers r,
+
+/etc/rpc r,
 
 # TUN/TAP
 /dev/net/tun rw,
@@ -184,10 +191,6 @@ capset
 # network configuration files into /etc in that namespace. See man ip-netns(8)
 # for details.
 bind
-sendmsg
-sendto
-recvfrom
-recvmsg
 
 mount
 umount

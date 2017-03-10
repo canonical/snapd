@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const dockerSupportConnectedPlugAppArmor = `
@@ -31,7 +32,6 @@ const dockerSupportConnectedPlugAppArmor = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -114,7 +114,6 @@ const dockerSupportConnectedPlugSecComp = `
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
 # malicious activity.
-# Usage: reserved
 
 # Because seccomp may only go more strict, we must allow all syscalls to Docker
 # that it expects to give to containers in addition to what it needs to run and
@@ -532,21 +531,23 @@ func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 
 func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		snippet := []byte(dockerSupportConnectedPlugAppArmor)
 		if privileged {
 			snippet = append(snippet, dockerSupportPrivilegedAppArmor...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(dockerSupportConnectedPlugSecComp)
-		if privileged {
-			snippet = append(snippet, dockerSupportPrivilegedSecComp...)
-		}
-		return snippet, nil
 	}
 	return nil, nil
+}
+
+func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	privileged, _ := plug.Attrs["privileged-containers"].(bool)
+	snippet := dockerSupportConnectedPlugSecComp
+	if privileged {
+		snippet += dockerSupportPrivilegedSecComp
+	}
+	return spec.AddSnippet(snippet)
 }
 
 func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

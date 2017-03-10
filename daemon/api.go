@@ -238,6 +238,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
 		"managed":    len(users) > 0,
+
+		"kernel-version": release.KernelVersion(),
 	}
 
 	// TODO: set the store-id here from the model information
@@ -662,8 +664,9 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	query := r.URL.Query()
 	var all bool
-	sel := r.URL.Query().Get("select")
+	sel := query.Get("select")
 	switch sel {
 	case "all":
 		all = true
@@ -672,7 +675,19 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
+	var wanted map[string]bool
+	if ns := query.Get("snaps"); len(ns) > 0 {
+		nsl := strings.Split(ns, ",")
+		wanted = make(map[string]bool, len(nsl))
+		for _, name := range nsl {
+			name = strings.TrimSpace(name)
+			if len(name) > 0 {
+				wanted[name] = true
+			}
+		}
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
@@ -826,7 +841,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	// confinement.
 	flags.JailMode = jailMode
 	flags.Classic = classic
-	flags.DevMode = devMode || devModeOS && !classic
+	flags.DevMode = devMode
 	return flags, nil
 }
 
@@ -2182,7 +2197,7 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
 	if uid != 0 {
-		return BadRequest("cannot use create-user as non-root")
+		return BadRequest("cannot get users as non-root")
 	}
 
 	st := c.d.overlord.State()

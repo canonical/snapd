@@ -66,7 +66,10 @@ prepare_each_classic() {
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
     fi
-
+    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+        exit 1
+    fi
 }
 
 prepare_classic() {
@@ -112,7 +115,9 @@ EOF
         snap list | grep core
 
         # ensure no auto-refresh happens during the tests
-        snap set core refresh.disabled=true
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            snap set core refresh.disabled=true
+        fi
 
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
@@ -127,8 +132,8 @@ EOF
         update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
-        mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
@@ -334,7 +339,9 @@ prepare_all_snap() {
     done
 
     # ensure no auto-refresh happens during the tests
-    snap set core refresh.disabled=true
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.disabled=true
+    fi
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then

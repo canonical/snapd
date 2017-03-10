@@ -33,6 +33,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -143,8 +144,8 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 		VersionID: "mocked",
 	})
 
-	snapstate.CanAutoRefresh = func(*state.State) bool {
-		return false
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		return false, nil
 	}
 }
 
@@ -229,6 +230,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
+	// mark as already seeded
+	st.Set("seeded", true)
 
 	s.d = d
 	return d
@@ -390,6 +393,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"trymode":          false,
 			"apps":             []appJSON{},
 			"broken":           "",
+			"contact":          "",
 		},
 		Meta: meta,
 	}
@@ -562,6 +566,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	// Ensure that we had a kernel-verrsion but don't check the actual value.
+	const kernelVersionKey = "kernel-version"
+	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -1009,28 +1017,69 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
+	s.checkSnapInfoOnePerIntegration(c, false, nil)
+}
+
+func (s *apiSuite) TestSnapsInfoOnePerIntegrationSome(c *check.C) {
+	s.checkSnapInfoOnePerIntegration(c, false, []string{"foo", "baz"})
+}
+
+func (s *apiSuite) TestSnapsInfoOnePerIntegrationAll(c *check.C) {
+	s.checkSnapInfoOnePerIntegration(c, true, nil)
+}
+
+func (s *apiSuite) TestSnapsInfoOnePerIntegrationAllSome(c *check.C) {
+	s.checkSnapInfoOnePerIntegration(c, true, []string{"foo", "baz"})
+}
+
+func (s *apiSuite) checkSnapInfoOnePerIntegration(c *check.C, all bool, names []string) {
 	d := s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v2/snaps", nil)
-	c.Assert(err, check.IsNil)
-
 	type tsnap struct {
-		name string
-		dev  string
-		ver  string
-		rev  int
+		name   string
+		dev    string
+		ver    string
+		rev    int
+		active bool
+
+		wanted bool
 	}
 
 	tsnaps := []tsnap{
-		{"foo", "bar", "v1", 5},
-		{"bar", "baz", "v2", 10},
-		{"baz", "qux", "v3", 15},
-		{"qux", "mip", "v4", 20},
+		{name: "foo", dev: "bar", ver: "v0.9", rev: 1},
+		{name: "foo", dev: "bar", ver: "v1", rev: 5, active: true},
+		{name: "bar", dev: "baz", ver: "v2", rev: 10, active: true},
+		{name: "baz", dev: "qux", ver: "v3", rev: 15, active: true},
+		{name: "qux", dev: "mip", ver: "v4", rev: 20, active: true},
 	}
+	numExpected := 0
 
 	for _, snp := range tsnaps {
-		s.mkInstalledInState(c, d, snp.name, snp.dev, snp.ver, snap.R(snp.rev), false, "")
+		if all || snp.active {
+			if len(names) == 0 {
+				numExpected++
+				snp.wanted = true
+			}
+			for _, n := range names {
+				if snp.name == n {
+					numExpected++
+					snp.wanted = true
+					break
+				}
+			}
+		}
+		s.mkInstalledInState(c, d, snp.name, snp.dev, snp.ver, snap.R(snp.rev), snp.active, "")
 	}
+
+	q := url.Values{}
+	if all {
+		q.Set("select", "all")
+	}
+	if len(names) > 0 {
+		q.Set("snaps", strings.Join(names, ","))
+	}
+	req, err := http.NewRequest("GET", "/v2/snaps?"+q.Encode(), nil)
+	c.Assert(err, check.IsNil)
 
 	rsp, ok := getSnapsInfo(snapsCmd, req, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -1040,12 +1089,15 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 
 	snaps := snapList(rsp.Result)
-	c.Check(snaps, check.HasLen, len(tsnaps))
+	c.Check(snaps, check.HasLen, numExpected)
 
 	for _, s := range tsnaps {
+		if !((all || s.active) && s.wanted) {
+			continue
+		}
 		var got map[string]interface{}
 		for _, got = range snaps {
-			if got["name"].(string) == s.name {
+			if got["name"].(string) == s.name && got["revision"].(string) == snap.R(s.rev).String() {
 				break
 			}
 		}
@@ -1729,7 +1781,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
-	flags := snapstate.Flags{DevMode: true, RemoveSnapPath: true}
+	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1792,7 +1844,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1816,7 +1868,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1833,7 +1885,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 	// add the assertions first
@@ -1915,7 +1967,7 @@ func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1958,7 +2010,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 }
 
 func (s *apiSuite) TestTrySnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2073,7 +2125,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -2331,9 +2383,7 @@ func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	flags := snapstate.Flags{}
-	flags.DevMode = true
-	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, flags, snap.R(0))
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallRevision(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(42))

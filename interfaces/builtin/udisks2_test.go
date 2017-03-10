@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -43,6 +44,12 @@ var _ = Suite(&UDisks2InterfaceSuite{
 			},
 			Name:      "udisks2",
 			Interface: "udisks2",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "udisks2",
+					},
+					Name: "app1"}},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -185,7 +192,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus}
+		interfaces.SecurityDBus}
 	for _, system := range systems {
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
@@ -200,4 +207,12 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.udisks2.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.udisks2.app1"][0]), testutil.Contains, "mount\n")
 }

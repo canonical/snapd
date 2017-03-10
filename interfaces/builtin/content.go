@@ -47,7 +47,8 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
-		return fmt.Errorf("content slot must have a content attribute set")
+		// content defaults to "slot" name if unspecified
+		slot.Attrs["content"] = slot.Name
 	}
 
 	// check that we have either a read or write path
@@ -75,7 +76,8 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
-		return fmt.Errorf("content plug must have a content attribute set")
+		// content defaults to "slot" name if unspecified
+		plug.Attrs["content"] = plug.Name
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
@@ -136,10 +138,15 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(snapInfo.MountDir(), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
-	src := resolveSpecialVariable(relSrc, slot.Snap)
-	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
+	options := make([]string, 0, len(extraOptions)+1)
+	options = append(options, "bind")
+	options = append(options, extraOptions...)
+	return mount.Entry{
+		Name:    resolveSpecialVariable(relSrc, slot.Snap),
+		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Options: options,
+	}
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -193,10 +200,16 @@ func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfac
 
 func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	for _, r := range iface.path(slot, "read") {
-		spec.AddSnippet(mountEntry(plug, slot, r, ",ro"))
+		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
+		if err != nil {
+			return err
+		}
 	}
 	for _, w := range iface.path(slot, "write") {
-		spec.AddSnippet(mountEntry(plug, slot, w, ""))
+		err := spec.AddMountEntry(mountEntry(plug, slot, w))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
