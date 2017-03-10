@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const maliitInputMethodPermanentSlotAppArmor = `
+const maliitPermanentSlotAppArmor = `
 # Description: Allow operating as a maliit server.
 # Communication with maliit happens in the following stages:
 #  * An application connects to the address service: org.maliit.Server.Address.
@@ -62,7 +62,7 @@ dbus (bind)
 unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 `
 
-const maliitInputMethodConnectedSlotAppArmor = `
+const maliitConnectedSlotAppArmor = `
 # Provides the maliit address service which assigns an individual unix socket
 # to each application
 dbus (receive)
@@ -81,7 +81,7 @@ dbus (receive)
 unix (receive, send) type=stream addr="@/tmp/maliit-server/dbus-*" peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
-const maliitInputMethodConnectedPlugAppArmor = `
+const maliitConnectedPlugAppArmor = `
 # Description: Allow applications to connect to a maliit socket
 
 #include <abstractions/dbus-session-strict>
@@ -105,69 +105,69 @@ dbus (send)
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
 `
 
-const maliitInputMethodPermanentSlotSecComp = `
+const maliitPermanentSlotSecComp = `
 listen
 accept
 accept4
 `
 
-type MaliitInputMethodInterface struct{}
+type MaliitInterface struct{}
 
-func (iface *MaliitInputMethodInterface) Name() string {
-	return "maliit-input-method"
+func (iface *MaliitInterface) Name() string {
+	return "maliit"
 }
 
-func (iface *MaliitInputMethodInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MaliitInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *MaliitInputMethodInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MaliitInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(maliitInputMethodConnectedPlugAppArmor), old, new, -1)
+		snippet := bytes.Replace([]byte(maliitConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
 }
 
-func (iface *MaliitInputMethodInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MaliitInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return []byte(maliitInputMethodPermanentSlotAppArmor), nil
+		return []byte(maliitPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return []byte(maliitInputMethodPermanentSlotSecComp), nil
+		return []byte(maliitPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
 
-func (iface *MaliitInputMethodInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MaliitInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(maliitInputMethodConnectedSlotAppArmor), old, new, -1)
+		snippet := bytes.Replace([]byte(maliitConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
 }
 
-func (iface *MaliitInputMethodInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *MaliitInterface) SanitizePlug(slot *interfaces.Plug) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *MaliitInputMethodInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *MaliitInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	return nil
 }
 
-func (iface *MaliitInputMethodInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *MaliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

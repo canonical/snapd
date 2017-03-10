@@ -29,161 +29,161 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type MaliitInputMethodInterfaceSuite struct {
+type MaliitInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&MaliitInputMethodInterfaceSuite{
-	iface: &builtin.MaliitInputMethodInterface{},
+var _ = Suite(&MaliitInterfaceSuite{
+	iface: &builtin.MaliitInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "maliit-input-method"},
-			Name:      "maliit-input-method-player",
-			Interface: "maliit-input-method",
+			Snap:      &snap.Info{SuggestedName: "maliit"},
+			Name:      "maliit-server",
+			Interface: "maliit",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "maliit-input-method"},
-			Name:      "maliit-input-method-client",
-			Interface: "maliit-input-method",
+			Snap:      &snap.Info{SuggestedName: "maliit"},
+			Name:      "maliit-client",
+			Interface: "maliit",
 		},
 	},
 })
 
-func (s *MaliitInputMethodInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "maliit-input-method")
+func (s *MaliitInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "maliit")
 }
 
-// The label glob when all apps are bound to the maliit-input-method slot
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
+// The label glob when all apps are bound to the maliit slot
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.*"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.*"),`)
 }
 
-// The label uses alternation when some, but not all, apps are bound to the maliit-input-method slot
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
+// The label uses alternation when some, but not all, apps are bound to the maliit slot
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.{app1,app2}"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSecComp(c *C) {
+func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
-// The label uses short form when exactly one app is bound to the maliit-input-method slot
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
+// The label uses short form when exactly one app is bound to the maliit slot
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.app"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.app"),`)
 }
 
-// The label glob when all apps are bound to the maliit-input-method plug
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
+// The label glob when all apps are bound to the maliit plug
+func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.*"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.*"),`)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the maliit-input-method plug
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
+// The label uses alternation when some, but not all, apps is bound to the maliit plug
+func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
 	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.{app1,app2}"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.{app1,app2}"),`)
 }
 
-// The label uses short form when exactly one app is bound to the maliit-input-method plug
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
+// The label uses short form when exactly one app is bound to the maliit plug
+func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
-				SuggestedName: "maliit-input-method",
+				SuggestedName: "maliit",
 				Apps:          map[string]*snap.AppInfo{"app": app},
 			},
-			Name:      "maliit-input-method",
-			Interface: "maliit-input-method",
+			Name:      "maliit",
+			Interface: "maliit",
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
 	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit-input-method.app"),`)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.maliit.app"),`)
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSecComp(c *C) {
+func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
@@ -191,7 +191,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "listen\n")
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *MaliitInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -202,7 +202,7 @@ func (s *MaliitInputMethodInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -212,30 +212,30 @@ func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C)
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
+func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "org.maliit.Server.Address")
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "listen\n")
 }
 
-func (s *MaliitInputMethodInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
+func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.maliit-input-method.*\")")
+	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.maliit.*\")")
 }

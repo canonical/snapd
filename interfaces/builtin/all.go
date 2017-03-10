@@ -41,7 +41,7 @@ var allInterfaces = []interfaces.Interface{
 	&LocationObserveInterface{},
 	&LxdInterface{},
 	&LxdSupportInterface{},
-	&MaliitInputMethodInterface{},
+	&MaliitInterface{},
 	&MirInterface{},
 	&ModemManagerInterface{},
 	&MprisInterface{},

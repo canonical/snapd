@@ -345,7 +345,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  maliit-input-method:
+  maliit:
     allow-installation:
       slot-snap-type:
         - app
