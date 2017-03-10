@@ -85,8 +85,8 @@ func (s *KubernetesSupportInterfaceSuite) TestConnectedPlugKmod(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
-		"llc":          true,
-		"stp":          true,
+		"llc": true,
+		"stp": true,
 	})
 }
 
