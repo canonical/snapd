@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -36,29 +37,28 @@ type NetworkManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkManagerInterfaceSuite{
-	iface: &builtin.NetworkManagerInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "network-manager"},
-			Name:      "network-manager",
-			Interface: "network-manager",
-			Apps: map[string]*snap.AppInfo{
-				"nm": {
-					Snap: &snap.Info{
-						SuggestedName: "network-manager",
-					},
-					Name: "nm"}},
-		},
-	},
-	plug: &interfaces.Plug{
+const netmgrMockSlotSnapInfoYaml = `name: network-manager
+version: 1.0
+apps:
+ nm:
+  command: foo
+  slots: [network-manager]
+`
+
+var _ = Suite(&NetworkManagerInterfaceSuite{})
+
+func (s *NetworkManagerInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.NetworkManagerInterface{}
+	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "network-manager"},
 			Name:      "nmcli",
 			Interface: "network-manager",
 		},
-	},
-})
+	}
+	slotSnap := snaptest.MockInfo(c, netmgrMockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["network-manager"]}
+}
 
 func (s *NetworkManagerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-manager")

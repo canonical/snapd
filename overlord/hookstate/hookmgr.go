@@ -34,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -264,6 +265,7 @@ func snapCmd() string {
 
 	exe, err := osReadlink("/proc/self/exe")
 	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap command", err)
 		return snapCmd
 	}
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {

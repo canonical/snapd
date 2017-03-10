@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,23 +36,31 @@ type FwupdInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FwupdInterfaceSuite{
-	iface: &builtin.FwupdInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
-			Name:      "fwupd",
-			Interface: "fwupd",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
-			Name:      "fwupdmgr",
-			Interface: "fwupd",
-		},
-	},
-})
+const mockPlugSnapInfoYaml = `name: uefi-fw-tools
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [fwupd]
+`
+
+const mockSlotSnapInfoYaml = `name: uefi-fw-tools
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [fwupd]
+`
+
+var _ = Suite(&FwupdInterfaceSuite{})
+
+func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.FwupdInterface{}
+	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fwupd"]}
+}
 
 func (s *FwupdInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "fwupd")
@@ -100,19 +109,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 
 // The label uses short form when exactly one app is bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "uefi-fw-tools",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "fwupd",
-			Interface: "fwupd",
-			Apps:      map[string]*snap.AppInfo{"app": app},
-		},
-	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.uefi-fw-tools.app"),`)
 }
@@ -133,46 +130,18 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "fwupd"},
-			Name:      "fwupd",
-			Interface: "fwupd",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "fwupd",
-					},
-					Name: "app"}},
-		},
-	}
-
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.fwupd.app"]), Equals, 1)
-	c.Check(string(snippets["snap.fwupd.app"][0]), testutil.Contains, "bind\n")
+	c.Assert(len(snippets["snap.uefi-fw-tools.app"]), Equals, 1)
+	c.Check(string(snippets["snap.uefi-fw-tools.app"][0]), testutil.Contains, "bind\n")
 }
 
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	plug := &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
-			Name:      "fwupdmgr",
-			Interface: "fwupd",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "uefi-fw-tools",
-					},
-					Name: "app"}},
-		},
-	}
-
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)

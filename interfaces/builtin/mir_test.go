@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -79,23 +80,24 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
+const mirMockSlotSnapInfoYaml = `name: mir-server
+version: 1.0
+slots:
+ mir-server:
+  interface: mir
+apps:
+ mir:
+  command: foo
+  slots:
+   - mir-server
+`
+
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "mir-server"},
-			Name:      "mir-server",
-			Interface: "mir",
-			Apps: map[string]*snap.AppInfo{
-				"mir": {
-					Snap: &snap.Info{
-						SuggestedName: "mir-server",
-					},
-					Name: "mir"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["mir-server"]}
 
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	c.Assert(len(snippets), Equals, 1)

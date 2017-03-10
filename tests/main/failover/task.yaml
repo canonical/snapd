@@ -49,7 +49,7 @@ execute: |
         snap list | awk "/^core / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/core_*.snap
+        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/core_$(cat prevBoot).snap
 
         # set failure condition
         eval ${INJECT_FAILURE}

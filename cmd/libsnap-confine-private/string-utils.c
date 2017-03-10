@@ -161,3 +161,86 @@ void sc_string_init(char *buf, size_t buf_size)
 	}
 	buf[0] = '\0';
 }
+
+void sc_string_quote(char *buf, size_t buf_size, const char *str)
+{
+	if (str == NULL) {
+		die("cannot quote string: string is NULL");
+	}
+	// NOTE: this also checks buf/buf_size sanity so that we don't have to.
+	sc_string_init(buf, buf_size);
+	sc_string_append_char(buf, buf_size, '"');
+	for (char c; (c = *str) != 0; ++str) {
+		switch (c) {
+			// Pass ASCII letters and digits unmodified.
+		case '0' ... '9':
+		case 'A' ... 'Z':
+		case 'a' ... 'z':
+			// Pass most of the punctuation unmodified.
+		case ' ':
+		case '!':
+		case '#':
+		case '$':
+		case '%':
+		case '&':
+		case '(':
+		case ')':
+		case '*':
+		case '+':
+		case ',':
+		case '-':
+		case '.':
+		case '/':
+		case ':':
+		case ';':
+		case '<':
+		case '=':
+		case '>':
+		case '?':
+		case '@':
+		case '[':
+		case '\'':
+		case ']':
+		case '^':
+		case '_':
+		case '`':
+		case '{':
+		case '|':
+		case '}':
+		case '~':
+			sc_string_append_char(buf, buf_size, c);
+			break;
+			// Escape special whitespace characters.
+		case '\n':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'n');
+			break;
+		case '\r':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'r');
+			break;
+		case '\t':
+			sc_string_append_char_pair(buf, buf_size, '\\', 't');
+			break;
+		case '\v':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'v');
+			break;
+			// Escape the escape character.
+		case '\\':
+			sc_string_append_char_pair(buf, buf_size, '\\', '\\');
+			break;
+			// Escape double quote character.
+		case '"':
+			sc_string_append_char_pair(buf, buf_size, '\\', '"');
+			break;
+			// Escape everything else as a generic hexadecimal escape string.
+		default:
+			{
+				char escape_buf[8];
+				sc_must_snprintf(escape_buf, sizeof escape_buf,
+						 "\\x%02x", (unsigned char)c);
+				sc_string_append(buf, buf_size, escape_buf);
+			}
+			break;
+		}
+	}
+	sc_string_append_char(buf, buf_size, '"');
+}
