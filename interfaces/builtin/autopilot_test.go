@@ -38,14 +38,10 @@ type AutopilotInterfaceSuite struct {
 
 const mockAutopilotPlugSnapInfo = `name: other
 version: 1.0
-plugs:
- autopilot-introspection:
-  interface: autopilot-introspection
 apps:
  app:
   command: foo
-  plugs:
-   - autopilot-introspection
+  plugs: [autopilot-introspection]
 `
 
 var _ = Suite(&AutopilotInterfaceSuite{})

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,9 +36,19 @@ type BluetoothControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BluetoothControlInterfaceSuite{
-	iface: builtin.NewBluetoothControlInterface(),
-	slot: &interfaces.Slot{
+const btcontrolMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [bluetooth-control]
+`
+
+var _ = Suite(&BluetoothControlInterfaceSuite{})
+
+func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewBluetoothControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "bluetooth-control",
@@ -49,21 +60,10 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 					},
 					Name: "app1"}},
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "bluetooth-control",
-			Interface: "bluetooth-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, btcontrolMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluetooth-control"]}
+}
 
 func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluetooth-control")

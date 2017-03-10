@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,35 +36,30 @@ type BluezInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BluezInterfaceSuite{
-	iface: &builtin.BluezInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "bluez"},
-			Name:      "bluez",
-			Interface: "bluez",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "bluez",
-					},
-					Name: "app1"}},
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "bluez"},
-			Name:      "bluezctl",
-			Interface: "bluez",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "bluez",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+var _ = Suite(&BluezInterfaceSuite{})
+
+const bluezMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [bluez]
+`
+const bluezMockSlotSnapInfoYaml = `name: bluez
+version: 1.0
+apps:
+ app1:
+  command: foo
+  slots: [bluez]
+`
+
+func (s *BluezInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.BluezInterface{}
+	slotSnap := snaptest.MockInfo(c, bluezMockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["bluez"]}
+	plugSnap := snaptest.MockInfo(c, bluezMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluez"]}
+}
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluez")
@@ -134,7 +130,7 @@ func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, `peer=(label="snap.bluez.app2")`)
+	c.Check(string(snippet), testutil.Contains, `peer=(label="snap.other.app2")`)
 }
 
 func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,28 @@ type NetworkControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkControlInterfaceSuite{
-	iface: builtin.NewNetworkControlInterface(),
-	slot: &interfaces.Slot{
+const netctlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [network-control]
+`
+
+var _ = Suite(&NetworkControlInterfaceSuite{})
+
+func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewNetworkControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "network-control",
 			Interface: "network-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-control",
-			Interface: "network-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, netctlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-control"]}
+}
 
 func (s *NetworkControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-control")

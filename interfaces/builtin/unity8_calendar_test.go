@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -176,20 +177,17 @@ func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
 }
 
+const unity8mockSlotInfoYaml = `name: cal
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [unity8-calendar]
+`
+
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "cal"},
-			Name:      "cal",
-			Interface: "unity8-calendar",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "cal",
-					},
-					Name: "app"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, unity8mockSlotInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-calendar"]}
 
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)
