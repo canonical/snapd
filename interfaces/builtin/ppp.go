@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,9 +21,10 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/kmod"
 )
 
-var pppConnectedPlugAppArmor = []byte(`
+const pppConnectedPlugAppArmor = `
 # Description: Allow operating ppp daemon. This gives privileged access to the
 # ppp daemon.
 
@@ -40,14 +41,12 @@ var pppConnectedPlugAppArmor = []byte(`
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,
-`)
+`
 
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
 // by the kernel on different ioctl calls for this device. Note also that
 // in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
-var pppConnectedPlugKmod = []byte(`
-ppp_generic
-`)
+const pppConnectedPlugKmod = "ppp_generic"
 
 type PppInterface struct{}
 
@@ -62,9 +61,7 @@ func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return pppConnectedPlugAppArmor, nil
-	case interfaces.SecurityKMod:
-		return pppConnectedPlugKmod, nil
+		return []byte(pppConnectedPlugAppArmor), nil
 	}
 	return nil, nil
 }
@@ -75,6 +72,10 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 
 func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *PppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddModule(pppConnectedPlugKmod)
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
