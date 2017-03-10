@@ -139,6 +139,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":         true,
 		"gsettings":               true,
+		"media-hub":               true,
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
@@ -430,6 +431,7 @@ var (
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"media-hub":               {"app", "core"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
