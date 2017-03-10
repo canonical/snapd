@@ -28,47 +28,47 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type OnlineAccountsInterfaceSuite struct {
+type UbuntuOnlineAccountsInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&OnlineAccountsInterfaceSuite{
-	iface: &builtin.OnlineAccountsInterface{},
+var _ = Suite(&UbuntuOnlineAccountsInterfaceSuite{
+	iface: &builtin.UbuntuOnlineAccountsInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "online-accounts",
-			Interface: "online-accounts",
+			Name:      "ubuntu-online-accounts",
+			Interface: "ubuntu-online-accounts",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "online-accounts",
-			Interface: "online-accounts",
+			Name:      "ubuntu-online-accounts",
+			Interface: "ubuntu-online-accounts",
 		},
 	},
 })
 
-func (s *OnlineAccountsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "online-accounts")
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "ubuntu-online-accounts")
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "online-accounts"`)
+		PanicMatches, `slot is not of interface "ubuntu-online-accounts"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "online-accounts"`)
+		PanicMatches, `plug is not of interface "ubuntu-online-accounts"`)
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -79,7 +79,7 @@ func (s *OnlineAccountsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	// verify apparmor connected
@@ -88,7 +88,7 @@ func (s *OnlineAccountsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
@@ -96,7 +96,7 @@ func (s *OnlineAccountsInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "send\n")
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
@@ -104,7 +104,7 @@ func (s *OnlineAccountsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.other.*\")")
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
@@ -112,7 +112,7 @@ func (s *OnlineAccountsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "name=\"com.ubuntu.OnlineAccounts.Manager\"")
 }
 
-func (s *OnlineAccountsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+func (s *UbuntuOnlineAccountsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
