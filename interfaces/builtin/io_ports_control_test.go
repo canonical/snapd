@@ -53,15 +53,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-io-ports:
-    interface: io-ports-control
 apps:
   app-accessing-io-ports:
     command: foo
-    plugs: [plug-for-io-ports]
+    plugs: [io-ports-control]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-io-ports"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["io-ports-control"]}
 }
 
 func (s *IioPortsControlInterfaceSuite) TestName(c *C) {

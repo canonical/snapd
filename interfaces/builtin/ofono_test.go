@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -157,20 +158,20 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "/dev/net/tun rw,")
 }
 
+const ofonoMockSlotSnapInfoYaml = `name: ofono
+version: 1.0
+slots:
+ ofono:
+  interface: ofono
+apps:
+ app:
+  command: foo
+  slots: [ofono]
+`
+
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ofono"},
-			Name:      "ofono",
-			Interface: "ofono",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "ofono",
-					},
-					Name: "app"}},
-		},
-	}
+	slotSnap := snaptest.MockInfo(c, ofonoMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["ofono"]}
 
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, slot)
