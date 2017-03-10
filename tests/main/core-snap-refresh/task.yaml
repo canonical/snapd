@@ -5,11 +5,6 @@ details: |
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
 
-    The test does not restore the state completely, after the execution the
-    new core revision keeps installed. This can help us to test ubuntu-core
-    images by executing first this test and then the whole suite against the
-    upgraded core.
-
 manual: true
 
 restore: |
