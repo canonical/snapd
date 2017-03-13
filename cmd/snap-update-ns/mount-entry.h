@@ -25,28 +25,35 @@
 #include <mntent.h>
 
 /**
+ * A list of mount entries.
+ **/
+struct sc_mount_entry_list {
+	struct sc_mount_entry *first, *last;
+};
+
+/**
  * A fstab-like mount entry.
  **/
 struct sc_mount_entry {
 	struct mntent entry;
-	struct sc_mount_entry *next;
+	struct sc_mount_entry *prev, *next;
 	unsigned reuse;		// internal flag, not compared
 };
 
 /**
  * Parse a given fstab-like file into a list of sc_mount_entry objects.
  *
- * If the given file does not exist then the result is a NULL (empty) list.
+ * If the given file does not exist then the result empty list.
  * If anything goes wrong the routine die()s.
  **/
-struct sc_mount_entry *sc_load_mount_profile(const char *pathname);
+struct sc_mount_entry_list *sc_load_mount_profile(const char *pathname);
 
 /**
  * Save a list of sc_mount_entry objects to a fstab-like file.
  *
  * If anything goes wrong the routine die()s.
  **/
-void sc_save_mount_profile(const struct sc_mount_entry *first,
+void sc_save_mount_profile(const struct sc_mount_entry_list *list,
 			   const char *pathname);
 
 /**
@@ -63,36 +70,34 @@ sc_compare_mount_entry(const struct sc_mount_entry *a,
 /**
  * Sort the linked list of mount entries.
  *
- * The initial argument is a pointer to the first element (which can be NULL).
- * The list is sorted and all the next pointers are updated to point to the
- * lexically subsequent element.
+ * The list is sorted and all the next/prev pointers are updated to point to
+ * the lexically subsequent/preceding element.
  *
  * This function sorts in the ascending order.
  **/
-void sc_sort_mount_entries(struct sc_mount_entry **first);
+void sc_sort_mount_entry_list(struct sc_mount_entry_list *list);
 
 /**
  * Sort the linked list of mount entries.
  *
- * The initial argument is a pointer to the first element (which can be NULL).
- * The list is sorted and all the next pointers are updated to point to the
- * lexically subsequent element.
+ * The list is sorted and all the next/prev pointers are updated to point to
+ * the lexically subsequent/preceding element.
  *
  * This function sorts in the descending order.
  **/
-void sc_reverse_sort_mount_entries(struct sc_mount_entry **first);
+void sc_reverse_sort_mount_entry_list(struct sc_mount_entry_list *list);
 
 /**
- * Free a dynamically allocated list of strct sc_mount_entry objects.
+ * Free a dynamically allocated list of mount entry objects.
  *
  * This function is designed to be used with
  * __attribute__((cleanup(sc_cleanup_mount_entry_list))).
  **/
-void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp);
+void sc_cleanup_mount_entry_list(struct sc_mount_entry_list **listp);
 
 /**
- * Free a dynamically allocated list of strct sc_mount_entry objects.
+ * Free a dynamically allocated list of mount entry objects.
  **/
-void sc_free_mount_entry_list(struct sc_mount_entry *entry);
+void sc_free_mount_entry_list(struct sc_mount_entry_list *list);
 
 #endif
