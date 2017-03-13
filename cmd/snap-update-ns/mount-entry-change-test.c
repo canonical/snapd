@@ -29,8 +29,20 @@ static void test_sc_mount_action_to_str()
 {
 	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_NONE), ==, "none");
 	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_MOUNT), ==, "mount");
-	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_UNMOUNT), ==, "unmount");
+	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_UNMOUNT), ==,
+			"unmount");
 	g_assert_cmpstr(sc_mount_action_to_str(-1), ==, "???");
+}
+
+static void g_assert_mount_entry_eq(const struct sc_mount_entry *entry1,
+				    const struct sc_mount_entry *entry2)
+{
+	g_assert_cmpstr(entry1->entry.mnt_fsname, ==, entry2->entry.mnt_fsname);
+	g_assert_cmpstr(entry1->entry.mnt_dir, ==, entry2->entry.mnt_dir);
+	g_assert_cmpstr(entry1->entry.mnt_type, ==, entry2->entry.mnt_type);
+	g_assert_cmpstr(entry1->entry.mnt_opts, ==, entry2->entry.mnt_opts);
+	g_assert_cmpint(entry1->entry.mnt_freq, ==, entry2->entry.mnt_freq);
+	g_assert_cmpint(entry1->entry.mnt_passno, ==, entry2->entry.mnt_passno);
 }
 
 __attribute__ ((sentinel))
@@ -47,16 +59,36 @@ static void test_assert_change_list(const struct sc_mount_change *change, ...)
 	while ((entry = va_arg(ap, struct sc_mount_entry *)) != NULL) {
 		action = va_arg(ap, enum sc_mount_action);
 
-		g_assert_nonnull(change);
+		g_test_message("actual change %s: %s %s %s %s %d %d",
+			       sc_mount_action_to_str(change->action),
+			       change->entry->entry.mnt_fsname,
+			       change->entry->entry.mnt_dir,
+			       change->entry->entry.mnt_type,
+			       change->entry->entry.mnt_opts,
+			       change->entry->entry.mnt_freq,
+			       change->entry->entry.mnt_passno);
 
+		g_assert_nonnull(change);
 		if (change == NULL) {
-			// break in case data and test disagree
-			break;
+			g_test_message("actual change is NULL");
+			break;	// break in case data and test disagree
 		}
 
-		g_assert_cmpint(sc_compare_mount_entry(change->entry, entry),
-				==, 0);
+		g_test_message("expected change %s: %s %s %s %s %d %d",
+			       sc_mount_action_to_str(action),
+			       entry->entry.mnt_fsname, entry->entry.mnt_dir,
+			       entry->entry.mnt_type, entry->entry.mnt_opts,
+			       entry->entry.mnt_freq, entry->entry.mnt_passno);
+
+		g_assert_mount_entry_eq(change->entry, entry);
+		if (sc_compare_mount_entry(change->entry, entry)
+		    != 0) {
+			break;
+		}
 		g_assert_cmpint(change->action, ==, action);
+		if (change->action != action) {
+			break;
+		}
 		change = change->next;
 	}
 	g_assert_null(change);
