@@ -17,7 +17,6 @@
 #include "config.h"
 #include "snap.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <regex.h>
 #include <stddef.h>
@@ -54,7 +53,7 @@ bool verify_security_tag(const char *security_tag)
 static int skip_lowercase_letters(const char **p)
 {
 	int skipped = 0;
-	for (const char *c = *p; islower(*c); ++c) {
+	for (const char *c = *p; *c >= 'a' && *c <= 'z'; ++c) {
 		skipped += 1;
 	}
 	*p = (*p) + skipped;
@@ -64,7 +63,7 @@ static int skip_lowercase_letters(const char **p)
 static int skip_digits(const char **p)
 {
 	int skipped = 0;
-	for (const char *c = *p; isdigit(*c); ++c) {
+	for (const char *c = *p; *c >= '0' && *c <= '9'; ++c) {
 		skipped += 1;
 	}
 	*p = (*p) + skipped;
