@@ -77,14 +77,14 @@ dbus (send)
 
 dbus (send)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=org.freedesktop.DBus.Properties
     member="{Get,Set}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=org.freedesktop.DBus.Properties
     member="PropertiesChanged"
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -121,21 +121,21 @@ dbus (send)
 
 dbus (receive)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=com.ubuntu.location.Service.Provider
     member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=org.freedesktop.DBus.Properties
     member="PropertiesChanged"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=org.freedesktop.DBus.Properties
     member="PropertiesChanged"
     peer=(label=###SLOT_SECURITY_TAGS###),
