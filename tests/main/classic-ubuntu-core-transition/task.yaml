@@ -35,7 +35,7 @@ execute: |
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is
     # installed
-    cat /var/lib/snapd/state.json | jq -j '."ubuntu-core-transition-last-retry-time"' > prevValue
+    cat /var/lib/snapd/state.json | jq '.["ubuntu-core-transition-last-retry-time"]' > prevValue
     systemctl stop snapd.service snapd.socket
     cp /var/lib/snapd/state.json state.json.copy
     now=$(date --utc --rfc-3339=ns | tr ' ' T)
@@ -54,7 +54,7 @@ execute: |
     systemctl stop snapd.service snapd.socket
     cp /var/lib/snapd/state.json state.json.copy
     if [ "$(cat prevValue)" = null ]; then
-        cat state.json.copy | jq -c 'del(."ubuntu-core-transition-last-retry-time")' > /var/lib/snapd/state.json
+        cat state.json.copy | jq -c 'del(.["ubuntu-core-transition-last-retry-time"])' > /var/lib/snapd/state.json
     else
         cat state.json.copy | jq -c '. + {"ubuntu-core-transition-last-retry-time": "'"$(cat prevValue)"'"}' > /var/lib/snapd/state.json
     fi
