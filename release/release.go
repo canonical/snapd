@@ -39,7 +39,17 @@ type OS struct {
 
 var (
 	apparmorFeaturesSysPath  = "/sys/kernel/security/apparmor/features"
-	requiredApparmorFeatures = []string{"dbus", "mount", "namespaces", "networking", "ptrace", "signal"}
+	requiredApparmorFeatures = []string{
+		"caps",
+		"dbus",
+		"domain",
+		"file",
+		"mount",
+		"namespaces",
+		"network",
+		"ptrace",
+		"signal",
+	}
 )
 
 // ForceDevMode returns true if the distribution doesn't implement required
