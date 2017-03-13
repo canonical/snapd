@@ -24,11 +24,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -403,28 +403,13 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
 }
 
-func (app *AppInfo) DesktopFiles() []string {
-	dfs, err := filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_*.desktop", app.Snap.Name())))
-	if err != nil {
-		return nil
-	}
-	appName := filepath.Base(app.WrapperPath())
-	re, err := regexp.Compile(fmt.Sprintf(`(?m)^Exec=%s .*`, appName))
-	if err != nil {
-		return nil
+func (app *AppInfo) DesktopFile() string {
+	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
+	if osutil.FileExists(desktopFile) {
+		return desktopFile
 	}
 
-	var res []string
-	for _, df := range dfs {
-		content, err := ioutil.ReadFile(df)
-		if err != nil {
-			continue
-		}
-		if re.Match(content) {
-			res = append(res, df)
-		}
-	}
-	return res
+	return ""
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.

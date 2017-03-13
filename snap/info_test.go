@@ -515,32 +515,17 @@ func makeFakeDesktopFile(c *C, name, content string) string {
 	return df
 }
 
-func (s *infoSuite) TestAppDesktopFiles(c *C) {
-	fakeDesktopFileContentApp1 := `[Desktop]
-Exec=sample.app %U
-`
-	fakeDesktopFileContentApp1_2 := `[Desktop]
-Exec=sample.app --args-for-app
-`
-	fakeDesktopFileContentAppSample := `[Desktop]
-Exec=sample --file %U
-`
-	fakeDesktopFileContentUnrelated := `[Desktop]
-Exec=sample.something-else
-`
-
+func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{})
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
-	df1 := makeFakeDesktopFile(c, "sample_1.desktop", fakeDesktopFileContentApp1)
-	df2 := makeFakeDesktopFile(c, "sample_2.desktop", fakeDesktopFileContentApp1_2)
-	dfSample := makeFakeDesktopFile(c, "sample_sample.desktop", fakeDesktopFileContentAppSample)
-	makeFakeDesktopFile(c, "sample_4.desktop", fakeDesktopFileContentUnrelated)
+	dfApp := makeFakeDesktopFile(c, "sample_app.desktop", "")
+	dfSample := makeFakeDesktopFile(c, "sample_sample.desktop", "")
 
 	c.Check(snapInfo.Name(), Equals, "sample")
-	c.Check(snapInfo.Apps["app"].DesktopFiles(), DeepEquals, []string{df1, df2})
-	c.Check(snapInfo.Apps["sample"].DesktopFiles(), DeepEquals, []string{dfSample})
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Equals, dfApp)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Equals, dfSample)
 	// no desktop file for app2
-	c.Check(snapInfo.Apps["app2"].DesktopFiles(), IsNil)
+	c.Check(snapInfo.Apps["app2"].DesktopFile(), Equals, "")
 }
