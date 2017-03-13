@@ -66,8 +66,21 @@ sc_compare_mount_entry(const struct sc_mount_entry *a,
  * The initial argument is a pointer to the first element (which can be NULL).
  * The list is sorted and all the next pointers are updated to point to the
  * lexically subsequent element.
+ *
+ * This function sorts in the ascending order.
  **/
 void sc_sort_mount_entries(struct sc_mount_entry **first);
+
+/**
+ * Sort the linked list of mount entries.
+ *
+ * The initial argument is a pointer to the first element (which can be NULL).
+ * The list is sorted and all the next pointers are updated to point to the
+ * lexically subsequent element.
+ *
+ * This function sorts in the descending order.
+ **/
+void sc_reverse_sort_mount_entries(struct sc_mount_entry **first);
 
 /**
  * Free a dynamically allocated list of strct sc_mount_entry objects.

@@ -41,6 +41,16 @@ sc_indirect_compare_mount_entry(const struct sc_mount_entry **a,
 }
 
 /**
+ * Compare two mount entries (through indirect pointers).
+ **/
+static int
+sc_indirect_reverse_compare_mount_entry(const struct sc_mount_entry **a,
+					const struct sc_mount_entry **b)
+{
+	return sc_compare_mount_entry(*b, *a);
+}
+
+/**
  * Copy struct mntent into a freshly-allocated struct sc_mount_entry.
  *
  * The next pointer is initialized to NULL, it should be managed by the caller.
@@ -187,7 +197,11 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 	}
 }
 
-void sc_sort_mount_entries(struct sc_mount_entry **first)
+static void sc_sort_mount_entries_with(struct sc_mount_entry **first,
+				       int (*cmp_fn) (const struct
+						      sc_mount_entry **,
+						      const struct
+						      sc_mount_entry **))
 {
 	if (*first == NULL) {
 		// NULL list is an empty list
@@ -214,8 +228,7 @@ void sc_sort_mount_entries(struct sc_mount_entry **first)
 
 	// Sort the array according to lexical sorting of all the elements.
 	qsort(entryp_array, count, sizeof(void *),
-	      (int (*)(const void *, const void *))
-	      sc_indirect_compare_mount_entry);
+	      (int (*)(const void *, const void *))cmp_fn);
 
 	// Rewrite all the next pointers of each element.
 	for (size_t i = 0; i < count - 1; ++i) {
@@ -226,4 +239,15 @@ void sc_sort_mount_entries(struct sc_mount_entry **first)
 	// Rewrite the pointer to the head of the list.
 	*first = entryp_array[0];
 	free(entryp_array);
+}
+
+void sc_sort_mount_entries(struct sc_mount_entry **first)
+{
+	sc_sort_mount_entries_with(first, sc_indirect_compare_mount_entry);
+}
+
+void sc_reverse_sort_mount_entries(struct sc_mount_entry **first)
+{
+	sc_sort_mount_entries_with(first,
+				   sc_indirect_reverse_compare_mount_entry);
 }
