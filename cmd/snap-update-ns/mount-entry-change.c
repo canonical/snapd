@@ -71,9 +71,12 @@ static void sc_mount_change_free_chain(struct sc_mount_change *change)
 }
 
 struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
-							  *desired, struct sc_mount_entry
-							  *current)
+							  **desiredp, struct sc_mount_entry
+							  **currentp)
 {
+	if (desiredp == NULL || currentp == NULL) {
+		die("cannot compute required mount changes, NULL pointer");
+	}
 	// Helper function to append to the list of changes.
 	struct sc_mount_change *first_change = NULL;
 	struct sc_mount_change *last_change = NULL;
@@ -95,10 +98,10 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 	struct sc_mount_entry *entry;
 
 	// Reset reuse flags in both lists as we use them to track reused entries.
-	for (entry = current; entry != NULL; entry = entry->next) {
+	for (entry = *currentp; entry != NULL; entry = entry->next) {
 		entry->reuse = 0;
 	}
-	for (entry = desired; entry != NULL; entry = entry->next) {
+	for (entry = *desiredp; entry != NULL; entry = entry->next) {
 		entry->reuse = 0;
 	}
 
@@ -106,8 +109,8 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 	// up before longer paths. This allows us to look at parents before looking
 	// at children. This way if we don't plan to reuse the parent we can skip
 	// all the children easily by looking at their prefix.
-	sc_sort_mount_entries(&desired);
-	sc_sort_mount_entries(&current);
+	sc_sort_mount_entries(desiredp);
+	sc_sort_mount_entries(currentp);
 
 	// Do a pass over the current list to see if they are present in the
 	// desired list. Such entries are flagged for reuse so that they are not
@@ -118,7 +121,7 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 	// the sizes of mount profiles we are working with (typically close to one)
 	// this is sufficient though.
 	const char *prefix = NULL;
-	for (entry = current; entry != NULL; entry = entry->next) {
+	for (entry = *currentp; entry != NULL; entry = entry->next) {
 		if (prefix != NULL
 		    && strncmp(prefix, entry->entry.mnt_dir,
 			       strlen(prefix)) == 0) {
@@ -128,7 +131,7 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 			continue;
 		}
 		struct sc_mount_entry *found =
-		    sc_mount_entry_find(desired, entry);
+		    sc_mount_entry_find(*desiredp, entry);
 		if (found == NULL) {
 			// Remember the prefix so that children are unmonted too;
 			prefix = entry->entry.mnt_dir;
@@ -143,11 +146,11 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 	// Sort the two input lists in descending order so that longer paths show
 	// up before longer paths. This allows us to unmount children before we
 	// proceed to unmount the parent.
-	sc_reverse_sort_mount_entries(&desired);
-	sc_reverse_sort_mount_entries(&current);
+	sc_reverse_sort_mount_entries(desiredp);
+	sc_reverse_sort_mount_entries(currentp);
 
 	// Do a pass over the current list and unmount entries not flagged for reuse.
-	for (entry = current; entry != NULL; entry = entry->next) {
+	for (entry = *currentp; entry != NULL; entry = entry->next) {
 		if (!entry->reuse) {
 			append_change(entry, SC_ACTION_UNMOUNT);
 		}
@@ -156,11 +159,11 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 	// Sort the two input lists in ascending order so that shorter paths show
 	// up before longer paths. This allows us to mount the parents before we
 	// proceed to mount the children.
-	sc_sort_mount_entries(&desired);
-	sc_sort_mount_entries(&current);
+	sc_sort_mount_entries(desiredp);
+	sc_sort_mount_entries(currentp);
 
 	// Do a pass over the desired list and mount the entries not flagged for reuse.
-	for (entry = desired; entry != NULL; entry = entry->next) {
+	for (entry = *desiredp; entry != NULL; entry = entry->next) {
 		if (!entry->reuse) {
 			append_change(entry, SC_ACTION_MOUNT);
 		}

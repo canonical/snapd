@@ -102,7 +102,7 @@ static void test_sc_compute_required_mount_changes__scenario0()
 	struct sc_mount_entry *current = NULL;
 	struct sc_mount_entry *desired = NULL;
 	struct sc_mount_change *change;
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, NULL);
@@ -124,7 +124,7 @@ static void test_sc_compute_required_mount_changes__scenario1()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, &test_entry_2,
@@ -148,7 +148,7 @@ static void test_sc_compute_required_mount_changes__scenario2()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, &test_entry_1,
@@ -172,7 +172,7 @@ static void test_sc_compute_required_mount_changes__scenario3()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, &test_entry_2, SC_ACTION_MOUNT, NULL);
@@ -194,7 +194,7 @@ static void test_sc_compute_required_mount_changes__scenario4()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, &test_entry_1,
@@ -218,7 +218,7 @@ static void test_sc_compute_required_mount_changes__scenario5()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	const struct sc_mount_entry C = {
@@ -253,7 +253,7 @@ static void test_sc_compute_required_mount_changes__scenario6()
 			     sc_free_mount_entry_list, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(desired, current);
+	change = sc_compute_required_mount_changes(&desired, &current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	const struct sc_mount_entry parent_current = {
