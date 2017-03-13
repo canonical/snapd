@@ -85,4 +85,10 @@ func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	c.Assert(string(snippet), testutil.Contains, `/dcdbas/smi_data`)
+
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Assert(string(snippet), testutil.Contains, `iopl`)
 }

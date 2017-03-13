@@ -43,6 +43,22 @@ const dcdbasControlConnectedPlugAppArmor = `
 /sys/devices/platform/dcdbas/host_control_action rw,
 /sys/devices/platform/dcdbas/host_control_smi_type rw,
 /sys/devices/platform/dcdbas/host_control_on_shutdown rw,
+
+# additional devices required by dchbas library
+/dev/EsmBASDev r,
+/dev/port r,
+/dev/mem r,
+/dev/char/mem/smbios r,
+/dev/char/mem/pir r,
+/dev/char/mem/rci r,
+/proc/bus/pci r,
+`
+
+var dcdbasControlConnectedPlugSecComp = `
+# Description: Allow use of iopl system call.
+
+# Change IO privilege level
+iopl
 `
 
 // NewHardwareObserveInterface returns a new "dcdbas-control" interface.
@@ -50,6 +66,7 @@ func NewDcdbasControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "dcdbas-control",
 		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  dcdbasControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
