@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -176,10 +177,15 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 
 	apps := make([]appJSON, 0, len(localSnap.Apps))
 	for _, app := range localSnap.Apps {
+		var installedDesktopFile string
+		if osutil.FileExists(app.DesktopFile()) {
+			installedDesktopFile = app.DesktopFile()
+		}
+
 		apps = append(apps, appJSON{
 			Name:        app.Name,
 			Daemon:      app.Daemon,
-			DesktopFile: app.DesktopFile(),
+			DesktopFile: installedDesktopFile,
 			Aliases:     app.Aliases,
 		})
 	}

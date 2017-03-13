@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -404,12 +403,7 @@ func (app *AppInfo) SecurityTag() string {
 }
 
 func (app *AppInfo) DesktopFile() string {
-	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
-	if osutil.FileExists(desktopFile) {
-		return desktopFile
-	}
-
-	return ""
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
