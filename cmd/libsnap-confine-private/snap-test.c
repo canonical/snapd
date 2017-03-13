@@ -75,7 +75,7 @@ static void test_sc_snap_name_validate()
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"snap name is not valid (\"hello world\")");
+			"snap name must use lower case letters, digits or dashes (\"hello world\")");
 	sc_error_free(err);
 
 	// Smoke test: empty name is not valid
@@ -83,7 +83,8 @@ static void test_sc_snap_name_validate()
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
-	g_assert_cmpstr(sc_error_msg(err), ==, "snap name is not valid (\"\")");
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name must contain at least one letter (\"\")");
 	sc_error_free(err);
 
 	// Smoke test: NULL name is not valid
@@ -101,7 +102,7 @@ static void test_sc_snap_name_validate()
 		"01game", "1-or-2"
 	};
 	for (int i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
-		g_test_message("checking snap name: %s", valid_names[i]);
+		g_test_message("checking valid snap name: %s", valid_names[i]);
 		sc_snap_name_validate(valid_names[i], &err);
 		g_assert_null(err);
 	}
@@ -122,7 +123,8 @@ static void test_sc_snap_name_validate()
 		"日本語", "한글", "ру́сский язы́к",
 	};
 	for (int i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
-		g_test_message("checking snap name: %s", invalid_names[i]);
+		g_test_message("checking invalid snap name: >%s<",
+			       invalid_names[i]);
 		sc_snap_name_validate(invalid_names[i], &err);
 		g_assert_nonnull(err);
 		g_assert_true(sc_error_match
@@ -141,7 +143,8 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
-	g_test_trap_assert_stderr("snap name is not valid (\"hello world\")\n");
+	g_test_trap_assert_stderr
+	    ("snap name must use lower case letters, digits or dashes (\"hello world\")\n");
 }
 
 static void __attribute__ ((constructor)) init()

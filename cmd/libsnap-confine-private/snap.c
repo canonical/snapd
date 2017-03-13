@@ -51,51 +51,33 @@ bool verify_security_tag(const char *security_tag)
 	return (status == 0);
 }
 
-// This is a regexp-free routine hand-codes the following pattern:
-//
-// "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
-//
-// The only motivation for not using regular expressions is so that we don't
-// run untrusted input against a potentially complex regular expression engine.
-static bool is_valid_name(const char *snap_name)
+static int skip_lowercase_letters(const char **p)
 {
-	// Ensure that snap name is not empty.
-	if (*snap_name == '\0') {
-		return false;
+	int skipped = 0;
+	for (const char *c = *p; islower(*c); ++c) {
+		skipped += 1;
 	}
-	// Ensure that snap name does not start with the dash.
-	if (*snap_name == '-') {
-		return false;
+	*p = (*p) + skipped;
+	return skipped;
+}
+
+static int skip_digits(const char **p)
+{
+	int skipped = 0;
+	for (const char *c = *p; isdigit(*c); ++c) {
+		skipped += 1;
 	}
-	// Ensure that snap name does not end with the dash.
-	if (snap_name[strlen(snap_name) - 1] == '-') {
-		return false;
+	*p = (*p) + skipped;
+	return skipped;
+}
+
+static int skip_one_char(const char **p, char c)
+{
+	if (**p == c) {
+		*p += 1;
+		return 1;
 	}
-	// Ensure that snap name does not have two consecutive dashes.
-	if (strstr(snap_name, "--")) {
-		return false;
-	}
-	// Ensure that all the characters in the snap name are alphanumeric
-	// (lowercase) or the dash. This does not ensure any particular ordering
-	// but can be used to filter out obviously incorrect input easily.
-	char c;
-	for (const char *cp = snap_name; (c = *cp) != '\0'; ++cp) {
-		if (!(islower(c) || isdigit(c) || c == '-')) {
-			return false;
-		}
-	}
-	// Ensure that snap name has at least one letter in it.
-	bool has_alpha = false;
-	for (const char *cp = snap_name; (c = *cp) != '\0'; ++cp) {
-		if (islower(c)) {
-			has_alpha = true;
-			break;
-		}
-	}
-	if (!has_alpha) {
-		return false;
-	}
-	return true;
+	return 0;
 }
 
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
@@ -108,26 +90,67 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 				    "snap name cannot be NULL");
 		goto out;
 	}
+	// This is a regexp-free routine hand-codes the following pattern:
+	//
+	// "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
+	//
+	// The only motivation for not using regular expressions is so that we
+	// don't run untrusted input against a potentially complex regular
+	// expression engine.
+	const char *err_hint = NULL;
+	const char *p = snap_name;
+	if (skip_one_char(&p, '-')) {
+		err_hint = "snap name cannot start with a dash";
+		goto invalid;
+	}
+	bool got_letter = false;
+	for (; *p != '\0';) {
+		if (skip_lowercase_letters(&p) > 0) {
+			got_letter = true;
+			continue;
+		}
+		if (skip_digits(&p) > 0) {
+			continue;
+		}
+		if (skip_one_char(&p, '-') > 0) {
+			if (*p == '\0') {
+				err_hint = "snap name cannot end with a dash";
+				goto invalid;
+			}
+			if (skip_one_char(&p, '-') > 0) {
+				err_hint =
+				    "snap name cannot contain two consecutive dashes";
+				goto invalid;
+			}
+			continue;
+		}
+		err_hint =
+		    "snap name must use lower case letters, digits or dashes";
+		goto invalid;
+	}
+	if (!got_letter) {
+		err_hint = "snap name must contain at least one letter";
+		goto invalid;
+	}
+	goto out;
 
-	if (!is_valid_name(snap_name)) {
+ invalid:
+	if (1) {
 		char *quote_buf __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
 		size_t quote_buf_size = strlen(snap_name) * 4 + 3;
 
 		quote_buf = calloc(1, quote_buf_size);
 		if (quote_buf == NULL) {
-			err =
-			    sc_error_init_from_errno(errno,
-						     "cannot allocate memory for quoted snap name");
+			err = sc_error_init_from_errno(errno,
+						       "cannot allocate memory for quoted snap name");
 			goto out;
 		}
-
 		sc_string_quote(quote_buf, quote_buf_size, snap_name);
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				  "snap name is not valid (%s)", quote_buf);
+				  "%s (%s)", err_hint, quote_buf);
 	}
-
  out:
 	sc_error_forward(errorp, err);
 }
