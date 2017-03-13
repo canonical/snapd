@@ -401,7 +401,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
 			"apps": []appJSON{
-				{Name: "cmd", DesktopFiles: []string{df}},
+				{Name: "cmd", DesktopFile: df},
 			},
 			"broken":  "",
 			"contact": "",
