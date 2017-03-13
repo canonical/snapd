@@ -97,11 +97,11 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	// The only motivation for not using regular expressions is so that we
 	// don't run untrusted input against a potentially complex regular
 	// expression engine.
-	const char *err_hint = NULL;
 	const char *p = snap_name;
 	if (skip_one_char(&p, '-')) {
-		err_hint = "snap name cannot start with a dash";
-		goto invalid;
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name cannot start with a dash");
+		goto out;
 	}
 	bool got_letter = false;
 	for (; *p != '\0';) {
@@ -114,43 +114,30 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 		}
 		if (skip_one_char(&p, '-') > 0) {
 			if (*p == '\0') {
-				err_hint = "snap name cannot end with a dash";
-				goto invalid;
+				err =
+				    sc_error_init(SC_SNAP_DOMAIN,
+						  SC_SNAP_INVALID_NAME,
+						  "snap name cannot end with a dash");
+				goto out;
 			}
 			if (skip_one_char(&p, '-') > 0) {
-				err_hint =
-				    "snap name cannot contain two consecutive dashes";
-				goto invalid;
+				err =
+				    sc_error_init(SC_SNAP_DOMAIN,
+						  SC_SNAP_INVALID_NAME,
+						  "snap name cannot contain two consecutive dashes");
+				goto out;
 			}
 			continue;
 		}
-		err_hint =
-		    "snap name must use lower case letters, digits or dashes";
-		goto invalid;
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name must use lower case letters, digits or dashes");
+		goto out;
 	}
 	if (!got_letter) {
-		err_hint = "snap name must contain at least one letter";
-		goto invalid;
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name must contain at least one letter");
 	}
-	goto out;
 
- invalid:
-	if (1) {
-		char *quote_buf __attribute__ ((cleanup(sc_cleanup_string))) =
-		    NULL;
-		size_t quote_buf_size = strlen(snap_name) * 4 + 3;
-
-		quote_buf = calloc(1, quote_buf_size);
-		if (quote_buf == NULL) {
-			err = sc_error_init_from_errno(errno,
-						       "cannot allocate memory for quoted snap name");
-			goto out;
-		}
-		sc_string_quote(quote_buf, quote_buf_size, snap_name);
-		err =
-		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				  "%s (%s)", err_hint, quote_buf);
-	}
  out:
 	sc_error_forward(errorp, err);
 }

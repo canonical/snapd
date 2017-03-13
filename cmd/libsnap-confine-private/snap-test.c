@@ -69,22 +69,49 @@ static void test_sc_snap_name_validate()
 	sc_snap_name_validate("hello-world", &err);
 	g_assert_null(err);
 
-	// Smoke test: invalid snap name (spaces are not allowed)
+	// Smoke test: invalid character 
 	sc_snap_name_validate("hello world", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"snap name must use lower case letters, digits or dashes (\"hello world\")");
+			"snap name must use lower case letters, digits or dashes");
 	sc_error_free(err);
 
-	// Smoke test: empty name is not valid
+	// Smoke test: no letters
 	sc_snap_name_validate("", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==,
-			"snap name must contain at least one letter (\"\")");
+			"snap name must contain at least one letter");
+	sc_error_free(err);
+
+	// Smoke test: leading dash
+	sc_snap_name_validate("-foo", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name cannot start with a dash");
+	sc_error_free(err);
+
+	// Smoke test: trailing dash
+	sc_snap_name_validate("foo-", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name cannot end with a dash");
+	sc_error_free(err);
+
+	// Smoke test: double dash
+	sc_snap_name_validate("f--oo", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap name cannot contain two consecutive dashes");
 	sc_error_free(err);
 
 	// Smoke test: NULL name is not valid
@@ -144,7 +171,7 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr
-	    ("snap name must use lower case letters, digits or dashes (\"hello world\")\n");
+	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
 static void __attribute__ ((constructor)) init()
