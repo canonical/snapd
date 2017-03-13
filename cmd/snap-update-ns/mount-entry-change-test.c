@@ -99,10 +99,21 @@ static void test_assert_change_list(const struct sc_mount_change *change, ...)
 // Scenario: there is nothing to do yet at all.
 static void test_sc_compute_required_mount_changes__scenario0()
 {
-	struct sc_mount_entry *current = NULL;
-	struct sc_mount_entry *desired = NULL;
+	// Both current and desired don't exist.
+	struct sc_mount_entry_list *current;
+	current = sc_load_mount_profile("current.fstab");
+	g_assert_null(current->first);
+	g_test_queue_destroy((GDestroyNotify)
+			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	desired = sc_load_mount_profile("desired.fstab");
+	g_assert_null(desired->first);
+	g_test_queue_destroy((GDestroyNotify)
+			     sc_free_mount_entry_list, desired);
+
 	struct sc_mount_change *change;
-	change = sc_compute_required_mount_changes(&desired, &current);
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, NULL);
@@ -112,23 +123,27 @@ static void test_sc_compute_required_mount_changes__scenario0()
 // not. We should see two unmounts taking place.
 static void test_sc_compute_required_mount_changes__scenario1()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab",
 			    test_entry_str_1, test_entry_str_2, NULL);
-	sc_test_write_lines("desired.fstab", NULL);
 	current = sc_load_mount_profile("current.fstab");
-	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	sc_test_write_lines("desired.fstab", NULL);
+	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
-	test_assert_change_list(change, &test_entry_2,
-				SC_ACTION_UNMOUNT,
+	test_assert_change_list(change,
+				// Unmount 2nd entry
+				&test_entry_2, SC_ACTION_UNMOUNT,
+				// Unmount 1st entry
 				&test_entry_1, SC_ACTION_UNMOUNT, NULL);
 }
 
@@ -136,23 +151,27 @@ static void test_sc_compute_required_mount_changes__scenario1()
 // contains two entries. We should see two mounts taking place.
 static void test_sc_compute_required_mount_changes__scenario2()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab", NULL);
-	sc_test_write_lines("desired.fstab",
-			    test_entry_str_1, test_entry_str_2, NULL);
 	current = sc_load_mount_profile("current.fstab");
-	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	sc_test_write_lines("desired.fstab",
+			    test_entry_str_1, test_entry_str_2, NULL);
+	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
-	test_assert_change_list(change, &test_entry_1,
-				SC_ACTION_MOUNT,
+	test_assert_change_list(change,
+				// mount 1st entry
+				&test_entry_1, SC_ACTION_MOUNT,
+				// mount 2nd entry
 				&test_entry_2, SC_ACTION_MOUNT, NULL);
 }
 
@@ -160,22 +179,26 @@ static void test_sc_compute_required_mount_changes__scenario2()
 // contains two entries. We should see one mount change (for the 2nd entry).
 static void test_sc_compute_required_mount_changes__scenario3()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab", test_entry_str_1, NULL);
-	sc_test_write_lines("desired.fstab",
-			    test_entry_str_1, test_entry_str_2, NULL);
 	current = sc_load_mount_profile("current.fstab");
-	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	sc_test_write_lines("desired.fstab",
+			    test_entry_str_1, test_entry_str_2, NULL);
+	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
-	test_assert_change_list(change, &test_entry_2, SC_ACTION_MOUNT, NULL);
+	test_assert_change_list(change,
+				// mount 2nd entry
+				&test_entry_2, SC_ACTION_MOUNT, NULL);
 }
 
 // Scenario: the current profile contains one entry and the desired profile
@@ -183,18 +206,20 @@ static void test_sc_compute_required_mount_changes__scenario3()
 // followed by the mount.
 static void test_sc_compute_required_mount_changes__scenario4()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab", test_entry_str_1, NULL);
-	sc_test_write_lines("desired.fstab", test_entry_str_2, NULL);
 	current = sc_load_mount_profile("current.fstab");
-	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	sc_test_write_lines("desired.fstab", test_entry_str_2, NULL);
+	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	test_assert_change_list(change, &test_entry_1,
@@ -205,20 +230,22 @@ static void test_sc_compute_required_mount_changes__scenario4()
 // Scenario: desired A, B current B, C behaves correctly (B is untouched).
 static void test_sc_compute_required_mount_changes__scenario5()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
-	sc_test_write_lines("desired.fstab",
-			    "A A A A 0 0", "B B B B 0 0", NULL);
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab",
 			    "B B B B 0 0", "C C C C 0 0", NULL);
 	current = sc_load_mount_profile("current.fstab");
-	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
+	sc_test_write_lines("desired.fstab",
+			    "A A A A 0 0", "B B B B 0 0", NULL);
+	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	const struct sc_mount_entry C = {
@@ -238,22 +265,24 @@ static void test_sc_compute_required_mount_changes__scenario5()
 // subtly (e.g. different type of mount vs what we had earlier).
 static void test_sc_compute_required_mount_changes__scenario6()
 {
-	struct sc_mount_entry *current;
-	struct sc_mount_entry *desired;
-	struct sc_mount_change *change;
+	struct sc_mount_entry_list *current;
 	sc_test_write_lines("current.fstab",
 			    "/dev/sda1 /foo ext4 rw 0 0",
 			    "/dev/loop7 /foo/bar squashfs ro 0 0", NULL);
+	current = sc_load_mount_profile("current.fstab");
+	g_test_queue_destroy((GDestroyNotify)
+			     sc_free_mount_entry_list, current);
+
+	struct sc_mount_entry_list *desired;
 	sc_test_write_lines("desired.fstab",
 			    "/dev/sda2 /foo ext4 rw 0 0",
 			    "/dev/loop7 /foo/bar squashfs ro 0 0", NULL);
-	current = sc_load_mount_profile("current.fstab");
 	desired = sc_load_mount_profile("desired.fstab");
 	g_test_queue_destroy((GDestroyNotify)
-			     sc_free_mount_entry_list, current);
-	g_test_queue_destroy((GDestroyNotify)
 			     sc_free_mount_entry_list, desired);
-	change = sc_compute_required_mount_changes(&desired, &current);
+
+	struct sc_mount_change *change;
+	change = sc_compute_required_mount_changes(desired, current);
 	g_test_queue_destroy((GDestroyNotify)
 			     sc_mount_change_free_chain, change);
 	const struct sc_mount_entry parent_current = {

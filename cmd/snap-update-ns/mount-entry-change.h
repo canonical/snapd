@@ -42,7 +42,7 @@ const char *sc_mount_action_to_str(enum sc_mount_action action);
  * Description of a change to the given mount entry.
  *
  * The structure pairs an action with an entry to act on.
- * Structures can be chained with simple single-linked list.
+ * Structures can be chained with simple singly-linked list.
  **/
 struct sc_mount_change {
 	enum sc_mount_action action;
@@ -62,10 +62,14 @@ struct sc_mount_change {
  * newly-allocated chain of sc_mount_change structures. Note that it is
  * possible for the function to return NULL when no changes are required.
  *
+ * Both input lists must be sorted by the caller with
+ * sc_sort_mount_entry_list().
+ *
  * The caller must ensure that each element of the chain is freed.
  **/
-struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
-							  **desiredp, struct sc_mount_entry
-							  **currentp);
+struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_list
+							  *desired, struct
+							  sc_mount_entry_list
+							  *current);
 
 #endif
