@@ -58,8 +58,6 @@ struct sc_mount_change {
  * results in an umount change. Each element in the desired entry that is not
  * in the current entry results in a mount change.
  *
- * Both lists *must* be sorted by the caller prior to using this function.
- *
  * The result is computed internally and returned to the caller as
  * newly-allocated chain of sc_mount_change structures. Note that it is
  * possible for the function to return NULL when no changes are required.

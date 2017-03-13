@@ -18,6 +18,7 @@
 #include "mount-entry-change.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "../libsnap-confine-private/utils.h"
 
@@ -73,6 +74,7 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 							  *desired, struct sc_mount_entry
 							  *current)
 {
+	// Helper function to append to the list of changes.
 	struct sc_mount_change *first_change = NULL;
 	struct sc_mount_change *last_change = NULL;
 
@@ -92,43 +94,74 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
 
 	struct sc_mount_entry *entry;
 
-	// Reset flags in both lists as we use them to track reused entries.
+	// Reset reuse flags in both lists as we use them to track reused entries.
 	for (entry = current; entry != NULL; entry = entry->next) {
-		entry->flag = 0;
+		entry->reuse = 0;
 	}
 	for (entry = desired; entry != NULL; entry = entry->next) {
-		entry->flag = 0;
+		entry->reuse = 0;
 	}
 
+	// Sort the two input lists in ascending order so that shorter paths show
+	// up before longer paths. This allows us to look at parents before looking
+	// at children. This way if we don't plan to reuse the parent we can skip
+	// all the children easily by looking at their prefix.
+	sc_sort_mount_entries(&desired);
+	sc_sort_mount_entries(&current);
+
 	// Do a pass over the current list to see if they are present in the
-	// desired list. Such entries are flagged so that they are not toched by
-	// either loops below.
+	// desired list. Such entries are flagged for reuse so that they are not
+	// toched by either loops below.
 	//
 	// NOTE: This will linearly search the desired list. If this is going to
 	// get expensive it should be changed to a more efficient operation. For
 	// the sizes of mount profiles we are working with (typically close to one)
 	// this is sufficient though.
+	const char *prefix = NULL;
 	for (entry = current; entry != NULL; entry = entry->next) {
+		if (prefix != NULL
+		    && strncmp(prefix, entry->entry.mnt_dir,
+			       strlen(prefix)) == 0) {
+			// This entry is a child of an earlier entry that we did not reuse
+			// (it starts with the same path). If the parent is changed we
+			// cannot allow the children to be reused.
+			continue;
+		}
 		struct sc_mount_entry *found =
 		    sc_mount_entry_find(desired, entry);
-		if (found != NULL) {
-			// NOTE: we flag both in the current and desired lists as we
-			// iterate over both lists below.
-			entry->flag = 1;
-			found->flag = 1;
+		if (found == NULL) {
+			// Remember the prefix so that children are unmonted too;
+			prefix = entry->entry.mnt_dir;
+		} else {
+			// NOTE: we flag for reuse in both the current and desired lists as
+			// we iterate over both lists below.
+			entry->reuse = 1;
+			found->reuse = 1;
 		}
 	}
 
-	// Do a pass over the current list and unmount unflagged entries.
+	// Sort the two input lists in descending order so that longer paths show
+	// up before longer paths. This allows us to unmount children before we
+	// proceed to unmount the parent.
+	sc_reverse_sort_mount_entries(&desired);
+	sc_reverse_sort_mount_entries(&current);
+
+	// Do a pass over the current list and unmount entries not flagged for reuse.
 	for (entry = current; entry != NULL; entry = entry->next) {
-		if (entry->flag == 0) {
+		if (!entry->reuse) {
 			append_change(entry, SC_ACTION_UNMOUNT);
 		}
 	}
 
-	// Do a pass over the desired list and mount the unflagged entries.
+	// Sort the two input lists in ascending order so that shorter paths show
+	// up before longer paths. This allows us to mount the parents before we
+	// proceed to mount the children.
+	sc_sort_mount_entries(&desired);
+	sc_sort_mount_entries(&current);
+
+	// Do a pass over the desired list and mount the entries not flagged for reuse.
 	for (entry = desired; entry != NULL; entry = entry->next) {
-		if (entry->flag == 0) {
+		if (!entry->reuse) {
 			append_change(entry, SC_ACTION_MOUNT);
 		}
 	}
