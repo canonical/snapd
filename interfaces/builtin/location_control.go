@@ -70,7 +70,7 @@ dbus (receive)
 
 dbus (send)
     bus=system
-    path=/providers/{,/**}
+    path=/providers/{,**}
     interface=com.ubuntu.location.Service.Provider
     member="{Satisfies,Enable,Disable,Activate,Deactivate,OnNewEvent}"
     peer=(label=###PLUG_SECURITY_TAGS###),
