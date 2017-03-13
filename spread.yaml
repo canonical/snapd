@@ -31,6 +31,10 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
+    HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
+    NO_PROXY: "127.0.0.1"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
 
 backends:
     linode:
@@ -226,6 +230,7 @@ restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
         if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl enable --now snapd.refresh.timer
             snap set core refresh.disabled=false
         fi
     fi

@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -52,15 +53,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-io-ports:
-    interface: io-ports-control
 apps:
   app-accessing-io-ports:
     command: foo
-    plugs: [plug-for-io-ports]
+    plugs: [io-ports-control]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-io-ports"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["io-ports-control"]}
 }
 
 func (s *IioPortsControlInterfaceSuite) TestName(c *C) {
@@ -100,16 +98,6 @@ capability sys_rawio, # required by iopl
 /dev/port rw,
 `)
 
-	expectedSnippet2 := []byte(`
-# Description: Allow changes to the I/O port permissions and
-# privilege level of the calling process.  In addition to granting
-# unrestricted I/O port access, running at a higher I/O privilege
-# level also allows the process to disable interrupts.  This will
-# probably crash the system, and is not recommended.
-ioperm
-iopl
-`)
-
 	expectedSnippet3 := []byte(`KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"
 `)
 
@@ -118,11 +106,26 @@ iopl
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
-
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+}
+
+func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
+	expectedSnippet2 := `
+# Description: Allow changes to the I/O port permissions and
+# privilege level of the calling process.  In addition to granting
+# unrestricted I/O port access, running at a higher I/O privilege
+# level also allows the process to disable interrupts.  This will
+# probably crash the system, and is not recommended.
+ioperm
+iopl
+`
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.client-snap.app-accessing-io-ports"]), Equals, 1)
+	c.Check(snippets["snap.client-snap.app-accessing-io-ports"][0], DeepEquals, expectedSnippet2)
 }

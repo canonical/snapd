@@ -24,8 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -156,10 +158,24 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "/dev/net/tun rw,")
 }
 
-func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+const ofonoMockSlotSnapInfoYaml = `name: ofono
+version: 1.0
+slots:
+ ofono:
+  interface: ofono
+apps:
+ app:
+  command: foo
+  slots: [ofono]
+`
 
-	c.Check(string(snippet), testutil.Contains, "listen\n")
+func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	slotSnap := snaptest.MockInfo(c, ofonoMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["ofono"]}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
 }

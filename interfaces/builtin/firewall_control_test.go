@@ -24,7 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type FirewallControlInterfaceSuite struct {
@@ -33,23 +36,28 @@ type FirewallControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FirewallControlInterfaceSuite{
-	iface: builtin.NewFirewallControlInterface(),
-	slot: &interfaces.Slot{
+const firewallControlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [firewall-control]
+`
+
+var _ = Suite(&FirewallControlInterfaceSuite{})
+
+func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewFirewallControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "firewall-control",
-			Interface: "firewall-control",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, firewallControlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["firewall-control"]}
+}
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "firewall-control")
@@ -84,11 +92,17 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for kmod
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+
+	spec := &kmod.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"ip6table_filter": true,
+		"iptable_filter":  true,
+	})
 }

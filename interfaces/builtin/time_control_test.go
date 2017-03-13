@@ -49,15 +49,12 @@ var _ = Suite(&TimeControlTestInterfaceSuite{
 func (s *TimeControlTestInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-time-control:
-    interface: time-control
 apps:
   app-accessing-time-control:
     command: foo
-    plugs: [plug-for-time-control]
+    plugs: [time-control]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-time-control"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["time-control"]}
 }
 
 func (s *TimeControlTestInterfaceSuite) TestName(c *C) {

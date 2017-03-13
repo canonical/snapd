@@ -50,7 +50,7 @@ execute: |
         snap list | awk "/^${core_name} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${core_name}_*.snap
+        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap
 
         # set failure condition
         eval ${INJECT_FAILURE}
@@ -59,7 +59,9 @@ execute: |
         snapbuild /tmp/unpack . && mv ${core_name}_*.snap failing.snap
 
         # install new target snap
-        snap install --dangerous failing.snap
+        chg_id=$(snap install --dangerous failing.snap --no-wait)
+
+        while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
 
         # check boot env vars
         snap list | awk "/^${core_name} / {print(\$3)}" > failBoot
@@ -68,13 +70,16 @@ execute: |
 
         REBOOT
     fi
-    # after rollback, we have the original target snap
+
+    # after rollback, we have the original target snap for a while
     # wait until the kernel and core snap revisions are in place
-    while ! snap changes | MATCH "Done .* Update kernel and core snap revisions"; do
+    while true ; do
+        current=$(snap list | awk "/^${core_name} / {print(\$3)}")
+        if [ "$current" = "$(cat prevBoot)" ] ; then
+            break
+        fi
         sleep 1
     done
-    snap list | awk "/^${core_name} / {print(\$3)}" > currentBoot
-    test "$(cat prevBoot)" = "$(cat currentBoot)"
 
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"

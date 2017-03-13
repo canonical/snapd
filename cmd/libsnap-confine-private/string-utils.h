@@ -43,7 +43,7 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...);
  * Append a string to a buffer containing a string.
  *
  * This version is fully aware of the destination buffer and is extra careful
- * not to overflow it. If any argument is NULL a buffer overflow is detected
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
  * then the function dies.
  *
  * The buffers cannot overlap.
@@ -64,10 +64,43 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str);
 size_t sc_string_append_char(char *dst, size_t dst_size, char c);
 
 /**
+ * Append a pair of characters to a buffer containing a string.
+ *
+ * This version is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
+ * then the function dies.
+ *
+ * Neither character can be the string terminator.
+ *
+ * The return value is the new length of the string.
+ **/
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2);
+
+/**
  * Initialize a string (make it empty).
  *
  * Initialize a string as empty, ensuring buf is non-NULL buf_size is > 0.
  **/
 void sc_string_init(char *buf, size_t buf_size);
+
+/**
+ * Quote a string so it is safe for printing.
+ *
+ * This function is fully aware of the destination buffer and is extra careful
+ * not to overflow it. If any argument is NULL or a buffer overflow is detected
+ * then the function dies.
+ *
+ * The function "quotes" the content of the given string into the given buffer.
+ * The buffer must be of sufficient size. Apart from letters and digits and
+ * some punctuation all characters are escaped using their hexadecimal escape
+ * codes.
+ *
+ * As a practical consideration the buffer should be of the following capacity:
+ * strlen(str) * 4 + 2 + 1; This corresponds to the most pessimistic escape
+ * process (each character is escaped to a hexadecimal value like \x05, two
+ * double-quote characters (one front, one rear) and the final string
+ * terminator character.
+ **/
+void sc_string_quote(char *buf, size_t buf_size, const char *str);
 
 #endif

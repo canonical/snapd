@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type GsettingsInterfaceSuite struct {
@@ -33,23 +35,28 @@ type GsettingsInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&GsettingsInterfaceSuite{
-	iface: builtin.NewGsettingsInterface(),
-	slot: &interfaces.Slot{
+const gsettingsMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [gsettings]
+`
+
+var _ = Suite(&GsettingsInterfaceSuite{})
+
+func (s *GsettingsInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewGsettingsInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "gsettings",
 			Interface: "gsettings",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "gsettings",
-			Interface: "gsettings",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, gsettingsMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["gsettings"]}
+}
 
 func (s *GsettingsInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "gsettings")
@@ -83,8 +90,10 @@ func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	// connected plugs have nil security snippet for seccomp
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 0)
 }

@@ -43,8 +43,10 @@ struct sc_mount_entry {
 /**
  * Parse a given fstab-like file into a list of sc_mount_entry objects.
  *
- * If the given file does not exist then the result empty list.
+ * If the given file does not exist then the result is an empty list.
  * If anything goes wrong the routine die()s.
+ *
+ * The caller must free the list with sc_mount_entry_list.
  **/
 struct sc_mount_entry_list *sc_load_mount_profile(const char *pathname);
 

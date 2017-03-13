@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,25 +36,31 @@ type UDisks2InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UDisks2InterfaceSuite{
-	iface: &builtin.UDisks2Interface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2",
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "udisks2"},
-			Name:      "udisks2",
-			Interface: "udisks2",
-		},
-	},
-})
+const udisks2mockPlugSnapInfoYaml = `name: udisks2
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [udisks2]
+`
+
+const udisks2mockSlotSnapInfoYaml = `name: udisks2
+version: 1.0
+apps:
+ app1:
+  command: foo
+  slots: [udisks2]
+`
+
+var _ = Suite(&UDisks2InterfaceSuite{})
+
+func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.UDisks2Interface{}
+	slotSnap := snaptest.MockInfo(c, udisks2mockSlotSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, udisks2mockPlugSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["udisks2"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["udisks2"]}
+}
 
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "udisks2")
@@ -200,7 +208,12 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.udisks2.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.udisks2.app1"][0]), testutil.Contains, "mount\n")
 }

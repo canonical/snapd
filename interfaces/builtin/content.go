@@ -47,7 +47,8 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
-		return fmt.Errorf("content slot must have a content attribute set")
+		// content defaults to "slot" name if unspecified
+		slot.Attrs["content"] = slot.Name
 	}
 
 	// check that we have either a read or write path
@@ -75,7 +76,8 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	}
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
-		return fmt.Errorf("content plug must have a content attribute set")
+		// content defaults to "plug" name if unspecified
+		plug.Attrs["content"] = plug.Name
 	}
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {

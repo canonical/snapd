@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+* Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -101,7 +101,7 @@ static struct sc_mount_entry *sc_get_next_and_free_mount_entry(struct
 
 void sc_free_mount_entry_list(struct sc_mount_entry_list *list)
 {
-	struct sc_mount_entry *entry = list->first;
+	struct sc_mount_entry *entry = list ? list->first : NULL;
 
 	while (entry != NULL) {
 		entry = sc_get_next_and_free_mount_entry(entry);
