@@ -28,42 +28,42 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ConnectivityObserveSuite struct {
+type NetworkStatusSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ConnectivityObserveSuite{
-	iface: &builtin.ConnectivityObserveInterface{},
+var _ = Suite(&NetworkStatusSuite{
+	iface: &builtin.NetworkStatusInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "server", Type: snap.TypeOS},
-			Name:      "connectivity-observe",
-			Interface: "connectivity-observe",
+			Name:      "network-status",
+			Interface: "network-status",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "client"},
-			Name:      "connectivity-observe",
-			Interface: "connectivity-observe",
+			Name:      "network-status",
+			Interface: "network-status",
 		},
 	},
 })
 
-func (s *ConnectivityObserveSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "connectivity-observe")
+func (s *NetworkStatusSuite) TestName(c *C) {
+	c.Check(s.iface.Name(), Equals, "network-status")
 }
 
-func (s *ConnectivityObserveSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *NetworkStatusSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "connectivity-observe"`)
+		PanicMatches, `slot is not of interface "network-status"`)
 	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "connectivity-observe"`)
+		PanicMatches, `plug is not of interface "network-status"`)
 }
 
-func (s *ConnectivityObserveSuite) TestUsedSecuritySystems(c *C) {
+func (s *NetworkStatusSuite) TestUsedSecuritySystems(c *C) {
 	// connected slots have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -88,6 +88,7 @@ func (s *ConnectivityObserveSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.server.*\"")
 	c.Check(string(snippet), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
 }

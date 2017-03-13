@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const connectivityObservePermanentSlotAppArmor = `
+const networkStatusPermanentSlotAppArmor = `
 # Description: Allow owning the NetworkingStatus bus name on the system bus
 
 # DBus accesses
@@ -43,7 +43,7 @@ dbus (bind)
    name="com.ubuntu.connectivity1.NetworkingStatus",
 `
 
-const connectivityObserveConnectedSlotAppArmor = `
+const networkStatusConnectedSlotAppArmor = `
 # Description: allow access to NetworkingStatus service
 
 dbus (receive)
@@ -53,7 +53,7 @@ dbus (receive)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
-const connectivityObserveConnectedPlugAppArmor = `
+const networkStatusConnectedPlugAppArmor = `
 # Description: Allow using NetworkingStatus service.
 
 #include <abstractions/dbus-strict>
@@ -72,7 +72,7 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const connectivityObservePermanentSlotDBus = `
+const networkStatusPermanentSlotDBus = `
 <policy user="root">
     <allow own="com.ubuntu.connectivity1.NetworkingStatus"/>
     <allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>
@@ -87,20 +87,20 @@ const connectivityObservePermanentSlotDBus = `
 <limit name="max_match_rules_per_connection">2048</limit>
 `
 
-type ConnectivityObserveInterface struct{}
+type NetworkStatusInterface struct{}
 
-func (iface *ConnectivityObserveInterface) Name() string {
-	return "connectivity-observe"
+func (iface *NetworkStatusInterface) Name() string {
+	return "network-status"
 }
 
-func (iface *ConnectivityObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkStatusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *ConnectivityObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkStatusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(connectivityObserveConnectedPlugAppArmor)
+		snippet := []byte(networkStatusConnectedPlugAppArmor)
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		var new []byte
 		new = slotAppLabelExpr(slot)
@@ -110,20 +110,20 @@ func (iface *ConnectivityObserveInterface) ConnectedPlugSnippet(plug *interfaces
 	return nil, nil
 }
 
-func (iface *ConnectivityObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkStatusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus:
-		return []byte(connectivityObservePermanentSlotDBus), nil
-    case interfaces.SecurityAppArmor:
-        return []byte(connectivityObservePermanentSlotAppArmor), nil
+		return []byte(networkStatusPermanentSlotDBus), nil
+	case interfaces.SecurityAppArmor:
+		return []byte(networkStatusPermanentSlotAppArmor), nil
 	}
 	return nil, nil
 }
 
-func (iface *ConnectivityObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *NetworkStatusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(connectivityObserveConnectedSlotAppArmor)
+		snippet := []byte(networkStatusConnectedSlotAppArmor)
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		var new []byte
 		new = plugAppLabelExpr(plug)
@@ -133,21 +133,21 @@ func (iface *ConnectivityObserveInterface) ConnectedSlotSnippet(plug *interfaces
 	return nil, nil
 }
 
-func (iface *ConnectivityObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *NetworkStatusInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ConnectivityObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *NetworkStatusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ConnectivityObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *NetworkStatusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }
