@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
 )
 
@@ -86,21 +87,21 @@ func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 	return nil, nil
 }
 
+func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
+	// Entries in /sys/class/gpio for single GPIO's are just symlinks
+	// to their correct device part in the sysfs tree. Given AppArmor
+	// requires symlinks to be dereferenced, evaluate the GPIO
+	// path and add the correct absolute path to the AppArmor snippet.
+	dereferencedPath, err := evalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	return spec.AddSnippet(fmt.Sprintf("%s/* rwk,\n", dereferencedPath))
+}
+
 // ConnectedPlugSnippet returns security snippets for plug at connection
 func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
-		// Entries in /sys/class/gpio for single GPIO's are just symlinks
-		// to their correct device part in the sysfs tree. Given AppArmor
-		// requires symlinks to be dereferenced, evaluate the GPIO
-		// path and add the correct absolute path to the AppArmor snippet.
-		dereferencedPath, err := evalSymlinks(path)
-		if err != nil {
-			return nil, err
-		}
-		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
-	}
 	return nil, nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const uhidConnectedPlugAppArmor = `
@@ -68,12 +69,13 @@ func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	return nil, nil
 }
 
+func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(uhidConnectedPlugAppArmor)
+}
+
 // Getter for the security system specific to the plug
 func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(uhidConnectedPlugAppArmor), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const udevRule = `KERNEL=="uhid", TAG+="%s"`

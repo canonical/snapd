@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -87,12 +88,13 @@ func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 	return nil, nil
 }
 
+func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
+}
+
 // Getter for the security snippet specific to the plug
 func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(ioPortsControlConnectedPlugAppArmor), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const udevRule = `KERNEL=="port", TAG+="%s"`

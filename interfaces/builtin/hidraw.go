@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 // HidrawInterface is the type for hidraw interfaces.
@@ -143,23 +144,25 @@ func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 	return nil, nil
 }
 
+func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.hasUsbAttrs(slot) {
+		// This apparmor rule must match hidrawDeviceNodePattern
+		// UDev tagging and device cgroups will restrict down to the specific device
+		return spec.AddSnippet("/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,\n")
+	}
+
+	// Path to fixed device node (no udev tagging)
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
+	}
+	cleanedPath := filepath.Clean(path)
+	return spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+}
+
 // ConnectedPlugSnippet returns security snippet specific to the plug
 func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		if iface.hasUsbAttrs(slot) {
-			// This apparmor rule must match hidrawDeviceNodePattern
-			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,\n"), nil
-		}
-
-		// Path to fixed device node (no udev tagging)
-		path, pathOk := slot.Attrs["path"].(string)
-		if !pathOk {
-			return nil, nil
-		}
-		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 	case interfaces.SecurityUDev:
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {

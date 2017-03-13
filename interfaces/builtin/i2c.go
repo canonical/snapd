@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -87,6 +88,16 @@ func (iface *I2cInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 	return nil, nil
 }
 
+func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
+	}
+
+	cleanedPath := filepath.Clean(path)
+	return spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+}
+
 // Getter for the security snippet specific to the plug
 func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	path, pathOk := slot.Attrs["path"].(string)
@@ -94,10 +105,6 @@ func (iface *I2cInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return nil, nil
 	}
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"

@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
@@ -223,6 +224,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
 plugs:
  content:
   target: $SNAP/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -244,15 +248,17 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 /snap/producer/5/export/** mrkix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 
 // Check that sharing of writable data is possible
@@ -261,6 +267,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
 plugs:
  content:
   target: $SNAP_DATA/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -282,8 +291,10 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
@@ -292,7 +303,7 @@ slots:
 # directory.
 /var/snap/producer/5/export/** mrwklix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
 
 // Check that sharing of writable common data is possible
@@ -301,6 +312,9 @@ func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
 plugs:
  content:
   target: $SNAP_COMMON/import
+apps:
+ app:
+  command: foo
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
@@ -322,8 +336,10 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
@@ -332,5 +348,5 @@ slots:
 # directory.
 /var/snap/producer/common/export/** mrwklix,
 `
-	c.Assert(string(content), Equals, expected)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }

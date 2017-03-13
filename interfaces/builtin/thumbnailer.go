@@ -20,10 +20,11 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const thumbnailerPermanentSlotAppArmor = `
@@ -87,39 +88,39 @@ func (iface *ThumbnailerInterface) PermanentPlugSnippet(plug *interfaces.Plug, s
 	return nil, nil
 }
 
+func (iface *ThumbnailerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := thumbnailerConnectedPlugAppArmor
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet = strings.Replace(snippet, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
 func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(thumbnailerConnectedPlugAppArmor)
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
+}
+
+func (iface *ThumbnailerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(thumbnailerPermanentSlotAppArmor)
 }
 
 func (iface *ThumbnailerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(thumbnailerPermanentSlotAppArmor), nil
-	}
 	return nil, nil
 }
 
-func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(thumbnailerConnectedSlotAppArmor)
-		old := []byte("###PLUG_SNAP_NAME###")
-		new := []byte(plug.Snap.Name())
-		snippet = bytes.Replace(snippet, old, new, -1)
+func (iface *ThumbnailerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := thumbnailerConnectedSlotAppArmor
+	old := "###PLUG_SNAP_NAME###"
+	new := plug.Snap.Name()
+	snippet = strings.Replace(snippet, old, new, -1)
 
-		old = []byte("###PLUG_SECURITY_TAGS###")
-		new = plugAppLabelExpr(plug)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
+	old = "###PLUG_SECURITY_TAGS###"
+	new = plugAppLabelExpr(plug)
+	snippet = strings.Replace(snippet, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
+func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

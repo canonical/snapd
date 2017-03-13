@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const iioConnectedPlugAppArmor = `
@@ -96,6 +97,25 @@ func (iface *IioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 	return nil, nil
 }
 
+func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
+	}
+
+	cleanedPath := filepath.Clean(path)
+	snippet := strings.Replace(iioConnectedPlugAppArmor, "###IIO_DEVICE_PATH###", cleanedPath, -1)
+
+	// The path is already verified against a regular expression
+	// in SanitizeSlot so we can rely on its structure here and
+	// safely strip the '/dev/' prefix to get the actual name of
+	// the IIO device.
+	deviceName := strings.TrimPrefix(path, "/dev/")
+	snippet = strings.Replace(snippet, "###IIO_DEVICE_NAME###", deviceName, -1)
+
+	return spec.AddSnippet(snippet)
+}
+
 // Getter for the security snippet specific to the plug
 func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	path, pathOk := slot.Attrs["path"].(string)
@@ -103,19 +123,6 @@ func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return nil, nil
 	}
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		cleanedPath := filepath.Clean(path)
-		snippet := bytes.Replace([]byte(iioConnectedPlugAppArmor), []byte("###IIO_DEVICE_PATH###"), []byte(cleanedPath), -1)
-
-		// The path is already verified against a regular expression
-		// in SanitizeSlot so we can rely on its structure here and
-		// safely strip the '/dev/' prefix to get the actual name of
-		// the IIO device.
-		deviceName := strings.TrimPrefix(path, "/dev/")
-		snippet = bytes.Replace(snippet, []byte("###IIO_DEVICE_NAME###"), []byte(deviceName), -1)
-
-		return snippet, nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const pathPrefix = "/dev/"

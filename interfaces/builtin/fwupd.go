@@ -20,9 +20,10 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -182,37 +183,40 @@ func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 	return nil, nil
 }
 
+func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
 // ConnectedPlugSnippet returns security snippets for plug at connection
 func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if securitySystem == interfaces.SecurityAppArmor {
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(fwupdConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
+}
+
+func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(fwupdPermanentSlotAppArmor)
 }
 
 // PermanentSlotSnippet returns security snippets for slot at install
 func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(fwupdPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
 		return []byte(fwupdPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
 
+func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
 // ConnectedSlotSnippet returns security snippets for slot at connection
 func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(fwupdConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 

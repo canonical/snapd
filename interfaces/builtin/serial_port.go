@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 // SerialPortInterface is the type for serial port interfaces.
@@ -149,24 +150,26 @@ func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 	return nil, nil
 }
 
+func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.hasUsbAttrs(slot) {
+		// This apparmor rule is an approximation of serialDeviceNodePattern
+		// (AARE is different than regex, so we must approximate).
+		// UDev tagging and device cgroups will restrict down to the specific device
+		return spec.AddSnippet("/dev/tty[A-Z]*[0-9] rw,\n")
+	}
+
+	// Path to fixed device node (no udev tagging)
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
+	}
+	cleanedPath := filepath.Clean(path)
+	return spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+}
+
 // ConnectedPlugSnippet returns security snippet specific to the plug
 func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		if iface.hasUsbAttrs(slot) {
-			// This apparmor rule is an approximation of serialDeviceNodePattern
-			// (AARE is different than regex, so we must approximate).
-			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/tty[A-Z]*[0-9] rw,\n"), nil
-		}
-
-		// Path to fixed device node (no udev tagging)
-		path, pathOk := slot.Attrs["path"].(string)
-		if !pathOk {
-			return nil, nil
-		}
-		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 	case interfaces.SecurityUDev:
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 		if !vOk {

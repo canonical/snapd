@@ -20,9 +20,10 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const locationControlPermanentSlotAppArmor = `
@@ -148,37 +149,41 @@ func (iface *LocationControlInterface) PermanentPlugSnippet(plug *interfaces.Plu
 	return nil, nil
 }
 
+func (iface *LocationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(locationControlConnectedPlugAppArmor, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
 func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(locationControlConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
 	case interfaces.SecurityDBus:
 		return []byte(locationControlConnectedPlugDBus), nil
 	}
 	return nil, nil
 }
 
+func (iface *LocationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(locationControlPermanentSlotAppArmor)
+}
+
 func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(locationControlPermanentSlotAppArmor), nil
 	case interfaces.SecurityDBus:
 		return []byte(locationControlPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
 
+func (iface *LocationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
+	return spec.AddSnippet(snippet)
+}
+
 func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(locationControlConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
