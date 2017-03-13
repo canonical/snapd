@@ -70,8 +70,7 @@ static void sc_mount_change_free_chain(struct sc_mount_change *change)
 	}
 }
 
-struct sc_mount_change *sc_compute_required_mount_changes(struct
-							  sc_mount_entry_list
+struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_list
 							  *desired, struct
 							  sc_mount_entry_list
 							  *current)
@@ -107,13 +106,6 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct
 		entry->reuse = 0;
 	}
 
-	// Sort the two input lists in ascending order so that shorter paths show
-	// up before longer paths. This allows us to look at parents before looking
-	// at children. This way if we don't plan to reuse the parent we can skip
-	// all the children easily by looking at their prefix.
-	sc_sort_mount_entry_list(desired);
-	sc_sort_mount_entry_list(current);
-
 	// Do a pass over the current list to see if they are present in the
 	// desired list. Such entries are flagged for reuse so that they are not
 	// toched by either loops below.
@@ -145,24 +137,12 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct
 		}
 	}
 
-	// Sort the two input lists in descending order so that longer paths show
-	// up before longer paths. This allows us to unmount children before we
-	// proceed to unmount the parent.
-	sc_reverse_sort_mount_entry_list(desired);
-	sc_reverse_sort_mount_entry_list(current);
-
 	// Do a pass over the current list and unmount entries not flagged for reuse.
-	for (entry = current->first; entry != NULL; entry = entry->next) {
+	for (entry = current->last; entry != NULL; entry = entry->prev) {
 		if (!entry->reuse) {
 			append_change(entry, SC_ACTION_UNMOUNT);
 		}
 	}
-
-	// Sort the two input lists in ascending order so that shorter paths show
-	// up before longer paths. This allows us to mount the parents before we
-	// proceed to mount the children.
-	sc_sort_mount_entry_list(desired);
-	sc_sort_mount_entry_list(current);
 
 	// Do a pass over the desired list and mount the entries not flagged for reuse.
 	for (entry = desired->first; entry != NULL; entry = entry->next) {
