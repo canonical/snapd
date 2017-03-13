@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,31 +36,31 @@ type UDisks2InterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&UDisks2InterfaceSuite{
-	iface: &builtin.UDisks2Interface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "udisks2",
-			},
-			Name:      "udisks2",
-			Interface: "udisks2",
-			Apps: map[string]*snap.AppInfo{
-				"app1": {
-					Snap: &snap.Info{
-						SuggestedName: "udisks2",
-					},
-					Name: "app1"}},
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "udisks2"},
-			Name:      "udisks2",
-			Interface: "udisks2",
-		},
-	},
-})
+const udisks2mockPlugSnapInfoYaml = `name: udisks2
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [udisks2]
+`
+
+const udisks2mockSlotSnapInfoYaml = `name: udisks2
+version: 1.0
+apps:
+ app1:
+  command: foo
+  slots: [udisks2]
+`
+
+var _ = Suite(&UDisks2InterfaceSuite{})
+
+func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.UDisks2Interface{}
+	slotSnap := snaptest.MockInfo(c, udisks2mockSlotSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, udisks2mockPlugSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["udisks2"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["udisks2"]}
+}
 
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "udisks2")

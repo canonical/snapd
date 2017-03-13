@@ -52,15 +52,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-framebuffer:
-    interface: framebuffer
 apps:
   app-accessing-framebuffer:
     command: foo
-    plugs: [plug-for-framebuffer]
+    plugs: [framebuffer]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-framebuffer"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["framebuffer"]}
 }
 
 func (s *FramebufferInterfaceSuite) TestName(c *C) {

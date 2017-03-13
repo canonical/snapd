@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,28 @@
  *
  */
 
-package hookstate
+package main
 
-func MockReadlink(f func(string) (string, error)) func() {
-	oldReadlink := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = oldReadlink
+import (
+	"github.com/jessevdk/go-flags"
+)
+
+type cmdEnsureStateSoon struct{}
+
+func init() {
+	cmd := addDebugCommand("ensure-state-soon",
+		"(internal) trigger an ensure runn in the state engine",
+		"(internal) trigger an ensure runn in the state engine",
+		func() flags.Commander {
+			return &cmdEnsureStateSoon{}
+		})
+	cmd.hidden = true
+}
+
+func (x *cmdEnsureStateSoon) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
 	}
+
+	return Client().Debug("ensure-state-soon", nil, nil)
 }

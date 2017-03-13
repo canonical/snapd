@@ -46,7 +46,9 @@ echo >> %[1]q
 %s
 `
 
-// MockCommand adds a mocked command to PATH.
+// MockCommand adds a mocked command. If the basename argument is a command
+// it is added to PATH. If it is an absolute path it is just created there.
+// the caller is responsible for the cleanup in this case.
 //
 // The command logs all invocations to a dedicated log file. If script is
 // non-empty then it is used as is and the caller is responsible for how the
