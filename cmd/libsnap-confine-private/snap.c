@@ -17,11 +17,12 @@
 #include "config.h"
 #include "snap.h"
 
+#include <ctype.h>
+#include <errno.h>
 #include <regex.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #include "utils.h"
 #include "string-utils.h"
@@ -50,6 +51,53 @@ bool verify_security_tag(const char *security_tag)
 	return (status == 0);
 }
 
+// This is a regexp-free routine hand-codes the following pattern:
+//
+// "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
+//
+// The only motivation for not using regular expressions is so that we don't
+// run untrusted input against a potentially complex regular expression engine.
+static bool is_valid_name(const char *snap_name)
+{
+	// Ensure that snap name is not empty.
+	if (*snap_name == '\0') {
+		return false;
+	}
+	// Ensure that snap name does not start with the dash.
+	if (*snap_name == '-') {
+		return false;
+	}
+	// Ensure that snap name does not end with the dash.
+	if (snap_name[strlen(snap_name) - 1] == '-') {
+		return false;
+	}
+	// Ensure that snap name does not have two consecutive dashes.
+	if (strstr(snap_name, "--")) {
+		return false;
+	}
+	// Ensure that all the characters in the snap name are alphanumeric
+	// (lowercase) or the dash. This does not ensure any particular ordering
+	// but can be used to filter out obviously incorrect input easily.
+	char c;
+	for (const char *cp = snap_name; (c = *cp) != '\0'; ++cp) {
+		if (!(islower(c) || isdigit(c) || c == '-')) {
+			return false;
+		}
+	}
+	// Ensure that snap name has at least one letter in it.
+	bool has_alpha = false;
+	for (const char *cp = snap_name; (c = *cp) != '\0'; ++cp) {
+		if (islower(c)) {
+			has_alpha = true;
+			break;
+		}
+	}
+	if (!has_alpha) {
+		return false;
+	}
+	return true;
+}
+
 void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 {
 	struct sc_error *err = NULL;
@@ -60,8 +108,8 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 				    "snap name cannot be NULL");
 		goto out;
 	}
-	// Ensure that name matches regular expression
-	if (regexec(&sc_valid_snap_name_re, snap_name, 0, NULL, 0) != 0) {
+
+	if (!is_valid_name(snap_name)) {
 		char *quote_buf __attribute__ ((cleanup(sc_cleanup_string))) =
 		    NULL;
 		size_t quote_buf_size = strlen(snap_name) * 4 + 3;
@@ -82,21 +130,4 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 
  out:
 	sc_error_forward(errorp, err);
-}
-
-static void __attribute__ ((constructor)) init_snap()
-{
-	// NOTE: this regular expression should be kept in sync with what is in
-	// snap/validate.go, in the validSnapName variable.
-	const char *name_re = "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$";
-
-	if (regcomp(&sc_valid_snap_name_re, name_re, REG_EXTENDED | REG_NOSUB)
-	    != 0) {
-		die("cannot compile regex %s", name_re);
-	}
-}
-
-static void __attribute__ ((destructor)) fini_snap()
-{
-	regfree(&sc_valid_snap_name_re);
 }

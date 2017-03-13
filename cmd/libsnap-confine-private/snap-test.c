@@ -93,6 +93,42 @@ static void test_sc_snap_name_validate()
 		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 	g_assert_cmpstr(sc_error_msg(err), ==, "snap name cannot be NULL");
 	sc_error_free(err);
+
+	const char *valid_names[] = {
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"01game", "1-or-2"
+	};
+	for (int i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+		g_test_message("checking snap name: %s", valid_names[i]);
+		sc_snap_name_validate(valid_names[i], &err);
+		g_assert_null(err);
+	}
+	const char *invalid_names[] = {
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	};
+	for (int i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+		g_test_message("checking snap name: %s", invalid_names[i]);
+		sc_snap_name_validate(invalid_names[i], &err);
+		g_assert_nonnull(err);
+		g_assert_true(sc_error_match
+			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
+		sc_error_free(err);
+	}
 }
 
 static void test_sc_snap_name_validate__respects_error_protocol()
