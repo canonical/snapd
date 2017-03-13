@@ -266,9 +266,3 @@ void sc_sort_mount_entry_list(struct sc_mount_entry_list *list)
 {
 	sc_sort_mount_entry_list_with(list, sc_indirect_compare_mount_entry);
 }
-
-void sc_reverse_sort_mount_entry_list(struct sc_mount_entry_list *list)
-{
-	sc_sort_mount_entry_list_with(list,
-				      sc_indirect_reverse_compare_mount_entry);
-}
