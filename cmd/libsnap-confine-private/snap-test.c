@@ -96,14 +96,6 @@ static void test_sc_snap_name_validate()
 			"snap name cannot start with a dash");
 	sc_error_free(err);
 
-	// Smoke test: NULL name is not valid
-	sc_snap_name_validate(NULL, &err);
-	g_assert_nonnull(err);
-	g_assert_true(sc_error_match
-		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
-	g_assert_cmpstr(sc_error_msg(err), ==, "snap name cannot be NULL");
-	sc_error_free(err);
-
 	// Smoke test: trailing dash
 	sc_snap_name_validate("foo-", &err);
 	g_assert_nonnull(err);
