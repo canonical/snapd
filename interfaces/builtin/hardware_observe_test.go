@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,29 +36,28 @@ type HardwareObserveInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HardwareObserveInterfaceSuite{
-	iface: builtin.NewHardwareObserveInterface(),
-	slot: &interfaces.Slot{
+const hwobserveMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [hardware-observe]
+`
+
+var _ = Suite(&HardwareObserveInterfaceSuite{})
+
+func (s *HardwareObserveInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewHardwareObserveInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "hardware-observe",
 			Interface: "hardware-observe",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "hardware-observe",
-			Interface: "hardware-observe",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, hwobserveMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["hardware-observe"]}
+}
 
 func (s *HardwareObserveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "hardware-observe")
