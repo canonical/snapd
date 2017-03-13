@@ -11,6 +11,8 @@ details: |
 environment:
     DISPLAY: :0
 
+systems: [-ubuntu-core-16-*]
+
 prepare: |
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
