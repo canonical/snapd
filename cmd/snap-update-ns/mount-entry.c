@@ -111,11 +111,15 @@ int sc_compare_mount_entry(const struct sc_mount_entry *a,
 	if (a == NULL || b == NULL) {
 		die("cannot compare NULL mount entry");
 	}
-	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
+	// NOTE: sort reorder field so that mnt_dir is before
+	// mnt_fsname. This ordering is a little bit more interesting
+	// as the directory matters more and allows us to do useful
+	// things later.
+	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
 	if (result != 0) {
 		return result;
 	}
-	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
+	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
 	if (result != 0) {
 		return result;
 	}
