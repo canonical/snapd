@@ -34,6 +34,7 @@ environment:
     HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
     HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
     NO_PROXY: "127.0.0.1"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
 
 backends:
     linode:
