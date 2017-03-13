@@ -25,6 +25,14 @@
 
 #include <glib.h>
 
+static void test_sc_mount_action_to_str()
+{
+	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_NONE), ==, "none");
+	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_MOUNT), ==, "mount");
+	g_assert_cmpstr(sc_mount_action_to_str(SC_ACTION_UNMOUNT), ==, "unmount");
+	g_assert_cmpstr(sc_mount_action_to_str(-1), ==, "???");
+}
+
 __attribute__ ((sentinel))
 static void test_assert_change_list(const struct sc_mount_change *change, ...);
 
@@ -211,6 +219,8 @@ static void test_sc_compute_required_mount_changes__scenario5()
 
 static void __attribute__ ((constructor)) init()
 {
+	g_test_add_func("/mount-entry-change/sc_mount_action_to_str",
+			test_sc_mount_action_to_str);
 	g_test_add_func
 	    ("/mount-entry-change/sc_compute_required_mount_changes/0",
 	     test_sc_compute_required_mount_changes__scenario0);

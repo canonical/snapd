@@ -31,6 +31,14 @@ enum sc_mount_action {
 };
 
 /**
+ * Return the name of a mount action.
+ *
+ * This returns the string "none", "mount", "unmount" or "???", depending on
+ * the input.
+ **/
+const char *sc_mount_action_to_str(enum sc_mount_action action);
+
+/**
  * Description of a change to the given mount entry.
  *
  * The structure pairs an action with an entry to act on.

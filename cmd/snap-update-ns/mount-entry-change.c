@@ -21,6 +21,20 @@
 
 #include "../libsnap-confine-private/utils.h"
 
+const char *sc_mount_action_to_str(enum sc_mount_action action)
+{
+	switch (action) {
+	case SC_ACTION_NONE:
+		return "none";
+	case SC_ACTION_MOUNT:
+		return "mount";
+	case SC_ACTION_UNMOUNT:
+		return "unmount";
+	default:
+		return "???";
+	}
+}
+
 /**
  * Look through the haystack and find the first needle.
  **/
