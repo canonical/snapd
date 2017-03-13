@@ -520,12 +520,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
-	dfApp := makeFakeDesktopFile(c, "sample_app.desktop", "")
-	dfSample := makeFakeDesktopFile(c, "sample_sample.desktop", "")
-
 	c.Check(snapInfo.Name(), Equals, "sample")
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Equals, dfApp)
-	c.Check(snapInfo.Apps["sample"].DesktopFile(), Equals, dfSample)
-	// no desktop file for app2
-	c.Check(snapInfo.Apps["app2"].DesktopFile(), Equals, "")
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
 }
