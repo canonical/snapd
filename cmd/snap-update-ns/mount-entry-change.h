@@ -64,8 +64,10 @@ struct sc_mount_change {
  *
  * The caller must ensure that each element of the chain is freed.
  **/
-struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry
-							  **desiredp, struct sc_mount_entry
-							  **currentp);
+struct sc_mount_change *sc_compute_required_mount_changes(struct
+							  sc_mount_entry_list
+							  *desired, struct
+							  sc_mount_entry_list
+							  *current);
 
 #endif

@@ -24,8 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -175,10 +177,23 @@ func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
 }
 
-func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+const unity8contactsMockSlotInfoYaml = `name: contacts
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [unity8-contacts]
+`
 
-	c.Check(string(snippet), testutil.Contains, "listen\n")
+func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	slotSnap := snaptest.MockInfo(c, unity8contactsMockSlotInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-contacts"]}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.contacts.app"]), Equals, 1)
+	c.Check(string(snippets["snap.contacts.app"][0]), testutil.Contains, "listen\n")
 }

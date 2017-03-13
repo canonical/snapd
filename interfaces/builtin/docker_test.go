@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,9 +36,19 @@ type DockerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&DockerInterfaceSuite{
-	iface: &builtin.DockerInterface{},
-	slot: &interfaces.Slot{
+const dockerMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [docker]
+`
+
+var _ = Suite(&DockerInterfaceSuite{})
+
+func (s *DockerInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.DockerInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
@@ -44,15 +56,10 @@ var _ = Suite(&DockerInterfaceSuite{
 			Name:      "docker-daemon",
 			Interface: "docker",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "docker"},
-			Name:      "docker-client",
-			Interface: "docker",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, dockerMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["docker"]}
+}
 
 func (s *DockerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker")
@@ -63,10 +70,6 @@ func (s *DockerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
@@ -74,9 +77,13 @@ func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `run/docker.sock`)
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `bind`)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
+	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "bind\n")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -125,6 +125,7 @@ const locationControlPermanentSlotDBus = `
     <allow own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
+    <allow send_interface="com.ubuntu.location.Service.Provider"/>
 </policy>
 `
 
@@ -133,6 +134,7 @@ const locationControlConnectedPlugDBus = `
     <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_interface="com.ubuntu.location.Service"/>
+    <allow receive_interface="com.ubuntu.location.Service.Provider"/>
 </policy>
 `
 

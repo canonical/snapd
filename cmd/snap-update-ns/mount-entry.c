@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+* Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,18 +99,21 @@ static struct sc_mount_entry *sc_get_next_and_free_mount_entry(struct
 	return next;
 }
 
-void sc_free_mount_entry_list(struct sc_mount_entry *entry)
+void sc_free_mount_entry_list(struct sc_mount_entry_list *list)
 {
+	struct sc_mount_entry *entry = list ? list->first : NULL;
+
 	while (entry != NULL) {
 		entry = sc_get_next_and_free_mount_entry(entry);
 	}
+	free(list);
 }
 
-void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp)
+void sc_cleanup_mount_entry_list(struct sc_mount_entry_list **listp)
 {
-	if (entryp != NULL) {
-		sc_free_mount_entry_list(*entryp);
-		*entryp = NULL;
+	if (listp != NULL) {
+		sc_free_mount_entry_list(*listp);
+		*listp = NULL;
 	}
 }
 
@@ -149,10 +152,14 @@ int sc_compare_mount_entry(const struct sc_mount_entry *a,
 	return result;
 }
 
-struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
+struct sc_mount_entry_list *sc_load_mount_profile(const char *pathname)
 {
-	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	struct sc_mount_entry_list *list = calloc(1, sizeof *list);
+	if (list == NULL) {
+		die("cannot allocate sc_mount_entry_list");
+	}
 
+	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	f = setmntent(pathname, "rt");
 	if (f == NULL) {
 		// NOTE: it is fine if the profile doesn't exist.
@@ -161,27 +168,34 @@ struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
 			die("cannot open mount profile %s for reading",
 			    pathname);
 		}
-		return NULL;
+		return list;
 	}
-	// Loop over the entries in the file and copy them to a singly-linked list.
-	struct sc_mount_entry *entry, *first = NULL, *prev = NULL;
+	// Loop over the entries in the file and copy them to a doubly-linked list.
+	struct sc_mount_entry *entry = NULL, *prev_entry = NULL;
 	struct mntent *mntent_entry;
 	while (((mntent_entry = getmntent(f)) != NULL)) {
 		entry = sc_clone_mount_entry_from_mntent(mntent_entry);
-		if (prev != NULL) {
-			prev->next = entry;
+		entry->prev = prev_entry;
+		if (prev_entry != NULL) {
+			prev_entry->next = entry;
 		}
-		if (first == NULL) {
-			first = entry;
+		if (list->first == NULL) {
+			list->first = entry;
 		}
-		prev = entry;
+		prev_entry = entry;
 	}
-	return first;
+	list->last = entry;
+
+	return list;
 }
 
-void sc_save_mount_profile(const struct sc_mount_entry *first,
+void sc_save_mount_profile(const struct sc_mount_entry_list *list,
 			   const char *pathname)
 {
+	if (list == NULL) {
+		die("cannot save mount profile, list is NULL");
+	}
+
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 
 	f = setmntent(pathname, "wt");
@@ -190,27 +204,31 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 	}
 
 	const struct sc_mount_entry *entry;
-	for (entry = first; entry != NULL; entry = entry->next) {
+	for (entry = list->first; entry != NULL; entry = entry->next) {
 		if (addmntent(f, &entry->entry) != 0) {
 			die("cannot add mount entry to %s", pathname);
 		}
 	}
 }
 
-static void sc_sort_mount_entries_with(struct sc_mount_entry **first,
-				       int (*cmp_fn) (const struct
-						      sc_mount_entry **,
-						      const struct
-						      sc_mount_entry **))
+static void sc_sort_mount_entry_list_with(struct sc_mount_entry_list *list,
+					  int (*cmp_fn) (const struct
+							 sc_mount_entry **,
+							 const struct
+							 sc_mount_entry **))
 {
-	if (*first == NULL) {
+	if (list == NULL) {
+		die("cannot sort mount entry list, list is NULL");
+	}
+
+	if (list->first == NULL) {
 		// NULL list is an empty list
 		return;
 	}
 	// Count the items
 	size_t count;
 	struct sc_mount_entry *entry;
-	for (count = 0, entry = *first; entry != NULL;
+	for (count = 0, entry = list->first; entry != NULL;
 	     ++count, entry = entry->next) ;
 
 	// Allocate an array of pointers
@@ -220,7 +238,7 @@ static void sc_sort_mount_entries_with(struct sc_mount_entry **first,
 		die("cannot allocate memory");
 	}
 	// Populate the array
-	entry = *first;
+	entry = list->first;
 	for (size_t i = 0; i < count; ++i) {
 		entryp_array[i] = entry;
 		entry = entry->next;
@@ -230,24 +248,27 @@ static void sc_sort_mount_entries_with(struct sc_mount_entry **first,
 	qsort(entryp_array, count, sizeof(void *),
 	      (int (*)(const void *, const void *))cmp_fn);
 
-	// Rewrite all the next pointers of each element.
-	for (size_t i = 0; i < count - 1; ++i) {
-		entryp_array[i]->next = entryp_array[i + 1];
+	// Rewrite all the next/prev pointers of each element.
+	for (size_t i = 0; i < count; ++i) {
+		entryp_array[i]->next =
+		    i + 1 < count ? entryp_array[i + 1] : NULL;
+		entryp_array[i]->prev = i > 0 ? entryp_array[i - 1] : NULL;
 	}
-	entryp_array[count - 1]->next = NULL;
 
-	// Rewrite the pointer to the head of the list.
-	*first = entryp_array[0];
+	// Rewrite the list head.
+	list->first = count > 0 ? entryp_array[0] : NULL;
+	list->last = count > 0 ? entryp_array[count - 1] : NULL;
+
 	free(entryp_array);
 }
 
-void sc_sort_mount_entries(struct sc_mount_entry **first)
+void sc_sort_mount_entry_list(struct sc_mount_entry_list *list)
 {
-	sc_sort_mount_entries_with(first, sc_indirect_compare_mount_entry);
+	sc_sort_mount_entry_list_with(list, sc_indirect_compare_mount_entry);
 }
 
-void sc_reverse_sort_mount_entries(struct sc_mount_entry **first)
+void sc_reverse_sort_mount_entry_list(struct sc_mount_entry_list *list)
 {
-	sc_sort_mount_entries_with(first,
-				   sc_indirect_reverse_compare_mount_entry);
+	sc_sort_mount_entry_list_with(list,
+				      sc_indirect_reverse_compare_mount_entry);
 }

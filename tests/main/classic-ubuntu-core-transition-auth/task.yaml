@@ -18,9 +18,8 @@ execute: |
     mkdir -p /home/test/.snap/
     echo '{}' > /home/test/.snap/auth.json
     
-    echo "Start/stop snapd so that the transition is triggered"
-    systemctl stop snapd.service snapd.socket
-    systemctl start snapd.service snapd.socket
+    echo "Ensure transition is triggered"
+    snap debug ensure-state-soon
 
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
         snap changes

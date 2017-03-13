@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,35 @@ type AccountControlSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AccountControlSuite{
-	iface: builtin.NewAccountControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&AccountControlSuite{})
+
+const accountCtlMockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [account-control]
+`
+
+func (s *AccountControlSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewAccountControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "account-control",
 			Interface: "account-control",
+			Apps: map[string]*snap.AppInfo{
+				"app1": {
+					Snap: &snap.Info{
+						SuggestedName: "core",
+					},
+					Name: "app1"}},
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "account-control",
-			Interface: "account-control",
-		},
-	},
-})
+	}
+
+	plugSnap := snaptest.MockInfo(c, accountCtlMockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["account-control"]}
+}
 
 func (s *AccountControlSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "account-control")
@@ -86,7 +100,11 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 	c.Assert(string(snippet), testutil.Contains, "/{,usr/}sbin/chpasswd")
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "\nfchown - 0 42\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "\nfchown - 0 42\n")
 }

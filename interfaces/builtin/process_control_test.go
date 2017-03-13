@@ -24,7 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ProcessControlInterfaceSuite struct {
@@ -33,23 +36,28 @@ type ProcessControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ProcessControlInterfaceSuite{
-	iface: builtin.NewProcessControlInterface(),
-	slot: &interfaces.Slot{
+const procctlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [process-control]
+`
+
+var _ = Suite(&ProcessControlInterfaceSuite{})
+
+func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewProcessControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "process-control",
 			Interface: "process-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "process-control",
-			Interface: "process-control",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, procctlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["process-control"]}
+}
 
 func (s *ProcessControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "process-control")
@@ -83,7 +91,10 @@ func (s *ProcessControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "sched_setaffinity\n")
 }

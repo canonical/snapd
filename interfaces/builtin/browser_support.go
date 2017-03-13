@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
@@ -56,7 +57,7 @@ deny dbus (send)
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* r,
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
@@ -260,8 +261,7 @@ func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot
 func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		snippet := []byte(browserSupportConnectedPlugAppArmor)
 		if allowSandbox {
 			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithSandbox...)
@@ -269,14 +269,17 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithoutSandbox...)
 		}
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(browserSupportConnectedPlugSecComp)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
-		}
-		return snippet, nil
 	}
 	return nil, nil
+}
+
+func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+	snippet := browserSupportConnectedPlugSecComp
+	if allowSandbox {
+		snippet += browserSupportConnectedPlugSecCompWithSandbox
+	}
+	return spec.AddSnippet(snippet)
 }
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
