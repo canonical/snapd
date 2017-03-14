@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var onlineAccountsServicePermanentSlotAppArmor = []byte(`
+const onlineAccountsServicePermanentSlotAppArmor = `
 # Description: Allow operating as the Online Accounts service. Reserved because
 # this gives privileged access to the system.
 
@@ -44,21 +44,20 @@ dbus (send)
 dbus (bind)
 	bus=session
 	name="com.ubuntu.OnlineAccounts.Manager",
-`)
+`
 
-var onlineAccountsServiceConnectedSlotAppArmor = []byte(`
+const onlineAccountsServiceConnectedSlotAppArmor = `
 # Allow service to interact with connected clients
 dbus (receive, send)
 	bus=session
 	path=/com/ubuntu/OnlineAccounts{,/**}
 	interface=com.ubuntu.OnlineAccounts.Manager
 	peer=(label=###PLUG_SECURITY_TAGS###),
-`)
+`
 
-var onlineAccountsServiceConnectedPlugAppArmor = []byte(`
+const onlineAccountsServiceConnectedPlugAppArmor = `
 # Description: Allow using Online Accounts service. Common because the access
 # to user data is actually mediated by the Online Accounts service itself.
-# Usage: common
 
 #include <abstractions/dbus-session-strict>
 
@@ -66,50 +65,18 @@ var onlineAccountsServiceConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=session
     interface=com.ubuntu.OnlineAccounts.Manager
+    path=/com/ubuntu/OnlineAccounts{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
-`)
+`
 
-var onlineAccountsServicePermanentSlotSecComp = []byte(`
+const onlineAccountsServicePermanentSlotSecComp = `
 # dbus
 accept
 accept4
 bind
 listen
-recv
-recvfrom
-recvmmsg
-recvmsg
-send
-sendmmsg
-sendmsg
-sendto
 shutdown
-`)
-
-var onlineAccountsServiceConnectedPlugSecComp = []byte(`
-# dbus
-recv
-recvmsg
-send
-sendto
-sendmsg
-`)
-
-var onlineAccountsServicePermanentSlotDBus = []byte(`
-<policy user="default">
-    <allow own="com.ubuntu.OnlineAccounts.Manager"/>
-    <allow send_destination="com.ubuntu.OnlineAccounts.Manager"/>
-    <allow send_interface="com.ubuntu.OnlineAccounts.Manager"/>
-</policy>
-`)
-
-var onlineAccountsServiceConnectedPlugDBus = []byte(`
-<policy context="default">
-    <deny own="com.ubuntu.OnlineAccounts.Manager"/>
-    <allow send_destination="com.ubuntu.OnlineAccounts.Manager"/>
-    <allow send_interface="com.ubuntu.OnlineAccounts.Manager"/>
-</policy>
-`)
+`
 
 type OnlineAccountsServiceInterface struct{}
 
@@ -119,8 +86,6 @@ func (iface *OnlineAccountsServiceInterface) Name() string {
 
 func (iface *OnlineAccountsServiceInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
 	default:
 		return nil, nil
 	}
@@ -129,13 +94,10 @@ func (iface *OnlineAccountsServiceInterface) PermanentPlugSnippet(plug *interfac
 func (iface *OnlineAccountsServiceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return onlineAccountsServiceConnectedPlugAppArmor, nil
-	case interfaces.SecurityDBus:
-		return onlineAccountsServiceConnectedPlugDBus, nil
-	case interfaces.SecuritySecComp:
-		return onlineAccountsServiceConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace([]byte(onlineAccountsServiceConnectedPlugAppArmor), old, new, -1)
+		return snippet, nil
 	default:
 		return nil, nil
 	}
@@ -146,7 +108,7 @@ func (iface *OnlineAccountsServiceInterface) ConnectedSlotSnippet(plug *interfac
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(onlineAccountsServiceConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace([]byte(onlineAccountsServiceConnectedSlotAppArmor), old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
@@ -155,13 +117,9 @@ func (iface *OnlineAccountsServiceInterface) ConnectedSlotSnippet(plug *interfac
 func (iface *OnlineAccountsServiceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return onlineAccountsServicePermanentSlotAppArmor, nil
-	case interfaces.SecurityDBus:
-		return onlineAccountsServicePermanentSlotDBus, nil
+		return []byte(onlineAccountsServicePermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return onlineAccountsServicePermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
+		return []byte(onlineAccountsServicePermanentSlotSecComp), nil
 	default:
 		return nil, nil
 	}
