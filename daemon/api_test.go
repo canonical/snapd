@@ -4844,7 +4844,7 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
@@ -4929,7 +4929,7 @@ func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
 	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
@@ -4985,7 +4985,7 @@ func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
 	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
