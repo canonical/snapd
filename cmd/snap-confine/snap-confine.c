@@ -64,8 +64,9 @@ int main(int argc, char **argv)
 	// Collect and validate the security tag and a few other things passed on
 	// command line.
 	const char *security_tag = sc_args_security_tag(args);
-	if (!verify_security_tag(security_tag))
+	if (!verify_security_tag(security_tag)) {
 		die("security tag %s not allowed", security_tag);
+	}
 	const char *executable = sc_args_executable(args);
 	bool classic_confinement = sc_args_is_classic_confinement(args);
 
