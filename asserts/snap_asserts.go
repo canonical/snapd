@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
@@ -41,6 +42,7 @@ type SnapDeclaration struct {
 	plugRules      map[string]*PlugRule
 	slotRules      map[string]*SlotRule
 	autoAliases    []string
+	aliases        map[string]string
 	timestamp      time.Time
 }
 
@@ -85,8 +87,14 @@ func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
 }
 
 // AutoAliases returns the optional auto-aliases granted to this snap.
+// XXX: deprecated, will go away
 func (snapdcl *SnapDeclaration) AutoAliases() []string {
 	return snapdcl.autoAliases
+}
+
+// Aliases returns the optional explicit aliases granted to this snap.
+func (snapdcl *SnapDeclaration) Aliases() map[string]string {
+	return snapdcl.aliases
 }
 
 // Implement further consistency checks.
@@ -176,7 +184,10 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	return formatnum, nil
 }
 
-var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+var (
+	validAlias         = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
+	validExplicitAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*(?:=[a-zA-Z0-9](?:-?[a-zA-Z0-9])*)?$")
+)
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
@@ -231,9 +242,27 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	// XXX: depracated, will go away later
 	autoAliases, err := checkStringListMatches(assert.headers, "auto-aliases", validAlias)
 	if err != nil {
 		return nil, err
+	}
+
+	var aliases map[string]string
+	explicitAliases, err := checkStringListMatches(assert.headers, "aliases", validExplicitAlias)
+	if err != nil {
+		return nil, err
+	}
+	if len(explicitAliases) != 0 {
+		aliases = make(map[string]string, len(explicitAliases))
+		for _, explicitAlias := range explicitAliases {
+			aliasApp := strings.SplitN(explicitAlias, "=", 2)
+			if len(aliasApp) == 2 {
+				aliases[aliasApp[0]] = aliasApp[1]
+			} else {
+				aliases[aliasApp[0]] = aliasApp[0]
+			}
+		}
 	}
 
 	return &SnapDeclaration{
@@ -242,6 +271,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		plugRules:      plugRules,
 		slotRules:      slotRules,
 		autoAliases:    autoAliases,
+		aliases:        aliases,
 		timestamp:      timestamp,
 	}, nil
 }
