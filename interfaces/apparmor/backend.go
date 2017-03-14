@@ -113,11 +113,14 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern          = regexp.MustCompile("(###[A-Z]+###)")
+	templatePattern = regexp.MustCompile("(###[A-Z]+###)")
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
+)
+
+const (
 	placeholderVar           = "###VAR###"
 	placeholderSnippets      = "###SNIPPETS###"
 	placeholderProfileAttach = "###PROFILEATTACH###"
-	attachPattern            = regexp.MustCompile(`\(attach_disconnected\)`)
 	attachComplain           = "(attach_disconnected,complain)"
 )
 
