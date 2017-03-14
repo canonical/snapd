@@ -215,7 +215,6 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 		}
 
 		what = fmt.Sprintf(`for alias %q`, name)
-
 		target, err := checkStringMatchesWhat(aliasItem, "target", what, validAppName)
 		if err != nil {
 			return nil, err
