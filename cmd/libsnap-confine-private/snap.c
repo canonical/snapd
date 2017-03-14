@@ -27,8 +27,6 @@
 #include "string-utils.h"
 #include "cleanup-funcs.h"
 
-static regex_t sc_valid_snap_name_re;
-
 bool verify_security_tag(const char *security_tag)
 {
 	// The executable name is of form:
