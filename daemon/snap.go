@@ -157,7 +157,7 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 type appJSON struct {
 	Name        string   `json:"name"`
 	Daemon      string   `json:"daemon"`
-	DesktopFile string   `json:"desktop-files,omitempty"`
+	DesktopFile string   `json:"desktop-file,omitempty"`
 	Aliases     []string `json:"aliases,omitempty"`
 }
 
