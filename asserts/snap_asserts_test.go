@@ -64,6 +64,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"auto-aliases:\n  - cmd1\n  - cmd_2\n  - Cmd-3\n  - CMD.4\n" +
 		sds.tsLine +
+		"aliases:\n  - cmd1=cmd-1\n  - cmd_2=cmd-2\n  - Cmd-3=cmd-3\n  - CMD.4=cmd-4\n  - cmd-5\n" +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
@@ -80,6 +81,13 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 	c.Check(snapDecl.AutoAliases(), DeepEquals, []string{"cmd1", "cmd_2", "Cmd-3", "CMD.4"})
+	c.Check(snapDecl.Aliases(), DeepEquals, map[string]string{
+		"cmd1":  "cmd-1",
+		"cmd_2": "cmd-2",
+		"Cmd-3": "cmd-3",
+		"CMD.4": "cmd-4",
+		"cmd-5": "cmd-5",
+	})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {

@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"fmt"
+	"sort"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -289,7 +290,7 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	err = s.state.Get("aliases", &allAliases)
 	c.Assert(err, IsNil)
 	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"alias-snap": {"alias1": "enabled"},
+		"alias-snap": {"alias1": "enabled:cmd1"},
 	})
 }
 
@@ -377,6 +378,8 @@ func (s *snapmgrTestSuite) TestAliasNoAlias(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// XXX: fix test (no target) plus precise error check
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
@@ -398,7 +401,7 @@ func (s *snapmgrTestSuite) TestAliasNoAlias(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "some-snap", no such alias.*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" .*`)
 }
 
 func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
@@ -664,6 +667,7 @@ var statusesMatrix = []struct {
 	mutation     string
 }{
 	{"alias1", "", "alias", "enabled", "add"},
+	// TODO: alias with independent target tests
 	{"alias1", "enabled", "alias", "enabled", "-"},
 	{"alias1", "disabled", "alias", "enabled", "add"},
 	{"alias1", "auto", "alias", "enabled", "-"},
@@ -705,9 +709,9 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 	// alias5 is an auto-alias
 	// alias1gone is a non auto-alias and doesn't have an entry in the current snap revision anymore
 	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5gone"}, nil
+		return map[string]string{"alias5": "cmd5", "alias5gone": "cmd5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -775,8 +779,12 @@ func (s *snapmgrTestSuite) TestAliasMatrixRunThrough(c *C) {
 		err = s.state.Get("aliases", &allAliases)
 		c.Assert(err, IsNil)
 		if scenario.status != "" {
+			state := scenario.status
+			if state == "auto" || state == "enabled" {
+				state = state + ":" + cmds[scenAlias]
+			}
 			c.Check(allAliases, DeepEquals, map[string]map[string]string{
-				"alias-snap": {scenAlias: scenario.status},
+				"alias-snap": {scenAlias: state},
 			}, comm)
 		} else {
 			c.Check(allAliases, HasLen, 0, comm)
@@ -802,9 +810,9 @@ func (s *snapmgrTestSuite) TestAliasMatrixTotalUndoRunThrough(c *C) {
 	// alias5 is an auto-alias
 	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
 	// alias5gone is an auto-alias and doesn't have an entry in the snap any
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5gone"}, nil
+		return map[string]string{"alias5": "cmd5", "alias5gone": "cmd5gone"}, nil
 	}
 	cmds := map[string]string{
 		"alias1": "cmd1",
@@ -923,9 +931,13 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesRunThrough(c *C) {
 	// alias5 is an auto-alias
 	// alias1gone is a non auto-alias and doesn't have an entry in the current snap revision anymore
 	// alias5gone is an auto-alias and doesn't have an entry in the current snap revision anymore
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5gone"}, nil
+		return map[string]string{"alias5": "cmd5", "alias5gone": "cmd5gone"}, nil
+	}
+	cmds := map[string]string{
+		"alias1": "cmd1",
+		"alias5": "cmd5",
 	}
 
 	defer s.snapmgr.Stop()
@@ -969,8 +981,12 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesRunThrough(c *C) {
 		err = s.state.Get("aliases", &allAliases)
 		c.Assert(err, IsNil)
 		if scenario.status != "" {
+			state := scenario.status
+			if state == "auto" || state == "enabled" {
+				state = state + ":" + cmds[scenAlias]
+			}
 			c.Check(allAliases, DeepEquals, map[string]map[string]string{
-				"alias-snap": {scenAlias: scenario.status},
+				"alias-snap": {scenAlias: state},
 			}, comm)
 		} else {
 			c.Check(allAliases, HasLen, 0, comm)
@@ -996,9 +1012,9 @@ func (s *snapmgrTestSuite) TestDisabledSnapResetAliasesTotalUndoRunThrough(c *C)
 	// alias5 is an auto-alias
 	// alias1gone is a non auto-alias and doesn't have an entry in the snap anymore
 	// alias5gone is an auto-alias and doesn't have an entry in the snap any
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias5", "alias5gone"}, nil
+		return map[string]string{"alias5": "cmd5", "alias5gone": "cmd5gone"}, nil
 	}
 
 	defer s.snapmgr.Stop()
@@ -1173,9 +1189,14 @@ func (s *snapmgrTestSuite) TestUnliasTotalUndoRunThroughAliasConflict(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+			"alias5": "cmd5",
+		}, nil
 	}
 
 	s.state.Lock()
@@ -1200,9 +1221,10 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	new, retired, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
 	c.Assert(err, IsNil)
 
-	c.Check(new, DeepEquals, map[string][]string{
-		"alias-snap": {"alias4", "alias5"},
-	})
+	c.Check(new, HasLen, 1)
+	which := new["alias-snap"]
+	sort.Strings(which)
+	c.Check(which, DeepEquals, []string{"alias4", "alias5"})
 
 	c.Check(retired, DeepEquals, map[string][]string{
 		"alias-snap": {"alias3"},
@@ -1211,10 +1233,15 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 
 func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	seen := make(map[string]bool)
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		seen[info.Name()] = true
 		if info.Name() == "alias-snap" {
-			return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+			return map[string]string{
+				"alias1": "cmd1",
+				"alias2": "cmd2",
+				"alias4": "cmd4",
+				"alias5": "cmd5",
+			}, nil
 		}
 		return nil, nil
 	}
@@ -1240,9 +1267,10 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	new, retired, err := snapstate.AutoAliasesDelta(s.state, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(new, DeepEquals, map[string][]string{
-		"alias-snap": {"alias1", "alias2", "alias4", "alias5"},
-	})
+	c.Check(new, HasLen, 1)
+	which := new["alias-snap"]
+	sort.Strings(which)
+	c.Check(which, DeepEquals, []string{"alias1", "alias2", "alias4", "alias5"})
 
 	c.Check(retired, HasLen, 0)
 
@@ -1256,9 +1284,14 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+			"alias5": "cmd5",
+		}, nil
 	}
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
@@ -1311,9 +1344,14 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+			"alias5": "cmd5",
+		}, nil
 	}
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
@@ -1372,9 +1410,14 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		c.Check(info.Name(), Equals, "alias-snap")
-		return []string{"alias1", "alias2", "alias4", "alias5"}, nil
+		return map[string]string{
+			"alias1": "cmd1",
+			"alias2": "cmd2",
+			"alias4": "cmd4",
+			"alias5": "cmd5",
+		}, nil
 	}
 
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
