@@ -194,7 +194,7 @@ int main(int argc, char **argv)
 	// and exec the new executable
 	argv[0] = (char *)executable;
 	debug("execv(%s, %s...)", executable, argv[0]);
-	for (int i=1; i<argc; ++i) {
+	for (int i = 1; i < argc; ++i) {
 		debug(" argv[%i] = %s", i, argv[i]);
 	}
 	execv(executable, (char *const *)&argv[0]);
