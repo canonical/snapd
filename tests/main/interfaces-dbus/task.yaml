@@ -26,7 +26,7 @@ prepare: |
     echo "And the provider dbus loop is started"
     dbus-launch > dbus.env
     export $(cat dbus.env | xargs)
-    if [ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         cat <<EOF > /etc/init/dbus-provider.conf
     env DISPLAY="$DISPLAY"
     env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
@@ -48,7 +48,7 @@ prepare: |
 restore: |
     rm -f call.error dbus.env
     apt remove --purge -y dbus-x11
-    if [ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         stop dbus-provider
         rm -f /etc/init/dbus-provider.conf
     else
