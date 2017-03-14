@@ -24,12 +24,14 @@ package reexec
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -53,6 +55,34 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		return nil
 	}
 
+	// cleanup old
+	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
+
+	glob, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, apparmorProfilePathPattern))
+	if err != nil {
+		return err
+	}
+
+	for _, path := range glob {
+		snapConfineInCore := "/" + strings.Replace(filepath.Base(path), ".", "/", -1)
+		if osutil.FileExists(snapConfineInCore) {
+			continue
+		}
+
+		// not using apparmor.UnloadProfile() because it uses a
+		// different cachedir
+		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
+			logger.Noticef("cannot unload apparmor profile %s: %v", filepath.Base(path), osutil.OutputErr(output, err))
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(filepath.Join(dirs.SystemApparmorCacheDir, filepath.Base(path))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	// add new
 	coreRoot := snapInfo.MountDir()
 	snapConfineInCore := filepath.Join(coreRoot, "usr/lib/snapd/snap-confine")
 	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
@@ -78,7 +108,6 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 }
 
 func (b *Backend) Remove(snapName string) error {
-	// FIXME: add cleanup
 	return nil
 }
 
