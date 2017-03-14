@@ -532,11 +532,13 @@ func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 
 func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
-	snippet := dockerSupportConnectedPlugAppArmor
-	if privileged {
-		snippet += "\n" + dockerSupportPrivilegedAppArmor
+	if err := spec.AddSnippet(dockerSupportConnectedPlugAppArmor); err != nil {
+		return err
 	}
-	return spec.AddSnippet(snippet)
+	if privileged {
+		return spec.AddSnippet(dockerSupportPrivilegedAppArmor)
+	}
+	return nil
 }
 
 func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
