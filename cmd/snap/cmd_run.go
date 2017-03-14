@@ -215,14 +215,23 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
+var osReadlink = os.Readlink
+
+func isReexeced() bool {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		return false
+	}
+	return strings.HasPrefix(exe, dirs.SnapMountDir)
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{
-		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-	}
+	cmd := []string{filepath.Join(dirs.DistroLibExecDir, "snap-confine")}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
@@ -240,6 +249,13 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	// snap-exec is POSIXly-- options must come before positionals.
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
+
+	// FIXME: we cannot use osutil.CommandFromCore() here because
+	//        that will execute using the ld.so from the core which
+	//        is not suid root :/
+	if isReexeced() {
+		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
+	}
 
 	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }
