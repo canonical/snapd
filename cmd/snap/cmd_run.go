@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -253,7 +254,10 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	// FIXME: we cannot use osutil.CommandFromCore() here because
 	//        that will execute using the ld.so from the core which
 	//        is not suid root :/
-	if isReexeced() {
+	// FIXME2: for now "ForceDevMode" will prevent snap-confine to be
+	//         run on distros like fedora/suse etc. which is ok because
+	//         snap-confine is a non-op on these distros anyway.
+	if isReexeced() && !release.ReleaseInfo.ForceDevMode() {
 		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
 	}
 
