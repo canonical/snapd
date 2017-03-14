@@ -95,7 +95,8 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 
 	cleanedPath := filepath.Clean(path)
-	return spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

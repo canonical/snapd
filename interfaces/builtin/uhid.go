@@ -70,7 +70,8 @@ func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(uhidConnectedPlugAppArmor)
+	spec.AddSnippet(uhidConnectedPlugAppArmor)
+	return nil
 }
 
 // Getter for the security system specific to the plug

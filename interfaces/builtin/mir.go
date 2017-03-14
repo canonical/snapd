@@ -89,14 +89,16 @@ func (iface *MirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *MirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -104,7 +106,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 }
 
 func (iface *MirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(mirPermanentSlotAppArmor)
+	spec.AddSnippet(mirPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *MirInterface) PermanentSlotSnippet(

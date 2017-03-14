@@ -203,7 +203,8 @@ func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmo
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(downloadConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -211,7 +212,8 @@ func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfac
 }
 
 func (iface *UbuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(downloadPermanentSlotAppArmor)
+	spec.AddSnippet(downloadPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -225,7 +227,8 @@ func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmo
 	old = "###PLUG_NAME###"
 	new = plug.Snap.Name()
 	snippet = strings.Replace(snippet, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

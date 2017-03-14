@@ -187,7 +187,8 @@ func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
@@ -196,7 +197,9 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 }
 
 func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(fwupdPermanentSlotAppArmor)
+	spec.AddSnippet(fwupdPermanentSlotAppArmor)
+	return nil
+
 }
 
 // PermanentSlotSnippet returns security snippets for slot at install
@@ -212,7 +215,8 @@ func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 // ConnectedSlotSnippet returns security snippets for slot at connection

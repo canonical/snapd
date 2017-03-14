@@ -53,7 +53,8 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 }
 
 func (iface *DockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(dockerConnectedPlugAppArmor)
+	spec.AddSnippet(dockerConnectedPlugAppArmor)
+	return nil
 }
 
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

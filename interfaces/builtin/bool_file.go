@@ -96,7 +96,7 @@ func (iface *BoolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 `
 
 	if iface.isGPIO(slot) {
-		return spec.AddSnippet(gpioSnippet)
+		spec.AddSnippet(gpioSnippet)
 	}
 	return nil
 }
@@ -110,7 +110,8 @@ func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	if err != nil {
 		return fmt.Errorf("cannot compute plug security snippet: %v", err)
 	}
-	return spec.AddSnippet(fmt.Sprintf("%s rwk,\n", path))
+	spec.AddSnippet(fmt.Sprintf("%s rwk,\n", path))
+	return nil
 }
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.

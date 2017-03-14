@@ -77,7 +77,8 @@ func (iface *PhysicalMemoryObserveInterface) PermanentSlotSnippet(slot *interfac
 }
 
 func (iface *PhysicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
+	spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

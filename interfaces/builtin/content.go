@@ -180,7 +180,8 @@ func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		}
 	}
 
-	return spec.AddSnippet(contentSnippet.String())
+	spec.AddSnippet(contentSnippet.String())
+	return nil
 }
 
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

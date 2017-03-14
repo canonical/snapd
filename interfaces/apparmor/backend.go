@@ -43,7 +43,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -117,12 +116,7 @@ var (
 	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
 )
 
-const (
-	placeholderVar           = "###VAR###"
-	placeholderSnippets      = "###SNIPPETS###"
-	placeholderProfileAttach = "###PROFILEATTACH###"
-	attachComplain           = "(attach_disconnected,complain)"
-)
+const attachComplain = "(attach_disconnected,complain)"
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
@@ -155,19 +149,19 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		policy = attachPattern.ReplaceAllString(policy, attachComplain)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
-		switch {
-		case placeholder == placeholderVar:
+		switch placeholder {
+		case "###VAR###":
 			return templateVariables(snapInfo, securityTag)
-		case placeholder == placeholderProfileAttach:
+		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
-		case placeholder == placeholderSnippets:
+		case "###SNIPPETS###":
 			var tagSnippets string
 
 			if opts.Classic && opts.JailMode {
 				// Add a special internal snippet for snaps using classic confinement
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
-				tagSnippets = strings.Join([]string{classicJailmodeSnippet, snippetForTag}, "\n")
+				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
 			} else if opts.Classic && !opts.JailMode {
 				// When classic confinement (without jailmode) is in effect we
 				// are ignoring all apparmor snippets as they may conflict with

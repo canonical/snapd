@@ -189,14 +189,16 @@ func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -204,7 +206,8 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 }
 
 func (iface *BluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(bluezPermanentSlotAppArmor)
+	spec.AddSnippet(bluezPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
