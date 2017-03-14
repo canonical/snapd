@@ -251,11 +251,8 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(snippets, HasLen, 1)
-	c.Assert(snippets["snap.maliit.maliit"], HasLen, 1)
-	snippet := string(snippets["snap.maliit.maliit"][0])
-	c.Check(snippet, testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
+	c.Check(seccompSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, "listen\n")
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {

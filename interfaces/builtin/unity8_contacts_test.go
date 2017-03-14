@@ -218,8 +218,6 @@ func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.contacts.app"]), Equals, 1)
-	c.Check(string(snippets["snap.contacts.app"][0]), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "listen\n")
 }

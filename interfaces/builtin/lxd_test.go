@@ -89,10 +89,8 @@ func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.lxd.app"]), Equals, 1)
-	c.Check(string(snippets["snap.lxd.app"][0]), testutil.Contains, "shutdown\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "shutdown\n")
 }
 
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {

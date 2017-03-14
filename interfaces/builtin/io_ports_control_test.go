@@ -122,12 +122,11 @@ func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 # probably crash the system, and is not recommended.
 ioperm
 iopl
+
 `
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.client-snap.app-accessing-io-ports"]), Equals, 1)
-	c.Check(snippets["snap.client-snap.app-accessing-io-ports"][0], DeepEquals, expectedSnippet2)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-io-ports"})
+	c.Check(seccompSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports"), Equals, expectedSnippet2)
 }

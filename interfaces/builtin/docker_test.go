@@ -76,10 +76,8 @@ func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
-	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "bind\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "bind\n")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlot(c *C) {
