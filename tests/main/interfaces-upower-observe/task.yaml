@@ -1,7 +1,7 @@
 summary: Ensure that the upower-observe interface works.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-systems: [-ubuntu-core-16-*, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history
