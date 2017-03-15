@@ -41,10 +41,9 @@ var _ = Suite(&CoreSupportInterfaceSuite{})
 func (s *CoreSupportInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
-apps:
- app:
-  command: foo
-  plugs: [core-support]
+hooks:
+ prepare-device:
+     plugs: [core-support]
 `
 	s.iface = builtin.NewCoreSupportInterface()
 	s.slot = &interfaces.Slot{
@@ -98,6 +97,6 @@ func (s *CoreSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/bin/systemctl Uxr,`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.hook.prepare-device"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.hook.prepare-device"), testutil.Contains, `/bin/systemctl Uxr,`)
 }
