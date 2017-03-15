@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -43,9 +42,7 @@ var All = []interfaces.SecurityBackend{
 }
 
 func init() {
-	if release.ReleaseInfo.ForceDevMode() {
-		logger.Noticef("Cannot find sufficient apparmor support, disabling apparmor security backend")
-	} else {
+	if !release.ReleaseInfo.ForceDevMode() {
 		All = append(All, &apparmor.Backend{})
 	}
 }
