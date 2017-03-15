@@ -1,0 +1,26 @@
+summary: Test that snap-confine is run from core on re-exec
+
+systems: [-ubuntu-core-16-*]
+
+prepare: |
+    apt install -y strace
+    snap install test-snapd-tools
+
+restore: |
+    apt remove -y strace
+    rm -f out.strace
+
+execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
+    echo "Ensure we re-exec by default"
+    snap list
+    journalctl | MATCH "DEBUG: restarting into"
+
+    echo "Ensure snap-confine from the core snap is run"
+    # do not use "strace -f" for unknown reasons that hangs
+    strace test-snapd-tools.echo foo 2> out.strace
+    cat out.strace | MATCH /snap/core/current/usr/lib/snapd/snap-confine-suid-trampoline
