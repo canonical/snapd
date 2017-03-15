@@ -8,7 +8,7 @@ warn-timeout: 1m
 kill-timeout: 5m
 
 restore: |
-    rm -f state-json.new
+    rm -f state.json.new
 
 execute: |
     wait_for_service() {
