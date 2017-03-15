@@ -7,6 +7,9 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 warn-timeout: 1m
 kill-timeout: 5m
 
+restore: |
+    rm -f state-json.new
+
 execute: |
     wait_for_service() {
         local service_name="$1"
