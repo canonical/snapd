@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,10 @@ var (
 
 	// random interval on top of the minmum time between refreshes
 	defaultRefreshRandomness = 4 * time.Hour
+)
+
+var (
+	errtrackerReport = errtracker.Report
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -380,6 +385,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
+	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -520,6 +526,46 @@ func (m *SnapManager) ensureRefreshes() error {
 	return nil
 }
 
+// ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
+// in snapstate for forced devmode distros.
+func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
+	if !release.ReleaseInfo.ForceDevMode() {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// int because we might want to come back and do a second pass at cleanup
+	var fixed int
+	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if fixed > 0 {
+		return nil
+	}
+
+	for _, name := range []string{"core", "ubuntu-core"} {
+		var snapst SnapState
+		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
+			// nothing to see here
+			continue
+		} else if err != nil {
+			// bad
+			return err
+		}
+		if info := snapst.CurrentSideInfo(); info == nil || info.SnapID == "" {
+			continue
+		}
+		snapst.DevMode = false
+		Set(m.state, name, &snapst)
+	}
+	m.state.Set("fix-forced-devmode", 1)
+
+	return nil
+}
+
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
@@ -545,20 +591,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 
 	// ensure we limit the retries in case something goes wrong
+	var lastUbuntuCoreTransitionAttempt time.Time
+	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	now := time.Now()
+	if !lastUbuntuCoreTransitionAttempt.IsZero() && lastUbuntuCoreTransitionAttempt.Add(6*time.Hour).After(now) {
+		return nil
+	}
+	m.state.Set("ubuntu-core-transition-last-retry-time", now)
+
 	var retryCount int
 	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if retryCount > 6 {
-		// limit amount of retries
-		return nil
-	}
-	now := time.Now()
-	if !m.lastUbuntuCoreTransitionAttempt.IsZero() && m.lastUbuntuCoreTransitionAttempt.Add(12*time.Hour).After(now) {
-		return nil
-	}
-	m.lastUbuntuCoreTransitionAttempt = now
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
 
 	tss, err := TransitionCore(m.state, "ubuntu-core", "core")
@@ -578,17 +626,22 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
-	err1 := m.ensureUbuntuCoreTransition()
-
-	err2 := m.ensureRefreshes()
+	errs := []error{
+		m.ensureForceDevmodeDropsDevmodeFromState(),
+		m.ensureUbuntuCoreTransition(),
+		m.ensureRefreshes(),
+	}
 
 	m.runner.Ensure()
 
 	//FIXME: use firstErr helper
-	if err1 != nil {
-		return err1
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
 	}
-	return err2
+
+	return nil
 }
 
 // Wait implements StateManager.Wait.
@@ -682,26 +735,57 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if osutil.GetenvBool("SNAPPY_TESTING") {
 		return nil
 	}
-	if snapsup.SideInfo.RealName == "" {
+	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
 
 	var logMsg []string
-	for _, t := range t.Change().Tasks() {
-		logMsg = append(logMsg, fmt.Sprintf("%s: %s", t.Kind(), t.Status()))
+	var snapSetup string
+	dupSig := []string{"snap-install:"}
+	chg := t.Change()
+	logMsg = append(logMsg, fmt.Sprintf("change %q: %q", chg.Kind(), chg.Summary()))
+	for _, t := range chg.Tasks() {
+		// TODO: report only tasks in intersecting lanes?
+		tintro := fmt.Sprintf("%s: %s", t.Kind(), t.Status())
+		logMsg = append(logMsg, tintro)
+		dupSig = append(dupSig, tintro)
+		if snapsup, err := TaskSnapSetup(t); err == nil && snapsup.SideInfo != nil {
+			snapSetup1 := fmt.Sprintf(" snap-setup: %q (%v) %q", snapsup.SideInfo.RealName, snapsup.SideInfo.Revision, snapsup.SideInfo.Channel)
+			if snapSetup1 != snapSetup {
+				snapSetup = snapSetup1
+				logMsg = append(logMsg, snapSetup)
+				dupSig = append(dupSig, fmt.Sprintf(" snap-setup: %q", snapsup.SideInfo.RealName))
+			}
+		}
 		for _, l := range t.Log() {
 			// cut of the rfc339 timestamp to ensure duplicate
 			// detection works in daisy
-			tStampLen := len("2006-01-02T15:04:05Z07:00")
-			if len(l) < tStampLen {
+			tStampLen := strings.Index(l, " ")
+			if tStampLen < 0 {
 				continue
 			}
-			logMsg = append(logMsg, l[tStampLen:])
+			// not tStampLen+1 because the indent is nice
+			entry := l[tStampLen:]
+			logMsg = append(logMsg, entry)
+			dupSig = append(dupSig, entry)
 		}
 	}
 
+	var ubuntuCoreTransitionCount int
+	err = st.Get("ubuntu-core-transition-retry", &ubuntuCoreTransitionCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	extra := map[string]string{
+		"Channel":  snapsup.Channel,
+		"Revision": snapsup.SideInfo.Revision.String(),
+	}
+	if ubuntuCoreTransitionCount > 0 {
+		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
+	}
+
 	st.Unlock()
-	oopsid, err := errtracker.Report(snapsup.SideInfo.RealName, snapsup.SideInfo.Channel, strings.Join(logMsg, "\n"))
+	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 	st.Lock()
 	if err == nil {
 		logger.Noticef("Reported problem as %s", oopsid)
@@ -1242,6 +1326,29 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// switched the tracked channel
+	snapst.Channel = snapsup.Channel
+	// optionally support switching the current snap channel too, e.g.
+	// if a snap is in both stable and candidate with the same revision
+	// we can update it here and it will be displayed correctly in the UI
+	if snapsup.SideInfo.Channel != "" {
+		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	}
+
+	Set(st, snapsup.Name(), snapst)
 	return nil
 }
 

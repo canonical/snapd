@@ -414,6 +414,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -429,6 +430,7 @@ var (
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"maliit":                  {"app"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
@@ -577,6 +579,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-control":        true,
 		"location-observe":        true,
 		"lxd":                     true,
+		"maliit":                  true,
 		"mir":                     true,
 		"thumbnailer":             true,
 		"udisks2":                 true,

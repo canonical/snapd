@@ -23,7 +23,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,6 +53,12 @@ var _ = Suite(&LxdInterfaceSuite{
 			},
 			Name:      "lxd",
 			Interface: "lxd",
+			Apps: map[string]*snap.AppInfo{
+				"app": {
+					Snap: &snap.Info{
+						SuggestedName: "lxd",
+					},
+					Name: "app"}},
 		},
 	},
 })
@@ -69,26 +77,22 @@ func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *LxdInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 
 func (s *LxdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "shutdown\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.lxd.app"]), Equals, 1)
+	c.Check(string(snippets["snap.lxd.app"][0]), testutil.Contains, "shutdown\n")
 }
 
 func (s *LxdInterfaceSuite) TestAutoConnect(c *C) {

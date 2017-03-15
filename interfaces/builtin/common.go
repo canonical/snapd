@@ -24,6 +24,9 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,9 +40,13 @@ type commonInterface struct {
 	name                   string
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
-	connectedPlugKMod      string
 	reservedForOS          bool
 	rejectAutoConnectPairs bool
+
+	connectedPlugKModModules []string
+	connectedSlotKModModules []string
+	permanentPlugKModModules []string
+	permanentSlotKModModules []string
 }
 
 // Name returns the interface name.
@@ -79,6 +86,13 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 	return nil, nil
 }
 
+func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.connectedPlugAppArmor != "" {
+		spec.AddSnippet(iface.connectedPlugAppArmor)
+	}
+	return nil
+}
+
 // ConnectedPlugSnippet returns the snippet of text for the given security
 // system that is used by affected application, while a specific connection
 // between a plug and a slot exists.
@@ -86,14 +100,6 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 // Connected plugs get the static seccomp and apparmor blobs defined by the
 // instance variables.  They are not really connection specific in this case.
 func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(iface.connectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(iface.connectedPlugSecComp), nil
-	case interfaces.SecurityKMod:
-		return []byte(iface.connectedPlugKMod), nil
-	}
 	return nil, nil
 }
 
@@ -122,4 +128,47 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 // By default we allow what declarations allowed.
 func (iface *commonInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return !iface.rejectAutoConnectPairs
+}
+
+func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, m := range iface.connectedPlugKModModules {
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for _, m := range iface.connectedSlotKModModules {
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
+	for _, m := range iface.permanentPlugKModModules {
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
+	for _, m := range iface.permanentSlotKModModules {
+		if err := spec.AddModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.connectedPlugSecComp != "" {
+		return spec.AddSnippet(iface.connectedPlugSecComp)
+	}
+	return nil
 }

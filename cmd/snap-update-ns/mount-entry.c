@@ -31,6 +31,16 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 
 /**
+ * Compare two mount entries (through indirect pointers).
+ **/
+static int
+sc_indirect_compare_mount_entry(const struct sc_mount_entry **a,
+				const struct sc_mount_entry **b)
+{
+	return sc_compare_mount_entry(*a, *b);
+}
+
+/**
  * Copy struct mntent into a freshly-allocated struct sc_mount_entry.
  *
  * The next pointer is initialized to NULL, it should be managed by the caller.
@@ -79,25 +89,63 @@ static struct sc_mount_entry *sc_get_next_and_free_mount_entry(struct
 	return next;
 }
 
-void sc_free_mount_entry_list(struct sc_mount_entry *entry)
+void sc_free_mount_entry_list(struct sc_mount_entry_list *list)
 {
+	struct sc_mount_entry *entry = list ? list->first : NULL;
+
 	while (entry != NULL) {
 		entry = sc_get_next_and_free_mount_entry(entry);
 	}
+	free(list);
 }
 
-void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp)
+void sc_cleanup_mount_entry_list(struct sc_mount_entry_list **listp)
 {
-	if (entryp != NULL) {
-		sc_free_mount_entry_list(*entryp);
-		*entryp = NULL;
+	if (listp != NULL) {
+		sc_free_mount_entry_list(*listp);
+		*listp = NULL;
 	}
 }
 
-struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
+int sc_compare_mount_entry(const struct sc_mount_entry *a,
+			   const struct sc_mount_entry *b)
 {
-	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	int result;
+	if (a == NULL || b == NULL) {
+		die("cannot compare NULL mount entry");
+	}
+	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_type, b->entry.mnt_type);
+	if (result != 0) {
+		return result;
+	}
+	result = strcmp(a->entry.mnt_opts, b->entry.mnt_opts);
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_freq - b->entry.mnt_freq;
+	if (result != 0) {
+		return result;
+	}
+	result = a->entry.mnt_passno - b->entry.mnt_passno;
+	return result;
+}
 
+struct sc_mount_entry_list *sc_load_mount_profile(const char *pathname)
+{
+	struct sc_mount_entry_list *list = calloc(1, sizeof *list);
+	if (list == NULL) {
+		die("cannot allocate sc_mount_entry_list");
+	}
+
+	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	f = setmntent(pathname, "rt");
 	if (f == NULL) {
 		// NOTE: it is fine if the profile doesn't exist.
@@ -106,27 +154,34 @@ struct sc_mount_entry *sc_load_mount_profile(const char *pathname)
 			die("cannot open mount profile %s for reading",
 			    pathname);
 		}
-		return NULL;
+		return list;
 	}
-	// Loop over the entries in the file and copy them to a singly-linked list.
-	struct sc_mount_entry *entry, *first = NULL, *prev = NULL;
+	// Loop over the entries in the file and copy them to a doubly-linked list.
+	struct sc_mount_entry *entry = NULL, *prev_entry = NULL;
 	struct mntent *mntent_entry;
 	while (((mntent_entry = getmntent(f)) != NULL)) {
 		entry = sc_clone_mount_entry_from_mntent(mntent_entry);
-		if (prev != NULL) {
-			prev->next = entry;
+		entry->prev = prev_entry;
+		if (prev_entry != NULL) {
+			prev_entry->next = entry;
 		}
-		if (first == NULL) {
-			first = entry;
+		if (list->first == NULL) {
+			list->first = entry;
 		}
-		prev = entry;
+		prev_entry = entry;
 	}
-	return first;
+	list->last = entry;
+
+	return list;
 }
 
-void sc_save_mount_profile(const struct sc_mount_entry *first,
+void sc_save_mount_profile(const struct sc_mount_entry_list *list,
 			   const char *pathname)
 {
+	if (list == NULL) {
+		die("cannot save mount profile, list is NULL");
+	}
+
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 
 	f = setmntent(pathname, "wt");
@@ -135,9 +190,57 @@ void sc_save_mount_profile(const struct sc_mount_entry *first,
 	}
 
 	const struct sc_mount_entry *entry;
-	for (entry = first; entry != NULL; entry = entry->next) {
+	for (entry = list->first; entry != NULL; entry = entry->next) {
 		if (addmntent(f, &entry->entry) != 0) {
 			die("cannot add mount entry to %s", pathname);
 		}
 	}
+}
+
+void sc_sort_mount_entry_list(struct sc_mount_entry_list *list)
+{
+	if (list == NULL) {
+		die("cannot sort mount entry list, list is NULL");
+	}
+
+	if (list->first == NULL) {
+		// NULL list is an empty list
+		return;
+	}
+	// Count the items
+	size_t count;
+	struct sc_mount_entry *entry;
+	for (count = 0, entry = list->first; entry != NULL;
+	     ++count, entry = entry->next) ;
+
+	// Allocate an array of pointers
+	struct sc_mount_entry **entryp_array = NULL;
+	entryp_array = calloc(count, sizeof *entryp_array);
+	if (entryp_array == NULL) {
+		die("cannot allocate memory");
+	}
+	// Populate the array
+	entry = list->first;
+	for (size_t i = 0; i < count; ++i) {
+		entryp_array[i] = entry;
+		entry = entry->next;
+	}
+
+	// Sort the array according to lexical sorting of all the elements.
+	qsort(entryp_array, count, sizeof(void *),
+	      (int (*)(const void *, const void *))
+	      sc_indirect_compare_mount_entry);
+
+	// Rewrite all the next/prev pointers of each element.
+	for (size_t i = 0; i < count; ++i) {
+		entryp_array[i]->next =
+		    i + 1 < count ? entryp_array[i + 1] : NULL;
+		entryp_array[i]->prev = i > 0 ? entryp_array[i - 1] : NULL;
+	}
+
+	// Rewrite the list head.
+	list->first = count > 0 ? entryp_array[0] : NULL;
+	list->last = count > 0 ? entryp_array[count - 1] : NULL;
+
+	free(entryp_array);
 }
