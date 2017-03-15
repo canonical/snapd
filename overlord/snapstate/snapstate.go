@@ -225,13 +225,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 
-	// gross hack, do not run configure hook on classic (LP: #1668738)
-	// for now until we understand why it is failing for some people
-	if !(release.OnClassic && snapsup.Name() == "core") {
-		configSet := Configure(st, snapsup.Name(), defaults)
-		configSet.WaitAll(installSet)
-		installSet.AddAll(configSet)
-	}
+	configSet := Configure(st, snapsup.Name(), defaults)
+	configSet.WaitAll(installSet)
+	installSet.AddAll(configSet)
 
 	return installSet, nil
 }

@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,28 @@ type AutopilotInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&AutopilotInterfaceSuite{
-	iface: builtin.NewAutopilotIntrospectionInterface(),
-	slot: &interfaces.Slot{
+const mockAutopilotPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [autopilot-introspection]
+`
+
+var _ = Suite(&AutopilotInterfaceSuite{})
+
+func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewAutopilotIntrospectionInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "autopilot-introspection",
 			Interface: "autopilot-introspection",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "autopilot-introspection",
-			Interface: "autopilot-introspection",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, mockAutopilotPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["autopilot-introspection"]}
+}
 
 func (s *AutopilotInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "autopilot-introspection")
@@ -86,8 +93,12 @@ func (s *AutopilotInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 	c.Check(string(snippet), testutil.Contains, "path=/com/canonical/Autopilot/Introspection\n")
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "recvmsg\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.other.app"]), Equals, 1)
+	c.Check(string(snippets["snap.other.app"][0]), testutil.Contains, "recvmsg\n")
 }

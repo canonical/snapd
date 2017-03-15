@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,30 @@ type BluezInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&BluezInterfaceSuite{
-	iface: &builtin.BluezInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "bluez"},
-			Name:      "bluez",
-			Interface: "bluez",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "bluez"},
-			Name:      "bluezctl",
-			Interface: "bluez",
-		},
-	},
-})
+var _ = Suite(&BluezInterfaceSuite{})
+
+const bluezMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [bluez]
+`
+const bluezMockSlotSnapInfoYaml = `name: bluez
+version: 1.0
+apps:
+ app1:
+  command: foo
+  slots: [bluez]
+`
+
+func (s *BluezInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.BluezInterface{}
+	slotSnap := snaptest.MockInfo(c, bluezMockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["bluez"]}
+	plugSnap := snaptest.MockInfo(c, bluezMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["bluez"]}
+}
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluez")
@@ -121,7 +130,7 @@ func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.bluez.*\")")
+	c.Check(string(snippet), testutil.Contains, `peer=(label="snap.other.app2")`)
 }
 
 func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
@@ -137,7 +146,11 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.bluez.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.bluez.app1"][0]), testutil.Contains, "listen\n")
 }

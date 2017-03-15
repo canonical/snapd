@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const mirPermanentSlotAppArmor = `
@@ -36,6 +37,9 @@ capability sys_tty_config,
 /{dev,run}/shm/\#* rw,
 /run/mir_socket rw,
 
+# Needed for mode setting via drmSetMaster() and drmDropMaster()
+capability sys_admin,
+
 # NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
 
@@ -43,6 +47,7 @@ capability sys_tty_config,
 network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
+/run/udev/data/+platform:* r,
 `
 
 const mirPermanentSlotSecComp = `
@@ -93,13 +98,14 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 func (iface *MirInterface) PermanentSlotSnippet(
 	slot *interfaces.Slot,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
+	if securitySystem == interfaces.SecurityAppArmor {
 		return []byte(mirPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(mirPermanentSlotSecComp), nil
 	}
 	return nil, nil
+}
+
+func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	return spec.AddSnippet(mirPermanentSlotSecComp)
 }
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
