@@ -301,7 +301,8 @@ func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	new = slotAppLabelExpr(slot)
 	snippet = strings.Replace(snippet, old, new, -1)
 
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -313,8 +314,6 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	if err != nil {
 		return err
 	}
-
-	snippets := bytes.NewBufferString("")
 
 	// well-known DBus name-specific permanent slot policy
 	snippet := getAppArmorSnippet(dbusPermanentSlotAppArmor, bus, name)
@@ -328,15 +327,13 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	old := "###DBUS_ABSTRACTION###"
 	new := abstraction
 	snippet = strings.Replace(snippet, old, new, -1)
-
-	snippets.WriteString(snippet)
+	spec.AddSnippet(snippet)
 
 	if release.OnClassic {
 		// classic-only policy
-		snippets.WriteString(getAppArmorSnippet(dbusPermanentSlotAppArmorClassic, bus, name))
+		spec.AddSnippet(getAppArmorSnippet(dbusPermanentSlotAppArmorClassic, bus, name))
 	}
-
-	return spec.AddSnippet(snippets.String())
+	return nil
 }
 
 func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -392,8 +389,8 @@ func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet = strings.Replace(snippet, old, new, -1)
-
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {

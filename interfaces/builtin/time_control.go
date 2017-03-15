@@ -126,7 +126,8 @@ func (iface *TimeControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, s
 }
 
 func (iface *TimeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(timeControlConnectedPlugAppArmor)
+	spec.AddSnippet(timeControlConnectedPlugAppArmor)
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

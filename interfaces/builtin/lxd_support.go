@@ -50,7 +50,8 @@ func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 }
 
 func (iface *LxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
+	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
+	return nil
 }
 
 func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -34,29 +34,24 @@ type Specification struct {
 }
 
 // AddSnippet adds a new apparmor snippet.
-func (spec *Specification) AddSnippet(snippet string) error {
+func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
-		return nil
+		return
 	}
 	if spec.snippets == nil {
 		spec.snippets = make(map[string][]string)
 	}
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		sort.Strings(spec.snippets[tag])
 	}
-
-	return nil
 }
 
 // Snippets returns a deep copy of all the added snippets.
 func (spec *Specification) Snippets() map[string][]string {
 	result := make(map[string][]string, len(spec.snippets))
 	for k, v := range spec.snippets {
-		vCopy := make([]string, 0, len(v))
-		for _, vElem := range v {
-			vCopy = append(vCopy, vElem)
-		}
-		result[k] = vCopy
+		result[k] = append([]string(nil), v...)
 	}
 	return result
 }
@@ -64,7 +59,6 @@ func (spec *Specification) Snippets() map[string][]string {
 // SnippetForTag returns a combined snippet for given security tag with individual snippets
 // joined with newline character. Empty string is returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
-	sort.Strings(spec.snippets[tag])
 	return strings.Join(spec.snippets[tag], "\n")
 }
 

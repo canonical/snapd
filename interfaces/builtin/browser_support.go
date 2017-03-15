@@ -261,13 +261,13 @@ func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot
 
 func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
-	if err := spec.AddSnippet(browserSupportConnectedPlugAppArmor); err != nil {
-		return err
-	}
+	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
-		return spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+	} else {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
 	}
-	return spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
+	return nil
 }
 
 func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

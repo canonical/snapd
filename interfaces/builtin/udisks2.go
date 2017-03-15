@@ -345,7 +345,8 @@ func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -357,7 +358,8 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 }
 
 func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(udisks2PermanentSlotAppArmor)
+	spec.AddSnippet(udisks2PermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -374,7 +376,8 @@ func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {

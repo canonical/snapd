@@ -20,7 +20,6 @@
 package builtin_test
 
 import (
-	//	"fmt"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"

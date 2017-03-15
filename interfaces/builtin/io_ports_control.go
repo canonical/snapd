@@ -89,7 +89,8 @@ func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 }
 
 func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
+	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

@@ -233,8 +233,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 }
 
 func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := `/dev/hidraw0 rw,
-`
+	expectedSnippet1 := `/dev/hidraw0 rw,`
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
@@ -242,8 +241,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-	expectedSnippet2 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,
-`
+	expectedSnippet2 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,`
 	apparmorSpec = &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
 	c.Assert(err, IsNil)
@@ -251,8 +249,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
-	expectedSnippet3 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,
-`
+	expectedSnippet3 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,`
 	apparmorSpec = &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUdev2)
 	c.Assert(err, IsNil)

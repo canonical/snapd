@@ -93,7 +93,8 @@ func (iface *ThumbnailerInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet = strings.Replace(snippet, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -101,7 +102,8 @@ func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, s
 }
 
 func (iface *ThumbnailerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(thumbnailerPermanentSlotAppArmor)
+	spec.AddSnippet(thumbnailerPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *ThumbnailerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -117,7 +119,8 @@ func (iface *ThumbnailerInterface) AppArmorConnectedSlot(spec *apparmor.Specific
 	old = "###PLUG_SECURITY_TAGS###"
 	new = plugAppLabelExpr(plug)
 	snippet = strings.Replace(snippet, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

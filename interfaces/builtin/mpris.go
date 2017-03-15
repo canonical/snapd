@@ -151,7 +151,8 @@ func (iface *MprisInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 func (iface *MprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
-	return spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
+	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
+	return nil
 }
 
 func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -166,13 +167,11 @@ func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 
 	old := "###MPRIS_NAME###"
 	new := name
-	if err := spec.AddSnippet(strings.Replace(mprisPermanentSlotAppArmor, old, new, -1)); err != nil {
-		return err
-	}
+	spec.AddSnippet(strings.Replace(mprisPermanentSlotAppArmor, old, new, -1))
 	// on classic, allow unconfined remotes to control the player
 	// (eg, indicator-sound)
 	if release.OnClassic {
-		return spec.AddSnippet(mprisConnectedSlotAppArmorClassic)
+		spec.AddSnippet(mprisConnectedSlotAppArmorClassic)
 	}
 	return nil
 }
@@ -180,7 +179,8 @@ func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 func (iface *MprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
-	return spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
+	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
+	return nil
 }
 
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

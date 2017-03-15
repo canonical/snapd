@@ -88,7 +88,7 @@ func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface.connectedPlugAppArmor != "" {
-		return spec.AddSnippet(iface.connectedPlugAppArmor)
+		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
 	return nil
 }

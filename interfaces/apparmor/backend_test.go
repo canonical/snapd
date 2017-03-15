@@ -382,7 +382,8 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 			if scenario.snippet == "" {
 				return nil
 			}
-			return spec.AddSnippet(scenario.snippet)
+			spec.AddSnippet(scenario.snippet)
+			return nil
 		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")

@@ -60,7 +60,8 @@ func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 }
 
 func (iface *PppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(pppConnectedPlugAppArmor)
+	spec.AddSnippet(pppConnectedPlugAppArmor)
+	return nil
 }
 
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

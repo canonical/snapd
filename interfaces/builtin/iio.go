@@ -113,7 +113,8 @@ func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	deviceName := strings.TrimPrefix(path, "/dev/")
 	snippet = strings.Replace(snippet, "###IIO_DEVICE_NAME###", deviceName, -1)
 
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

@@ -210,7 +210,8 @@ func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		new = "unconfined"
 	}
 	snippet := strings.Replace(upowerObserveConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -218,7 +219,8 @@ func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 }
 
 func (iface *UpowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
@@ -237,7 +239,8 @@ func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UpowerObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

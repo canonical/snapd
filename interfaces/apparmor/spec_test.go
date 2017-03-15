@@ -39,16 +39,20 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		AppArmorConnectedPlugCallback: func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-plug")
+			spec.AddSnippet("connected-plug")
+			return nil
 		},
 		AppArmorConnectedSlotCallback: func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-slot")
+			spec.AddSnippet("connected-slot")
+			return nil
 		},
 		AppArmorPermanentPlugCallback: func(spec *apparmor.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet("permanent-plug")
+			spec.AddSnippet("permanent-plug")
+			return nil
 		},
 		AppArmorPermanentSlotCallback: func(spec *apparmor.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet("permanent-slot")
+			spec.AddSnippet("permanent-slot")
+			return nil
 		},
 	},
 	plug: &interfaces.Plug{

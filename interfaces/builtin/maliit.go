@@ -131,7 +131,8 @@ func (iface *MaliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(maliitConnectedPlugAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *MaliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
@@ -143,14 +144,16 @@ func (iface *MaliitInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 }
 
 func (iface *MaliitInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(maliitPermanentSlotAppArmor)
+	spec.AddSnippet(maliitPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *MaliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(maliitConnectedSlotAppArmor, old, new, -1)
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *MaliitInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

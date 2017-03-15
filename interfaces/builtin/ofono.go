@@ -247,12 +247,10 @@ func (iface *OfonoInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
-	if err := spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1)); err != nil {
-		return err
-	}
+	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
 	if release.OnClassic {
 		// Let confined apps access unconfined ofono on classic
-		return spec.AddSnippet(ofonoConnectedPlugAppArmorClassic)
+		spec.AddSnippet(ofonoConnectedPlugAppArmorClassic)
 	}
 	return nil
 
@@ -263,7 +261,8 @@ func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 }
 
 func (iface *OfonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(ofonoPermanentSlotAppArmor)
+	spec.AddSnippet(ofonoPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -279,7 +278,8 @@ func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
-	return spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
+	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
+	return nil
 }
 
 func (iface *OfonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {

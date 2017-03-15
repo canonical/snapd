@@ -77,7 +77,8 @@ func (iface *FramebufferInterface) PermanentSlotSnippet(slot *interfaces.Slot, s
 }
 
 func (iface *FramebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(framebufferConnectedPlugAppArmor)
+	spec.AddSnippet(framebufferConnectedPlugAppArmor)
+	return nil
 }
 
 // Getter for the security snippet specific to the plug

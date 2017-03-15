@@ -148,7 +148,8 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
-		return spec.AddSnippet("/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,\n")
+		spec.AddSnippet("/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,")
+		return nil
 	}
 
 	// Path to fixed device node (no udev tagging)
@@ -157,7 +158,9 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		return nil
 	}
 	cleanedPath := filepath.Clean(path)
-	return spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	return nil
+
 }
 
 // ConnectedPlugSnippet returns security snippet specific to the plug
