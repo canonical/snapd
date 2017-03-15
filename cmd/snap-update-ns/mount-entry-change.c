@@ -108,7 +108,7 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_
 
 	// Do a pass over the current list to see if they are present in the
 	// desired list. Such entries are flagged for reuse so that they are not
-	// toched by either loops below.
+	// touched by either loops below.
 	//
 	// NOTE: This will linearly search the desired list. If this is going to
 	// get expensive it should be changed to a more efficient operation. For
