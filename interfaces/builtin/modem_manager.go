@@ -1204,7 +1204,8 @@ func (iface *ModemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 }
 
 func (iface *ModemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(modemManagerPermanentSlotSecComp)
+	spec.AddSnippet(modemManagerPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -421,7 +421,8 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 }
 
 func (iface *NetworkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(networkManagerPermanentSlotSecComp)
+	spec.AddSnippet(networkManagerPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

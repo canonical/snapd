@@ -69,7 +69,8 @@ func (iface *LxdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 }
 
 func (iface *LxdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(lxdConnectedPlugSecComp)
+	spec.AddSnippet(lxdConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *LxdInterface) SanitizePlug(plug *interfaces.Plug) error {

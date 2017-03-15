@@ -66,7 +66,8 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 }
 
 func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(dockerConnectedPlugSecComp)
+	spec.AddSnippet(dockerConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
