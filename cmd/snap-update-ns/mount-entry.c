@@ -41,16 +41,6 @@ sc_indirect_compare_mount_entry(const struct sc_mount_entry **a,
 }
 
 /**
- * Compare two mount entries (through indirect pointers).
- **/
-static int
-sc_indirect_reverse_compare_mount_entry(const struct sc_mount_entry **a,
-					const struct sc_mount_entry **b)
-{
-	return sc_compare_mount_entry(*b, *a);
-}
-
-/**
  * Copy struct mntent into a freshly-allocated struct sc_mount_entry.
  *
  * The next pointer is initialized to NULL, it should be managed by the caller.
