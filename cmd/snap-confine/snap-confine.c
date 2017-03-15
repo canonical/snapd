@@ -81,6 +81,9 @@ int main(int argc, char **argv)
 	if (!verify_security_tag(security_tag))
 		die("security tag %s not allowed", security_tag);
 
+	const char *snap_name = getenv("SNAP_NAME");
+	sc_snap_name_validate(snap_name, NULL);
+
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
