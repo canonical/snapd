@@ -155,7 +155,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
 		// UDev tagging and device cgroups will restrict down to the specific device
-		spec.AddSnippet("/dev/tty[A-Z]*[0-9] rw,\n")
+		spec.AddSnippet("/dev/tty[A-Z]*[0-9] rw,")
 		return nil
 	}
 
@@ -165,7 +165,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		return nil
 	}
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
 	return nil
 }
 

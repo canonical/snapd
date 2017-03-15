@@ -110,7 +110,7 @@ func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	if err != nil {
 		return fmt.Errorf("cannot compute plug security snippet: %v", err)
 	}
-	spec.AddSnippet(fmt.Sprintf("%s rwk,\n", path))
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
 	return nil
 }
 

@@ -155,14 +155,14 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,")
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
 	apparmorSpec = &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,")
 }
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c *C) {

@@ -97,7 +97,7 @@ func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	if err != nil {
 		return err
 	}
-	spec.AddSnippet(fmt.Sprintf("%s/* rwk,\n", dereferencedPath))
+	spec.AddSnippet(fmt.Sprintf("%s/* rwk,", dereferencedPath))
 	return nil
 
 }
