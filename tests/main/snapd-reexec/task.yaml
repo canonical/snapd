@@ -1,6 +1,6 @@
 summary: Test that snapd reexecs itself into core
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 restore: |
     # extra cleanup in case something in this test went wrong
