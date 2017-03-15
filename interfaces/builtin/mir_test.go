@@ -24,7 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type MirInterfaceSuite struct {
@@ -51,24 +54,62 @@ var _ = Suite(&MirInterfaceSuite{
 	},
 })
 
+func (s *MirInterfaceSuite) SetUpTest(c *C) {
+	s.slot = &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "mir-server", Type: snap.TypeOS},
+			Name:      "mir-server",
+			Interface: "mir",
+		},
+	}
+}
+
 func (s *MirInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "mir")
 }
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		if system != interfaces.SecuritySecComp {
-			snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-			c.Assert(err, IsNil)
-			c.Assert(snippet, Not(IsNil))
-			snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-			c.Assert(err, IsNil)
-			c.Assert(snippet, Not(IsNil))
-		}
-	}
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+}
+
+const mirMockSlotSnapInfoYaml = `name: mir-server
+version: 1.0
+slots:
+ mir-server:
+  interface: mir
+apps:
+ mir:
+  command: foo
+  slots:
+   - mir-server
+`
+
+func (s *MirInterfaceSuite) TestSecComp(c *C) {
+	slotSnap := snaptest.MockInfo(c, mirMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["mir-server"]}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.mir-server.mir"]), Equals, 1)
+	c.Check(string(snippets["snap.mir-server.mir"][0]), testutil.Contains, "listen\n")
+}
+
+func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	// no permanent seccomp snippet for the slot
+	c.Assert(len(snippets), Equals, 0)
 }

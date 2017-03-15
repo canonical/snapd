@@ -175,6 +175,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  autopilot-introspection:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   bluetooth-control:
     allow-installation:
       slot-snap-type:
@@ -324,6 +329,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   locale-control:
     allow-installation:
       slot-snap-type:
@@ -354,6 +364,12 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
     deny-auto-connection: true
   mir:
     allow-installation:

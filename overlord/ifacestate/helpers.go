@@ -50,7 +50,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.unbreakTheWorld(); err != nil {
+	if err := m.regenerateAllSecurityProfiles(); err != nil {
 		return err
 	}
 	return nil
@@ -98,13 +98,15 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-func (m *InterfaceManager) unbreakTheWorld() error {
-	// XXX: As a special measure to unbreak the world refresh seccomp security
-	// of all the snaps on the system. Later on this should be improved to
-	// either refresh all security backends or to know how to apply stashed
-	// (versioned) security that was preserved by snapd on upgrade to a new
-	// version of itself.
-
+// regenerateAllSecurityProfiles will regenerate the security profiles
+// for apparmor and seccomp. This is needed because:
+// - for seccomp we may have "terms" on disk that the current snap-confine
+//   does not understand (e.g. in a rollback scenario). a refresh ensures
+//   we have a profile that matches what snap-confine understand
+// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
+//   change that breaks existing profiles for installed snaps. With a
+//   refresh those get fixed.
+func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -117,10 +119,6 @@ func (m *InterfaceManager) unbreakTheWorld() error {
 	for _, snapInfo := range snaps {
 		snap.AddImplicitSlots(snapInfo)
 	}
-
-	// From now on we don't fail if a particular operation fails, this is a
-	// best-effort service. It's not much of an unbreak-the-world idea if we
-	// bail out and don't start.
 
 	// For each snap:
 	for _, snapInfo := range snaps {
@@ -136,9 +134,10 @@ func (m *InterfaceManager) unbreakTheWorld() error {
 
 		// For each backend:
 		for _, backend := range securityBackends {
-			// The issue this is attempting to fix is only affecting seccomp so
-			// limit the work just to this backend.
-			shouldRefresh := backend.Name() == interfaces.SecuritySecComp
+			// The issue this is attempting to fix is only
+			// affecting seccomp/apparmor so limit the work just to
+			// this backend.
+			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
 			if !shouldRefresh {
 				continue
 			}

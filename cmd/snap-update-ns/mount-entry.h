@@ -25,40 +25,70 @@
 #include <mntent.h>
 
 /**
+ * A list of mount entries.
+ **/
+struct sc_mount_entry_list {
+	struct sc_mount_entry *first, *last;
+};
+
+/**
  * A fstab-like mount entry.
  **/
 struct sc_mount_entry {
 	struct mntent entry;
-	struct sc_mount_entry *next;
+	struct sc_mount_entry *prev, *next;
 };
 
 /**
  * Parse a given fstab-like file into a list of sc_mount_entry objects.
  *
- * If the given file does not exist then the result is a NULL (empty) list.
+ * If the given file does not exist then the result is an empty list.
  * If anything goes wrong the routine die()s.
+ *
+ * The caller must free the list with sc_mount_entry_list.
  **/
-struct sc_mount_entry *sc_load_mount_profile(const char *pathname);
+struct sc_mount_entry_list *sc_load_mount_profile(const char *pathname);
 
 /**
  * Save a list of sc_mount_entry objects to a fstab-like file.
  *
  * If anything goes wrong the routine die()s.
  **/
-void sc_save_mount_profile(const struct sc_mount_entry *first,
+void sc_save_mount_profile(const struct sc_mount_entry_list *list,
 			   const char *pathname);
 
 /**
- * Free a dynamically allocated list of strct sc_mount_entry objects.
+ * Compare two mount entries.
+ *
+ * Returns 0 if both entries are equal, a number less than zero if the first
+ * entry sorts before the second entry or a number greater than zero if the
+ * second entry sorts before the second entry.
+ **/
+int
+sc_compare_mount_entry(const struct sc_mount_entry *a,
+		       const struct sc_mount_entry *b);
+
+/**
+ * Sort the linked list of mount entries.
+ *
+ * The list is sorted and all the next/prev pointers are updated to point to
+ * the lexically subsequent/preceding element.
+ *
+ * This function sorts in the ascending order.
+ **/
+void sc_sort_mount_entry_list(struct sc_mount_entry_list *list);
+
+/**
+ * Free a dynamically allocated list of mount entry objects.
  *
  * This function is designed to be used with
  * __attribute__((cleanup(sc_cleanup_mount_entry_list))).
  **/
-void sc_cleanup_mount_entry_list(struct sc_mount_entry **entryp);
+void sc_cleanup_mount_entry_list(struct sc_mount_entry_list **listp);
 
 /**
- * Free a dynamically allocated list of strct sc_mount_entry objects.
+ * Free a dynamically allocated list of mount entry objects.
  **/
-void sc_free_mount_entry_list(struct sc_mount_entry *entry);
+void sc_free_mount_entry_list(struct sc_mount_entry_list *list);
 
 #endif

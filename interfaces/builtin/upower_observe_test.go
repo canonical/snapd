@@ -24,8 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -177,11 +179,25 @@ func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "org.freedesktop.UPower")
 }
 
+const upowerObserveMockSlotSnapInfoYaml = `name: upower
+version: 1.0
+apps:
+ app1:
+  command: foo
+  slots: [upower-observe]
+`
+
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	slotSnap := snaptest.MockInfo(c, upowerObserveMockSlotSnapInfoYaml, nil)
+	slot := &interfaces.Slot{SlotInfo: slotSnap.Slots["upower-observe"]}
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "bind\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.upower.app1"]), Equals, 1)
+	c.Check(string(snippets["snap.upower.app1"][0]), testutil.Contains, "bind\n")
 }
 
 func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {

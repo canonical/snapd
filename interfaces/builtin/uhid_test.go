@@ -54,15 +54,12 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
-plugs:
-  plug-for-slot-1:
-    interface: uhid
 apps:
   app-accessing-slot-1:
     command: foo
     plugs: [uhid]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-slot-1"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["uhid"]}
 }
 
 func (s *UhidInterfaceSuite) TestName(c *C) {
