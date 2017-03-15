@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -80,9 +81,12 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.bluez.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the bluez slot
@@ -101,9 +105,12 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.bluez.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the bluez slot
@@ -120,27 +127,31 @@ func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.bluez.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `peer=(label="snap.bluez.app"),`)
 }
 
 func (s *BluezInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, `peer=(label="snap.other.app2")`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.bluez.app1"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.bluez.app1"), testutil.Contains, `peer=(label="snap.other.app2")`)
 }
 
 func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 2)
+
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)

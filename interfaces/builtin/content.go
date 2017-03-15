@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
 )
@@ -149,41 +150,41 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, ext
 	}
 }
 
-func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	contentSnippet := bytes.NewBuffer(nil)
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-
-		writePaths := iface.path(slot, "write")
-		if len(writePaths) > 0 {
-			fmt.Fprintf(contentSnippet, `
+	writePaths := iface.path(slot, "write")
+	if len(writePaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
 `)
-			for _, w := range writePaths {
-				fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
-					resolveSpecialVariable(w, slot.Snap))
-			}
+		for _, w := range writePaths {
+			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+				resolveSpecialVariable(w, slot.Snap))
 		}
+	}
 
-		readPaths := iface.path(slot, "read")
-		if len(readPaths) > 0 {
-			fmt.Fprintf(contentSnippet, `
+	readPaths := iface.path(slot, "read")
+	if len(readPaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 `)
-			for _, r := range readPaths {
-				fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
-					resolveSpecialVariable(r, slot.Snap))
-			}
+		for _, r := range readPaths {
+			fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+				resolveSpecialVariable(r, slot.Snap))
 		}
-
-		return contentSnippet.Bytes(), nil
 	}
+
+	spec.AddSnippet(contentSnippet.String())
+	return nil
+}
+
+func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

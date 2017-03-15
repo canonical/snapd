@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -88,9 +89,12 @@ func (s *SystemObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace")
+
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
