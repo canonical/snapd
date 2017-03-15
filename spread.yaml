@@ -172,10 +172,6 @@ exclude:
     - "*.a"
 
 prepare-each: |
-    if journalctl |grep "Cannot find sufficient apparmor support"; then
-        echo "Insufficient apparmor supported detect, this should never happen"
-        exit 1
-    fi
     # systemd on 14.04 does not know about --rotate
     # or --vacuum-time.
     # TODO: Find a way to clean out systemd logs on
