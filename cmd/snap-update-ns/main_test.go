@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,11 +17,16 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+package main
 
-int main(int arch, char **argv)
-{
-	return 1;
-}
+import (
+	"testing"
+
+	. "gopkg.in/check.v1"
+)
+
+func Test(t *testing.T) { TestingT(t) }
+
+type snapUpdateNsSuite struct{}
+
+var _ = Suite(&snapUpdateNsSuite{})
