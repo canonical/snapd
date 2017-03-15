@@ -73,10 +73,10 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
+	// connected plugs don't have a security snippet for seccomp
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(snippet, IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
@@ -91,9 +91,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "send\n")
+	c.Assert(snippet, IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
