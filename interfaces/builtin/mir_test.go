@@ -121,10 +121,8 @@ func (s *MirInterfaceSuite) TestSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.mir-server.mir"]), Equals, 1)
-	c.Check(string(snippets["snap.mir-server.mir"][0]), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
+	c.Check(seccompSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "listen\n")
 }
 
 func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {

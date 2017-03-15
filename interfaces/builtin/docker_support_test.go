@@ -90,10 +90,8 @@ func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(snippets, HasLen, 1)
-	c.Assert(snippets["snap.docker.app"], HasLen, 1)
-	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "pivot_root\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "pivot_root\n")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -136,10 +134,8 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
-	c.Check(string(snippets["snap.docker.app"][0]), testutil.Contains, "@unrestricted")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
@@ -172,10 +168,8 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.docker.app"]), Equals, 1)
-	c.Check(string(snippets["snap.docker.app"][0]), Not(testutil.Contains), "@unrestricted")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {

@@ -116,10 +116,8 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
-	secCompSnippet := snippets["snap.other.app2"][0]
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	secCompSnippet := seccompSpec.SnippetForTag("snap.other.app2")
 	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
@@ -151,10 +149,8 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
+	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(secCompSnippet, Not(testutil.Contains), `chroot`)
 }
@@ -185,10 +181,8 @@ apps:
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.browser-support-plug-snap.app2"]), Equals, 1)
-	secCompSnippet := snippets["snap.browser-support-plug-snap.app2"][0]
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
+	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
 	c.Assert(secCompSnippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(secCompSnippet, testutil.Contains, `chroot`)
 }

@@ -216,10 +216,8 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.modem-manager.mm"]), Equals, 1)
-	c.Check(string(snippets["snap.modem-manager.mm"][0]), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
+	c.Check(seccompSpec.SnippetForTag("snap.modem-manager.mm"), testutil.Contains, "listen\n")
 }
 
 func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {

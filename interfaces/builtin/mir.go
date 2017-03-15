@@ -117,7 +117,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 }
 
 func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(mirPermanentSlotSecComp)
+	spec.AddSnippet(mirPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

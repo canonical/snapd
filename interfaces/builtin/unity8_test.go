@@ -109,10 +109,8 @@ func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(snippets, HasLen, 1)
-	c.Assert(snippets["snap.other.unity8-app"], HasLen, 1)
-	c.Check(string(snippets["snap.other.unity8-app"][0]), testutil.Contains, "shutdown\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "shutdown\n")
 }
 
 func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
