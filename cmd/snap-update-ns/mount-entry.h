@@ -37,7 +37,7 @@ struct sc_mount_entry_list {
 struct sc_mount_entry {
 	struct mntent entry;
 	struct sc_mount_entry *prev, *next;
-	unsigned reuse;		// internal flag, not compared
+	unsigned int reuse;	// internal flag, not compared
 };
 
 /**
