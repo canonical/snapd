@@ -55,7 +55,7 @@ struct sc_mount_change {
  *
  * The function traverses two lists of mount entries (desired and current).
  * Each element that is in the current entry that is not in the desired entry
- * results in an umount change. Each element in the desired entry that is not
+ * results in an unmount change. Each element in the desired entry that is not
  * in the current entry results in a mount change.
  *
  * The result is computed internally and returned to the caller as
