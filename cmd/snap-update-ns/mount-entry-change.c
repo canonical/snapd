@@ -116,6 +116,9 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_
 	// this is sufficient though.
 	const char *prefix = NULL;
 	for (entry = current->first; entry != NULL; entry = entry->next) {
+		// We work based on the assumption that the current list is sorted by
+		// mount directory (mnt_dir). This is also documented in the header
+		// file.
 		if (prefix != NULL
 		    && strncmp(prefix, entry->entry.mnt_dir,
 			       strlen(prefix)) == 0) {
