@@ -167,10 +167,11 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str)
 	if (str == NULL) {
 		die("cannot quote string: string is NULL");
 	}
+	const char *hex = "0123456789abcdef";
 	// NOTE: this also checks buf/buf_size sanity so that we don't have to.
 	sc_string_init(buf, buf_size);
 	sc_string_append_char(buf, buf_size, '"');
-	for (char c; (c = *str) != 0; ++str) {
+	for (unsigned char c; (c = *str) != 0; ++str) {
 		switch (c) {
 			// Pass ASCII letters and digits unmodified.
 		case '0' ... '9':
@@ -233,12 +234,9 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str)
 			break;
 			// Escape everything else as a generic hexadecimal escape string.
 		default:
-			{
-				char escape_buf[8];
-				sc_must_snprintf(escape_buf, sizeof escape_buf,
-						 "\\x%02x", (unsigned char)c);
-				sc_string_append(buf, buf_size, escape_buf);
-			}
+			sc_string_append_char_pair(buf, buf_size, '\\', 'x');
+			sc_string_append_char_pair(buf, buf_size, hex[c >> 4],
+						   hex[c & 15]);
 			break;
 		}
 	}
