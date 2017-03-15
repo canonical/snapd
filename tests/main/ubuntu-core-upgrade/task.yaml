@@ -1,9 +1,6 @@
 summary: Upgrade the core snap and revert a few times
 
-systems:
-    - ubuntu-core-16-64
-    - ubuntu-core-16-arm-64
-    - ubuntu-core-16-arm-32
+systems: [ubuntu-core-16-*]
 
 debug: |
     snap list
