@@ -211,11 +211,7 @@ void sc_save_mount_profile(const struct sc_mount_entry_list *list,
 	}
 }
 
-typedef int (*mount_entry_cmp_fn) (const struct sc_mount_entry **,
-				   const struct sc_mount_entry **);
-
-static void sc_sort_mount_entry_list_with(struct sc_mount_entry_list *list,
-					  mount_entry_cmp_fn cmp_fn)
+void sc_sort_mount_entry_list(struct sc_mount_entry_list *list)
 {
 	if (list == NULL) {
 		die("cannot sort mount entry list, list is NULL");
@@ -246,7 +242,8 @@ static void sc_sort_mount_entry_list_with(struct sc_mount_entry_list *list,
 
 	// Sort the array according to lexical sorting of all the elements.
 	qsort(entryp_array, count, sizeof(void *),
-	      (int (*)(const void *, const void *))cmp_fn);
+	      (int (*)(const void *, const void *))
+	      sc_indirect_compare_mount_entry);
 
 	// Rewrite all the next/prev pointers of each element.
 	for (size_t i = 0; i < count; ++i) {
@@ -260,9 +257,4 @@ static void sc_sort_mount_entry_list_with(struct sc_mount_entry_list *list,
 	list->last = count > 0 ? entryp_array[count - 1] : NULL;
 
 	free(entryp_array);
-}
-
-void sc_sort_mount_entry_list(struct sc_mount_entry_list *list)
-{
-	sc_sort_mount_entry_list_with(list, sc_indirect_compare_mount_entry);
 }
