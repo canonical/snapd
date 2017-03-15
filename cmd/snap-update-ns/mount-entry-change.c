@@ -127,7 +127,7 @@ struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_
 		struct sc_mount_entry *found =
 		    sc_mount_entry_find(desired->first, entry);
 		if (found == NULL) {
-			// Remember the prefix so that children are unmonted too;
+			// Remember the prefix so that children are unmounted too;
 			prefix = entry->entry.mnt_dir;
 		} else {
 			// NOTE: we flag for reuse in both the current and desired lists as
