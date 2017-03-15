@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -89,24 +90,25 @@ func (s *IioPortsControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *IioPortsControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := []byte(`
+	expectedSnippet1 := `
 # Description: Allow write access to all I/O ports.
 # See 'man 4 mem' for details.
 
 capability sys_rawio, # required by iopl
 
 /dev/port rw,
-`)
-
+`
 	expectedSnippet3 := []byte(`KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"
 `)
-
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-io-ports"})
+	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports")
+	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 }
