@@ -381,7 +381,8 @@ func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 }
 
 func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(udisks2PermanentSlotSecComp)
+	spec.AddSnippet(udisks2PermanentSlotSecComp)
+	return nil
 }
 
 func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -105,7 +105,8 @@ func (iface *Unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 }
 
 func (iface *Unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(unity8ConnectedPlugSecComp)
+	spec.AddSnippet(unity8ConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *Unity8Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -95,7 +95,6 @@ func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets["snap.other.app"]), Equals, 1)
-	c.Check(string(snippets["snap.other.app"][0]), testutil.Contains, "mount\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "mount\n")
 }

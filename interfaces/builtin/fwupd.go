@@ -225,11 +225,13 @@ func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 }
 
 func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(fwupdConnectedPlugSecComp)
+	spec.AddSnippet(fwupdConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *FwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(fwupdPermanentSlotSecComp)
+	spec.AddSnippet(fwupdPermanentSlotSecComp)
+	return nil
 }
 
 // SanitizePlug checks the plug definition is valid

@@ -141,11 +141,13 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 }
 
 func (iface *PulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *PulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
