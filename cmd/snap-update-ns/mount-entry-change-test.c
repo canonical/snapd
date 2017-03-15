@@ -24,6 +24,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 
 #include <stdarg.h>
+#include <unistd.h>
 
 #include <glib.h>
 
@@ -108,6 +109,9 @@ static void test_assert_change_list(const struct sc_mount_change *change, ...)
 // Scenario: there is nothing to do yet at all.
 static void test_sc_compute_required_mount_changes__scenario0()
 {
+	// Remove any leftovers from past failed tests, if any.
+	unlink("current.fstab");
+	unlink("desired.fstab");
 	// Both current and desired don't exist.
 	struct sc_mount_entry_list *current;
 	current = sc_load_mount_profile("current.fstab");
