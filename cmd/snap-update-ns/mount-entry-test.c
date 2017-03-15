@@ -27,7 +27,7 @@
 
 static void test_sc_load_mount_profile()
 {
-	struct sc_mount_entry *fstab
+	struct sc_mount_entry_list *fstab
 	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) = NULL;
 	struct sc_mount_entry *entry;
 	sc_test_write_lines("test.fstab", test_entry_str_1, test_entry_str_2,
@@ -35,32 +35,48 @@ static void test_sc_load_mount_profile()
 	fstab = sc_load_mount_profile("test.fstab");
 	g_assert_nonnull(fstab);
 
-	entry = fstab;
+	entry = fstab->first;
 	test_looks_like_test_entry_1(entry);
 	g_assert_nonnull(entry->next);
 
 	entry = entry->next;
 	test_looks_like_test_entry_2(entry);
 	g_assert_null(entry->next);
+
+	entry = fstab->last;
+	test_looks_like_test_entry_2(entry);
+	g_assert_nonnull(entry->prev);
+
+	entry = entry->prev;
+	test_looks_like_test_entry_1(entry);
+	g_assert_null(entry->prev);
 }
 
 static void test_sc_load_mount_profile__no_such_file()
 {
-	struct sc_mount_entry *fstab
+	struct sc_mount_entry_list *fstab
 	    __attribute__ ((cleanup(sc_cleanup_mount_entry_list))) = NULL;
+
 	fstab = sc_load_mount_profile("test.does-not-exist.fstab");
-	g_assert_null(fstab);
+	g_assert_nonnull(fstab);
+	g_assert_null(fstab->first);
+	g_assert_null(fstab->last);
 }
 
 static void test_sc_save_mount_profile()
 {
+	struct sc_mount_entry_list fstab;
 	struct sc_mount_entry entry_1 = test_entry_1;
 	struct sc_mount_entry entry_2 = test_entry_2;
+	fstab.first = &entry_1;
+	fstab.last = &entry_2;
+	entry_1.prev = NULL;
 	entry_1.next = &entry_2;
+	entry_2.prev = &entry_1;
 	entry_2.next = NULL;
 
 	// We can save the profile defined above.
-	sc_save_mount_profile(&entry_1, "test.fstab");
+	sc_save_mount_profile(&fstab, "test.fstab");
 
 	// Cast-away the const qualifier. This just calls unlink and we don't
 	// modify the name in any way. This way the signature is compatible with
@@ -139,28 +155,36 @@ static void test_sc_clone_mount_entry_from_mntent()
 	g_assert_null(next);
 }
 
-static void test_sc_sort_mount_entries()
+static void test_sc_sort_mount_entry_list()
 {
-	struct sc_mount_entry *list;
+	struct sc_mount_entry_list list;
 
 	// Sort an empty list, it should not blow up.
-	list = NULL;
-	sc_sort_mount_entries(&list);
-	g_assert(list == NULL);
+	list.first = NULL;
+	list.last = NULL;
+	sc_sort_mount_entry_list(&list);
+	g_assert(list.first == NULL);
+	g_assert(list.last == NULL);
 
 	// Create a list with two items in wrong order (backwards).
 	struct sc_mount_entry entry_1 = test_entry_1;
 	struct sc_mount_entry entry_2 = test_entry_2;
-	list = &entry_2;
+	list.first = &entry_2;
+	list.last = &entry_1;
+	entry_2.prev = NULL;
 	entry_2.next = &entry_1;
+	entry_1.prev = &entry_2;
 	entry_1.next = NULL;
 
 	// Sort the list
-	sc_sort_mount_entries(&list);
+	sc_sort_mount_entry_list(&list);
 
 	// Ensure that the linkage now follows the right order.
-	g_assert(list == &entry_1);
+	g_assert(list.first == &entry_1);
+	g_assert(list.last == &entry_2);
+	g_assert(entry_1.prev == NULL);
 	g_assert(entry_1.next == &entry_2);
+	g_assert(entry_2.prev == &entry_1);
 	g_assert(entry_2.next == NULL);
 }
 
@@ -177,5 +201,5 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/mount-entry/test_sc_clone_mount_entry_from_mntent",
 			test_sc_clone_mount_entry_from_mntent);
 	g_test_add_func("/mount-entry/test_sort_mount_entries",
-			test_sc_sort_mount_entries);
+			test_sc_sort_mount_entry_list);
 }
