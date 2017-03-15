@@ -24,8 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,23 +37,28 @@ type ModemManagerInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ModemManagerInterfaceSuite{
-	iface: &builtin.ModemManagerInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "modem-manager"},
-			Name:      "modem-manager",
-			Interface: "modem-manager",
-		},
-	},
-	plug: &interfaces.Plug{
+const modemmgrMockSlotSnapInfoYaml = `name: modem-manager
+version: 1.0
+apps:
+ mm:
+  command: foo
+  slots: [modem-manager]
+`
+
+var _ = Suite(&ModemManagerInterfaceSuite{})
+
+func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.ModemManagerInterface{}
+	s.plug = &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "modem-manager"},
 			Name:      "mmcli",
 			Interface: "modem-manager",
 		},
-	},
-})
+	}
+	slotSnap := snaptest.MockInfo(c, modemmgrMockSlotSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["modem-manager"]}
+}
 
 func (s *ModemManagerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "modem-manager")
@@ -150,10 +157,6 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
@@ -164,6 +167,16 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, "allow own=\"org.freedesktop.ModemManager1\"")
 	c.Assert(string(snippet), testutil.Contains, "allow send_destination=\"org.freedesktop.ModemManager1\"")
+}
+
+func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.modem-manager.mm"]), Equals, 1)
+	c.Check(string(snippets["snap.modem-manager.mm"][0]), testutil.Contains, "listen\n")
 }
 
 func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {

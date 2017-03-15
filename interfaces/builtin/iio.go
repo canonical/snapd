@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,13 +29,13 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var iioConnectedPlugAppArmor = []byte(`
+const iioConnectedPlugAppArmor = `
 # Description: Give access to a specific IIO device on the system.
 
 ###IIO_DEVICE_PATH### rw,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/ r,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
-`)
+`
 
 // The type for iio interface
 type IioInterface struct{}
@@ -105,7 +105,7 @@ func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		cleanedPath := filepath.Clean(path)
-		snippet := bytes.Replace(iioConnectedPlugAppArmor, []byte("###IIO_DEVICE_PATH###"), []byte(cleanedPath), -1)
+		snippet := bytes.Replace([]byte(iioConnectedPlugAppArmor), []byte("###IIO_DEVICE_PATH###"), []byte(cleanedPath), -1)
 
 		// The path is already verified against a regular expression
 		// in SanitizeSlot so we can rely on its structure here and

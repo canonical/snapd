@@ -1,0 +1,48 @@
+summary: Check that the core snap can be refreshed
+
+details: |
+    This test checks that the core snap can be refreshed from an installed
+    revision to a new one. It expects to find a new snap revision in the
+    channel pointed by the NEW_CORE_CHANNEL env var.
+
+manual: true
+
+restore: |
+    rm -f prevBoot nextBoot
+
+execute: |
+    . $TESTSLIB/boot.sh
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # save current core revision
+        snap list | awk "/^core / {print(\$3)}" > prevBoot
+
+        # refresh
+        snap refresh core --${NEW_CORE_CHANNEL}
+
+        # check boot env vars
+        snap list | awk "/^core / {print(\$3)}" > nextBoot
+
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+            test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
+        fi
+
+        # there are no errors in the changes list
+        ! snap changes | MATCH '^[0-9]+ +Error'
+
+        REBOOT
+    fi
+    # after upgrade
+    # the boot env vars are correctly set
+    echo "Waiting for snapd to clean snap_mode"
+    while [ "$(bootenv snap_mode)" != "" ]; do
+        sleep 1
+    done
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
+        test "$(bootenv snap_try_core)" = ""
+    fi
+
+    # and there are no errors in the changes list
+    ! snap changes | MATCH '^[0-9]+ +Error'
