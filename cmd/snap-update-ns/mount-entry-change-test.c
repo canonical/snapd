@@ -21,6 +21,8 @@
 #include "test-utils.h"
 #include "test-data.h"
 
+#include "../libsnap-confine-private/string-utils.h"
+
 #include <stdarg.h>
 
 #include <glib.h>
@@ -45,6 +47,17 @@ static void g_assert_mount_entry_eq(const struct sc_mount_entry *entry1,
 	g_assert_cmpint(entry1->entry.mnt_passno, ==, entry2->entry.mnt_passno);
 }
 
+static void sc_mount_entry_to_str(char *buf, size_t buf_size,
+				  const struct sc_mount_entry *entry)
+{
+	// NOTE: this is naive that it doesn't escape spaces and some other special
+	// characters but we only use it for testing / comparison with test data.
+	sc_must_snprintf(buf, buf_size, "%s %s %s %s %d %d",
+			 entry->entry.mnt_fsname, entry->entry.mnt_dir,
+			 entry->entry.mnt_type, entry->entry.mnt_opts,
+			 entry->entry.mnt_freq, entry->entry.mnt_passno);
+}
+
 __attribute__ ((sentinel))
 static void test_assert_change_list(const struct sc_mount_change *change, ...);
 
@@ -54,19 +67,11 @@ static void test_assert_change_list(const struct sc_mount_change *change, ...)
 
 	const struct sc_mount_entry *entry;
 	enum sc_mount_action action;
+	char actual_buf[1000], expected_buf[1000];
 
 	va_start(ap, change);
 	while ((entry = va_arg(ap, struct sc_mount_entry *)) != NULL) {
 		action = va_arg(ap, enum sc_mount_action);
-
-		g_test_message("actual change %s: %s %s %s %s %d %d",
-			       sc_mount_action_to_str(change->action),
-			       change->entry->entry.mnt_fsname,
-			       change->entry->entry.mnt_dir,
-			       change->entry->entry.mnt_type,
-			       change->entry->entry.mnt_opts,
-			       change->entry->entry.mnt_freq,
-			       change->entry->entry.mnt_passno);
 
 		g_assert_nonnull(change);
 		if (change == NULL) {
@@ -74,11 +79,15 @@ static void test_assert_change_list(const struct sc_mount_change *change, ...)
 			break;	// break in case data and test disagree
 		}
 
-		g_test_message("expected change %s: %s %s %s %s %d %d",
-			       sc_mount_action_to_str(action),
-			       entry->entry.mnt_fsname, entry->entry.mnt_dir,
-			       entry->entry.mnt_type, entry->entry.mnt_opts,
-			       entry->entry.mnt_freq, entry->entry.mnt_passno);
+		sc_mount_entry_to_str(actual_buf, sizeof actual_buf,
+				      change->entry);
+		g_test_message("actual change %s: %s",
+			       sc_mount_action_to_str(change->action),
+			       actual_buf);
+
+		sc_mount_entry_to_str(expected_buf, sizeof expected_buf, entry);
+		g_test_message("expected change %s: %s",
+			       sc_mount_action_to_str(action), expected_buf);
 
 		g_assert_mount_entry_eq(change->entry, entry);
 		if (sc_compare_mount_entry(change->entry, entry)
