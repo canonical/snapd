@@ -114,16 +114,14 @@ func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	new := slotAppLabelExpr(slot)
 
 	originalSnippet := unity8PimCommonConnectedPlugAppArmor + "\n" + iface.connectedPlugAppArmor
-	snippet := strings.Replace(originalSnippet, old, new, -1)
+	spec.AddSnippet(strings.Replace(originalSnippet, old, new, -1))
 
 	// classic mode
 	if release.OnClassic {
 		// Let confined apps access unconfined service on classic
-		classicSnippet := strings.Replace(originalSnippet, old, "unconfined", -1)
-		snippet += "\n" + classicSnippet
+		spec.AddSnippet(strings.Replace(originalSnippet, old, "unconfined", -1))
 	}
 
-	spec.AddSnippet(snippet)
 	return nil
 }
 
@@ -132,9 +130,8 @@ func (iface *unity8PimCommonInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 }
 
 func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	snippet := unity8PimCommonPermanentSlotAppArmor
-	snippet += "\n" + iface.permanentSlotAppArmor
-	spec.AddSnippet(snippet)
+	spec.AddSnippet(unity8PimCommonPermanentSlotAppArmor)
+	spec.AddSnippet(iface.permanentSlotAppArmor)
 	return nil
 }
 

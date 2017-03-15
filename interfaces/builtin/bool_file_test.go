@@ -95,6 +95,8 @@ plugs:
 	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface-plug"]}
 }
 
+// TODO: add test for permanent slot when we have hook support.
+
 func (s *BoolFileInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bool-file")
 }

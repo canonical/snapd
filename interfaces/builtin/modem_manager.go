@@ -1164,12 +1164,11 @@ func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, 
 func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
-	snippet := strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
 	if release.OnClassic {
 		// Let confined apps access unconfined ofono on classic
-		snippet += modemManagerConnectedPlugAppArmorClassic
+		spec.AddSnippet(modemManagerConnectedPlugAppArmorClassic)
 	}
-	spec.AddSnippet(snippet)
 	return nil
 }
 
