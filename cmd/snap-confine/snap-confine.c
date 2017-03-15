@@ -138,7 +138,6 @@ int main(int argc, char **argv)
 			 * lived.
 			 */
 			sc_reassociate_with_pid1_mount_ns();
-			const char *snap_name = getenv("SNAP_NAME");
 			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
