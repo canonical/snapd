@@ -20,11 +20,18 @@
 package builtin_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type unity8InterfaceSuite struct {
@@ -44,13 +51,62 @@ var _ = Suite(&unity8InterfaceSuite{
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "unity8-session"},
+			Snap:      &snap.Info{SuggestedName: "unity8-app"},
 			Name:      "unity8-app",
 			Interface: "unity8",
 		},
 	},
 })
 
+func createMockFooPlug(c *C, content string) *interfaces.Plug {
+	info := snaptest.MockSnap(c, content, "", &snap.SideInfo{Revision: snap.R(3)})
+
+	desktopDir := filepath.Join(info.MountDir(), "meta", "gui")
+	err := os.MkdirAll(desktopDir, 0755)
+	c.Assert(err, IsNil)
+
+	desktopPath := filepath.Join(desktopDir, "foo.desktop")
+	err = ioutil.WriteFile(desktopPath, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	return &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      info,
+			Name:      info.Name(),
+			Interface: "unity8",
+			Apps:      info.Apps,
+		},
+	}
+}
+
+func (s *unity8InterfaceSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *unity8InterfaceSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
 func (s *unity8InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity8")
+}
+
+func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "name=com.canonical.URLDispatcher")
+
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	c.Check(string(snippet), testutil.Contains, "shutdown\n")
+}
+
+func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Check(string(snippet), testutil.Contains, "label=\"snap.unity8-session.*\"")
 }

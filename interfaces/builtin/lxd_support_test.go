@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,26 +36,28 @@ type LxdSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LxdSupportInterfaceSuite{
-	iface: &builtin.LxdSupportInterface{},
-	slot: &interfaces.Slot{
+const lxdsupportMockPlugSnapInfoYaml = `name: lxd
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [lxd-support]
+`
+
+var _ = Suite(&LxdSupportInterfaceSuite{})
+
+func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.LxdSupportInterface{}
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "lxd-support",
 			Interface: "lxd-support",
 		},
-	},
-
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{
-				SuggestedName: "lxd",
-			},
-			Name:      "lxd-support",
-			Interface: "lxd-support",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, lxdsupportMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["lxd-support"]}
+}
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "lxd-support")
@@ -74,10 +78,6 @@ func (s *LxdSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
@@ -86,10 +86,14 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 	c.Check(string(snippet), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
 }
 
-func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+func (s *LxdSupportInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "@unrestricted\n")
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets), Equals, 1)
+	c.Assert(len(snippets["snap.lxd.app"]), Equals, 1)
+	c.Check(string(snippets["snap.lxd.app"][0]), testutil.Contains, "@unrestricted\n")
 }
 
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {

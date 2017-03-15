@@ -284,7 +284,6 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	entry->optional_fields = &entry->line_buf[0] + offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
-	char *to = entry->optional_fields;
 	for (int field_num = 0;; ++field_num) {
 		char *opt_field = parse_next_string_field();
 		if (opt_field == NULL)

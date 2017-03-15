@@ -24,7 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type NetworkBindInterfaceSuite struct {
@@ -33,24 +36,28 @@ type NetworkBindInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkBindInterfaceSuite{
-	iface: builtin.NewNetworkBindInterface(),
-	slot: &interfaces.Slot{
+const netbindMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [network-bind]
+`
+
+var _ = Suite(&NetworkBindInterfaceSuite{})
+
+func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewNetworkBindInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "network-bind",
 			Interface: "network-bind",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-bind",
-			Interface: "network-bind",
-		},
-	},
-})
-
+	}
+	plugSnap := snaptest.MockInfo(c, netbindMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["network-bind"]}
+}
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-bind")
 }
@@ -84,7 +91,10 @@ func (s *NetworkBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	snippets := seccompSpec.Snippets()
+	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
+	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "listen\n")
 }

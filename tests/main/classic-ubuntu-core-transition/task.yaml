@@ -6,6 +6,10 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
+
+restore: |
+    rm -f prevValue state.json.copy
+
 execute: |
     wait_for_service() {
         local service_name="$1"
@@ -27,6 +31,17 @@ execute: |
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge snapd
     apt_install_local ${GOPATH}/snapd_*.deb
+
+    # modify daemon state to set ubuntu-core-transition-last-retry-time to the
+    # current time to prevent the ubuntu-core transition before the test snap is
+    # installed
+    cat /var/lib/snapd/state.json | jq '.["ubuntu-core-transition-last-retry-time"]' > prevValue
+    systemctl stop snapd.service snapd.socket
+    cp /var/lib/snapd/state.json state.json.copy
+    now=$(date --utc --rfc-3339=ns | tr ' ' T)
+    cat state.json.copy | jq -c '. + {"ubuntu-core-transition-last-retry-time": "'"$now"'"}' > /var/lib/snapd/state.json
+    systemctl start snapd.service snapd.socket
+
     snap install --${CORE_CHANNEL} ubuntu-core
     snap install test-snapd-python-webserver
     snap interfaces |MATCH ":network.*test-snapd-python-webserver"
@@ -35,11 +50,18 @@ execute: |
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
 
-    echo "Start/stop snapd so that the transition is triggered"
-    if ! snap changes | grep "Transition ubuntu-core to core"; then
-        systemctl stop snapd.service snapd.socket
-        systemctl start snapd.service snapd.socket
+    # restore ubuntu-core-transition-last-retry-time to its previous value and restart the daemon
+    systemctl stop snapd.service snapd.socket
+    cp /var/lib/snapd/state.json state.json.copy
+    if [ "$(cat prevValue)" = null ]; then
+        cat state.json.copy | jq -c 'del(.["ubuntu-core-transition-last-retry-time"])' > /var/lib/snapd/state.json
+    else
+        cat state.json.copy | jq -c '. + {"ubuntu-core-transition-last-retry-time": "'"$(cat prevValue)"'"}' > /var/lib/snapd/state.json
     fi
+    systemctl start snapd.service snapd.socket
+
+    echo "Ensure transition is triggered"
+    snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
