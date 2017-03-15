@@ -20,10 +20,12 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const unity8ConnectedPlugAppArmor = `
@@ -94,20 +96,24 @@ func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 	return nil, nil
 }
 
-func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		oldTags := []byte("###SLOT_SECURITY_TAGS###")
-		newTags := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(unity8ConnectedPlugAppArmor), oldTags, newTags, -1)
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(unity8ConnectedPlugSecComp), nil
-	}
-	return nil, nil
+func (iface *Unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	oldTags := "###SLOT_SECURITY_TAGS###"
+	newTags := slotAppLabelExpr(slot)
+	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *Unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity8ConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *Unity8Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 

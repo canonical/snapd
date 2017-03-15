@@ -38,7 +38,6 @@
 package apparmor
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,13 +66,12 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
-	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, opts, snippets)
+	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -114,74 +112,70 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern          = regexp.MustCompile("(###[A-Z]+###)")
-	placeholderVar           = []byte("###VAR###")
-	placeholderSnippets      = []byte("###SNIPPETS###")
-	placeholderProfileAttach = []byte("###PROFILEATTACH###")
-	attachPattern            = regexp.MustCompile(`\(attach_disconnected\)`)
-	attachComplain           = []byte("(attach_disconnected,complain)")
+	templatePattern = regexp.MustCompile("(###[A-Z]+###)")
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
 )
 
-// combineSnippets combines security snippets collected from all the interfaces
-// affecting a given snap into a content map applicable to EnsureDirState. The
-// backend delegates writing those files to higher layers.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+const attachComplain = "(attach_disconnected,complain)"
+
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(appInfo.SecurityTag(), snapInfo, opts, snippets, content)
+		securityTag := appInfo.SecurityTag()
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.SecurityTag(), snapInfo, opts, snippets, content)
+		securityTag := hookInfo.SecurityTag()
+		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets map[string][][]byte, content map[string]*osutil.FileState) {
-	var policy []byte
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+	var policy string
 	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 	} else {
 		policy = defaultTemplate
 	}
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = attachPattern.ReplaceAll(policy, attachComplain)
+		policy = attachPattern.ReplaceAllString(policy, attachComplain)
 	}
-	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
-		switch {
-		case bytes.Equal(placeholder, placeholderVar):
+	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
+		switch placeholder {
+		case "###VAR###":
 			return templateVariables(snapInfo, securityTag)
-		case bytes.Equal(placeholder, placeholderProfileAttach):
-			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
-		case bytes.Equal(placeholder, placeholderSnippets):
-			var tagSnippets [][]byte
+		case "###PROFILEATTACH###":
+			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###SNIPPETS###":
+			var tagSnippets string
 
 			if opts.Classic && opts.JailMode {
 				// Add a special internal snippet for snaps using classic confinement
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
-				tagSnippets = append(tagSnippets, classicJailmodeSnippet)
-				tagSnippets = append(tagSnippets, snippets[securityTag]...)
+				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
 			} else if opts.Classic && !opts.JailMode {
 				// When classic confinement (without jailmode) is in effect we
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.
 			} else {
-				tagSnippets = snippets[securityTag]
+				tagSnippets = snippetForTag
 			}
-			return bytes.Join(tagSnippets, []byte("\n"))
+			return tagSnippets
 		}
-		return nil
+		return ""
 	})
 
 	content[securityTag] = &osutil.FileState{
-		Content: policy,
+		Content: []byte(policy),
 		Mode:    0644,
 	}
 }
@@ -207,5 +201,5 @@ func unloadProfiles(profiles []string) error {
 }
 
 func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+	return &Specification{}
 }

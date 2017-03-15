@@ -34,9 +34,9 @@ type Specification struct {
 }
 
 // AddSnippet adds a new seccomp snippet.
-func (spec *Specification) AddSnippet(snippet string) error {
+func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
-		return nil
+		return
 	}
 	if spec.snippets == nil {
 		spec.snippets = make(map[string][]string)
@@ -44,8 +44,6 @@ func (spec *Specification) AddSnippet(snippet string) error {
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 	}
-
-	return nil
 }
 
 // Snippets returns a deep copy of all the added snippets.
