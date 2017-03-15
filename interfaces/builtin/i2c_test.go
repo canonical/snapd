@@ -189,8 +189,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := `/dev/i2c-1 rw,
-`
+	expectedSnippet1 := `/dev/i2c-1 rw,`
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
 	c.Assert(err, IsNil)

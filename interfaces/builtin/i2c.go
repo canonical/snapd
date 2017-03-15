@@ -95,7 +95,7 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,\n", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
 	return nil
 }
 
