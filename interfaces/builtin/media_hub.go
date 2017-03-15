@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,12 +43,14 @@ dbus (bind)
     bus=session
     name="core.ubuntu.media.Service",
 
+# Allow communications with unconfined processes
 dbus (receive, send)
     bus=session
     path=/com/ubuntu/media/Service{,/**}
     interface=org.freedesktop.DBus{,.*}
     peer=(label=unconfined),
 
+# Allow unconfined processes to introspect us
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
