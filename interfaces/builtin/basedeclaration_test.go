@@ -583,7 +583,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":              true,
 		"maliit":           true,
 		"mir":              true,
-		"online-account-service":  true,
+		"online-accounts-service": true,
 		"thumbnailer":             true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
