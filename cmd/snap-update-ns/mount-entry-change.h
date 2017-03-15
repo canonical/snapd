@@ -65,6 +65,9 @@ struct sc_mount_change {
  * Both input lists must be sorted by the caller with
  * sc_sort_mount_entry_list().
  *
+ * The function uses the reuse flag of each element and mutates it during the
+ * process.
+ *
  * The caller must ensure that each element of the chain is freed.
  **/
 struct sc_mount_change *sc_compute_required_mount_changes(struct sc_mount_entry_list
