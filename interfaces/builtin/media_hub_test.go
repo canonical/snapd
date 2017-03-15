@@ -156,9 +156,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "sendto\n")
+	c.Assert(snippet, IsNil)
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
@@ -166,9 +164,7 @@ func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 
 	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "sendto\n")
+	c.Assert(snippet, IsNil)
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetDBus(c *C) {

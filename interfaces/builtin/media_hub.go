@@ -128,20 +128,6 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const mediaHubPermanentSlotSecComp = `
-recvmsg
-sendmsg
-sendto
-recvfrom
-`
-
-const mediaHubConnectedPlugSecComp = `
-recvmsg
-sendmsg
-sendto
-recvfrom
-`
-
 type MediaHubInterface struct{}
 
 func (iface *MediaHubInterface) Name() string {
@@ -159,8 +145,6 @@ func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace([]byte(mediaHubConnectedPlugAppArmor), old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(mediaHubConnectedPlugSecComp), nil
 	}
 	return nil, nil
 }
@@ -169,8 +153,6 @@ func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(mediaHubPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(mediaHubPermanentSlotSecComp), nil
 	}
 	return nil, nil
 }
