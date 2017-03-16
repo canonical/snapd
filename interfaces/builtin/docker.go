@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -51,11 +52,12 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 	return nil, nil
 }
 
+func (iface *DockerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(dockerConnectedPlugAppArmor)
+	return nil
+}
+
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if securitySystem == interfaces.SecurityAppArmor {
-		snippet := []byte(dockerConnectedPlugAppArmor)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
@@ -64,7 +66,8 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 }
 
 func (iface *DockerInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(dockerConnectedPlugSecComp)
+	spec.AddSnippet(dockerConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

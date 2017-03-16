@@ -698,3 +698,152 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	builtinBaseDeclaration = a.(*BaseDeclaration)
 	return nil
 }
+
+type dateRange struct {
+	Since time.Time
+	Until time.Time
+}
+
+// SnapDeveloper holds a snap-developer assertion, defining the developers who
+// can collaborate on a snap while it's owned by a specific publisher.
+//
+// The primary key (snap-id, publisher-id) allows a snap to have many
+// snap-developer assertions, e.g. to allow a future publisher's collaborations
+// to be defined before the snap is transferred. However only the
+// snap-developer for the current publisher (the snap-declaration publisher-id)
+// is relevant to a device.
+type SnapDeveloper struct {
+	assertionBase
+	developerRanges map[string][]*dateRange
+}
+
+// SnapID returns the snap id of the snap.
+func (snapdev *SnapDeveloper) SnapID() string {
+	return snapdev.HeaderString("snap-id")
+}
+
+// PublisherID returns the publisher's account id.
+func (snapdev *SnapDeveloper) PublisherID() string {
+	return snapdev.HeaderString("publisher-id")
+}
+
+func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+	// Check authority is the publisher or trusted.
+	authorityID := snapdev.AuthorityID()
+	publisherID := snapdev.PublisherID()
+	if !db.IsTrustedAccount(authorityID) && (publisherID != authorityID) {
+		return fmt.Errorf("snap-developer must be signed by the publisher or a trusted authority but got authority %q and publisher %q", authorityID, publisherID)
+	}
+
+	// Check snap-declaration for the snap-id exists for the series.
+	// Note: the current publisher is irrelevant here because this assertion
+	// may be for a future publisher.
+	_, err := db.Find(SnapDeclarationType, map[string]string{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		"series":  release.Series,
+		"snap-id": snapdev.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-developer assertion for snap id %q does not have a matching snap-declaration assertion", snapdev.SnapID())
+	}
+
+	// check there's an account for the publisher-id
+	_, err = db.Find(AccountType, map[string]string{"account-id": publisherID})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the publisher %q", snapdev.SnapID(), publisherID)
+	}
+
+	// check there's an account for each developer
+	for developerID := range snapdev.developerRanges {
+		if developerID == publisherID {
+			continue
+		}
+		_, err = db.Find(AccountType, map[string]string{"account-id": developerID})
+		if err == ErrNotFound {
+			return fmt.Errorf("snap-developer assertion for snap-id %q does not have a matching account assertion for the developer %q", snapdev.SnapID(), developerID)
+		}
+	}
+
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*SnapDeveloper)(nil)
+
+// Prerequisites returns references to this snap-developer's prerequisite assertions.
+func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
+	// Capacity for the snap-declaration, the publisher and all developers.
+	refs := make([]*Ref, 0, 2+len(snapdev.developerRanges))
+
+	// snap-declaration
+	// XXX: mediate getting current series through some context object? this gets the job done for now
+	refs = append(refs, &Ref{SnapDeclarationType, []string{release.Series, snapdev.SnapID()}})
+
+	// the publisher and developers
+	publisherID := snapdev.PublisherID()
+	refs = append(refs, &Ref{AccountType, []string{publisherID}})
+	for developerID := range snapdev.developerRanges {
+		if developerID != publisherID {
+			refs = append(refs, &Ref{AccountType, []string{developerID}})
+		}
+	}
+
+	return refs
+}
+
+func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
+	developerRanges, err := checkDevelopers(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SnapDeveloper{
+		assertionBase:   assert,
+		developerRanges: developerRanges,
+	}, nil
+}
+
+func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, error) {
+	value, ok := headers["developers"]
+	if !ok {
+		return nil, nil
+	}
+	developers, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
+	}
+	if len(developers) == 0 {
+		return nil, nil
+	}
+
+	developerRanges := make(map[string][]*dateRange)
+	for i, item := range developers {
+		developer, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
+		}
+
+		what := fmt.Sprintf(`in "developers" item %d`, i+1)
+		accountID, err := checkStringMatchesWhat(developer, "developer-id", what, validAccountID)
+		if err != nil {
+			return nil, err
+		}
+
+		what = fmt.Sprintf(`in "developers" item %d for developer %q`, i+1, accountID)
+		since, err := checkRFC3339DateWhat(developer, "since", what)
+		if err != nil {
+			return nil, err
+		}
+		until, err := checkRFC3339DateWithDefaultWhat(developer, "until", what, time.Time{})
+		if err != nil {
+			return nil, err
+		}
+		if !until.IsZero() && since.After(until) {
+			return nil, fmt.Errorf(`"since" %s must be less than or equal to "until"`, what)
+		}
+
+		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})
+	}
+
+	return developerRanges, nil
+}

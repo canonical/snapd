@@ -139,10 +139,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
-	s.restoreRelease = release.MockReleaseInfo(&release.OS{
-		ID:        "ubuntu",
-		VersionID: "mocked",
-	})
+	s.restoreRelease = release.MockForcedDevmode(false)
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
 		return false, nil
@@ -1779,7 +1776,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	restore := release.MockForcedDevmode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, flags, false)
@@ -1799,8 +1796,6 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
 	chgSummary := s.sideloadCheck(c, body, head, flags, true)
@@ -1876,7 +1871,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	restore := release.MockForcedDevmode(true)
 	defer restore()
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
@@ -2380,19 +2375,19 @@ func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(0))
+	s.testInstall(c, false, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.Flags{}, snap.R(0))
+	s.testInstall(c, true, snapstate.Flags{}, snap.R(0))
 }
 func (s *apiSuite) TestInstallRevision(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags{}, snap.R(42))
+	s.testInstall(c, false, snapstate.Flags{}, snap.R(42))
 }
 
-func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags, revision snap.Revision) {
+func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
-	restore := release.MockReleaseInfo(releaseInfo)
+	restore := release.MockForcedDevmode(forcedDevmode)
 	defer restore()
 
 	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
@@ -3002,7 +2997,7 @@ func (s *apiSuite) TestInstallJailMode(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	restore := release.MockForcedDevmode(true)
 	defer restore()
 
 	d := s.daemon(c)
@@ -5068,4 +5063,32 @@ func (s *apiSuite) TestAliases(c *check.C) {
 		},
 	})
 
+}
+
+var _ = check.Suite(&postDebugSuite{})
+
+type postDebugSuite struct {
+	apiBaseSuite
+}
+
+func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postDebug(debugCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.Equals, true)
+	c.Check(soon, check.Equals, 1)
 }

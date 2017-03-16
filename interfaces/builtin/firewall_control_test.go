@@ -23,10 +23,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type FirewallControlInterfaceSuite struct {
@@ -35,29 +38,28 @@ type FirewallControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FirewallControlInterfaceSuite{
-	iface: builtin.NewFirewallControlInterface(),
-	slot: &interfaces.Slot{
+const firewallControlMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [firewall-control]
+`
+
+var _ = Suite(&FirewallControlInterfaceSuite{})
+
+func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewFirewallControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "firewall-control",
-			Interface: "firewall-control",
-			Apps: map[string]*snap.AppInfo{
-				"app2": {
-					Snap: &snap.Info{
-						SuggestedName: "other",
-					},
-					Name: "app2"}},
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, firewallControlMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["firewall-control"]}
+}
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "firewall-control")
@@ -88,15 +90,17 @@ func (s *FirewallControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `capability net_raw`)
+
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
+	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 
 	spec := &kmod.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)

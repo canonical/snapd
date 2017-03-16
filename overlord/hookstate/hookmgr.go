@@ -26,11 +26,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -250,8 +254,31 @@ func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (
 	}
 }
 
+var osReadlink = os.Readlink
+
+// snapCmd returns the "snap" command to run. If snapd is re-execed
+// it will be the snap command from the core snap, otherwise it will
+// be the system "snap" command (c.f. LP: #1668738).
+func snapCmd() string {
+	// sensible default, assume PATH is correct
+	snapCmd := "snap"
+
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v, using default snap command", err)
+		return snapCmd
+	}
+	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return snapCmd
+	}
+
+	// snap is running from the core snap, we know the relative
+	// location of "snap" from "snapd"
+	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
+}
+
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
+	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
