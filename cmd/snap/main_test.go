@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -149,6 +150,21 @@ func mockVersion(v string) (restore func()) {
 	old := cmd.Version
 	cmd.Version = v
 	return func() { cmd.Version = old }
+}
+
+func mockSnapConfine() func() {
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	if err := os.MkdirAll(dirs.DistroLibExecDir, 0755); err != nil {
+		panic(err)
+	}
+	if err := ioutil.WriteFile(snapConfine, nil, 0644); err != nil {
+		panic(err)
+	}
+	return func() {
+		if err := os.Remove(snapConfine); err != nil {
+			panic(err)
+		}
+	}
 }
 
 const TestAuthFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
