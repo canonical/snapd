@@ -68,7 +68,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewAutopilotIntrospectionInterface())
 	c.Check(all, DeepContains, builtin.NewBluetoothControlInterface())
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
-	c.Check(all, DeepContains, builtin.NewChrootInterface())
 	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
 	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())

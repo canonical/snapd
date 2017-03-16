@@ -34,7 +34,6 @@ var implicitSlots = []string{
 	"bluetooth-control",
 	"browser-support",
 	"camera",
-	"chroot",
 	"classic-support",
 	"core-support",
 	"dcdbas-control",
