@@ -21,3 +21,6 @@ execute: |
     /usr/lib/snapd/snap-discard-ns test-snapd-tools
     su -l -c 'test-snapd-tools.cmd /bin/true' test
     su -l -c 'test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true"' test
+debug: |
+    # Kernel version is an important input in understing failures of this test
+    uname -a
