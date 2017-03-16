@@ -240,7 +240,7 @@ snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 
 snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
-	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) -Wl,-Bstatic $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS)
 
 snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
