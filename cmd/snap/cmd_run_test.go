@@ -83,7 +83,7 @@ func (s *SnapSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 	// and run it!
 	// a regular run will fail
 	_, err = snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.ErrorMatches, `.* too old\?`)
+	c.Assert(err, check.ErrorMatches, `.* your snapd package`)
 	// a hook run will not fail
 	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)

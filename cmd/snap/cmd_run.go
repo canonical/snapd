@@ -223,7 +223,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 			logger.Noticef("WARNING: skipping runnning snap/hook %s/%s: missing snap-confine", info.Name(), hook)
 			return nil
 		}
-		return fmt.Errorf(i18n.G("missing snap-confine: is your snapd too old?"))
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
 	}
 
 	if err := createUserDataDirs(info); err != nil {
