@@ -20,9 +20,15 @@ restore: |
     if lsmod | MATCH binfmt_misc && ! -f module_present; then
         rmmod binfmt_misc
     elif [ -f module_present ]; then
-        insmod binfmt_misc
+        insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
     fi
-    rm -f module_present
+    if [ -f package_present ]; then
+        apt install -y binfmt-support
+    fi
+    rm -f module_present package_present
+
+debug: |
+    lsmod
 
 execute: |
     CONNECTED_PATTERN=":kernel-module-control +test-snapd-kernel-module-control-consumer"
@@ -43,7 +49,14 @@ execute: |
     echo "And the snap is able to insert a module"
     if lsmod | MATCH binfmt_misc; then
         touch module_present
-        rmmod binfmt_misc
+        if ! rmmod binfmt_misc; then
+            # the module is being used
+            if apt list --installed binfmt-support | MATCH binfmt-support; then
+                touch package_present
+                apt remove -y binfmt-support
+                rmmod binfmt_misc
+            fi
+        fi
     fi
     lsmod | MATCH -v binfmt_misc
     test-snapd-kernel-module-control-consumer.insmod /lib/modules/$(uname -r)/kernel/fs/binfmt_misc.ko
