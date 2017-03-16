@@ -110,11 +110,11 @@ libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
 
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBCAP
 libsnap_confine_private_unit_tests_STATIC += -lcap
 else
 libsnap_confine_private_unit_tests_LDADD += -lcap
-endif
+endif  # STATIC_LIBCAP
 
 if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -137,11 +137,11 @@ decode_mount_opts_decode_mount_opts_SOURCES = \
 decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
 decode_mount_opts_decode_mount_opts_STATIC =
 
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBCAP
 decode_mount_opts_decode_mount_opts_STATIC += -lcap
 else
 decode_mount_opts_decode_mount_opts_LDADD += -lcap
-endif
+endif  # STATIC_LIBCAP
 
 if PARTIALLY_STATIC_CORE_BUILD
 # XXX: this makes automake generate decode_mount_opts_decode_mount_opts_LINK
@@ -225,11 +225,11 @@ snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
 # _STATIC is where we collect statically linked in libraries
 snap_confine_snap_confine_STATIC =
 
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
 else
 snap_confine_snap_confine_LDADD += -lcap
-endif
+endif  # STATIC_LIBCAP
 
 if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -250,20 +250,20 @@ snap_confine_snap_confine_SOURCES += \
 	snap-confine/seccomp-support.c \
 	snap-confine/seccomp-support.h
 snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBSECCOMP
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
 else
 snap_confine_snap_confine_LDADD += $(SECCOMP_LIBS)
-endif  # PARTIALLY_STATIC_CORE_BUILD
+endif  # STATIC_LIBSECCOMP
 endif  # SECCOMP
 
 if APPARMOR
 snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBAPPARMOR
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
 else
 snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
-endif  # PARTIALLY_STATIC_CORE_BUILD
+endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
 # an extra build that has additional debugging enabled at compile time
@@ -402,11 +402,11 @@ snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
 endif  # PARTIALLY_STATIC_CORE_BUILD
 endif  # APPARMOR
 
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBCAP
 snap_discard_ns_snap_discard_ns_STATIC += -lcap
 else
 snap_discard_ns_snap_discard_ns_LDADD += -lcap
-endif
+endif  # STATIC_LIBCAP
 
 if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
