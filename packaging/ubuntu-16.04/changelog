@@ -1,3 +1,9 @@
+snapd (2.23.3) xenial; urgency=medium
+
+  * FTBFS due to missing files in vendor/
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Mar 2017 19:56:55 +0100
+
 snapd (2.23.2) xenial; urgency=medium
 
   * New upstream release, LP: #1673568
