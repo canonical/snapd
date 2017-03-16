@@ -204,13 +204,12 @@ snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
-snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
+
+snap_confine_snap_confine_LDADD += -lcap
 
 snap-confine/snap-confine$(EXEEXT): $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine$(EXEEXT)
-	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) $(LIBS)
-
-snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) -Wl,-Bstatic $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS)
 
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
