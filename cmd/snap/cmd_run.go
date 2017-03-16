@@ -251,13 +251,13 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	// FIXME: we cannot use osutil.CommandFromCore() here because
-	//        that will execute using the ld.so from the core which
-	//        is not suid root :/
 	// FIXME2: for now "ForceDevMode" will prevent snap-confine to be
 	//         run on distros like fedora/suse etc. which is ok because
 	//         snap-confine is a non-op on these distros anyway.
 	if isReexeced() && !release.ReleaseInfo.ForceDevMode() {
+		// run snap-confine from the core snap. that will work because
+		// snap-confine on the core snap is mostly statically linked
+		// (except libudev and libc)
 		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
 	}
 
