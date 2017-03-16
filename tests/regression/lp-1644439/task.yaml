@@ -1,4 +1,8 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
+# NOTE: This test is excluded on core systems as the kernel release schedule
+# there is separate from classic Ubuntu. Once the fixed kernel is available
+# this line should be removed.
+systems: [-ubuntu-core-16-*]
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
