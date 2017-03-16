@@ -209,7 +209,7 @@ snap_confine_snap_confine_LDADD += -lcap
 
 snap-confine/snap-confine$(EXEEXT): $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine$(EXEEXT)
-	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) -Wl,-Bstatic $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) -Wl,-Bstatic $(snap_confine_snap_confine_LDADD) $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS) -lpthread
 
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
@@ -240,7 +240,7 @@ snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 
 snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
-	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) -Wl,-Bstatic $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS)
+	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) -Wl,-Bstatic $(snap_confine_snap_confine_debug_LDADD) $(LIBS) -Wl,-Bdynamic $(LIBUDEV_LIBS) -lpthread
 
 snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
