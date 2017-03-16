@@ -220,7 +220,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
-			logger.Noticef("WARNING: skipping runnning snap/hook %s/%s: missing snap-confine", info.Name(), hook)
+			logger.Noticef("WARNING: skipping running snap/hook %s/%s: missing snap-confine", info.Name(), hook)
 			return nil
 		}
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
