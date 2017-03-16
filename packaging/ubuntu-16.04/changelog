@@ -1,3 +1,10 @@
+snapd (2.23.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - cmd/snap: handle missing snap-confine (#3041)
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Mar 2017 19:38:24 +0100
+
 snapd (2.23.1) xenial; urgency=medium
 
   * New upstream release, LP: #1665608
