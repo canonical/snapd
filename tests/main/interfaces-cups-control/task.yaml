@@ -24,16 +24,16 @@ prepare: |
 
     echo "And the pdf printer is available"
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get install -y cups-pdf
+        apt-get install -y --no-install-recommends cups-pdf
     else
-        apt-get install -y printer-driver-cups-pdf
+        apt-get install -y --no-install-recommends printer-driver-cups-pdf
     fi
 
 restore: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        apt-get remove -y cups-pdf
+        apt-get purge -y --auto-remove cups-pdf
     else
-        apt-get remove -y printer-driver-cups-pdf
+        apt-get purge -y --auto-remove printer-driver-cups-pdf
     fi
     rm -rf $HOME/PDF $TEST_FILE print.error
 
@@ -54,7 +54,7 @@ execute: |
     echo "Then the snap command is able to print files"
     echo "Hello World" > $TEST_FILE
     test-snapd-cups-control-consumer.lpr $TEST_FILE
-    while ! test -e $HOME/PDF/test_file.pdf; do sleep 1; done
+    while ! test -e $HOME/PDF/test_file*.pdf; do sleep 1; done
 
     echo "===================================="
 
