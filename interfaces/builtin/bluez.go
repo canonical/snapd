@@ -219,7 +219,8 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 }
 
 func (iface *BluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(bluezPermanentSlotSecComp)
+	spec.AddSnippet(bluezPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

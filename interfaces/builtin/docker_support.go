@@ -549,7 +549,8 @@ func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	if privileged {
 		snippet += dockerSupportPrivilegedSecComp
 	}
-	return spec.AddSnippet(snippet)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

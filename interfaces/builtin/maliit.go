@@ -136,7 +136,8 @@ func (iface *MaliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 }
 
 func (iface *MaliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(maliitPermanentSlotSecComp)
+	spec.AddSnippet(maliitPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *MaliitInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

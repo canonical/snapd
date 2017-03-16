@@ -283,7 +283,8 @@ func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 }
 
 func (iface *OfonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(ofonoPermanentSlotSecComp)
+	spec.AddSnippet(ofonoPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

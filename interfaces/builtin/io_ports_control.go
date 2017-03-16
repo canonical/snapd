@@ -110,7 +110,8 @@ func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 }
 
 func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	return spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
+	spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
+	return nil
 }
 
 // No extra permissions granted on connection

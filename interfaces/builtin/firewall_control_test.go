@@ -100,8 +100,7 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
+	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 
 	spec := &kmod.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)

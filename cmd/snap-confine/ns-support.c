@@ -156,9 +156,8 @@ static bool sc_is_ns_group_dir_private()
 	}
 	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
 	while (entry != NULL) {
-		const char *mount_dir = sc_mountinfo_entry_mount_dir(entry);
-		const char *optional_fields =
-		    sc_mountinfo_entry_optional_fields(entry);
+		const char *mount_dir = entry->mount_dir;
+		const char *optional_fields = entry->optional_fields;
 		if (strcmp(mount_dir, sc_ns_dir) == 0
 		    && strcmp(optional_fields, "") == 0) {
 			// If /run/snapd/ns has no optional fields, we know it is mounted

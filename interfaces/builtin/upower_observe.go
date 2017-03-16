@@ -224,7 +224,8 @@ func (iface *UpowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specif
 }
 
 func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	return spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	return nil
 }
 
 func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
