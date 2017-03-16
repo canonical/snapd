@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -78,7 +79,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "udisks2",
+				SuggestedName: "udisks2prod",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
 			Name:      "udisks2",
@@ -86,9 +87,12 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the udisks2 slot
@@ -99,7 +103,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) 
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "udisks2",
+				SuggestedName: "udisks2prod",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
 			},
 			Name:      "udisks2",
@@ -107,9 +111,12 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) 
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the udisks2 slot
@@ -126,9 +133,12 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
 }
 
 // The label glob when all apps are bound to the udisks2 plug
@@ -138,7 +148,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{
-				SuggestedName: "udisks2",
+				SuggestedName: "udisks2client",
 				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 			},
 			Name:      "udisks2",
@@ -146,9 +156,12 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2client.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the udisks2 plug
@@ -167,9 +180,12 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) 
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the udisks2 plug
@@ -186,14 +202,16 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
 }
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus}
+	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus}
 	for _, system := range systems {
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
@@ -202,18 +220,21 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
 	}
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 2)
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.udisks2.app1"]), Equals, 1)
-	c.Check(string(snippets["snap.udisks2.app1"][0]), testutil.Contains, "mount\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
+	c.Check(seccompSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, "mount\n")
 }
