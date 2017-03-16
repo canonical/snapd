@@ -19,7 +19,12 @@
 
 package seccomp
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"bytes"
+	"sort"
+
+	"github.com/snapcore/snapd/interfaces"
+)
 
 // Specification keeps all the seccomp snippets.
 type Specification struct {
@@ -29,9 +34,9 @@ type Specification struct {
 }
 
 // AddSnippet adds a new seccomp snippet.
-func (spec *Specification) AddSnippet(snippet string) error {
+func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
-		return nil
+		return
 	}
 	if spec.snippets == nil {
 		spec.snippets = make(map[string][]string)
@@ -39,8 +44,6 @@ func (spec *Specification) AddSnippet(snippet string) error {
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 	}
-
-	return nil
 }
 
 // Snippets returns a deep copy of all the added snippets.
@@ -54,6 +57,28 @@ func (spec *Specification) Snippets() map[string][]string {
 		result[k] = vCopy
 	}
 	return result
+}
+
+// SnippetForTag returns a combined snippet for given security tag with individual snippets
+// joined with newline character. Empty string is returned for non-existing security tag.
+func (spec *Specification) SnippetForTag(tag string) string {
+	var buffer bytes.Buffer
+	sort.Strings(spec.snippets[tag])
+	for _, snippet := range spec.snippets[tag] {
+		buffer.WriteString(snippet)
+		buffer.WriteRune('\n')
+	}
+	return buffer.String()
+}
+
+// SecurityTags returns a list of security tags which have a snippet.
+func (spec *Specification) SecurityTags() []string {
+	var tags []string
+	for t := range spec.snippets {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 // Implementation of methods required by interfaces.Specification

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,12 @@
  *
  */
 
-package main
+package hookstate
 
-import (
-	"github.com/snapcore/snapd/i18n"
-)
-
-type cmdExperimental struct{}
-
-var shortExperimentalHelp = i18n.G("Runs unsupported experimental commands")
-var longExperimentalHelp = i18n.G(`
-The experimental command contains a selection of additional sub-commands.
-
-Experimental commands can be removed without notice and may not work on
-non-development systems.
-`)
+func MockReadlink(f func(string) (string, error)) func() {
+	oldReadlink := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = oldReadlink
+	}
+}

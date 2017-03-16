@@ -39,16 +39,20 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-plug")
+			spec.AddSnippet("connected-plug")
+			return nil
 		},
 		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet("connected-slot")
+			spec.AddSnippet("connected-slot")
+			return nil
 		},
 		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet("permanent-plug")
+			spec.AddSnippet("permanent-plug")
+			return nil
 		},
 		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet("permanent-slot")
+			spec.AddSnippet("permanent-slot")
+			return nil
 		},
 	},
 	plug: &interfaces.Plug{
@@ -94,4 +98,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1", "snap.snap2.app2"})
+	c.Assert(s.spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+
+	c.Assert(s.spec.SnippetForTag("non-existing"), Equals, "")
 }
