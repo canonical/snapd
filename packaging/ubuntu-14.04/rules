@@ -54,7 +54,7 @@ endif
 # security of the system.  Discuss a proper approach to this for downstreams
 # if and when they approach us
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-    VENDOR_ARGS=--enable-nvidia-ubuntu
+    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-partially-static
 else
     VENDOR_ARGS=--disable-apparmor
 endif
