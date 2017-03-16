@@ -195,5 +195,32 @@ AC_ARG_ENABLE([partially-static],
     esac], [enable_partially_static=no])
 AM_CONDITIONAL([PARTIALLY_STATIC_CORE_BUILD], [test "x$enable_partially_static" = "xyes"])
 
+AC_ARG_ENABLE([static-libcap],
+    AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
+    [case "${enableval}" in
+        yes) enable_static_libcap=yes ;;
+        no)  enable_static_libcap=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libcap])
+    esac], [enable_static_libcap=no])
+AM_CONDITIONAL([STATIC_LIBCAP], [test "x$enable_static_libcap" = "xyes" && test "x$enable_partially_static" = "xyes"])
+
+AC_ARG_ENABLE([static-libapparmor],
+    AS_HELP_STRING([--enable-static-libapparmor], [Link libapparmor statically]),
+    [case "${enableval}" in
+        yes) enable_static_libapparmor=yes ;;
+        no)  enable_static_libapparmor=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libapparmor])
+    esac], [enable_static_libapparmor=no])
+AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes" && test "x$enable_partially_static" = "xyes"])
+
+AC_ARG_ENABLE([static-libseccomp],
+    AS_HELP_STRING([--enable-static-libseccomp], [Link libseccomp statically]),
+    [case "${enableval}" in
+        yes) enable_static_libseccomp=yes ;;
+        no)  enable_static_libseccomp=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
+    esac], [enable_static_libseccomp=no])
+AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes" && test "x$enable_partially_static" = "xyes"])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

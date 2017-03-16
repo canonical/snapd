@@ -27,10 +27,10 @@ case "$ID" in
 	ubuntu)
 		case "$VERSION_ID" in
 			16.04)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-partially-static"
+				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-partially-static --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
 				;;
 			*)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu"
+				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu --enable-partially-static --enable-static-libcap"
 				;;
 		esac
 		;;
