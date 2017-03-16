@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ScreenInhibitControlInterfaceSuite struct {
@@ -33,23 +36,27 @@ type ScreenInhibitControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ScreenInhibitControlInterfaceSuite{
-	iface: builtin.NewScreenInhibitControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&ScreenInhibitControlInterfaceSuite{})
+
+func (s *ScreenInhibitControlInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [screen-inhibit-control]
+`
+	s.iface = builtin.NewScreenInhibitControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "screen-inhibit-control",
 			Interface: "screen-inhibit-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "screen-inhibit-control",
-			Interface: "screen-inhibit-control",
-		},
-	},
-})
+	}
+	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["screen-inhibit-control"]}
+}
 
 func (s *ScreenInhibitControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "screen-inhibit-control")
@@ -80,7 +87,9 @@ func (s *ScreenInhibitControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C
 
 func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/com/canonical/Unity/Screen")
 }

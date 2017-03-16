@@ -20,11 +20,12 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -147,46 +148,46 @@ func (iface *MprisInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 	return nil, nil
 }
 
+func (iface *MprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
+	return nil
+}
+
 func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(mprisConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
-func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		name, err := iface.getName(slot.Attrs)
-		if err != nil {
-			return nil, err
-		}
-
-		old := []byte("###MPRIS_NAME###")
-		new := []byte(name)
-		snippet := bytes.Replace([]byte(mprisPermanentSlotAppArmor), old, new, -1)
-		// on classic, allow unconfined remotes to control the player
-		// (eg, indicator-sound)
-		if release.OnClassic {
-			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
-		}
-		return snippet, nil
+func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	name, err := iface.getName(slot.Attrs)
+	if err != nil {
+		return err
 	}
+
+	old := "###MPRIS_NAME###"
+	new := name
+	spec.AddSnippet(strings.Replace(mprisPermanentSlotAppArmor, old, new, -1))
+	// on classic, allow unconfined remotes to control the player
+	// (eg, indicator-sound)
+	if release.OnClassic {
+		spec.AddSnippet(mprisConnectedSlotAppArmorClassic)
+	}
+	return nil
+}
+
+func (iface *MprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
+func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
 func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(mprisConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
