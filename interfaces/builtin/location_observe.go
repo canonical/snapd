@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
 const locationObservePermanentSlotAppArmor = `
@@ -217,6 +218,16 @@ func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plu
 	return nil, nil
 }
 
+func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObserveConnectedPlugDBus)
+	return nil
+}
+
+func (iface *LocationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObservePermanentSlotDBus)
+	return nil
+}
+
 func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -226,12 +237,7 @@ func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 }
 
 func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(locationObserveConnectedPlugDBus), nil
-	default:
-		return nil, nil
-	}
+	return nil, nil
 }
 
 func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
@@ -240,12 +246,7 @@ func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 }
 
 func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(locationObservePermanentSlotDBus), nil
-	default:
-		return nil, nil
-	}
+	return nil, nil
 }
 
 func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
