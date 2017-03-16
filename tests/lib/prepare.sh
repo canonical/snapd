@@ -29,7 +29,6 @@ update_core_snap_for_classic_reexec() {
     # also inject new version of snap-confine and snap-scard-ns
     cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
     cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
-    cp -a /usr/lib/snapd/snap-confine-suid-trampoline squashfs-root/usr/lib/snapd/
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
