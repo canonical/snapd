@@ -56,8 +56,8 @@ func (iface *HwRandomInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Creation of the slot of this type
 	// is allowed only by a gadget or os snap
 
-	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("hidraw slots only allowed on gadget or core snaps")
+	if !(slot.Snap.Type == "os") {
+		return fmt.Errorf("hw-random slots only allowed on core snap")
 	}
 	return nil
 }
@@ -99,6 +99,7 @@ func (iface *HwRandomInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 
 // No extra permissions granted on connection
 func (iface *HwRandomInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+
 	return nil, nil
 }
 
