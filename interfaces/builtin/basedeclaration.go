@@ -310,7 +310,6 @@ slots:
   hw-random:
     allow-installation:
       slot-snap-type:
-        - gadget
         - core
     deny-auto-connection: false
   i2c:
