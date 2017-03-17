@@ -28,42 +28,42 @@ import (
 	//"github.com/snapcore/snapd/testutil"
 )
 
-type StorageFrameworkInterfaceSuite struct {
+type StorageFrameworkServiceInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&StorageFrameworkInterfaceSuite{
-	iface: &builtin.StorageFrameworkInterface{},
+var _ = Suite(&StorageFrameworkServiceInterfaceSuite{
+	iface: &builtin.StorageFrameworkServiceInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "server", Type: snap.TypeOS},
-			Name:      "storage-framework",
-			Interface: "storage-framework",
+			Name:      "storage-framework-service",
+			Interface: "storage-framework-service",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "client"},
-			Name:      "storage-framework",
-			Interface: "storage-framework",
+			Name:      "storage-framework-service",
+			Interface: "storage-framework-service",
 		},
 	},
 })
 
-func (s *StorageFrameworkInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "storage-framework")
+func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
+	c.Check(s.iface.Name(), Equals, "storage-framework-service")
 }
 
-func (s *StorageFrameworkInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *StorageFrameworkServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "storage-framework"`)
+		PanicMatches, `slot is not of interface "storage-framework-service"`)
 	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "storage-framework"`)
+		PanicMatches, `plug is not of interface "storage-framework-service"`)
 }
 
-func (s *StorageFrameworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *StorageFrameworkServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected slots have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
