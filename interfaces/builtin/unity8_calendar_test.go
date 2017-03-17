@@ -23,35 +23,54 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type Unity8CalendarInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.Slot
+	coreSlot *interfaces.Slot
+	plug     *interfaces.Plug
 }
 
-var _ = Suite(&Unity8CalendarInterfaceSuite{
-	iface: builtin.NewUnity8CalendarInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&Unity8CalendarInterfaceSuite{})
+
+func (s *Unity8CalendarInterfaceSuite) SetUpTest(c *C) {
+	const mockCoreSlotInfoYaml = `name: unity8-calendar
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [unity8-calendar]
+`
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [unity8-calendar]
+`
+	s.iface = builtin.NewUnity8CalendarInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "unity8-calendar",
 			Interface: "unity8-calendar",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "unity8-calendar",
-			Interface: "unity8-calendar",
-		},
-	},
-})
+	}
+
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity8-calendar"]}
+
+	slotSnap := snaptest.MockInfo(c, mockCoreSlotInfoYaml, nil)
+	s.coreSlot = &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-calendar"]}
+}
 
 func (s *Unity8CalendarInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity8-calendar")
@@ -71,13 +90,10 @@ func (s *Unity8CalendarInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *Unity8CalendarInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
 // The label glob when all apps are bound to the calendar slot
@@ -96,9 +112,12 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the calendar slot
@@ -118,9 +137,12 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the calendar slot
@@ -138,59 +160,61 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.app"),`)
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
-	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic connected
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
+	c.Assert(snippet, testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
-	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic didn't connect
-	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
-}
-
-func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "send\n")
+	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.other.*\")")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.unity8-calendar.app"), testutil.Contains, "peer=(label=\"snap.other.app\")")
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.unity8-calendar.app"), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.unity8-calendar.app"), testutil.Contains, "listen\n")
 }

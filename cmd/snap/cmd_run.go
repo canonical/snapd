@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -118,6 +119,50 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	return info, nil
 }
 
+func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
+	// 'current' symlink for user data (SNAP_USER_DATA)
+	userData := info.UserDataDir(usr.HomeDir)
+	wantedSymlinkValue := filepath.Base(userData)
+	currentActiveSymlink := filepath.Join(userData, "..", "current")
+
+	var err error
+	var currentSymlinkValue string
+	for i := 0; i < 5; i++ {
+		currentSymlinkValue, err = os.Readlink(currentActiveSymlink)
+		// Failure other than non-existing symlink is fatal
+		if err != nil && !os.IsNotExist(err) {
+			// TRANSLATORS: %v the error message
+			return fmt.Errorf(i18n.G("cannot read symlink: %v"), err)
+		}
+
+		if currentSymlinkValue == wantedSymlinkValue {
+			break
+		}
+
+		if err == nil {
+			// We may be racing with other instances of snap-run that try to do the same thing
+			// If the symlink is already removed then we can ignore this error.
+			err = os.Remove(currentActiveSymlink)
+			if err != nil && !os.IsNotExist(err) {
+				// abort with error
+				break
+			}
+		}
+
+		err = os.Symlink(wantedSymlinkValue, currentActiveSymlink)
+		// Error other than symlink already exists will abort and be propagated
+		if err == nil || !os.IsExist(err) {
+			break
+		}
+		// If we arrived here it means the symlink couldn't be created because it got created
+		// in the meantime by another instance, so we will try again.
+	}
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot update the 'current' symlink of %q: %v"), currentActiveSymlink, err)
+	}
+	return nil
+}
+
 func createUserDataDirs(info *snap.Info) error {
 	usr, err := userCurrent()
 	if err != nil {
@@ -133,7 +178,8 @@ func createUserDataDirs(info *snap.Info) error {
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
 		}
 	}
-	return nil
+
+	return createOrUpdateUserDataSymlink(info, usr)
 }
 
 func snapRunApp(snapApp, command string, args []string) error {
@@ -171,18 +217,25 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 }
 
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	if !osutil.FileExists(snapConfine) {
+		if hook != "" {
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			return nil
+		}
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+	}
+
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{
-		filepath.Join(dirs.LibExecDir, "snap-confine"),
-	}
+	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.LibExecDir, "snap-exec"))
+	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)

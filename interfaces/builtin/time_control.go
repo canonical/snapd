@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const timeControlConnectedPlugAppArmor = `
@@ -31,7 +32,6 @@ const timeControlConnectedPlugAppArmor = `
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/; This also
 # gives full access to the RTC device nodes and relevant parts of sysfs.
-# Usage: reserved
 
 #include <abstractions/dbus-strict>
 
@@ -83,14 +83,6 @@ capability sys_time,
 # device nodes.
 /sbin/hwclock ixr,
 `
-const timeControlConnectedPlugSecComp = `
-# dbus
-recvmsg
-recvfrom
-send
-sendto
-sendmsg
-`
 
 // The type for the rtc interface
 type TimeControlInterface struct{}
@@ -133,15 +125,14 @@ func (iface *TimeControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, s
 	return nil, nil
 }
 
+func (iface *TimeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(timeControlConnectedPlugAppArmor)
+	return nil
+}
+
 // Getter for the security snippet specific to the plug
 func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(timeControlConnectedPlugAppArmor), nil
-
-	case interfaces.SecuritySecComp:
-		return []byte(timeControlConnectedPlugSecComp), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`

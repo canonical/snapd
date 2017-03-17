@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -104,13 +105,6 @@ dbus (receive)
     peer=(label=unconfined),
 `
 
-const dbusPermanentSlotSecComp = `
-# Description: Allow owning a name on DBus public bus
-recvmsg
-sendmsg
-sendto
-`
-
 const dbusPermanentSlotDBus = `
 <policy user="root">
     <allow own="###DBUS_NAME###"/>
@@ -183,12 +177,6 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const dbusConnectedPlugSecComp = `
-recvmsg
-sendmsg
-sendto
-`
-
 type DbusInterface struct{}
 
 func (iface *DbusInterface) Name() string {
@@ -244,14 +232,14 @@ func getAppArmorAbstraction(bus string) (string, error) {
 }
 
 // Calculate individual snippet policy based on bus and name
-func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
-	old := []byte("###DBUS_BUS###")
-	new := []byte(bus)
-	snippet := bytes.Replace(policy, old, new, -1)
+func getAppArmorSnippet(policy string, bus string, name string) string {
+	old := "###DBUS_BUS###"
+	new := bus
+	snippet := strings.Replace(policy, old, new, -1)
 
-	old = []byte("###DBUS_NAME###")
-	new = []byte(name)
-	snippet = bytes.Replace(snippet, old, new, -1)
+	old = "###DBUS_NAME###"
+	new = name
+	snippet = strings.Replace(snippet, old, new, -1)
 
 	// convert name to AppArmor dbus path (eg 'org.foo' to '/org/foo{,/**}')
 	var pathBuf bytes.Buffer
@@ -259,9 +247,9 @@ func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
 	pathBuf.WriteString(strings.Replace(name, ".", "/", -1))
 	pathBuf.WriteString(`{,/**}"`)
 
-	old = []byte("###DBUS_PATH###")
-	new = pathBuf.Bytes()
-	snippet = bytes.Replace(snippet, old, new, -1)
+	old = "###DBUS_PATH###"
+	new = pathBuf.String()
+	snippet = strings.Replace(snippet, old, new, -1)
 
 	// convert name to AppArmor dbus interface (eg, 'org.foo' to 'org.foo{,.*}')
 	var ifaceBuf bytes.Buffer
@@ -269,9 +257,9 @@ func getAppArmorSnippet(policy []byte, bus string, name string) []byte {
 	ifaceBuf.WriteString(name)
 	ifaceBuf.WriteString(`{,.*}"`)
 
-	old = []byte("###DBUS_INTERFACE###")
-	new = ifaceBuf.Bytes()
-	snippet = bytes.Replace(snippet, old, new, -1)
+	old = "###DBUS_INTERFACE###"
+	new = ifaceBuf.String()
+	snippet = strings.Replace(snippet, old, new, -1)
 
 	return snippet
 }
@@ -280,81 +268,76 @@ func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 	return nil, nil
 }
 
-func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	busSlot, nameSlot, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// ensure that we only connect to slot with matching attributes
 	if bus != busSlot || name != nameSlot {
-		return nil, nil
+		return nil
 	}
 
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// well-known DBus name-specific connected plug policy
-		snippet := getAppArmorSnippet([]byte(dbusConnectedPlugAppArmor), bus, name)
+	// well-known DBus name-specific connected plug policy
+	snippet := getAppArmorSnippet(dbusConnectedPlugAppArmor, bus, name)
 
-		// abstraction policy
-		abstraction, err := getAppArmorAbstraction(bus)
-		if err != nil {
-			return nil, err
-		}
-
-		old := []byte("###DBUS_ABSTRACTION###")
-		new := []byte(abstraction)
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		old = []byte("###SLOT_SECURITY_TAGS###")
-		new = slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return []byte(dbusConnectedPlugSecComp), nil
+	// abstraction policy
+	abstraction, err := getAppArmorAbstraction(bus)
+	if err != nil {
+		return err
 	}
+
+	old := "###DBUS_ABSTRACTION###"
+	new := abstraction
+	snippet = strings.Replace(snippet, old, new, -1)
+
+	old = "###SLOT_SECURITY_TAGS###"
+	new = slotAppLabelExpr(slot)
+	snippet = strings.Replace(snippet, old, new, -1)
+
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return err
+	}
+
+	// well-known DBus name-specific permanent slot policy
+	snippet := getAppArmorSnippet(dbusPermanentSlotAppArmor, bus, name)
+
+	// abstraction policy
+	abstraction, err := getAppArmorAbstraction(bus)
+	if err != nil {
+		return err
+	}
+
+	old := "###DBUS_ABSTRACTION###"
+	new := abstraction
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+
+	if release.OnClassic {
+		// classic-only policy
+		spec.AddSnippet(getAppArmorSnippet(dbusPermanentSlotAppArmorClassic, bus, name))
+	}
+	return nil
 }
 
 func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		bus, name, err := iface.getAttribs(slot.Attrs)
-		if err != nil {
-			return nil, err
-		}
-
-		snippets := bytes.NewBufferString("")
-
-		// well-known DBus name-specific permanent slot policy
-		snippet := getAppArmorSnippet([]byte(dbusPermanentSlotAppArmor), bus, name)
-
-		// abstraction policy
-		abstraction, err := getAppArmorAbstraction(bus)
-		if err != nil {
-			return nil, err
-		}
-
-		old := []byte("###DBUS_ABSTRACTION###")
-		new := []byte(abstraction)
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		snippets.Write(snippet)
-
-		if release.OnClassic {
-			// classic-only policy
-			snippets.Write(getAppArmorSnippet([]byte(dbusPermanentSlotAppArmorClassic), bus, name))
-		}
-
-		return snippets.Bytes(), nil
-	case interfaces.SecuritySecComp:
-		return []byte(dbusPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
 		bus, name, err := iface.getAttribs(slot.Attrs)
 		if err != nil {
@@ -377,14 +360,18 @@ func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 }
 
 func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	busPlug, namePlug, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// ensure that we only connect to slot with matching attributes. This
@@ -393,21 +380,17 @@ func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	// TODO: we can fix the 'snap interfaces' issue when interface/policy
 	// checkers when they are available
 	if bus != busPlug || name != namePlug {
-		return nil, nil
+		return nil
 	}
 
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// well-known DBus name-specific connected slot policy
-		snippet := getAppArmorSnippet([]byte(dbusConnectedSlotAppArmor), bus, name)
+	// well-known DBus name-specific connected slot policy
+	snippet := getAppArmorSnippet(dbusConnectedSlotAppArmor, bus, name)
 
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		return snippet, nil
-	}
-	return nil, nil
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DbusInterface) SanitizePlug(plug *interfaces.Plug) error {

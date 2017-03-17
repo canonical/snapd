@@ -23,7 +23,12 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -59,6 +64,40 @@ type TestInterface struct {
 	MountConnectedSlotCallback func(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	MountPermanentPlugCallback func(spec *mount.Specification, plug *interfaces.Plug) error
 	MountPermanentSlotCallback func(spec *mount.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the udev backend.
+
+	UdevConnectedPlugCallback func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UdevConnectedSlotCallback func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	UdevPermanentPlugCallback func(spec *udev.Specification, plug *interfaces.Plug) error
+	UdevPermanentSlotCallback func(spec *udev.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the apparmor backend.
+
+	AppArmorConnectedPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorConnectedSlotCallback func(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	AppArmorPermanentPlugCallback func(spec *apparmor.Specification, plug *interfaces.Plug) error
+	AppArmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the kmod backend.
+	KModConnectedPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModConnectedSlotCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	KModPermanentPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug) error
+	KModPermanentSlotCallback func(spec *kmod.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the seccomp backend.
+
+	SecCompConnectedPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompConnectedSlotCallback func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SecCompPermanentPlugCallback func(spec *seccomp.Specification, plug *interfaces.Plug) error
+	SecCompPermanentSlotCallback func(spec *seccomp.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the dbus backend.
+
+	DBusConnectedPlugCallback func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusConnectedSlotCallback func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	DBusPermanentPlugCallback func(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanentSlotCallback func(spec *dbus.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -195,6 +234,157 @@ func (t *TestInterface) MountPermanentPlug(spec *mount.Specification, plug *inte
 func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error {
 	if t.MountPermanentSlotCallback != nil {
 		return t.MountPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the udev backend.
+
+func (t *TestInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.UdevConnectedPlugCallback != nil {
+		return t.UdevConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error {
+	if t.UdevPermanentPlugCallback != nil {
+		return t.UdevPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	if t.UdevPermanentSlotCallback != nil {
+		return t.UdevPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) UdevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.UdevConnectedSlotCallback != nil {
+		return t.UdevConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the apparmor backend.
+
+func (t *TestInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.AppArmorConnectedPlugCallback != nil {
+		return t.AppArmorConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	if t.AppArmorPermanentSlotCallback != nil {
+		return t.AppArmorPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.AppArmorConnectedSlotCallback != nil {
+		return t.AppArmorConnectedSlotCallback(spec, plug, slot)
+
+	}
+	return nil
+}
+
+func (t *TestInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error {
+	if t.AppArmorPermanentPlugCallback != nil {
+		return t.AppArmorPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+// Support for interacting with the seccomp backend.
+
+func (t *TestInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SecCompConnectedPlugCallback != nil {
+		return t.SecCompConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SecCompConnectedSlotCallback != nil {
+		return t.SecCompConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	if t.SecCompPermanentSlotCallback != nil {
+		return t.SecCompPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error {
+	if t.SecCompPermanentPlugCallback != nil {
+		return t.SecCompPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+// Support for interacting with the kmod backend.
+
+func (t *TestInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.KModConnectedPlugCallback != nil {
+		return t.KModConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.KModConnectedSlotCallback != nil {
+		return t.KModConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error {
+	if t.KModPermanentPlugCallback != nil {
+		return t.KModPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error {
+	if t.KModPermanentSlotCallback != nil {
+		return t.KModPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+// Support for interacting with the dbus backend.
+
+func (t *TestInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.DBusConnectedPlugCallback != nil {
+		return t.DBusConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.DBusConnectedSlotCallback != nil {
+		return t.DBusConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	if t.DBusPermanentSlotCallback != nil {
+		return t.DBusPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error {
+	if t.DBusPermanentPlugCallback != nil {
+		return t.DBusPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }

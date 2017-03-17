@@ -80,7 +80,7 @@ func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
 			continue
 		}
 		// same inteval as last update, move forward
-		if last.After(a) && last.Before(b) {
+		if (last.Equal(a) || last.After(a)) && (last.Equal(b) || last.Before(b)) {
 			continue
 		}
 		if b.Before(now) {
@@ -96,7 +96,9 @@ func randDur(dur time.Duration) time.Duration {
 }
 
 var (
-	timeNow     = time.Now
+	timeNow = time.Now
+
+	// FIMXE: pass in as a parameter for next
 	maxDuration = 14 * 24 * time.Hour
 )
 
@@ -211,7 +213,7 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 // fri@9:00-11:00/mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
 // fri@9:00-11:00/13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
 //
-// and returns a list of Schdule types or an error
+// and returns a list of Schedule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 

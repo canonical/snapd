@@ -25,6 +25,7 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 // BoolFileInterface is the type of all the bool-file interfaces.
@@ -83,41 +84,39 @@ func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	return nil, nil
 }
 
-// PermanentSlotSnippet returns security snippet permanently granted to bool-file slots.
-// Applications associated with the slot, if the slot is a GPIO, gain permission to export, unexport and set direction of any GPIO pin.
 func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	gpioSnippet := []byte(`
+	return nil, nil
+}
+
+func (iface *BoolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
-`)
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// To provide GPIOs we need extra permissions to export/unexport and to
-		// set the direction of each pin.
-		if iface.isGPIO(slot) {
-			return gpioSnippet, nil
-		}
-		return nil, nil
+`
+
+	if iface.isGPIO(slot) {
+		spec.AddSnippet(gpioSnippet)
 	}
-	return nil, nil
+	return nil
+}
+
+func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	// Allow write and lock on the file designated by the path.
+	// Dereference symbolic links to file path handed out to apparmor since
+	// sysfs is full of symlinks and apparmor requires uses real path for
+	// filtering.
+	path, err := iface.dereferencedPath(slot)
+	if err != nil {
+		return fmt.Errorf("cannot compute plug security snippet: %v", err)
+	}
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
+	return nil
 }
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
 // Applications associated with the plug gain permission to read, write and lock the designated file.
 func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		// Allow write and lock on the file designated by the path.
-		// Dereference symbolic links to file path handed out to apparmor since
-		// sysfs is full of symlinks and apparmor requires uses real path for
-		// filtering.
-		path, err := iface.dereferencedPath(slot)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
-		}
-		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
-	}
 	return nil, nil
 }
 
