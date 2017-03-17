@@ -29,81 +29,81 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type HwRandomInterfaceSuite struct {
+type RandomInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HwRandomInterfaceSuite{
-	iface: &builtin.HwRandomInterface{},
+var _ = Suite(&RandomInterfaceSuite{
+	iface: &builtin.RandomInterface{},
 })
 
-func (s *HwRandomInterfaceSuite) SetUpTest(c *C) {
+func (s *RandomInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
 type: os
 slots:
-  test-hw-random:
-    interface: hw-random
+  test-random:
+    interface: random
 `, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-hw-random"]}
+	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-random"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
 apps:
-  app-accessing-hw-random:
+  app-accessing-random:
     command: foo
-    plugs: [hw-random]
+    plugs: [random]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["hw-random"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["random"]}
 }
 
-func (s *HwRandomInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "hw-random")
+func (s *RandomInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "random")
 }
 
-func (s *HwRandomInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *RandomInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "hw-random",
-		Interface: "hw-random",
+		Name:      "random",
+		Interface: "random",
 	}})
-	c.Assert(err, ErrorMatches, "hw-random slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "random slots only allowed on core snap")
 }
 
-func (s *HwRandomInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *RandomInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *HwRandomInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *RandomInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "hw-random"`)
+		PanicMatches, `slot is not of interface "random"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "hw-random"`)
+		PanicMatches, `plug is not of interface "random"`)
 }
 
-func (s *HwRandomInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *RandomInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet1 := `
 # Description: Allow access to the hardware random number generator device - /dev/hwrng
 
 /dev/hwrng rw,
 /devices/virtual/misc/hw_random rw,
 `
-	expectedSnippet2 := []byte(`KERNEL=="hwrng", TAG+="snap_client-snap_app-accessing-hw-random"
+	expectedSnippet2 := []byte(`KERNEL=="hwrng", TAG+="snap_client-snap_app-accessing-random"
 `)
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-hw-random"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-hw-random")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-random"})
+	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-random")
 	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)

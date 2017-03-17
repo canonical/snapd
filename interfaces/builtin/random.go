@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-const hwRandomConnectedPlugAppArmor = `
+const randomConnectedPlugAppArmor = `
 # Description: Allow access to the hardware random number generator device - /dev/hwrng
 
 /dev/hwrng rw,
@@ -35,19 +35,19 @@ const hwRandomConnectedPlugAppArmor = `
 `
 
 // The type for physical-memory-control interface
-type HwRandomInterface struct{}
+type RandomInterface struct{}
 
 // Getter for the name of the physical-memory-control interface
-func (iface *HwRandomInterface) Name() string {
-	return "hw-random"
+func (iface *RandomInterface) Name() string {
+	return "random"
 }
 
-func (iface *HwRandomInterface) String() string {
+func (iface *RandomInterface) String() string {
 	return iface.Name()
 }
 
 // Check validity of the defined slot
-func (iface *HwRandomInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *RandomInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Does it have right type?
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -57,13 +57,13 @@ func (iface *HwRandomInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// is allowed only by a gadget or os snap
 
 	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("hw-random slots only allowed on core snap")
+		return fmt.Errorf("random slots only allowed on core snap")
 	}
 	return nil
 }
 
 // Checks and possibly modifies a plug
-func (iface *HwRandomInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *RandomInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -72,17 +72,17 @@ func (iface *HwRandomInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 // Returns snippet granted on install
-func (iface *HwRandomInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *RandomInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *HwRandomInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	spec.AddSnippet(hwRandomConnectedPlugAppArmor)
+func (iface *RandomInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(randomConnectedPlugAppArmor)
 	return nil
 }
 
 // Getter for the security snippet specific to the plug
-func (iface *HwRandomInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *RandomInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
@@ -98,17 +98,17 @@ func (iface *HwRandomInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 }
 
 // No extra permissions granted on connection
-func (iface *HwRandomInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *RandomInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 
 	return nil, nil
 }
 
 // No permissions granted to plug permanently
-func (iface *HwRandomInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *RandomInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *HwRandomInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *RandomInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
 	return true
 }
