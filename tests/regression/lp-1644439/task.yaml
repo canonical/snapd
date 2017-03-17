@@ -20,7 +20,7 @@ execute: |
     # to apparmor that this test depends on.
     if [ "$(uname -m)" != x86_64 ] && [ "$(uname -m)" != i686 ]; then
         echo "This test is only supported on x86_64 and i386"
-        exit 1
+        exit 0
     fi
     if ! ./kernel-new-enough.sh; then
         echo "This test is not supported on kernels older than 4.4.0-67"
