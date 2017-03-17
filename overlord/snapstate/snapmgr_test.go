@@ -4274,6 +4274,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	// got called once
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
@@ -4282,6 +4283,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	// again because to test that lastRefreshAttempt backoff is working
 	s.state.Unlock()
 	s.snapmgr.Ensure()
+	time.Sleep(100 * time.Millisecond)
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
