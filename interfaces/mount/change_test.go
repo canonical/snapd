@@ -90,3 +90,24 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
 	})
 }
+
+// When parent changes we don't reuse its children
+func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
+	current := []mount.Entry{
+		{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"},
+		{Dir: "/var/snap/foo/common/stuf/extra"},
+		{Dir: "/var/snap/foo/common/unrelated"},
+	}
+	desired := []mount.Entry{
+		{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"},
+		{Dir: "/var/snap/foo/common/stuf/extra"},
+		{Dir: "/var/snap/foo/common/unrelated"},
+	}
+	changes := mount.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []mount.Change{
+		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
+		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"}},
+		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"}},
+		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
+	})
+}

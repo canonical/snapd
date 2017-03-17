@@ -22,6 +22,7 @@ package mount
 import (
 	"path"
 	"sort"
+	"strings"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -83,13 +84,20 @@ func NeededChanges(current, desired []Entry) []Change {
 	// entries in the current entries and if there's an identical desired entry
 	// then mark this directory / entry for reuse.
 	//
-	// TODO: Don't reuse any children if their parent changes.
+	// Don't reuse any children if their parent changes.
+	var skipPrefix string
 	for i := range c {
-		if entry, ok := dm[c[i].Dir]; ok {
+		dir := c[i].Dir
+		if skipPrefix != "" && strings.HasPrefix(dir, skipPrefix) && dir[len(skipPrefix)] == '/' {
+			continue
+		}
+		if entry, ok := dm[dir]; ok {
 			if EqualEntries(&c[i], entry) {
-				reuse[entry.Dir] = true
+				reuse[dir] = true
+				continue
 			}
 		}
+		skipPrefix = dir
 	}
 
 	// Unmount all the current entries (unless flagged for reuse).
