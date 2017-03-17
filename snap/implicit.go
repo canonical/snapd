@@ -42,6 +42,7 @@ var implicitSlots = []string{
 	"framebuffer",
 	"hardware-observe",
 	"home",
+	"hw-random",
 	"io-ports-control",
 	"kernel-module-control",
 	"locale-control",
