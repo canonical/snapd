@@ -159,7 +159,13 @@ func (r *TaskRunner) run(t *Task) {
 			r.state.EnsureBefore(0)
 		}
 
-		switch err := tomb.Err(); x := err.(type) {
+		err := tomb.Err()
+		if err != nil && r.stopped {
+			// we are shutting down, errors might be due
+			// to cancellations, to be safe retry
+			err = &Retry{}
+		}
+		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.
 			// TODO Allow postponing retries past the next Ensure.
