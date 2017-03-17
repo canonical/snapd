@@ -1,8 +1,4 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
-# NOTE: This test is excluded on core systems as the kernel release schedule
-# there is separate from classic Ubuntu. Once the fixed kernel is available
-# this line should be removed.
-systems: [-ubuntu-core-16-*]
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
@@ -18,6 +14,18 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local_devmode test-snapd-tools
 execute: |
+    # Don't test on other architectures as (especially on arm) kernel versions
+    # are not synchronized with x86 and this test is not architecture specific
+    # to warrant the extra work to figure out which kernel revision got the fix
+    # to apparmor that this test depends on.
+    if [ "$(uname -m)" != x86_64 ] && [ "$(uname -m)" != i686 ]; then
+        echo "This test is only supported on x86_64 and i386"
+        exit 1
+    fi
+    if ! ./kernel-new-enough.sh; then
+        echo "This test is not supported on kernels older than 4.4.0-67"
+        exit 0
+    fi
     echo "We can now run a snap command from the namespace of a snap command and see it work"
     test-snapd-tools.cmd /bin/true
     test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true"
