@@ -73,7 +73,7 @@ func (s *HwRandomInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "hw-random",
 		Interface: "hw-random",
 	}})
-	c.Assert(err, ErrorMatches, "hw-random slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "hw-random slots only allowed on gadget or core snaps")
 }
 
 func (s *HwRandomInterfaceSuite) TestSanitizePlug(c *C) {
