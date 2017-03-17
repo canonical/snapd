@@ -311,7 +311,7 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: false
+    deny-auto-connection: true
   i2c:
     allow-installation:
       slot-snap-type:
