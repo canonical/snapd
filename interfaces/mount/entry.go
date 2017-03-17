@@ -58,7 +58,7 @@ func sameStrings(a, b []string) bool {
 	return true
 }
 
-// Equal checks if one entry is equal to another
+// EqualEntries checks if one entry is equal to another
 func EqualEntries(a, b *Entry) bool {
 	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
 		sameStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
