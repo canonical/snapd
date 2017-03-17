@@ -471,6 +471,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
 		tr.Commit()
 	}
+
 	// already have a refresh timer
 	if m.nextRefresh != nil {
 		if m.currentRefreshSchedule == refreshScheduleStr {
@@ -500,15 +501,18 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// store attempts in memory so that we can backoff a
-	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(m.state)
-	if err != nil {
-		return err
-	}
-
 	delta := timeutil.Next(refreshSchedule, lastRefresh)
-
-	m.nextRefresh = time.AfterFunc(delta, func() { m.doAutoRefresh(updated, tasksets) })
+	m.nextRefresh = time.AfterFunc(delta, func() {
+		m.lastRefreshAttempt = time.Now()
+		m.state.Lock()
+		updated, tasksets, err := AutoRefresh(m.state)
+		m.state.Unlock()
+		if err != nil {
+			// FIXME: log error?
+			return
+		}
+		m.doAutoRefresh(updated, tasksets)
+	})
 	logger.Debugf("Next refresh scheduled for %s.", time.Now().Add(delta))
 
 	return nil
