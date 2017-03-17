@@ -1,3 +1,10 @@
+snapd (2.23.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - fix core-support interface for the new pi-config options
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Mar 2017 16:05:57 +0100
+
 snapd (2.23.3) xenial; urgency=medium
 
   * FTBFS due to missing files in vendor/
