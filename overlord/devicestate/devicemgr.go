@@ -59,7 +59,9 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
-	bootOkRan  bool
+
+	bootOkRan            bool
+	bootRevisionsUpdated bool
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
@@ -286,7 +288,14 @@ func (m *DeviceManager) ensureBootOk() error {
 		m.bootOkRan = true
 	}
 
-	return snapstate.UpdateBootRevisions(m.state)
+	if !m.bootRevisionsUpdated {
+		if err := snapstate.UpdateBootRevisions(m.state); err != nil {
+			return err
+		}
+		m.bootRevisionsUpdated = true
+	}
+
+	return nil
 }
 
 type ensureError struct {

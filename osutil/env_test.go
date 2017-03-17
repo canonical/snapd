@@ -97,6 +97,8 @@ func (s *envSuite) TestSubstitueEnv(c *check.C) {
 		{"K=V,K2=$K", "K=V,K2=V"},
 		// simple from environment
 		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH"))},
+		// append to substitution from environment
+		{"K=${PATH}:/foo", fmt.Sprintf("K=%s", os.Getenv("PATH")+":/foo")},
 		// multi-level
 		{"A=1,B=$A/2,C=$B/3,D=$C/4", "A=1,B=1/2,C=1/2/3,D=1/2/3/4"},
 		// parsing is top down

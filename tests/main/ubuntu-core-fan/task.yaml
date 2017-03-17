@@ -1,5 +1,5 @@
 summary: Test ubuntu-fan
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-*]
 prepare: |
     IP=$(ifconfig  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | cut -d' ' -f1|head -1)
     fanctl up 241.0.0.0/8 $IP/16

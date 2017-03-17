@@ -37,12 +37,13 @@ type Specification struct {
 // AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
 func (spec *Specification) AddModule(module string) error {
 	m := strings.TrimSpace(module)
-	if len(m) > 0 {
-		if spec.modules == nil {
-			spec.modules = make(map[string]bool)
-		}
-		spec.modules[m] = true
+	if m == "" {
+		return nil
 	}
+	if spec.modules == nil {
+		spec.modules = make(map[string]bool)
+	}
+	spec.modules[m] = true
 	return nil
 }
 

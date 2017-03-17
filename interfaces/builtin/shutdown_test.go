@@ -23,8 +23,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,26 @@ type ShutdownInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&ShutdownInterfaceSuite{
-	iface: builtin.NewShutdownInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&ShutdownInterfaceSuite{})
+
+func (s *ShutdownInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: other
+apps:
+ app:
+    command: foo
+    plugs: [shutdown]
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["shutdown"]}
+	s.iface = builtin.NewShutdownInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "shutdown",
 			Interface: "shutdown",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "shutdown",
-			Interface: "shutdown",
-		},
-	},
-})
+	}
+}
 
 func (s *ShutdownInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "shutdown")
@@ -79,15 +84,10 @@ func (s *ShutdownInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "shutdown"`)
 }
 
-func (s *ShutdownInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-}
-
 func (s *ShutdownInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `org.freedesktop.systemd1`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `org.freedesktop.systemd1`)
 }
