@@ -30,7 +30,7 @@ import (
 
 // mountNsPath returns path of the mount namespace file of a given snap
 func mountNsPath(snapName string) string {
-	// NOTE: This value has to be synchronized with snap-confine
+	// NOTE: This value has to be synchronized with snap-wrap
 	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
 }
 

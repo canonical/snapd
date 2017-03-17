@@ -26,9 +26,9 @@ update_core_snap_for_classic_reexec() {
     unsquashfs "$snap"
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp /usr/bin/snapctl squashfs-root/usr/bin/
-    # also inject new version of snap-confine and snap-scard-ns
+    # also inject new version of snap-wrap and snap-scard-ns
     cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp /usr/lib/snapd/snap-wrap squashfs-root/usr/lib/snapd/
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
@@ -48,7 +48,7 @@ update_core_snap_for_classic_reexec() {
     mount "$snap" "$core"
 
     # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-wrap /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
         if ! cmp ${p} ${core}${p}; then
             echo "$p in tree and $p in core snap are unexpectedly not the same"
             exit 1
@@ -80,10 +80,10 @@ prepare_classic() {
         apt-cache policy snapd
         exit 1
     fi
-    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
-        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        /usr/lib/snapd/snap-confine --version
-        apt-cache policy snap-confine
+    if /usr/lib/snapd/snap-wrap --version | MATCH unknown; then
+        echo "Package build incorrect, 'snap-wrap --version' mentions 'unknown'"
+        /usr/lib/snapd/snap-wrap --version
+        apt-cache policy snap-wrap
         exit 1
     fi
 
@@ -158,7 +158,7 @@ setup_reflash_magic() {
         snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
-        # uses snap-confine and that will hide parts of the hostfs
+        # uses snap-wrap and that will hide parts of the hostfs
         IMAGE_HOME=/home/image
         mkdir -p $IMAGE_HOME
 

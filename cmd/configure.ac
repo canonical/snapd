@@ -1,6 +1,6 @@
 AC_PREREQ([2.69])
-AC_INIT([snap-confine], m4_esyscmd_s([cat VERSION]), [snapcraft@lists.ubuntu.com])
-AC_CONFIG_SRCDIR([snap-confine/snap-confine.c])
+AC_INIT([snap-wrap], m4_esyscmd_s([cat VERSION]), [snapcraft@lists.ubuntu.com])
+AC_CONFIG_SRCDIR([snap-wrap/snap-wrap.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign subdir-objects])

@@ -100,9 +100,9 @@ func (m *InterfaceManager) addSnaps() error {
 
 // regenerateAllSecurityProfiles will regenerate the security profiles
 // for apparmor and seccomp. This is needed because:
-// - for seccomp we may have "terms" on disk that the current snap-confine
+// - for seccomp we may have "terms" on disk that the current snap-wrap
 //   does not understand (e.g. in a rollback scenario). a refresh ensures
-//   we have a profile that matches what snap-confine understand
+//   we have a profile that matches what snap-wrap understand
 // - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
 //   change that breaks existing profiles for installed snaps. With a
 //   refresh those get fixed.

@@ -31,8 +31,8 @@
 #include <sys/stat.h>		// mkdir
 #include <unistd.h>		// getpid, close
 
-#include "../libsnap-confine-private/mountinfo.h"
-#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-wrap-private/mountinfo.h"
+#include "../libsnap-wrap-private/string-utils.h"
 
 __attribute__ ((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)

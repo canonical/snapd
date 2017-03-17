@@ -68,8 +68,8 @@ Depends: adduser,
          util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},
          ${shlibs:Depends}
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23~14.04)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23~14.04)
+Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-wrap (<< 2.23~14.04)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-wrap (<< 2.23~14.04)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
@@ -102,7 +102,7 @@ Section: oldlibs
 Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
 
-Package: snap-confine
+Package: snap-wrap
 Architecture: any
 Section: oldlibs
 Depends: snapd (= ${binary:Version}), ${misc:Depends}
@@ -111,8 +111,8 @@ Description: Transitional package for snapd
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: snap-confine (= ${binary:Version}), ${misc:Depends}
+Depends: snap-wrap (= ${binary:Version}), ${misc:Depends}
 Section: oldlibs 
 Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Transitional package for snap-confine
+Description: Transitional package for snap-wrap
  This is a transitional dummy package. It can safely be removed.

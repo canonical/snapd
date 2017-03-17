@@ -15,8 +15,8 @@
  *
  */
 
-#include "../libsnap-confine-private/utils.h"
-#include "../snap-confine/ns-support.h"
+#include "../libsnap-wrap-private/utils.h"
+#include "../snap-wrap/ns-support.h"
 
 int main(int argc, char **argv)
 {

@@ -407,7 +407,7 @@ var classicTemplate = `
 
 ###PROFILEATTACH### (attach_disconnected) {
   # set file rules so that exec() inherits our profile unless there is
-  # already a profile for it (eg, snap-confine)
+  # already a profile for it (eg, snap-wrap)
   / rwkl,
   /** rwlkm,
   /** pix,

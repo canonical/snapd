@@ -26,9 +26,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../libsnap-confine-private/utils.h"
-#include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-wrap-private/utils.h"
+#include "../libsnap-wrap-private/string-utils.h"
+#include "../libsnap-wrap-private/cleanup-funcs.h"
 
 /**
  * Compare two mount entries (through indirect pointers).

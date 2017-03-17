@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+# shellcheck source=snap-wrap/tests/common.sh
+. "${srcdir:-.}/snap-wrap/tests/common.sh"
+
+cat >"$TMP/snap.name.app" <<EOF
+# some comment
+@complain
+EOF
+
+printf "Test that the @complain keyword works"
+if "$L" snap.name.app /bin/ls / >/dev/null; then
+    PASS
+else
+    FAIL
+fi

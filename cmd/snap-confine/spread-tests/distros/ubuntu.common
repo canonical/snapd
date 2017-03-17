@@ -1,7 +1,0 @@
-if [ -n "${APT_PROXY:-}" ]; then
-    distro_archive=${APT_PROXY}/archive.ubuntu.com/ubuntu
-else
-    distro_archive=http://archive.ubuntu.com/ubuntu
-fi
-distro_packaging_git=https://git.launchpad.net/snap-confine
-sbuild_createchroot_extra="--components=main,universe"

@@ -167,9 +167,9 @@ transfer it to the snappy system and then run:
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
-# Quick intro to hacking on snap-confine
+# Quick intro to hacking on snap-wrap
 
-Hey, welcome to the nice, low-level world of snap-confine
+Hey, welcome to the nice, low-level world of snap-wrap
 
 ## Building the code locally
 
@@ -183,7 +183,7 @@ autoreconf -i -f
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
-target, available in `cmd/snap-confine` handy, it installs the locally built
+target, available in `cmd/snap-wrap` handy, it installs the locally built
 version on your system and reloads the apparmor profile.
 
 ## Submitting patches

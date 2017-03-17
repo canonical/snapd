@@ -50,4 +50,4 @@ FILES
 BUGS
 ====
 
-Please report all bugs with https://bugs.launchpad.net/snap-confine/+filebug
+Please report all bugs with https://bugs.launchpad.net/snap-wrap/+filebug

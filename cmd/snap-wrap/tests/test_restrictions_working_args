@@ -1,0 +1,79 @@
+#!/bin/sh
+
+set -e
+
+# shellcheck source=snap-wrap/tests/common.sh
+. "${srcdir:-.}/snap-wrap/tests/common.sh"
+
+get_common_syscalls >"$TMP"/tmpl
+cat >>"$TMP"/tmpl <<EOF
+getpriority
+EOF
+
+for i in '- - 10' '- 0 10' '- 0 >=0' '- 0 >0' '- 0 <11' '- 0 <=10' ; do
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "setpriority $i" >>"$TMP"/snap.name.app
+
+    printf "Test good seccomp arg filtering (setpriority %s)" "$i"
+    # ensure that the command "true" can run with the right filter
+    if $L snap.name.app /usr/bin/nice -n 10 /bin/true ; then
+        PASS
+    else
+        dmesg|tail -n1
+        FAIL
+    fi
+done
+
+cat "$TMP"/tmpl >"$TMP"/snap.name.app
+{
+    echo "setpriority - - 10"
+    echo "setpriority - - <=9"
+    echo "setpriority - - >=11"
+} >>"$TMP"/snap.name.app
+
+printf "Test good seccomp arg filtering (cumulative setpriority)"
+# ensure that the command "true" can run with the right filter
+if $L snap.name.app /usr/bin/nice -n 10 /bin/true ; then
+    PASS
+else
+    dmesg|tail -n1
+    FAIL
+fi
+
+cat "$TMP"/tmpl >"$TMP"/snap.name.app
+echo "setpriority - - <=9" >>"$TMP"/snap.name.app
+echo "setpriority - - >=11" >>"$TMP"/snap.name.app
+
+printf "Test good seccomp arg filtering (cumulative setpriority blocks (ge/le))"
+if $L snap.name.app /usr/bin/nice -n 10 /bin/true 2>/dev/null ; then
+    FAIL
+else
+    PASS
+fi
+
+cat "$TMP"/tmpl >"$TMP"/snap.name.app
+echo "setpriority - - <10" >>"$TMP"/snap.name.app
+echo "setpriority - - >10" >>"$TMP"/snap.name.app
+
+printf "Test good seccomp arg filtering (cumulative setpriority blocks (gt/lt))"
+if $L snap.name.app /usr/bin/nice -n 10 /bin/true 2>/dev/null ; then
+    FAIL
+else
+    PASS
+fi
+
+# <= SC_ARGS_MAXLENGTH in seccomp.c
+for i in '1' '- 2' '- - 3' '- - - 4' '- - - - 5' '- - - - - 6' '1 2 3 4 5 6' ; do
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "mbind $i" >>"$TMP"/snap.name.app
+
+    printf "Test good seccomp arg filtering (mbind %s)" "$i"
+    # ensure that the command "true" can run with the right filter
+    if $L snap.name.app /bin/true ; then
+        PASS
+    else
+        dmesg|tail -n1
+        FAIL
+    fi
+done
+
