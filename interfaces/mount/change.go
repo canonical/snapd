@@ -24,15 +24,18 @@ import (
 	"sort"
 )
 
+// Action represents a mount action (mount, remount, unmount, etc).
+type Action string
+
 const (
-	Mount = iota
-	Unmount
+	Mount   Action = "mount"
+	Unmount Action = "umount"
 	// Remount when needed
 )
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Action int
+	Action Action
 	Entry  Entry
 }
 
