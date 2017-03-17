@@ -505,7 +505,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  storage-framework:
+  storage-framework-service:
     allow-installation:
       slot-snap-type:
         - app

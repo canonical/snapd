@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const storageFrameworkPermanentSlotAppArmor = `
+const storageFrameworkServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_is_enabled()
 
 /sys/module/apparmor/parameters/enabled r,
@@ -52,7 +52,7 @@ dbus (bind)
     name=com.canonical.StorageFramework.Provider.*,
 `
 
-const storageFrameworkConnectedSlotAppArmor = `
+const storageFrameworkServiceConnectedSlotAppArmor = `
 # Description: Allow clients to access the registry and storage framework services.
 
 #include <abstractions/dbus-session-strict>
@@ -70,7 +70,7 @@ dbus (receive, send)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
-const storageFrameworkConnectedPlugAppArmor = `
+const storageFrameworkServiceConnectedPlugAppArmor = `
 # Description: Allow access to the registry and storage framework services.
 
 #include <abstractions/dbus-session-strict>
@@ -88,20 +88,20 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type StorageFrameworkInterface struct{}
+type StorageFrameworkServiceInterface struct{}
 
-func (iface *StorageFrameworkInterface) Name() string {
-	return "storage-framework"
+func (iface *StorageFrameworkServiceInterface) Name() string {
+	return "storage-framework-service"
 }
 
-func (iface *StorageFrameworkInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *StorageFrameworkServiceInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
 
-func (iface *StorageFrameworkInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *StorageFrameworkServiceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(storageFrameworkConnectedPlugAppArmor)
+		snippet := []byte(storageFrameworkServiceConnectedPlugAppArmor)
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
@@ -110,44 +110,40 @@ func (iface *StorageFrameworkInterface) ConnectedPlugSnippet(plug *interfaces.Pl
 	return nil, nil
 }
 
-func (iface *StorageFrameworkInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *StorageFrameworkServiceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return []byte(storageFrameworkPermanentSlotAppArmor), nil
+		return []byte(storageFrameworkServicePermanentSlotAppArmor), nil
 	}
 	return nil, nil
 }
 
-func (iface *StorageFrameworkInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *StorageFrameworkServiceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(storageFrameworkConnectedSlotAppArmor)
-		old := []byte("###PLUG_SNAP_NAME###")
-		new := []byte(plug.Snap.Name())
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		old = []byte("###PLUG_SECURITY_TAGS###")
-		new = slotAppLabelExpr(slot)
+		snippet := []byte(storageFrameworkServiceConnectedSlotAppArmor)
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
 		return snippet, nil
 	}
 	return nil, nil
 }
 
-func (iface *StorageFrameworkInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *StorageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *StorageFrameworkInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *StorageFrameworkServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *StorageFrameworkInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *StorageFrameworkServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
