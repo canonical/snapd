@@ -99,6 +99,57 @@ size_t sc_string_append(char *dst, size_t dst_size, const char *str)
 	return strlen(dst);
 }
 
+size_t sc_string_append_char(char *dst, size_t dst_size, char c)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append character: buffer is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append character: dst is unterminated");
+	}
+	size_t max_str_len = dst_size - dst_len;
+	if (max_str_len < 2) {
+		die("cannot append character: not enough space");
+	}
+	if (c == 0) {
+		die("cannot append character: cannot append string terminator");
+	}
+	// Append the character and terminate the string.
+	dst[dst_len + 0] = c;
+	dst[dst_len + 1] = '\0';
+	// Return the new size
+	return dst_len + 1;
+}
+
+size_t sc_string_append_char_pair(char *dst, size_t dst_size, char c1, char c2)
+{
+	// Set errno in case we die.
+	errno = 0;
+	if (dst == NULL) {
+		die("cannot append character pair: buffer is NULL");
+	}
+	size_t dst_len = strnlen(dst, dst_size);
+	if (dst_len == dst_size) {
+		die("cannot append character pair: dst is unterminated");
+	}
+	size_t max_str_len = dst_size - dst_len;
+	if (max_str_len < 3) {
+		die("cannot append character pair: not enough space");
+	}
+	if (c1 == 0 || c2 == 0) {
+		die("cannot append character pair: cannot append string terminator");
+	}
+	// Append the two characters and terminate the string.
+	dst[dst_len + 0] = c1;
+	dst[dst_len + 1] = c2;
+	dst[dst_len + 2] = '\0';
+	// Return the new size
+	return dst_len + 2;
+}
+
 void sc_string_init(char *buf, size_t buf_size)
 {
 	errno = 0;
@@ -109,4 +160,85 @@ void sc_string_init(char *buf, size_t buf_size)
 		die("cannot initialize string, buffer is too small");
 	}
 	buf[0] = '\0';
+}
+
+void sc_string_quote(char *buf, size_t buf_size, const char *str)
+{
+	if (str == NULL) {
+		die("cannot quote string: string is NULL");
+	}
+	const char *hex = "0123456789abcdef";
+	// NOTE: this also checks buf/buf_size sanity so that we don't have to.
+	sc_string_init(buf, buf_size);
+	sc_string_append_char(buf, buf_size, '"');
+	for (unsigned char c; (c = *str) != 0; ++str) {
+		switch (c) {
+			// Pass ASCII letters and digits unmodified.
+		case '0' ... '9':
+		case 'A' ... 'Z':
+		case 'a' ... 'z':
+			// Pass most of the punctuation unmodified.
+		case ' ':
+		case '!':
+		case '#':
+		case '$':
+		case '%':
+		case '&':
+		case '(':
+		case ')':
+		case '*':
+		case '+':
+		case ',':
+		case '-':
+		case '.':
+		case '/':
+		case ':':
+		case ';':
+		case '<':
+		case '=':
+		case '>':
+		case '?':
+		case '@':
+		case '[':
+		case '\'':
+		case ']':
+		case '^':
+		case '_':
+		case '`':
+		case '{':
+		case '|':
+		case '}':
+		case '~':
+			sc_string_append_char(buf, buf_size, c);
+			break;
+			// Escape special whitespace characters.
+		case '\n':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'n');
+			break;
+		case '\r':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'r');
+			break;
+		case '\t':
+			sc_string_append_char_pair(buf, buf_size, '\\', 't');
+			break;
+		case '\v':
+			sc_string_append_char_pair(buf, buf_size, '\\', 'v');
+			break;
+			// Escape the escape character.
+		case '\\':
+			sc_string_append_char_pair(buf, buf_size, '\\', '\\');
+			break;
+			// Escape double quote character.
+		case '"':
+			sc_string_append_char_pair(buf, buf_size, '\\', '"');
+			break;
+			// Escape everything else as a generic hexadecimal escape string.
+		default:
+			sc_string_append_char_pair(buf, buf_size, '\\', 'x');
+			sc_string_append_char_pair(buf, buf_size, hex[c >> 4],
+						   hex[c & 15]);
+			break;
+		}
+	}
+	sc_string_append_char(buf, buf_size, '"');
 }

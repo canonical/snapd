@@ -20,9 +20,11 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const storageFrameworkServicePermanentSlotAppArmor = `
@@ -98,35 +100,47 @@ func (iface *StorageFrameworkServiceInterface) PermanentPlugSnippet(plug *interf
 	return nil, nil
 }
 
+func (iface *StorageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := storageFrameworkServiceConnectedPlugAppArmor
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func (iface *StorageFrameworkServiceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(storageFrameworkServiceConnectedPlugAppArmor)
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
+}
+
+func (iface *StorageFrameworkServiceInterface) ApparmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := storageFrameworkServiceConnectedPlugAppArmor
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *StorageFrameworkServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(storageFrameworkServicePermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *StorageFrameworkServiceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(storageFrameworkServicePermanentSlotAppArmor), nil
-	}
 	return nil, nil
 }
 
+func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := storageFrameworkServiceConnectedSlotAppArmor
+	old := "###PLUG_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func (iface *StorageFrameworkServiceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(storageFrameworkServiceConnectedSlotAppArmor)
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 

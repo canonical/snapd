@@ -84,9 +84,15 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			var data map[string]string
 			err = bson.Unmarshal(b, &data)
 			c.Assert(err, IsNil)
+			var distroRelease string
+			if release.ReleaseInfo.ID == "ubuntu" {
+				distroRelease = fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID)
+			} else {
+				distroRelease = fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID)
+			}
 			c.Check(data, DeepEquals, map[string]string{
 				"ProblemType":        "Snap",
-				"DistroRelease":      fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID),
+				"DistroRelease":      distroRelease,
 				"HostSnapdBuildID":   hostBuildID,
 				"CoreSnapdBuildID":   coreBuildID,
 				"SnapdVersion":       "some-snapd-version",
@@ -95,7 +101,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"Channel":            "beta",
 				"KernelVersion":      release.KernelVersion(),
 				"ErrorMessage":       "failed to do stuff",
-				"DuplicateSignature": "snap-install: failed to do stuff",
+				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
 			})
 			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
@@ -117,13 +123,15 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
 	defer restorer()
 
-	id, err := errtracker.Report("some-snap", "beta", "failed to do stuff", nil)
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", map[string]string{
+		"Channel": "beta",
+	})
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 1)
 
 	// run again, verify identifier is unchanged
-	id, err = errtracker.Report("some-other-snap", "edge", "failed to do more stuff", nil)
+	id, err = errtracker.Report("some-other-snap", "failed to do more stuff", "[failed to do more stuff]", nil)
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 2)
