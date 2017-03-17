@@ -110,5 +110,5 @@ func (iface *HwRandomInterface) PermanentPlugSnippet(plug *interfaces.Plug, secu
 
 func (iface *HwRandomInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// Allow what is allowed in the declarations
-	return false
+	return true
 }
