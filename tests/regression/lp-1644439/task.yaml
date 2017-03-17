@@ -22,7 +22,8 @@ execute: |
         echo "This test is only supported on x86_64 and i386"
         exit 0
     fi
-    if ! ./kernel-new-enough.sh; then
+    # Check if the kernel is at least 4.4.0-67
+    if ! uname -r | perl -ne '/^(\d+)\.(\d+)\.(\d+)-(\d+)/ or exit 1; exit 1 if $1<4; exit 1 if $2<4; exit 1 if $3==0 && $4<67'; then
         echo "This test is not supported on kernels older than 4.4.0-67"
         exit 0
     fi
