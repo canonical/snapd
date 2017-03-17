@@ -36,8 +36,8 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Action Action
 	Entry  Entry
+	Action Action
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.

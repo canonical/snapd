@@ -49,7 +49,7 @@ func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 	desired := []mount.Entry{{Dir: "/var/snap/foo/common/stuf"}}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Action: mount.Mount, Entry: desired[0]},
+		{Entry: desired[0], Action: mount.Mount},
 	})
 }
 
@@ -59,7 +59,7 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	var desired []mount.Entry
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Action: mount.Unmount, Entry: current[0]},
+		{Entry: current[0], Action: mount.Unmount},
 	})
 }
 
@@ -72,8 +72,8 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	var desired []mount.Entry
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
-		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}, Action: mount.Unmount},
 	})
 }
 
@@ -86,8 +86,8 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 	}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}},
-		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Mount},
 	})
 }
 
@@ -105,9 +105,9 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 	}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
-		{Action: mount.Unmount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"}},
-		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"}},
-		{Action: mount.Mount, Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Mount},
 	})
 }
