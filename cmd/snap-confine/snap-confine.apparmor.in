@@ -12,15 +12,16 @@
     /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/libgcc_s.so* mr,
     # normal libs in order
+    /lib/@{multiarch}/libcap.so.* mr,
     /lib/@{multiarch}/libapparmor.so* mr,
     /lib/@{multiarch}/libcgmanager.so* mr,
-    /lib/@{multiarch}/libdl-[0-9]*.so* mr,
-    /lib/@{multiarch}/libnih.so* mr,
-    /lib/@{multiarch}/libnih-dbus.so* mr,
     /lib/@{multiarch}/libdbus-1.so* mr,
+    /lib/@{multiarch}/libdl-[0-9]*.so* mr,
+    /lib/@{multiarch}/libnih-dbus.so* mr,
+    /lib/@{multiarch}/libnih.so* mr,
+    /lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libudev.so* mr,
     /usr/lib/@{multiarch}/libseccomp.so* mr,
-    /lib/@{multiarch}/libseccomp.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
