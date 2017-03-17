@@ -160,11 +160,19 @@ func (r *TaskRunner) run(t *Task) {
 		}
 
 		err := tomb.Err()
-		if err != nil && r.stopped {
-			// we are shutting down, errors might be due
-			// to cancellations, to be safe retry
-			err = &Retry{}
+		switch err.(type) {
+		case nil:
+			// we are ok
+		case *Retry:
+			// preserve
+		default:
+			if r.stopped {
+				// we are shutting down, errors might be due
+				// to cancellations, to be safe retry
+				err = &Retry{}
+			}
 		}
+
 		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.

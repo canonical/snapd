@@ -440,7 +440,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 		ch <- true
 		<-tb.Dying()
 		// ask for retry
-		return &state.Retry{}
+		return &state.Retry{After: 2 * time.Minute}
 	}, nil)
 
 	st.Lock()
@@ -456,6 +456,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
