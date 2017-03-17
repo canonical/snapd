@@ -36,7 +36,9 @@ const consolesConnectedPlugAppArmor = `
 # Description: Allow access to the current system console.
 
 /dev/tty0 rw,
+/sys/devices/virtual/tty/tty0 rw,
 /dev/console rw,
+/sys/devices/virtual/tty/console rw,
 `
 
 type ConsolesInterface struct{}

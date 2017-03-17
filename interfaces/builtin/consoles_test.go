@@ -93,7 +93,9 @@ func (s *ConsolesInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # Description: Allow access to the current system console.
 
 /dev/tty0 rw,
+/sys/devices/virtual/tty/tty0 rw,
 /dev/console rw,
+/sys/devices/virtual/tty/console rw,
 `
 	expectedSnippet2 := []byte(`
 SUBSYSTEM="tty", KERNEL=="tty0", TAG+="snap_client-snap_app-accessing-consoles"
