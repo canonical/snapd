@@ -14,6 +14,13 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local_devmode test-snapd-tools
 execute: |
+    # This test is meaningful only on Ubuntu for now as this is where we have
+    # the complete apparmor patch-set.
+    . /etc/os-release
+    if [ "$ID" != "ubuntu" && "$ID" != "ubuntu-core" ]; then
+        echo "This test is only supported on Ubuntu"
+        exit 0
+    fi
     # Don't test on other architectures as (especially on arm) kernel versions
     # are not synchronized with x86 and this test is not architecture specific
     # to warrant the extra work to figure out which kernel revision got the fix
