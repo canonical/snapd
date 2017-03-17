@@ -367,6 +367,7 @@ type AppInfo struct {
 	ReloadCommand   string
 	PostStopCommand string
 	RestartCond     systemd.RestartCondition
+	UserService     bool
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -446,6 +447,9 @@ func (app *AppInfo) LauncherPostStopCommand() string {
 
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
+	if app.UserService {
+		return filepath.Join(dirs.SnapUserServicesDir, app.SecurityTag()+".service")
+	}
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
 }
 

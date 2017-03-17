@@ -63,8 +63,10 @@ type appYaml struct {
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 
 	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
-	SlotNames   []string                 `yaml:"slots,omitempty"`
-	PlugNames   []string                 `yaml:"plugs,omitempty"`
+	UserService bool                     `yaml:"user-service,omitempty"`
+
+	SlotNames []string `yaml:"slots,omitempty"`
+	PlugNames []string `yaml:"plugs,omitempty"`
 
 	BusName string `yaml:"bus-name,omitempty"`
 
@@ -228,6 +230,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
+			UserService:     yApp.UserService,
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 		}
