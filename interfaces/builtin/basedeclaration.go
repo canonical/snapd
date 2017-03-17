@@ -214,6 +214,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  consoles:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   content:
     allow-installation:
       slot-snap-type:

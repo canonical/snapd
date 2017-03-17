@@ -35,6 +35,7 @@ var implicitSlots = []string{
 	"browser-support",
 	"camera",
 	"classic-support",
+	"consoles",
 	"core-support",
 	"dcdbas-control",
 	"docker-support",
