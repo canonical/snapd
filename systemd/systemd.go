@@ -437,12 +437,12 @@ func MountUnitPath(baseDir string) string {
 }
 
 func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
-	extra := ""
+	options := []string{"nodev"}
 	if osutil.IsDirectory(what) {
-		extra = "Options=bind\n"
+		options = append(options, "bind")
 		fstype = "none"
 	} else if fstype == "squashfs" && useFuse() {
-		extra = "Options=ro,allow_other\n"
+		options = append(options, []string{"ro", "allow_other"}...)
 		fstype = "fuse.squashfuse"
 	}
 
@@ -453,10 +453,11 @@ Description=Mount unit for %s
 What=%s
 Where=%s
 Type=%s
-%s
+Options=%s
+
 [Install]
 WantedBy=multi-user.target
-`, name, what, where, fstype, extra)
+`, name, what, where, fstype, strings.Join(options, ","))
 
 	mu := MountUnitPath(where)
 	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
