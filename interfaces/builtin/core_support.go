@@ -62,6 +62,9 @@ const coreSupportConnectedPlugAppArmor = `
 /etc/hostname                         rw,
 /{,usr/}{,s}bin/hostnamectl           ixr,
 
+# Allow sync to be used
+/bin/sync ixr,
+
 # Allow modifying swapfile configuration for swapfile.service shipped in
 # the core snap, general mgmt of the service is handled via systemctl
 /etc/default/swapfile rw,
