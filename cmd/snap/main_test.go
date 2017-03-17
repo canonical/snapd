@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -151,7 +152,22 @@ func mockVersion(v string) (restore func()) {
 	return func() { cmd.Version = old }
 }
 
-const TestAuthFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+func mockSnapConfine() func() {
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	if err := os.MkdirAll(dirs.DistroLibExecDir, 0755); err != nil {
+		panic(err)
+	}
+	if err := ioutil.WriteFile(snapConfine, nil, 0644); err != nil {
+		panic(err)
+	}
+	return func() {
+		if err := os.Remove(snapConfine); err != nil {
+			panic(err)
+		}
+	}
+}
+
+const TestAuthFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
 const TestAuthFileContents = `{"id":123,"email":"hello@mail.com","macaroon":"MDAxM2xvY2F0aW9uIHNuYXBkCjAwMTJpZGVudGlmaWVyIDQzCjAwMmZzaWduYXR1cmUg5RfMua72uYop4t3cPOBmGUuaoRmoDH1HV62nMJq7eqAK"}`
 
 func (s *SnapSuite) TestErrorResult(c *C) {

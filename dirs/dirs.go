@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/release"
 )
 
 // the various file paths
@@ -65,7 +67,8 @@ var (
 
 	ClassicDir string
 
-	LibExecDir string
+	DistroLibExecDir string
+	CoreLibExecDir   string
 
 	XdgRuntimeDirGlob string
 )
@@ -105,7 +108,13 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	SnapMountDir = filepath.Join(rootdir, "/snap")
+	switch release.ReleaseInfo.ID {
+	case "fedora", "centos", "rhel":
+		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
+	default:
+		SnapMountDir = filepath.Join(rootdir, "/snap")
+	}
+
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
@@ -143,7 +152,14 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+	switch release.ReleaseInfo.ID {
+	case "fedora", "centos", "rhel":
+		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
+	default:
+		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
+	}
+
+	CoreLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 
 	XdgRuntimeDirGlob = filepath.Join(rootdir, "/run/user/*/")
 }

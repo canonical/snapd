@@ -23,6 +23,8 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
@@ -31,7 +33,6 @@ const browserSupportConnectedPlugAppArmor = `
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
-# Usage: reserved
 
 # This allows raising the OOM score of other processes owned by the user.
 owner @{PROC}/@{pid}/oom_score_adj rw,
@@ -46,11 +47,22 @@ owner /var/tmp/etilqs_* rw,
 owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 
+# Allow reading platform files
+/run/udev/data/+platform:* r,
+
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
+
+# webbrowser-app/webapp-container tries to read this file to determine if it is
+# confined or not, so explicitly deny to avoid noise in the logs.
+deny @{PROC}/@{pid}/attr/current r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -104,7 +116,6 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
-/run/udev/data/+platform:* r,
 /sys/devices/**/bConfigurationValue r,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
@@ -187,12 +198,12 @@ const browserSupportConnectedPlugSecComp = `
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
-# Usage: reserved
 
 # for anonymous sockets
 bind
 listen
 accept
+accept4
 
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
@@ -248,26 +259,29 @@ func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot
 	return nil, nil
 }
 
-func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
-
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(browserSupportConnectedPlugAppArmor)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithSandbox...)
-		} else {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithoutSandbox...)
-		}
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(browserSupportConnectedPlugSecComp)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
-		}
-		return snippet, nil
+	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
+	if allowSandbox {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+	} else {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
 	}
+	return nil
+}
+
+func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+	snippet := browserSupportConnectedPlugSecComp
+	if allowSandbox {
+		snippet += browserSupportConnectedPlugSecCompWithSandbox
+	}
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {

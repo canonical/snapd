@@ -215,7 +215,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			next:     "0s-0s",
 		},
 	} {
-		last, err := time.Parse(shortForm, t.last)
+		last, err := time.ParseInLocation(shortForm, t.last, time.Local)
 		c.Assert(err, IsNil)
 
 		fakeNow, err := time.ParseInLocation(shortForm, t.now, time.Local)

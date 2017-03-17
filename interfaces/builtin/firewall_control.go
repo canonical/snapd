@@ -27,7 +27,6 @@ import (
 const firewallControlConnectedPlugAppArmor = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
-# Usage: reserved
 
 #include <abstractions/nameservice>
 
@@ -69,6 +68,10 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/netfilter/** r,
 @{PROC}/sys/net/nf_conntrack_max r,
 
+# read netfilter module parameters
+/sys/module/nf_*/                r,
+/sys/module/nf_*/parameters/{,*} r,
+
 # various firewall related sysctl files
 @{PROC}/sys/net/ipv4/conf/*/rp_filter w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_source_route w,
@@ -86,36 +89,24 @@ unix (bind) type=stream addr="@xtables",
 const firewallControlConnectedPlugSecComp = `
 # Description: Can configure firewall. This is restricted because it gives
 # privileged access to networking and should only be used with trusted apps.
-# Usage: reserved
 
 # for connecting to xtables abstract socket
 bind
-recv
-recvfrom
-recvmsg
-recvmmsg
-send
-sendmmsg
-sendmsg
-sendto
 
 # for ping and ping6
 capset
 setuid
 `
 
-const firewallControlConnectedPlugKmod = `
-ip6table_filter
-iptable_filter
-`
+var firewallControlConnectedPlugKmod = []string{"ip6table_filter", "iptable_filter"}
 
 // NewFirewallControlInterface returns a new "firewall-control" interface.
 func NewFirewallControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "firewall-control",
-		connectedPlugAppArmor: firewallControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  firewallControlConnectedPlugSecComp,
-		connectedPlugKMod:     firewallControlConnectedPlugKmod,
-		reservedForOS:         true,
+		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
+		connectedPlugKModModules: firewallControlConnectedPlugKmod,
+		reservedForOS:            true,
 	}
 }

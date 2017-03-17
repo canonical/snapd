@@ -59,13 +59,15 @@ if [ "$SPREAD_BACKEND" = external ]; then
    # build test binaries
    if [ ! -f $GOPATH/bin/snapbuild ]; then
        mkdir -p $GOPATH/bin
-       snap install --devmode --edge classic
-       classic "sudo apt update && apt install -y git golang-go build-essential"
-       classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
-       snap remove classic
+       snap install --edge test-snapd-snapbuild
+       cp /snap/test-snapd-snapbuild/current/bin/snapbuild $GOPATH/bin/snapbuild
+       snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   snap set core refresh.disabled=true
+   if [ -e /snap/core/current/meta/hooks/configure ]; then
+       systemctl disable --now snapd.refresh.timer
+       snap set core refresh.disabled=true
+   fi
    exit 0
 fi
 

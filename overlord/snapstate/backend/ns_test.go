@@ -33,9 +33,9 @@ import (
 )
 
 type nsSuite struct {
-	be            backend.Backend
-	nullProgress  progress.NullProgress
-	oldLibExecDir string
+	be                  backend.Backend
+	nullProgress        progress.NullProgress
+	oldDistroLibExecDir string
 }
 
 var _ = Suite(&nsSuite{})
@@ -43,12 +43,12 @@ var _ = Suite(&nsSuite{})
 func (s *nsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	// Mock enough bits so that we can observe calls to snap-discard-ns
-	s.oldLibExecDir = dirs.LibExecDir
+	s.oldDistroLibExecDir = dirs.DistroLibExecDir
 }
 
 func (s *nsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	dirs.LibExecDir = s.oldLibExecDir
+	dirs.DistroLibExecDir = s.oldDistroLibExecDir
 }
 
 func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
@@ -79,7 +79,7 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 			res:    [][]string{{"snap-discard-ns", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-discard-ns", t.cmd)
-		dirs.LibExecDir = cmd.BinDir()
+		dirs.DistroLibExecDir = cmd.BinDir()
 		defer cmd.Restore()
 
 		if t.mnt {
@@ -127,7 +127,7 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)
-		dirs.LibExecDir = cmd.BinDir()
+		dirs.DistroLibExecDir = cmd.BinDir()
 		defer cmd.Restore()
 
 		if t.mnt {

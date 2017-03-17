@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ var (
 	_ = Suite(&snapRevSuite{})
 	_ = Suite(&validationSuite{})
 	_ = Suite(&baseDeclSuite{})
+	_ = Suite(&snapDevSuite{})
 )
 
 type snapDeclSuite struct {
@@ -62,6 +64,20 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"auto-aliases:\n  - cmd1\n  - cmd_2\n  - Cmd-3\n  - CMD.4\n" +
 		sds.tsLine +
+		`aliases:
+  -
+    name: cmd1
+    target: cmd-1
+  -
+    name: cmd_2
+    target: cmd-2
+  -
+    name: Cmd-3
+    target: cmd-3
+  -
+    name: CMD.4
+    target: cmd-4
+` +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
@@ -78,6 +94,12 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 	c.Check(snapDecl.AutoAliases(), DeepEquals, []string{"cmd1", "cmd_2", "Cmd-3", "CMD.4"})
+	c.Check(snapDecl.Aliases(), DeepEquals, map[string]string{
+		"cmd1":  "cmd-1",
+		"cmd_2": "cmd-2",
+		"Cmd-3": "cmd-3",
+		"CMD.4": "cmd-4",
+	})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -122,6 +144,11 @@ const (
 )
 
 func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
+	aliases := `aliases:
+  -
+    name: cmd_1
+    target: cmd-1
+`
 	encoded := "type: snap-declaration\n" +
 		"authority-id: canonical\n" +
 		"series: 16\n" +
@@ -130,6 +157,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"auto-aliases:\n  - cmd1\n  - cmd2\n" +
+		aliases +
 		"plugs:\n  interface1: true\n" +
 		"slots:\n  interface2: true\n" +
 		sds.tsLine +
@@ -155,6 +183,11 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases: cmd0\n", `"auto-aliases" header must be a list of strings`},
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases:\n  -\n    - nested\n", `"auto-aliases" header must be a list of strings`},
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases:\n  - _cmd-1\n  - cmd2\n", `"auto-aliases" header contains an invalid element: "_cmd-1"`},
+		{aliases, "aliases: cmd0\n", `"aliases" header must be a list of alias maps`},
+		{aliases, "aliases:\n  - cmd1\n", `"aliases" header must be a list of alias maps`},
+		{"name: cmd_1\n", "name: .cmd1\n", `"name" in "aliases" item 1 contains invalid characters: ".cmd1"`},
+		{"target: cmd-1\n", "target: -cmd-1\n", `"target" for alias "cmd_1" contains invalid characters: "-cmd-1"`},
+		{aliases, aliases + "  -\n    name: cmd_1\n    target: foo\n", `duplicated definition in "aliases" for alias "cmd_1"`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -1323,4 +1356,378 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 		err := asserts.InitBuiltinBaseDeclaration([]byte(t.headers))
 		c.Check(err, ErrorMatches, t.err, Commentf(t.headers))
 	}
+}
+
+type snapDevSuite struct {
+	developersLines string
+	validEncoded    string
+}
+
+func (sds *snapDevSuite) SetUpSuite(c *C) {
+	sds.developersLines = "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"
+	sds.validEncoded = "type: snap-developer\n" +
+		"authority-id: dev-id1\n" +
+		"snap-id: snap-id-1\n" +
+		"publisher-id: dev-id1\n" +
+		sds.developersLines +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
+func (sds *snapDevSuite) TestDecodeOK(c *C) {
+	encoded := sds.validEncoded
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeveloperType)
+	snapDev := a.(*asserts.SnapDeveloper)
+	c.Check(snapDev.AuthorityID(), Equals, "dev-id1")
+	c.Check(snapDev.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDev.SnapID(), Equals, "snap-id-1")
+}
+
+func (sds *snapDevSuite) TestDevelopersOptional(c *C) {
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestDevelopersUntilOptional(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n", 1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestDevelopersRevoked(c *C) {
+	encoded := sds.validEncoded
+	encoded = strings.Replace(
+		encoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n", 1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+	// TODO(matt): check actually revoked rather than just parsed
+}
+
+const (
+	snapDevErrPrefix = "assertion snap-developer: "
+)
+
+func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
+	encoded := sds.validEncoded
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
+		{sds.developersLines, "developers: \n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers: foo\n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers:\n  foo: bar\n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers:\n  - foo\n", `"developers" must be a list of developer maps`},
+		{sds.developersLines, "developers:\n  -\n    foo: bar\n", `"developer-id" in "developers" item 1 is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: a\n",
+			`"developer-id" in "developers" item 1 contains invalid characters: "a"`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n",
+			`"since" in "developers" item 1 for developer "dev-id2" is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: \n",
+			`"since" in "developers" item 1 for developer "dev-id2" should not be empty`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: foo\n",
+			`"since" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: \n",
+			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: foo\n",
+			`"until" in "developers" item 1 for developer "dev-id2" is not a RFC3339 date.*`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n  -\n    foo: bar\n",
+			`"developer-id" in "developers" item 2 is mandatory`},
+		{sds.developersLines, "developers:\n  -\n    developer-id: dev-id2\n    since: 2017-01-02T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n",
+			`"since" in "developers" item 1 for developer "dev-id2" must be less than or equal to "until"`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
+	}
+}
+
+func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"authority-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id2",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
+
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority but got authority "dev-id1" and publisher "dev-id2"`)
+}
+
+func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id1",
+		"display-name": "dev-id1",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	account, err := storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id1",
+		"display-name": "dev-id1",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id2",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	// Just to be super sure ...
+	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
+	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
+
+	// There's no account for dev-id2 yet so it should fail.
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the publisher "dev-id2"`)
+
+	// But once the dev-id2 account is added the snap-developer is ok.
+	account, err = storeDB.Sign(asserts.AccountType, map[string]interface{}{
+		"account-id":   "dev-id2",
+		"display-name": "dev-id2",
+		"validation":   "unknown",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(account)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDev)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "snap-name-1",
+		"publisher-id": "dev-id1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+		"developers": []interface{}{
+			map[string]interface{}{
+				"developer-id": "dev-id2",
+				"since":        "2017-01-01T00:00:00.0Z",
+			},
+		},
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the developer "dev-id2"`)
+}
+
+func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	headers := map[string]interface{}{
+		"authority-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"publisher-id": "dev-id1",
+	}
+	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDev)
+	c.Assert(err, ErrorMatches, `snap-developer assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
+}
+
+func (sds *snapDevSuite) TestPrerequisitesNoDevelopers(c *C) {
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines, "", 1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithDevelopers(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id3\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id3"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithDeveloperRepeated(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2015-01-01T00:00:00.0Z\n    until: 2016-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id2"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	})
+}
+
+func (sds *snapDevSuite) TestPrerequisitesWithPublisherAsDeveloper(c *C) {
+	encoded := strings.Replace(
+		sds.validEncoded, sds.developersLines,
+		"developers:\n  -\n    developer-id: dev-id1\n    since: 2017-01-01T00:00:00.0Z\n",
+		1)
+	assert, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	prereqs := assert.Prerequisites()
+	sort.Sort(RefSlice(prereqs))
+	c.Assert(prereqs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{"dev-id1"}},
+		{Type: asserts.SnapDeclarationType, PrimaryKey: []string{"16", "snap-id-1"}},
+	})
+}
+
+type RefSlice []*asserts.Ref
+
+func (s RefSlice) Len() int {
+	return len(s)
+}
+
+func (s RefSlice) Less(i, j int) bool {
+	iref, jref := s[i], s[j]
+	if v := strings.Compare(iref.Type.Name, jref.Type.Name); v != 0 {
+		return v == -1
+	}
+	for n, ipk := range iref.PrimaryKey {
+		jpk := jref.PrimaryKey[n]
+		if v := strings.Compare(ipk, jpk); v != 0 {
+			return v == -1
+		}
+	}
+	return false
+}
+
+func (s RefSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }

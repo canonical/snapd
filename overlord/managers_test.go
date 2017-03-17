@@ -104,6 +104,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	snapstate.CanAutoRefresh = nil
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
@@ -116,7 +117,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
 	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
-	dirs.LibExecDir = ms.snapDiscardNs.BinDir()
+	dirs.DistroLibExecDir = ms.snapDiscardNs.BinDir()
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
@@ -800,7 +801,7 @@ version: @VERSION@
 
 // core & kernel
 
-func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloader(c *C) {
+func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -829,12 +830,28 @@ type: os
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+	// final steps will are post poned until we are in the restarted snapd
+	c.Assert(st.Restarting(), Equals, true)
+	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
+	// this is already set
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})
+
+	// simulate successful restart happened
+	state.MockRestarting(st, false)
+	bootloader.BootVars["snap_mode"] = ""
+	bootloader.BootVars["snap_core"] = "core_x1.snap"
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
 }
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {

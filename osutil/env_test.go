@@ -20,7 +20,9 @@
 package osutil_test
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -80,5 +82,31 @@ func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
 		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
+	}
+}
+
+func (s *envSuite) TestSubstitueEnv(c *check.C) {
+	for _, t := range []struct {
+		env string
+
+		expected string
+	}{
+		// trivial
+		{"K1=V1,K2=V2", "K1=V1,K2=V2"},
+		// simple (order is preserved)
+		{"K=V,K2=$K", "K=V,K2=V"},
+		// simple from environment
+		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH"))},
+		// append to substitution from environment
+		{"K=${PATH}:/foo", fmt.Sprintf("K=%s", os.Getenv("PATH")+":/foo")},
+		// multi-level
+		{"A=1,B=$A/2,C=$B/3,D=$C/4", "A=1,B=1/2,C=1/2/3,D=1/2/3/4"},
+		// parsing is top down
+		{"A=$A", "A="},
+		{"A=$B,B=$A", "A=,B="},
+		{"A=$B,B=$C,C=$A", "A=,B=,C="},
+	} {
+		env := osutil.SubstituteEnv(strings.Split(t.env, ","))
+		c.Check(strings.Join(env, ","), check.DeepEquals, t.expected, check.Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }

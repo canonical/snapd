@@ -287,6 +287,8 @@ type ServerVersion struct {
 	OSID        string
 	OSVersionID string
 	OnClassic   bool
+
+	KernelVersion string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -301,6 +303,8 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSID:        sysInfo.OSRelease.ID,
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
+
+		KernelVersion: sysInfo.KernelVersion,
 	}, nil
 }
 
@@ -367,6 +371,8 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
+
+	KernelVersion string `json:"kernel-version,omitempty"`
 }
 
 func (rsp *response) err() error {
@@ -509,4 +515,24 @@ func (client *Client) Users() ([]*User, error) {
 		return nil, fmt.Errorf("while getting users: %v", err)
 	}
 	return result, nil
+}
+
+type debugAction struct {
+	Action string      `json:"action"`
+	Params interface{} `json:"params,omitempty"`
+}
+
+// Debug is only useful when writing test code, it will trigger
+// an internal action with the given parameters.
+func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+	body, err := json.Marshal(debugAction{
+		Action: action,
+		Params: params,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
+	return err
 }
