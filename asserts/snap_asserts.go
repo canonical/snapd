@@ -911,12 +911,8 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		previouslyRevoked, ok := revocationStatus[accountID]
 		if !ok {
 			revocationStatus[accountID] = revoked
-		} else if previouslyRevoked && revoked {
-			return nil, fmt.Errorf(`revocation %s conflicts with previous revocation`, what)
-		} else if previouslyRevoked && !revoked {
-			return nil, fmt.Errorf(`non-revoking item %s conflicts with previous revocation`, what)
-		} else if !previouslyRevoked && revoked {
-			return nil, fmt.Errorf(`revocation %s conflicts with previous non-revoking item`, what)
+		} else if previouslyRevoked || revoked {
+			return nil, fmt.Errorf(`revocation for developer %q must be standalone but found other "developers" items`, accountID)
 		}
 
 		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})
