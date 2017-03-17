@@ -54,3 +54,15 @@ func (s *entrySuite) TestString(c *C) {
 	}
 	c.Assert(ent3.String(), Equals, `/dev/sda5 /media/My\040Files ext4 rw,noatime 0 0`)
 }
+
+func (s *entrySuite) TestEqual(c *C) {
+	c.Assert(mount.EqualEntries(&mount.Entry{}, &mount.Entry{}), Equals, true)
+	c.Assert(mount.EqualEntries(&mount.Entry{Dir: "foo"}, &mount.Entry{Dir: "foo"}), Equals, true)
+	c.Assert(mount.EqualEntries(&mount.Entry{Options: []string{"ro"}},
+		&mount.Entry{Options: []string{"ro"}}), Equals, true)
+
+	c.Assert(mount.EqualEntries(&mount.Entry{Dir: "foo"}, &mount.Entry{Dir: "bar"}), Equals, false)
+	c.Assert(mount.EqualEntries(&mount.Entry{}, &mount.Entry{Options: []string{"ro"}}), Equals, false)
+	c.Assert(mount.EqualEntries(&mount.Entry{Options: []string{"ro"}},
+		&mount.Entry{Options: []string{"rw"}}), Equals, false)
+}
