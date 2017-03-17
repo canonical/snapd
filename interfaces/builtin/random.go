@@ -31,7 +31,7 @@ const randomConnectedPlugAppArmor = `
 # Description: Allow access to the hardware random number generator device - /dev/hwrng
 
 /dev/hwrng rw,
-/devices/virtual/misc/hw_random rw,
+/sys/devices/virtual/misc/hw_random rw,
 `
 
 // The type for physical-memory-control interface

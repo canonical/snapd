@@ -93,7 +93,7 @@ func (s *RandomInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # Description: Allow access to the hardware random number generator device - /dev/hwrng
 
 /dev/hwrng rw,
-/devices/virtual/misc/hw_random rw,
+/sys/devices/virtual/misc/hw_random rw,
 `
 	expectedSnippet2 := []byte(`KERNEL=="hwrng", TAG+="snap_client-snap_app-accessing-random"
 `)
