@@ -1,3 +1,10 @@
+snapd (2.23.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - allow "sync" in core-support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Mar 2017 18:13:43 +0100
+
 snapd (2.23.4) xenial; urgency=medium
 
   * New upstream release, LP: #1673568
