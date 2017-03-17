@@ -91,11 +91,9 @@ func NeededChanges(current, desired []Entry) []Change {
 		if skipPrefix != "" && strings.HasPrefix(dir, skipPrefix) && dir[len(skipPrefix)] == '/' {
 			continue
 		}
-		if entry, ok := dm[dir]; ok {
-			if EqualEntries(&c[i], entry) {
-				reuse[dir] = true
-				continue
-			}
+		if entry, ok := dm[dir]; ok && EqualEntries(&c[i], entry) {
+			reuse[dir] = true
+			continue
 		}
 		skipPrefix = dir
 	}
