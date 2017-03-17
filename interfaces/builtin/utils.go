@@ -35,7 +35,7 @@ import (
 // - "snap.$snap.$app" if there is exactly one app bound
 // - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
 // - "snap.$snap.*" if all apps are bound to the slot
-func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) []byte {
+func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.Name())
 	if len(apps) == 1 {
@@ -59,14 +59,14 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) []byte {
 		buf.WriteByte('}')
 	}
 	buf.WriteByte('"')
-	return buf.Bytes()
+	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) []byte {
+func slotAppLabelExpr(slot *interfaces.Slot) string {
 	return appLabelExpr(slot.Apps, slot.Snap)
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) []byte {
+func plugAppLabelExpr(plug *interfaces.Plug) string {
 	return appLabelExpr(plug.Apps, plug.Snap)
 }
 
