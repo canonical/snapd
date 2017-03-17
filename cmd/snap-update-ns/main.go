@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,21 +17,10 @@
  *
  */
 
-#ifndef SNAP_CONFINE_TEST_DATA_H
-#define SNAP_CONFINE_TEST_DATA_H
+package main
 
-#include "mount-entry.h"
+import "fmt"
 
-extern const char *test_entry_str_1;
-extern const char *test_entry_str_2;
-
-extern const struct sc_mount_entry test_entry_1;
-extern const struct sc_mount_entry test_entry_2;
-
-extern const struct mntent test_mnt_1;
-extern const struct mntent test_mnt_2;
-
-void test_looks_like_test_entry_1(const struct sc_mount_entry *entry);
-void test_looks_like_test_entry_2(const struct sc_mount_entry *entry);
-
-#endif
+func main() {
+	fmt.Printf("Usage: snap-update-ns SNAP_NAME")
+}

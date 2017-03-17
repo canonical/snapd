@@ -2,6 +2,7 @@ usr/bin/snap
 usr/bin/snapctl
 usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 
 # etc/profile.d contains the PATH extension for snap packages
