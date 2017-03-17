@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
@@ -115,4 +117,24 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		}
 	}
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
+}
+
+// DeleteSnapConfig removed configuration of given snap from the state.
+func DeleteSnapConfig(st *state.State, snapName string) error {
+	var config map[string]map[string]*json.RawMessage // snap => key => value
+
+	st.Lock()
+	defer st.Unlock()
+
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+	if _, ok := config[snapName]; ok {
+		delete(config, snapName)
+		st.Set("config", config)
+	}
+	return nil
 }

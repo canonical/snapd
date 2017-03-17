@@ -3173,6 +3173,99 @@ func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
+func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "bar")
+	tr.Commit()
+
+	var res string
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	tr = config.NewTransaction(s.state)
+	err = tr.Get("some-snap", "foo", &res)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no "foo" configuration option`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(8),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si1, &si2},
+		Current:  si2.Revision,
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "bar")
+	tr.Commit()
+
+	var res string
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", si1.Revision)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
+	c.Assert(res, Equals, "bar")
+}
+
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
