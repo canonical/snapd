@@ -69,6 +69,7 @@ const coreSupportConnectedPlugAppArmor = `
 # Allow read/write access to the pi2 boot config.txt. WARNING: improperly
 # editing this file may render the system unbootable.
 owner /boot/uboot/config.txt rwk,
+owner /boot/uboot/config.txt.tmp rwk,
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
