@@ -20,9 +20,10 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const mediaHubPermanentSlotAppArmor = `
@@ -160,33 +161,34 @@ func (iface *MediaHubInterface) PermanentPlugSnippet(plug *interfaces.Plug, secu
 	return nil, nil
 }
 
+func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(mediaHubConnectedPlugAppArmor, old, new, -1))
+	return nil
+}
+
 func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(mediaHubConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
+}
+
+func (iface *MediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(mediaHubPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(mediaHubPermanentSlotAppArmor), nil
-	}
 	return nil, nil
 }
 
+func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
 func (iface *MediaHubInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(mediaHubConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 
