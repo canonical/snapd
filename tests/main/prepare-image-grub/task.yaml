@@ -1,5 +1,5 @@
 summary: Check that prepare-image works for grub-systems
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 backends: [-autopkgtest]
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
