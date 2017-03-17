@@ -55,8 +55,9 @@ func (iface *HwRandomInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// Creation of the slot of this type
 	// is allowed only by a gadget or os snap
-	if !(slot.Snap.Type == "os") {
-		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
+
+	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
+		return fmt.Errorf("hidraw slots only allowed on gadget or core snaps")
 	}
 	return nil
 }
