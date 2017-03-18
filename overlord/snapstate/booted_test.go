@@ -67,7 +67,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 }
