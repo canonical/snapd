@@ -181,23 +181,6 @@ AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
 AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
 AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
 
-# This knob controls if builds snap-confine are done in a pretty unusual way.
-# The goal is to link dynamically to libc and anything that talks to remote
-# things that we cannot control and that have a volatile protocol, specifically
-# this is udev.
-#
-# All the other dependencies are linked in statically. This is done so that a
-# build based on Ubuntu 16.04 can be actually used on other systems (including
-# earlier Ubuntu) and expect to work.
-AC_ARG_ENABLE([partially-static],
-    AS_HELP_STRING([--enable-partially-static], [Enable partially static build for Core systems]),
-    [case "${enableval}" in
-        yes) enable_partially_static=yes ;;
-        no)  enable_partially_static=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --enable-partially-static])
-    esac], [enable_partially_static=no])
-AM_CONDITIONAL([PARTIALLY_STATIC_CORE_BUILD], [test "x$enable_partially_static" = "xyes"])
-
 AC_ARG_ENABLE([static-libcap],
     AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
     [case "${enableval}" in
@@ -205,7 +188,7 @@ AC_ARG_ENABLE([static-libcap],
         no)  enable_static_libcap=no ;;
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libcap])
     esac], [enable_static_libcap=no])
-AM_CONDITIONAL([STATIC_LIBCAP], [test "x$enable_static_libcap" = "xyes" && test "x$enable_partially_static" = "xyes"])
+AM_CONDITIONAL([STATIC_LIBCAP], [test "x$enable_static_libcap" = "xyes"])
 
 AC_ARG_ENABLE([static-libapparmor],
     AS_HELP_STRING([--enable-static-libapparmor], [Link libapparmor statically]),
@@ -214,7 +197,7 @@ AC_ARG_ENABLE([static-libapparmor],
         no)  enable_static_libapparmor=no ;;
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libapparmor])
     esac], [enable_static_libapparmor=no])
-AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes" && test "x$enable_partially_static" = "xyes"])
+AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes"])
 
 AC_ARG_ENABLE([static-libseccomp],
     AS_HELP_STRING([--enable-static-libseccomp], [Link libseccomp statically]),
@@ -223,7 +206,7 @@ AC_ARG_ENABLE([static-libseccomp],
         no)  enable_static_libseccomp=no ;;
         *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
     esac], [enable_static_libseccomp=no])
-AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes" && test "x$enable_partially_static" = "xyes"])
+AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

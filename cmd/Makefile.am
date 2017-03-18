@@ -116,14 +116,12 @@ else
 libsnap_confine_private_unit_tests_LDADD += -lcap
 endif  # STATIC_LIBCAP
 
-if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 libsnap-confine-private/unit-tests$(EXEEXT): $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_DEPENDENCIES) $(EXTRA_libsnap_confine_private_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f libsnap-confine-private/unit-tests$(EXEEXT)
 	$(AM_V_CCLD)$(libsnap_confine_private_unit_tests_LINK) $(libsnap_confine_private_unit_tests_OBJECTS) $(libsnap_confine_private_unit_tests_LDADD) $(LIBS)
 
 libsnap-confine-private/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(libsnap_confine_private_unit_tests_STATIC) -Wl,-Bdynamic
-endif  # PARTIALLY_STATIC_CORE_BUILD
 endif  # WITH_UNIT_TESTS
 
 ##
@@ -143,7 +141,6 @@ else
 decode_mount_opts_decode_mount_opts_LDADD += -lcap
 endif  # STATIC_LIBCAP
 
-if PARTIALLY_STATIC_CORE_BUILD
 # XXX: this makes automake generate decode_mount_opts_decode_mount_opts_LINK
 decode_mount_opts_decode_mount_opts_CFLAGS = -D_fake
 
@@ -153,7 +150,6 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): $(decode_mount_opts_decode_mount_o
 	$(AM_V_CCLD)$(decode_mount_opts_decode_mount_opts_LINK) $(decode_mount_opts_decode_mount_opts_OBJECTS) $(decode_mount_opts_decode_mount_opts_LDADD) $(LIBS)
 
 decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_mount_opts_decode_mount_opts_STATIC) -Wl,-Bdynamic
-endif  # PARTIALLY_STATIC_CORE_BUILD
 
 ##
 ## snap-confine
@@ -231,14 +227,12 @@ else
 snap_confine_snap_confine_LDADD += -lcap
 endif  # STATIC_LIBCAP
 
-if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-confine/snap-confine$(EXEEXT): $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine$(EXEEXT)
 	$(AM_V_CCLD)$(snap_confine_snap_confine_LINK) $(snap_confine_snap_confine_OBJECTS) $(snap_confine_snap_confine_LDADD) $(LIBS)
 
 snap-confine/snap-confine$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_confine_STATIC) -Wl,-Bdynamic -pthread
-endif  # PARTIALLY_STATIC_CORE_BUILD
 
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
@@ -276,14 +270,12 @@ snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
-if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
 	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) $(LIBS)
 
 snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_confine_debug_STATIC) -Wl,-Bdynamic -pthread
-endif  # PARTIALLY_STATIC_CORE_BUILD
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
@@ -303,14 +295,12 @@ snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) 
 snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
 snap_confine_snap_confine_unit_tests_STATIC = $(snap_confine_snap_confine_STATIC)
 
-if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 snap-confine/snap-confine-unit-tests$(EXEEXT): $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine-unit-tests$(EXEEXT)
 	$(AM_V_CCLD)$(snap_confine_snap_confine_unit_tests_LINK) $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_LDADD) $(LIBS)
 
 snap-confine/snap-confine-unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_confine_unit_tests_STATIC) -Wl,-Bdynamic -pthread
-endif  # PARTIALLY_STATIC_CORE_BUILD
 endif  # WITH_UNIT_TESTS
 
 snap-confine/%.5: snap-confine/%.rst
@@ -395,11 +385,11 @@ snap_discard_ns_snap_discard_ns_STATIC =
 
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
-if PARTIALLY_STATIC_CORE_BUILD
+if STATIC_LIBAPPARMOR
 snap_discard_ns_snap_discard_ns_STATIC += $(shell pkg-config --static --libs libapparmor)
 else
 snap_discard_ns_snap_discard_ns_LDADD += $(APPARMOR_LIBS)
-endif  # PARTIALLY_STATIC_CORE_BUILD
+endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
 if STATIC_LIBCAP
@@ -408,7 +398,6 @@ else
 snap_discard_ns_snap_discard_ns_LDADD += -lcap
 endif  # STATIC_LIBCAP
 
-if PARTIALLY_STATIC_CORE_BUILD
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
 
 snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_DEPENDENCIES) $(EXTRA_snap_discard_ns_snap_discard_ns_DEPENDENCIES) snap-discard-ns/$(am__dirstamp)
@@ -416,7 +405,6 @@ snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJE
 	$(AM_V_CCLD)$(snap_discard_ns_snap_discard_ns_LINK) $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_LDADD) $(LIBS)
 
 snap-discard-ns/snap-discard-ns$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_discard_ns_snap_discard_ns_STATIC) -Wl,-Bdynamic -pthread
-endif
 
 snap-discard-ns/%.5: snap-discard-ns/%.rst
 	mkdir -p snap-discard-ns
