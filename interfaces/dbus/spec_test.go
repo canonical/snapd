@@ -17,20 +17,20 @@
  *
  */
 
-package seccomp_test
+package dbus_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
 type specSuite struct {
 	iface *ifacetest.TestInterface
-	spec  *seccomp.Specification
+	spec  *dbus.Specification
 	plug  *interfaces.Plug
 	slot  *interfaces.Slot
 }
@@ -38,19 +38,19 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+		DBusConnectedSlotCallback: func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
+		DBusPermanentPlugCallback: func(spec *dbus.Specification, plug *interfaces.Plug) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		DBusPermanentSlotCallback: func(spec *dbus.Specification, slot *interfaces.Slot) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -84,7 +84,7 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = &seccomp.Specification{}
+	s.spec = &dbus.Specification{}
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface

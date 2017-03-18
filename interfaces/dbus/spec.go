@@ -17,23 +17,23 @@
  *
  */
 
-package apparmor
+package dbus
 
 import (
-	"github.com/snapcore/snapd/interfaces"
-
+	"bytes"
 	"sort"
-	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
 )
 
-// Specification assists in collecting apparmor entries associated with an interface.
+// Specification keeps all the dbus snippets.
 type Specification struct {
-	// snippets are indexed by security tag.
+	// Snippets are indexed by security tag.
 	snippets     map[string][]string
 	securityTags []string
 }
 
-// AddSnippet adds a new apparmor snippet.
+// AddSnippet adds a new dbus snippet.
 func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -43,7 +43,6 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
-		sort.Strings(spec.snippets[tag])
 	}
 }
 
@@ -59,7 +58,12 @@ func (spec *Specification) Snippets() map[string][]string {
 // SnippetForTag returns a combined snippet for given security tag with individual snippets
 // joined with newline character. Empty string is returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
-	return strings.Join(spec.snippets[tag], "\n")
+	var buffer bytes.Buffer
+	for _, snippet := range spec.snippets[tag] {
+		buffer.WriteString(snippet)
+		buffer.WriteRune('\n')
+	}
+	return buffer.String()
 }
 
 // SecurityTags returns a list of security tags which have a snippet.
@@ -74,54 +78,54 @@ func (spec *Specification) SecurityTags() []string {
 
 // Implementation of methods required by interfaces.Specification
 
-// AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
+// AddConnectedPlug records dbus-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		DBusConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedPlug(spec, plug, slot)
+		return iface.DBusConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
-// AddConnectedSlot records mount-specific side-effects of having a connected slot.
+// AddConnectedSlot records dbus-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	type definer interface {
-		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		DBusConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedSlot(spec, plug, slot)
+		return iface.DBusConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
-// AddPermanentPlug records mount-specific side-effects of having a plug.
+// AddPermanentPlug records dbus-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
-		AppArmorPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		DBusPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorPermanentPlug(spec, plug)
+		return iface.DBusPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
-// AddPermanentSlot records mount-specific side-effects of having a slot.
+// AddPermanentSlot records dbus-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
-		AppArmorPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		DBusPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorPermanentSlot(spec, slot)
+		return iface.DBusPermanentSlot(spec, slot)
 	}
 	return nil
 }

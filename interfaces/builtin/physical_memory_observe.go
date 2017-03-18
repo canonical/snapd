@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 const physicalMemoryObserveConnectedPlugAppArmor = `
@@ -75,12 +76,14 @@ func (iface *PhysicalMemoryObserveInterface) PermanentSlotSnippet(slot *interfac
 	return nil, nil
 }
 
+func (iface *PhysicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(physicalMemoryObserveConnectedPlugAppArmor)
+	return nil
+}
+
 // Getter for the security snippet specific to the plug
 func (iface *PhysicalMemoryObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(physicalMemoryObserveConnectedPlugAppArmor), nil
-
 	case interfaces.SecurityUDev:
 		var tagSnippet bytes.Buffer
 		const udevRule = `KERNEL=="mem", TAG+="%s"`
