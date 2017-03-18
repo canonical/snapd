@@ -1,0 +1,46 @@
+summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
+details: |
+    snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+    mount namespaces of each snap. In the case that snap-confine is invoked
+    from the mount namespace it typically constructs, the said directory does
+    not contain mount entries for preserved namespaces as those are only
+    visible in the main, outer namespace. In order to operate in such an
+    environment snap-confine must first re-associate its own process with
+    another namespace in which the /run/snapd/ns directory is visible.
+    The most obvious candidate is pid one, which definitely doesn't run in a
+    snap-specific namespace, has a predictable PID and is long lived.
+prepare: |
+    echo "Having installed the test snap in devmode"
+    . $TESTSLIB/snaps.sh
+    install_local_devmode test-snapd-tools
+execute: |
+    # This test is meaningful only on Ubuntu for now as this is where we have
+    # the complete apparmor patch-set.
+    . /etc/os-release
+    if [ "$ID" != "ubuntu" && "$ID" != "ubuntu-core" ]; then
+        echo "This test is only supported on Ubuntu"
+        exit 0
+    fi
+    # Don't test on other architectures as (especially on arm) kernel versions
+    # are not synchronized with x86 and this test is not architecture specific
+    # to warrant the extra work to figure out which kernel revision got the fix
+    # to apparmor that this test depends on.
+    if [ "$(uname -m)" != x86_64 ] && [ "$(uname -m)" != i686 ]; then
+        echo "This test is only supported on x86_64 and i386"
+        exit 0
+    fi
+    # Check if the kernel is at least 4.4.0-67
+    if ! uname -r | perl -ne '/^(\d+)\.(\d+)\.(\d+)-(\d+)/ or exit 1; exit 1 if $1<4; exit 1 if $2<4; exit 1 if $3==0 && $4<67'; then
+        echo "This test is not supported on kernels older than 4.4.0-67"
+        exit 0
+    fi
+    echo "We can now run a snap command from the namespace of a snap command and see it work"
+    test-snapd-tools.cmd /bin/true
+    test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true"
+    echo "We can now discard the namespace and repeat the test as a non-root user"
+    /usr/lib/snapd/snap-discard-ns test-snapd-tools
+    su -l -c 'test-snapd-tools.cmd /bin/true' test
+    su -l -c 'test-snapd-tools.cmd /bin/sh -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-tools.cmd /bin/true"' test
+debug: |
+    # Kernel version is an important input in understing failures of this test
+    uname -a
