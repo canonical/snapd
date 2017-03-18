@@ -523,8 +523,8 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
-// AutoAliases returns the auto-aliases list for the given installed snap.
-func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
+// AutoAliases returns the explicit automatic aliases alias=>app mapping for the given installed snap.
+func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	if info.SnapID == "" {
 		// without declaration
 		return nil, nil
@@ -533,7 +533,27 @@ func AutoAliases(s *state.State, info *snap.Info) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find snap-declaration for installed snap %q: %v", info.Name(), err)
 	}
-	return decl.AutoAliases(), nil
+	explicitAliases := decl.Aliases()
+	if len(explicitAliases) != 0 {
+		return explicitAliases, nil
+	}
+	// XXX: old header fallback, just to keep edge working while we fix the
+	// store, to remove before next release!
+	oldAutoAliases := decl.AutoAliases()
+	if len(oldAutoAliases) == 0 {
+		return nil, nil
+	}
+	res := make(map[string]string, len(oldAutoAliases))
+	for _, alias := range oldAutoAliases {
+		app := info.Aliases[alias]
+		if app == nil {
+			// not a known alias anymore or yet, skip
+			continue
+
+		}
+		res[alias] = app.Name
+	}
+	return res, nil
 }
 
 func init() {
