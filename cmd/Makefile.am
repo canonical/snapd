@@ -36,11 +36,11 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-confine/snap-confine-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-confine-private/unit-tests snap-update-ns/unit-tests
+check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests snap-update-ns/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-confine/snap-confine-unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
-	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
@@ -278,8 +278,8 @@ snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJE
 snap-confine/snap-confine-debug$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_confine_debug_STATIC) -Wl,-Bdynamic -pthread
 
 if WITH_UNIT_TESTS
-noinst_PROGRAMS += snap-confine/snap-confine-unit-tests
-snap_confine_snap_confine_unit_tests_SOURCES = \
+noinst_PROGRAMS += snap-confine/unit-tests
+snap_confine_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
@@ -290,17 +290,17 @@ snap_confine_snap_confine_unit_tests_SOURCES = \
 	snap-confine/quirks.c \
 	snap-confine/quirks.h \
 	snap-confine/snap-confine-args-test.c
-snap_confine_snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
-snap_confine_snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
-snap_confine_snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_unit_tests_STATIC = $(snap_confine_snap_confine_STATIC)
+snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
+snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
+snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
+snap_confine_unit_tests_STATIC = $(snap_confine_snap_confine_STATIC)
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
-snap-confine/snap-confine-unit-tests$(EXEEXT): $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
-	@rm -f snap-confine/snap-confine-unit-tests$(EXEEXT)
-	$(AM_V_CCLD)$(snap_confine_snap_confine_unit_tests_LINK) $(snap_confine_snap_confine_unit_tests_OBJECTS) $(snap_confine_snap_confine_unit_tests_LDADD) $(LIBS)
+snap-confine/unit-tests$(EXEEXT): $(snap_confine_unit_tests_OBJECTS) $(snap_confine_unit_tests_DEPENDENCIES) $(EXTRA_snap_confine_unit_tests_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+	@rm -f snap-confine/unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(snap_confine_unit_tests_LINK) $(snap_confine_unit_tests_OBJECTS) $(snap_confine_unit_tests_LDADD) $(LIBS)
 
-snap-confine/snap-confine-unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_snap_confine_unit_tests_STATIC) -Wl,-Bdynamic -pthread
+snap-confine/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic $(snap_confine_unit_tests_STATIC) -Wl,-Bdynamic -pthread
 endif  # WITH_UNIT_TESTS
 
 snap-confine/%.5: snap-confine/%.rst
@@ -425,14 +425,14 @@ system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -sta
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
-noinst_PROGRAMS += system-shutdown/system-shutdown-unit-tests
-system_shutdown_system_shutdown_unit_tests_SOURCES = \
+noinst_PROGRAMS += system-shutdown/unit-tests
+system_shutdown_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
-system_shutdown_system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
-system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
-system_shutdown_system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
+system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
+system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
 
 ##
