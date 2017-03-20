@@ -111,3 +111,22 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Mount},
 	})
 }
+
+// When child changes we don't touch the unchanged parent
+func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
+	current := []mount.Entry{
+		{Dir: "/var/snap/foo/common/stuf"},
+		{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda1"},
+		{Dir: "/var/snap/foo/common/unrelated"},
+	}
+	desired := []mount.Entry{
+		{Dir: "/var/snap/foo/common/stuf"},
+		{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda2"},
+		{Dir: "/var/snap/foo/common/unrelated"},
+	}
+	changes := mount.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []mount.Change{
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda2"}, Action: mount.Mount},
+	})
+}
