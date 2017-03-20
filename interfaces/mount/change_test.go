@@ -37,8 +37,8 @@ func (s *changeSuite) TestNeededChangesNoProfiles(c *C) {
 
 // When the profiles are the same we don't do anything.
 func (s *changeSuite) TestNeededChangesNoChange(c *C) {
-	current := []mount.Entry{{Dir: "/var/snap/foo/common/stuf"}}
-	desired := []mount.Entry{{Dir: "/var/snap/foo/common/stuf"}}
+	current := []mount.Entry{{Dir: "/common/stuf"}}
+	desired := []mount.Entry{{Dir: "/common/stuf"}}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, IsNil)
 }
@@ -46,7 +46,7 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 // When the content interface is connected we should mount the new entry.
 func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 	var current []mount.Entry
-	desired := []mount.Entry{{Dir: "/var/snap/foo/common/stuf"}}
+	desired := []mount.Entry{{Dir: "/common/stuf"}}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
 		{Entry: desired[0], Action: mount.Mount},
@@ -55,7 +55,7 @@ func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 
 // When the content interface is disconnected we should unmount the mounted entry.
 func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
-	current := []mount.Entry{{Dir: "/var/snap/foo/common/stuf"}}
+	current := []mount.Entry{{Dir: "/common/stuf"}}
 	var desired []mount.Entry
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
@@ -66,14 +66,14 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 // When umounting we unmount children before parents.
 func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	current := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf/extra"},
-		{Dir: "/var/snap/foo/common/stuf"},
+		{Dir: "/common/stuf/extra"},
+		{Dir: "/common/stuf"},
 	}
 	var desired []mount.Entry
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Unmount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: mount.Unmount},
 	})
 }
 
@@ -81,52 +81,52 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 	var current []mount.Entry
 	desired := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf/extra"},
-		{Dir: "/var/snap/foo/common/stuf"},
+		{Dir: "/common/stuf/extra"},
+		{Dir: "/common/stuf"},
 	}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf"}, Action: mount.Mount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: mount.Mount},
 	})
 }
 
 // When parent changes we don't reuse its children
 func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 	current := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"},
-		{Dir: "/var/snap/foo/common/stuf/extra"},
-		{Dir: "/var/snap/foo/common/unrelated"},
+		{Dir: "/common/stuf", Name: "/dev/sda1"},
+		{Dir: "/common/stuf/extra"},
+		{Dir: "/common/unrelated"},
 	}
 	desired := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"},
-		{Dir: "/var/snap/foo/common/stuf/extra"},
-		{Dir: "/var/snap/foo/common/unrelated"},
+		{Dir: "/common/stuf", Name: "/dev/sda2"},
+		{Dir: "/common/stuf/extra"},
+		{Dir: "/common/unrelated"},
 	}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Unmount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda1"}, Action: mount.Unmount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf", Name: "/dev/sda2"}, Action: mount.Mount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda2"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: mount.Mount},
 	})
 }
 
 // When child changes we don't touch the unchanged parent
 func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 	current := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf"},
-		{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda1"},
-		{Dir: "/var/snap/foo/common/unrelated"},
+		{Dir: "/common/stuf"},
+		{Dir: "/common/stuf/extra", Name: "/dev/sda1"},
+		{Dir: "/common/unrelated"},
 	}
 	desired := []mount.Entry{
-		{Dir: "/var/snap/foo/common/stuf"},
-		{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda2"},
-		{Dir: "/var/snap/foo/common/unrelated"},
+		{Dir: "/common/stuf"},
+		{Dir: "/common/stuf/extra", Name: "/dev/sda2"},
+		{Dir: "/common/unrelated"},
 	}
 	changes := mount.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []mount.Change{
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda1"}, Action: mount.Unmount},
-		{Entry: mount.Entry{Dir: "/var/snap/foo/common/stuf/extra", Name: "/dev/sda2"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda2"}, Action: mount.Mount},
 	})
 }
