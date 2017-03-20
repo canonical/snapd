@@ -35,7 +35,7 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-wrap/unit-tests system-shutdown/system-shutdown-unit-tests libsnap-wrap-private/unit-tests snap-update-ns/unit-tests
+check-unit-tests: snap-wrap/unit-tests system-shutdown/unit-tests libsnap-wrap-private/unit-tests snap-update-ns/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-wrap-private/unit-tests
 	$(HAVE_VALGRIND) ./snap-wrap/unit-tests
 	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
