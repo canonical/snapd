@@ -28,6 +28,9 @@ const alsaConnectedPlugAppArmor = `
 /dev/snd/* rw,
 
 /run/udev/data/c116:[0-9]* r, # alsa
+
+# Allow access to the alsa state dir
+/var/lib/alsa/{,*}         r,
 `
 
 func NewAlsaInterface() interfaces.Interface {

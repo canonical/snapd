@@ -23,12 +23,12 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdExperimental struct{}
+type cmdDebug struct{}
 
-var shortExperimentalHelp = i18n.G("Runs unsupported experimental commands")
-var longExperimentalHelp = i18n.G(`
-The experimental command contains a selection of additional sub-commands.
+var shortDebugHelp = i18n.G("Runs debug commands")
+var longDebugHelp = i18n.G(`
+The debug command contains a selection of additional sub-commands.
 
-Experimental commands can be removed without notice and may not work on
+Debug commands can be removed without notice and may not work on
 non-development systems.
 `)

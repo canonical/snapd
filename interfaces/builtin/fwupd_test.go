@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +37,31 @@ type FwupdInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FwupdInterfaceSuite{
-	iface: &builtin.FwupdInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
-			Name:      "fwupd",
-			Interface: "fwupd",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "uefi-fw-tools"},
-			Name:      "fwupdmgr",
-			Interface: "fwupd",
-		},
-	},
-})
+const mockPlugSnapInfoYaml = `name: uefi-fw-tools
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [fwupd]
+`
+
+const mockSlotSnapInfoYaml = `name: uefi-fw-tools
+version: 1.0
+apps:
+ app2:
+  command: foo
+  slots: [fwupd]
+`
+
+var _ = Suite(&FwupdInterfaceSuite{})
+
+func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
+	s.iface = &builtin.FwupdInterface{}
+	slotSnap := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["fwupd"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["fwupd"]}
+}
 
 func (s *FwupdInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "fwupd")
@@ -71,9 +82,13 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the fwupd slot
@@ -92,47 +107,51 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.uefi-fw-tools.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{
-				SuggestedName: "uefi-fw-tools",
-				Apps:          map[string]*snap.AppInfo{"app": app},
-			},
-			Name:      "fwupd",
-			Interface: "fwupd",
-			Apps:      map[string]*snap.AppInfo{"app": app},
-		},
-	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.uefi-fw-tools.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.app2"),`)
 }
 
 func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app", "snap.uefi-fw-tools.app2"})
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
+}
+
+func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app2"), testutil.Contains, "bind\n")
+}
+
+func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, "bind\n")
 }

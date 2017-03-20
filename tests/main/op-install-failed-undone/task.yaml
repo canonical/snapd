@@ -1,6 +1,6 @@
 summary: Check that all tasks of a failed installtion are undone
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 restore: |
     rm -rf /snap/test-snapd-tools

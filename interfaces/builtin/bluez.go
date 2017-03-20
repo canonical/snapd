@@ -20,9 +20,11 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const bluezPermanentSlotAppArmor = `
@@ -183,37 +185,45 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 	return nil, nil
 }
 
+func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(bluezConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
+}
+
+func (iface *BluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(bluezPermanentSlotAppArmor)
+	return nil
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(bluezPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(bluezPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus:
 		return []byte(bluezPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
 
+func (iface *BluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(bluezPermanentSlotSecComp)
+	return nil
+}
+
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(bluezConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
 	return nil, nil
 }
 

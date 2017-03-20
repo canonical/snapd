@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/kmod"
 )
 
 const pppConnectedPlugAppArmor = `
@@ -45,9 +47,7 @@ capability setuid,
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
 // by the kernel on different ioctl calls for this device. Note also that
 // in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
-var pppConnectedPlugKmod = []byte(`
-ppp_generic
-`)
+const pppConnectedPlugKmod = "ppp_generic"
 
 type PppInterface struct{}
 
@@ -59,13 +59,12 @@ func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 	return nil, nil
 }
 
+func (iface *PppInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(pppConnectedPlugAppArmor)
+	return nil
+}
+
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(pppConnectedPlugAppArmor), nil
-	case interfaces.SecurityKMod:
-		return pppConnectedPlugKmod, nil
-	}
 	return nil, nil
 }
 
@@ -75,6 +74,10 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 
 func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	return nil, nil
+}
+
+func (iface *PppInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	return spec.AddModule(pppConnectedPlugKmod)
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {

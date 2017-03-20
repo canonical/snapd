@@ -1,5 +1,5 @@
 summary: Ensure that snap create-user works in ubuntu-core
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-*]
 restore: |
     # meh, deluser has no --extrausers support
     sed -i '/^mvo/d' /var/lib/extrausers/passwd

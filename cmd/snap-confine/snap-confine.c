@@ -81,6 +81,9 @@ int main(int argc, char **argv)
 	if (!verify_security_tag(security_tag))
 		die("security tag %s not allowed", security_tag);
 
+	const char *snap_name = getenv("SNAP_NAME");
+	sc_snap_name_validate(snap_name, NULL);
+
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -120,7 +123,21 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *snap_name = getenv("SNAP_NAME");
+			/* snap-confine uses privately-shared /run/snapd/ns to store
+			 * bind-mounted mount namespaces of each snap. In the case that
+			 * snap-confine is invoked from the mount namespace it typically
+			 * constructs, the said directory does not contain mount entries
+			 * for preserved namespaces as those are only visible in the main,
+			 * outer namespace.
+			 *
+			 * In order to operate in such an environment snap-confine must
+			 * first re-associate its own process with another namespace in
+			 * which the /run/snapd/ns directory is visible.  The most obvious
+			 * candidate is pid one, which definitely doesn't run in a
+			 * snap-specific namespace, has a predictable PID and is long
+			 * lived.
+			 */
+			sc_reassociate_with_pid1_mount_ns();
 			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");

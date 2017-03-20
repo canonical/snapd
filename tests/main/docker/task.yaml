@@ -1,6 +1,6 @@
 summary: Check that the docker snap works
 
-systems: [ubuntu-16.04-64, ubuntu-16.04-32, ubuntu-core-16-64, ubuntu-16.04-armhf, ubuntu-14.04-64]
+systems: [ubuntu-16.04-*, ubuntu-core-16-*64, ubuntu-14.04-64]
 
 prepare: |
     if apt show linux-image-extra-$(uname -r); then
@@ -11,10 +11,6 @@ prepare: |
     # which will add "testing" to the user-agent header and the store does
     # not count this.
     snap install docker
-
-    # FIXME: this should not be needed but snap declaration is currently
-    #        broken
-    snap connect docker:docker-cli  docker:docker-daemon
 
 restore: |
     apt remove -y linux-image-extra-$(uname -r)-generic || true
@@ -29,10 +25,13 @@ execute: |
 
     prefix=""
     case "$SPREAD_SYSTEM" in
-        "ubuntu-*-armhf")
+        "ubuntu-core-16-arm-32")
             prefix=armhf/
         ;;
-        "ubuntu-*-i386")
+        "ubuntu-core-16-arm-64")
+            prefix=aarch64/
+        ;;
+        "ubuntu-core-16-32")
             prefix=i386/
         ;;
         "ubuntu-16.04-32")
