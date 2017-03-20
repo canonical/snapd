@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
@@ -117,6 +118,67 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		}
 	}
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
+}
+
+// StoreConfigurationSnapshotMaybe makes a copy of config -> snapSnape configuration into the versioned config.
+// It doesn't do anything if there is no configuration for given snap in the state.
+func StoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+	var config map[string]interface{}                     // snap => configuration
+	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
+
+	// Get current configuration of the snap from state
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+	if snapcfg, ok := config[snapName]; ok {
+		err = st.Get("config-snapshots", &configSnapshots)
+		if err == state.ErrNoState {
+			configSnapshots = make(map[string]map[string]interface{})
+		} else if err != nil {
+			return err
+		}
+		cfgs := configSnapshots[snapName]
+		if cfgs == nil {
+			cfgs = make(map[string]interface{})
+		}
+		cfgs[rev.String()] = snapcfg
+		configSnapshots[snapName] = cfgs
+		st.Set("config-snapshots", configSnapshots)
+	} // else - no config, nothing to do
+	return nil
+}
+
+// RestoreConfigurationSnapshotMaybe restores a given revision of snap configuration into config -> snapName.
+// If no configuration exists for give revision it does nothing (no error).
+func RestoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+	var config map[string]interface{}                     // snap => configuration
+	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
+
+	err := st.Get("config-snapshots", &configSnapshots)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal config-snapshots: %v", err)
+	}
+
+	err = st.Get("config", &config)
+	if err == state.ErrNoState {
+		config = make(map[string]interface{})
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+
+	if cfg, ok := configSnapshots[snapName]; ok {
+		if revCfg, ok := cfg[rev.String()]; ok {
+			config[snapName] = revCfg
+			st.Set("config", config)
+		}
+	}
+
+	return nil
 }
 
 // DeleteSnapConfig removed configuration of given snap from the state.
