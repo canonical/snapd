@@ -64,6 +64,20 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"auto-aliases:\n  - cmd1\n  - cmd_2\n  - Cmd-3\n  - CMD.4\n" +
 		sds.tsLine +
+		`aliases:
+  -
+    name: cmd1
+    target: cmd-1
+  -
+    name: cmd_2
+    target: cmd-2
+  -
+    name: Cmd-3
+    target: cmd-3
+  -
+    name: CMD.4
+    target: cmd-4
+` +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
@@ -80,6 +94,12 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 	c.Check(snapDecl.AutoAliases(), DeepEquals, []string{"cmd1", "cmd_2", "Cmd-3", "CMD.4"})
+	c.Check(snapDecl.Aliases(), DeepEquals, map[string]string{
+		"cmd1":  "cmd-1",
+		"cmd_2": "cmd-2",
+		"Cmd-3": "cmd-3",
+		"CMD.4": "cmd-4",
+	})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -124,6 +144,11 @@ const (
 )
 
 func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
+	aliases := `aliases:
+  -
+    name: cmd_1
+    target: cmd-1
+`
 	encoded := "type: snap-declaration\n" +
 		"authority-id: canonical\n" +
 		"series: 16\n" +
@@ -132,6 +157,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"auto-aliases:\n  - cmd1\n  - cmd2\n" +
+		aliases +
 		"plugs:\n  interface1: true\n" +
 		"slots:\n  interface2: true\n" +
 		sds.tsLine +
@@ -157,6 +183,11 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases: cmd0\n", `"auto-aliases" header must be a list of strings`},
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases:\n  -\n    - nested\n", `"auto-aliases" header must be a list of strings`},
 		{"auto-aliases:\n  - cmd1\n  - cmd2\n", "auto-aliases:\n  - _cmd-1\n  - cmd2\n", `"auto-aliases" header contains an invalid element: "_cmd-1"`},
+		{aliases, "aliases: cmd0\n", `"aliases" header must be a list of alias maps`},
+		{aliases, "aliases:\n  - cmd1\n", `"aliases" header must be a list of alias maps`},
+		{"name: cmd_1\n", "name: .cmd1\n", `"name" in "aliases" item 1 contains invalid characters: ".cmd1"`},
+		{"target: cmd-1\n", "target: -cmd-1\n", `"target" for alias "cmd_1" contains invalid characters: "-cmd-1"`},
+		{aliases, aliases + "  -\n    name: cmd_1\n    target: foo\n", `duplicated definition in "aliases" for alias "cmd_1"`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -1418,6 +1449,46 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
+	}
+}
+
+func (sds *snapDevSuite) TestRevokedValidation(c *C) {
+	// Multiple non-revoking items are fine.
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n",
+		1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	// Multiple revocations for different developers are fine.
+	encoded = strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id3\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		1)
+	_, err = asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	invalidTests := []string{
+		// Multiple revocations.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		// Revocation after non-revoking.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n    until: 2017-03-01T00:00:00.0Z\n",
+		// Non-revoking after revocation.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n",
+	}
+	for _, test := range invalidTests {
+		encoded := strings.Replace(sds.validEncoded, sds.developersLines, test, 1)
+		_, err := asserts.Decode([]byte(encoded))
+		c.Check(err, ErrorMatches, snapDevErrPrefix+`revocation for developer "dev-id2" must be standalone but found other "developers" items`)
 	}
 }
 
