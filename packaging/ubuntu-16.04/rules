@@ -58,8 +58,16 @@ endif
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
 
+
+# The .real profile is a workaround for a bug in dpkg LP: #1673247 that causes
+# ubiquity to crash. It allows us to "move" the snap-confine profile from
+# snap-confine into snapd in a way that works with old dpkg that is in the live
+# CD image.
+#
+# Because both the usual and the .real profile describe the same binary the
+# .real profile takes priority (as it is loaded later).
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
+	dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
 	dh_installdeb
 
 override_dh_clean:
@@ -175,6 +183,7 @@ override_dh_install:
 	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
 	dh_install
 
 override_dh_auto_install: snap.8
