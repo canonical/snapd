@@ -30,9 +30,19 @@ type sortSuite struct{}
 var _ = Suite(&sortSuite{})
 
 func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
-	entries := []Entry{{Dir: "b"}, {Dir: "ba"}, {Dir: "ab"}, {Dir: "a"}}
-	sort.Sort(byDir(entries))
+	// Naively sorted entries.
+	entries := []Entry{
+		{Dir: "/a/b"},
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b/c"},
+	}
+	sort.Sort(byMagicDir(entries))
+	// Entries sorted as if they had a trailing slash.
 	c.Assert(entries, DeepEquals, []Entry{
-		{Dir: "a"}, {Dir: "ab"}, {Dir: "b"}, {Dir: "ba"},
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b"},
+		{Dir: "/a/b/c"},
 	})
 }

@@ -19,10 +19,24 @@
 
 package mount
 
-type byDir []Entry
+import (
+	"strings"
+)
 
-func (c byDir) Len() int      { return len(c) }
-func (c byDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byDir) Less(i, j int) bool {
-	return c[i].Dir < c[j].Dir
+// byMagicDir allows sorting an array of entries that automagically assumes
+// each entry ends with a trailing slash.
+type byMagicDir []Entry
+
+func (c byMagicDir) Len() int      { return len(c) }
+func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byMagicDir) Less(i, j int) bool {
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
+	}
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
 }

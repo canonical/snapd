@@ -130,3 +130,31 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda2"}, Action: mount.Mount},
 	})
 }
+
+// cur = ['/a/b', '/a/b-1', '/a/b-1/3', '/a/b/c']
+// des = ['/a/b', '/a/b-1', '/a/b/c'
+//
+// We are smart about comparing entries as directories. Here even though "/a/b"
+// is a prefix of "/a/b-1" it is correctly reused.
+func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
+	current := []mount.Entry{
+		{Dir: "/a/b", Name: "/dev/sda1"},
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b/c"},
+	}
+	desired := []mount.Entry{
+		{Dir: "/a/b", Name: "/dev/sda2"},
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b/c"},
+	}
+	changes := mount.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []mount.Change{
+		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda1"}, Action: mount.Unmount},
+		{Entry: mount.Entry{Dir: "/a/b-1/3"}, Action: mount.Unmount},
+
+		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda2"}, Action: mount.Mount},
+		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: mount.Mount},
+	})
+}

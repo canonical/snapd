@@ -64,9 +64,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		desired[i].Dir = path.Clean(desired[i].Dir)
 	}
 
-	// Sort both lists by directory name.
-	sort.Sort(byDir(current))
-	sort.Sort(byDir(desired))
+	// Sort both lists by directory name with implicit trailing slash.
+	sort.Sort(byMagicDir(current))
+	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
 	// Maps from a directory to a pointer to an Entry from the desired list.
