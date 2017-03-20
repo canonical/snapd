@@ -113,8 +113,11 @@ type testAuthContext struct {
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
-	freshDevice := ac.device
-	return freshDevice, nil
+	freshDevice := auth.DeviceState{}
+	if ac.device != nil {
+		freshDevice = *ac.device
+	}
+	return &freshDevice, nil
 }
 
 func (ac *testAuthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
