@@ -875,6 +875,11 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		return nil, nil
 	}
 
+	// Used to check for a developer with revoking and non-revoking items.
+	// No entry means developer not yet seen, false means seen but not revoked,
+	// true means seen and revoked.
+	revocationStatus := map[string]bool{}
+
 	developerRanges := make(map[string][]*dateRange)
 	for i, item := range developers {
 		developer, ok := item.(map[string]interface{})
@@ -899,6 +904,15 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 		}
 		if !until.IsZero() && since.After(until) {
 			return nil, fmt.Errorf(`"since" %s must be less than or equal to "until"`, what)
+		}
+
+		// Track/check for revocation conflicts.
+		revoked := since.Equal(until)
+		previouslyRevoked, ok := revocationStatus[accountID]
+		if !ok {
+			revocationStatus[accountID] = revoked
+		} else if previouslyRevoked || revoked {
+			return nil, fmt.Errorf(`revocation for developer %q must be standalone but found other "developers" items`, accountID)
 		}
 
 		developerRanges[accountID] = append(developerRanges[accountID], &dateRange{since, until})

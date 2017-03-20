@@ -35,11 +35,11 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-wrap/snap-wrap-unit-tests system-shutdown/system-shutdown-unit-tests libsnap-wrap-private/unit-tests snap-update-ns/unit-tests
+check-unit-tests: snap-wrap/unit-tests system-shutdown/system-shutdown-unit-tests libsnap-wrap-private/unit-tests snap-update-ns/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-wrap-private/unit-tests
-	$(HAVE_VALGRIND) ./snap-wrap/snap-wrap-unit-tests
+	$(HAVE_VALGRIND) ./snap-wrap/unit-tests
 	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
-	$(HAVE_VALGRIND) ./system-shutdown/system-shutdown-unit-tests
+	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
@@ -50,7 +50,7 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	HOME=$(srcdir) indent $^
 
 # The hack target helps devlopers work on snap-wrap on their live system by
-# installing a fresh copy of snap confine and the appropriate apparmor profile.
+# installing a fresh copy of snap wrap and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-wrap/snap-wrap snap-wrap/snap-wrap.apparmor
 	sudo install -D -m 4755 snap-wrap/snap-wrap $(DESTDIR)$(libexecdir)/snap-wrap
@@ -246,8 +246,8 @@ snap-wrap/snap-wrap-debug$(EXEEXT): $(snap_wrap_snap_wrap_debug_OBJECTS) $(snap_
 snap-wrap/snap-wrap-debug$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
 if WITH_UNIT_TESTS
-noinst_PROGRAMS += snap-wrap/snap-wrap-unit-tests
-snap_wrap_snap_wrap_unit_tests_SOURCES = \
+noinst_PROGRAMS += snap-wrap/unit-tests
+snap_wrap_unit_tests_SOURCES = \
 	libsnap-wrap-private/unit-tests-main.c \
 	libsnap-wrap-private/unit-tests.c \
 	libsnap-wrap-private/unit-tests.h \
@@ -258,16 +258,15 @@ snap_wrap_snap_wrap_unit_tests_SOURCES = \
 	snap-wrap/quirks.c \
 	snap-wrap/quirks.h \
 	snap-wrap/snap-wrap-args-test.c
-snap_wrap_snap_wrap_unit_tests_CFLAGS = $(snap_wrap_snap_wrap_CFLAGS) $(GLIB_CFLAGS)
-snap_wrap_snap_wrap_unit_tests_LDADD = $(snap_wrap_snap_wrap_LDADD) $(GLIB_LIBS)
-snap_wrap_snap_wrap_unit_tests_LDFLAGS = $(snap_wrap_snap_wrap_LDFLAGS)
+snap_wrap_unit_tests_CFLAGS = $(snap_wrap_snap_wrap_CFLAGS) $(GLIB_CFLAGS)
+snap_wrap_unit_tests_LDADD = $(snap_wrap_snap_wrap_LDADD) $(GLIB_LIBS)
+snap_wrap_unit_tests_LDFLAGS = $(snap_wrap_snap_wrap_LDFLAGS)
 
+snap-wrap/unit-tests$(EXEEXT): $(snap_wrap_unit_tests_OBJECTS) $(snap_wrap_unit_tests_DEPENDENCIES) $(EXTRA_snap_wrap_unit_tests_DEPENDENCIES) libsnap-wrap-private/$(am__dirstamp)
+	@rm -f snap-wrap/unit-tests$(EXEEXT)
+	$(AM_V_CCLD)$(snap_wrap_unit_tests_LINK) $(snap_wrap_unit_tests_OBJECTS) $(snap_wrap_unit_tests_LDADD) $(LIBS)
 
-snap-wrap/snap-wrap-unit-tests$(EXEEXT): $(snap_wrap_snap_wrap_unit_tests_OBJECTS) $(snap_wrap_snap_wrap_unit_tests_DEPENDENCIES) $(EXTRA_snap_wrap_snap_wrap_unit_tests_DEPENDENCIES) libsnap-wrap-private/$(am__dirstamp)
-	@rm -f snap-wrap/snap-wrap-unit-tests$(EXEEXT)
-	$(AM_V_CCLD)$(snap_wrap_snap_wrap_unit_tests_LINK) $(snap_wrap_snap_wrap_unit_tests_OBJECTS) $(snap_wrap_snap_wrap_unit_tests_LDADD) $(LIBS)
-
-snap-wrap/snap-wrap-unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
+snap-wrap/unit-tests$(EXEEXT): LIBS += -Wl,-Bstatic -lcap -Wl,-Bdynamic
 
 endif
 
@@ -374,14 +373,14 @@ system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -sta
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
-noinst_PROGRAMS += system-shutdown/system-shutdown-unit-tests
-system_shutdown_system_shutdown_unit_tests_SOURCES = \
+noinst_PROGRAMS += system-shutdown/unit-tests
+system_shutdown_unit_tests_SOURCES = \
 	libsnap-wrap-private/unit-tests-main.c \
 	libsnap-wrap-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
-system_shutdown_system_shutdown_unit_tests_LDADD = libsnap-wrap-private.a
-system_shutdown_system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
-system_shutdown_system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
+system_shutdown_unit_tests_LDADD = libsnap-wrap-private.a
+system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
 
 ##

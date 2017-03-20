@@ -9,7 +9,7 @@ vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
 
-# snap-confine bits
+# snap-wrap bits
 *.a
 *.o
 *~
@@ -17,15 +17,15 @@ po/snappy.pot
 .*.swp
 .dirstamp
 cmd/decode-mount-opts/decode-mount-opts
-cmd/libsnap-confine-private/unit-tests
-cmd/snap-confine/snap-confine
-cmd/snap-confine/snap-confine-unit-tests
-cmd/snap-confine/snap-confine.apparmor
+cmd/libsnap-wrap-private/unit-tests
+cmd/snap-wrap/snap-wrap
+cmd/snap-wrap/snap-wrap.apparmor
+cmd/snap-wrap/unit-tests
 cmd/snap-discard-ns/snap-discard-ns
 cmd/snap-update-ns/snap-update-ns
 cmd/snap-update-ns/unit-tests
 cmd/system-shutdown/system-shutdown
-cmd/system-shutdown/system-shutdown-unit-tests
+cmd/system-shutdown/unit-tests
 
 # manual pages
 cmd/*/*.[1-9]
@@ -37,7 +37,7 @@ cmd/*/*.[1-9]
 # Automake
 Makefile
 Makefile.in
-snap-confine-*.tar.gz
+snap-wrap-*.tar.gz
 .deps
 
 # Autoconf
