@@ -1452,6 +1452,46 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
+func (sds *snapDevSuite) TestRevokedValidation(c *C) {
+	// Multiple non-revoking items are fine.
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n",
+		1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	// Multiple revocations for different developers are fine.
+	encoded = strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id3\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		1)
+	_, err = asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	invalidTests := []string{
+		// Multiple revocations.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		// Revocation after non-revoking.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n    until: 2017-03-01T00:00:00.0Z\n",
+		// Non-revoking after revocation.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n",
+	}
+	for _, test := range invalidTests {
+		encoded := strings.Replace(sds.validEncoded, sds.developersLines, test, 1)
+		_, err := asserts.Decode([]byte(encoded))
+		c.Check(err, ErrorMatches, snapDevErrPrefix+`revocation for developer "dev-id2" must be standalone but found other "developers" items`)
+	}
+}
+
 func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
