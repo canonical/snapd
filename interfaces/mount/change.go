@@ -70,9 +70,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 
 	// Construct a desired directory map.
 	// Maps from a directory to a pointer to an Entry from the desired list.
-	dm := make(map[string]*Entry)
+	desiredMap := make(map[string]*Entry)
 	for i := range desired {
-		dm[desired[i].Dir] = &desired[i]
+		desiredMap[desired[i].Dir] = &desired[i]
 	}
 
 	// Reuse map, indexed by Entry.Dir.
@@ -91,7 +91,7 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		if skipPrefix != "" && strings.HasPrefix(dir, skipPrefix) && dir[len(skipPrefix)] == '/' {
 			continue
 		}
-		if entry, ok := dm[dir]; ok && EqualEntries(&current[i], entry) {
+		if entry, ok := desiredMap[dir]; ok && EqualEntries(&current[i], entry) {
 			reuse[dir] = true
 			continue
 		}
