@@ -47,7 +47,6 @@ type Change struct {
 // changes, when applied in order, transform the current profile into the
 // desired profile.
 func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
-	var changes []Change
 	// Copy both as we will want to mutate them.
 	current := make([]Entry, len(currentProfile))
 	copy(current, currentProfile)
@@ -98,6 +97,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		}
 		skipPrefix = dir // set skip prefix as we're not reusing this entry
 	}
+
+	// We are now ready to compute the necessary mount changes.
+	var changes []Change
 
 	// Unmount all the current entries (unless flagged for reuse).
 	// Because c is sorted by directory name we can iterate in reverse
