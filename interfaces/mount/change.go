@@ -91,11 +91,12 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		if skipPrefix != "" && strings.HasPrefix(dir, skipPrefix) && dir[len(skipPrefix)] == '/' {
 			continue
 		}
+		skipPrefix = "" // reset skip prefix as it no longer applies
 		if entry, ok := desiredMap[dir]; ok && EqualEntries(&current[i], entry) {
 			reuse[dir] = true
 			continue
 		}
-		skipPrefix = dir
+		skipPrefix = dir // set skip prefix as we're not reusing this entry
 	}
 
 	// Unmount all the current entries (unless flagged for reuse).
