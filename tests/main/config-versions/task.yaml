@@ -1,0 +1,64 @@
+summary: Check that snap configuration is maintained on per-revision basis.
+
+systems: [-ubuntu-core-16-*]
+
+details: |
+    TODO
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/config-versions .
+    snapbuild $TESTSLIB/snaps/config-versions-v2 .
+
+restore: |
+    rm config-versions_1.0_all.snap
+    rm config-versions_2.0_all.snap
+
+execute: |
+    echo "Install test snap"
+    snap install --dangerous config-versions_1.0_all.snap
+
+    echo "Setting config value"
+    snap set config-versions value=100
+
+    echo "Install a new version of the test snap"
+    snap install --dangerous config-versions_2.0_all.snap
+
+    expected=100
+    echo "Expecting config value to be carried over to the new version"
+    output=$(snap get config-versions value)
+    if [ "$output" != $expected ]; then
+      echo "Expected config value to be $expected but got $output"
+      exit 1
+    fi
+
+    echo "Changing the config value"
+    snap set config-versions value=200
+
+    expected=200
+    output=$(snap get config-versions value)
+    if [ "$output" != $expected ]; then
+      echo "Expected config value to be $expected but got $output"
+      exit 1
+    fi
+
+    echo "Reverting to the old snap"
+    snap revert config-versions
+
+    expected=100
+    output=$(snap get config-versions value)
+    if [ "$output" != $expected ]; then
+      echo "Expected config value to be $expected but got $output"
+      exit 1
+    fi
+
+    echo "Revert back to the new snap"
+    snap revert --revision=x2 config-versions
+
+    expected=200
+    echo "Expecting config value of version 2.0 back"
+    output=$(snap get config-versions value)
+    if [ "$output" != $expected ]; then
+      echo "Expected config value to be $expected but got $output"
+      exit 1
+    fi
+

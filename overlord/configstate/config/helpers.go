@@ -152,7 +152,7 @@ func StoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.
 }
 
 // RestoreConfigurationSnapshotMaybe restores a given revision of snap configuration into config -> snapName.
-// If no configuration exists for give revision it does nothing (no error).
+// If no configuration exists for given revision it does nothing (no error).
 func RestoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
 	var config map[string]interface{}                     // snap => configuration
 	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
@@ -178,6 +178,29 @@ func RestoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev sna
 		}
 	}
 
+	return nil
+}
+
+// DeleteConfigurationSnapshotMaybe removes configuration snapshot of given snap/revision.
+// If no configuration exists for given revision it does nothing (no error).
+func DeleteConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
+	err := st.Get("config-snapshots", &configSnapshots)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal config-snapshots: %v", err)
+	}
+
+	if revCfgs, ok := configSnapshots[snapName]; ok {
+		delete(revCfgs, rev.String())
+		if len(revCfgs) == 0 {
+			delete(configSnapshots, snapName)
+		} else {
+			configSnapshots[snapName] = revCfgs
+		}
+		st.Set("config-snapshots", configSnapshots)
+	}
 	return nil
 }
 
