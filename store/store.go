@@ -437,19 +437,6 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasDeviceSession returns true if given store has a device session setup
-func hasDeviceSession(s *Store) (bool, error) {
-	var device *auth.DeviceState
-	var err error
-	if s.authContext != nil {
-		device, err = s.authContext.Device()
-		if err != nil {
-			return false, err
-		}
-	}
-	return device != nil && device.SessionMacaroon != "", nil
-}
-
 // hasStoreAuth returns true if given user has store macaroons setup
 func hasStoreAuth(user *auth.UserState) bool {
 	return user != nil && user.StoreMacaroon != ""
@@ -460,7 +447,15 @@ func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
 	if hasStoreAuth(user) {
 		return true, nil
 	} else {
-		return hasDeviceSession(s)
+		var device *auth.DeviceState
+		var err error
+		if s.authContext != nil {
+			device, err = s.authContext.Device()
+			if err != nil {
+				return false, err
+			}
+		}
+		return device != nil && device.SessionMacaroon != "", nil
 	}
 }
 
