@@ -46,7 +46,7 @@ type Entry struct {
 	CheckPassNumber int
 }
 
-func sameStrings(a, b []string) bool {
+func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -61,7 +61,7 @@ func sameStrings(a, b []string) bool {
 // EqualEntries checks if one entry is equal to another
 func (a *Entry) Equal(b *Entry) bool {
 	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
-		sameStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
+		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
 		a.CheckPassNumber == b.CheckPassNumber)
 }
 
