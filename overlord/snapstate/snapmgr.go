@@ -1062,8 +1062,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as active again
 	Set(st, snapsup.Name(), snapst)
 
-	return nil
+	// if we just put back a previous a core snap, request a restart
+	// so that we switch executing its snapd
+	scheduleRestart(t, oldInfo)
 
+	return nil
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -1224,20 +1227,26 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	if release.OnClassic && newInfo.Type == snap.TypeOS {
+	scheduleRestart(t, newInfo)
+
+	return nil
+}
+
+func scheduleRestart(t *state.Task, info *snap.Info) {
+	st := t.State()
+	if release.OnClassic && info.Type == snap.TypeOS {
 		t.Logf("Requested daemon restart.")
 		st.Unlock()
 		st.RequestRestart(state.RestartDaemon)
 		st.Lock()
 	}
-	if !release.OnClassic && boot.KernelOrOsRebootRequired(newInfo) {
+	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
 		t.Logf("Requested system restart.")
 		st.Unlock()
 		st.RequestRestart(state.RestartSystem)
 		st.Lock()
 	}
 
-	return nil
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
