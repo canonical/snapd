@@ -15,6 +15,7 @@ details: |
 environment:
     INJECT_FAILURE/rclocalcrash: inject_rclocalcrash_failure
     INJECT_FAILURE/emptysystemd: inject_emptysystemd_failure
+    INJECT_FAILURE/systemdloop: inject_systemdloop_failure
 
 restore: |
     rm -f failing.snap failBoot currentBoot prevBoot
@@ -41,6 +42,38 @@ execute: |
 
     inject_emptysystemd_failure(){
         truncate -s 0 /tmp/unpack/lib/systemd/systemd
+    }
+
+    inject_systemdloop_failure(){
+        cat <<EOF > /tmp/unpack/lib/systemd/system/deadlock.service
+    [Unit]
+    Before=sysinit.target
+    DefaultDependencies=no
+    [Service]
+    Type=oneshot
+    ExecStartPre=-/bin/sh -c "echo 'DEBUG: $(date): deadlocked system' >/dev/console"
+    ExecStartPre=-/bin/sh -c "echo 'DEBUG: $(date): deadlocked system' >/dev/ttyS0"
+    ExecStart=/bin/systemctl start deadlock.service
+    RemainAfterExit=yes
+    [Install]
+    RequiredBy=sysinit.target
+    EOF
+        # FIXME: we need to add an unit to reboot the system after some time, the system should be
+        # able to detect the failure condition and issue a reboot by itself
+        cat <<EOF > /tmp/unpack/lib/systemd/system/autoreboot.service
+    [Unit]
+    DefaultDependencies=no
+    Description=Force reboot if booting did not finish after 20s (the system does not do it by itself)
+    [Service]
+    Type=oneshot
+    ExecStartPre=/bin/sleep 20
+    ExecStart=-/bin/sh -c 'if ! systemctl is-active default.target; then wall "EMERGENCY REBOOT"; reboot -f; fi'
+    [Install]
+    RequiredBy=sysinit.target
+    EOF
+        for service in deadlock autoreboot; do
+            chroot /tmp/unpack ln -s /lib/systemd/system/$service.service /lib/systemd/system/sysinit.target.requires/$service.service
+        done
     }
 
     . $TESTSLIB/names.sh
