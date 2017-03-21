@@ -107,6 +107,38 @@ func (s *configHelpersSuite) TestConfigurationSnapshot(c *C) {
 	c.Check(value, Equals, "b")
 }
 
+func (s *configHelpersSuite) TestDeleteConfigurationSnapshot(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("snap3", "foo", "a"), IsNil)
+	tr.Commit()
+
+	for i := 1; i <= 3; i++ {
+		c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
+	}
+
+	var cfgsnapshot map[string]map[string]interface{}
+	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
+	c.Assert(cfgsnapshot["snap3"], NotNil)
+	c.Assert(cfgsnapshot["snap3"], HasLen, 3)
+
+	for i := 1; i <= 2; i++ {
+		c.Assert(config.DeleteConfigurationSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
+	}
+	cfgsnapshot = nil
+	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
+	c.Assert(cfgsnapshot["snap3"], NotNil)
+	c.Assert(cfgsnapshot["snap3"], HasLen, 1)
+
+	// removing the last revision removes snap completely from the config map
+	cfgsnapshot = nil
+	c.Assert(config.DeleteConfigurationSnapshotMaybe(s.state, "snap3", snap.R(3)), IsNil)
+	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
+	c.Assert(cfgsnapshot["snap3"], IsNil)
+}
+
 func (s *configHelpersSuite) TestConfigurationSnapshotNoConfigs(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
