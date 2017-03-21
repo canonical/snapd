@@ -1,4 +1,4 @@
-summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1597842
+summary: Regression test for https://bugs.launchpad.net/snap-wrap/+bug/1597842
 details: |
     The snap execution environment is expected to contain the /usr/src
     directory from the classic distribution. Certain snaps may use that to

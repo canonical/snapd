@@ -24,16 +24,25 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
-    # also inject new version of snap-confine and snap-scard-ns
-    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
+    # also inject new version of snap-wrap and snap-scard-ns
+    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-wrap squashfs-root/usr/lib/snapd/
+    # also remove snap-confine if it is not in the package anymore
+    if [ ! -e /usr/lib/snapd/snap-confine ]; then
+        rm -f squashfs-root/usr/lib/snapd/snap-confine
+    fi
+    # also make sure snap-wrap is setuid root
+    if [ $(stat -c '%a' squashfs-root/usr/lib/snapd/snap-wrap) != 4755 ]; then
+        echo "snap-wrap is not setuid root?"
+        exit 1
+    fi
     # also add snap/snapd because we re-exec by default and want to test
     # this version
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
@@ -48,7 +57,7 @@ update_core_snap_for_classic_reexec() {
     mount "$snap" "$core"
 
     # Make sure we're running with the correct copied bits
-    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
+    for p in /usr/lib/snapd/snap-exec /usr/lib/snapd/snap-wrap /usr/lib/snapd/snap-discard-ns /usr/bin/snapctl /usr/lib/snapd/snapd /usr/bin/snap; do
         if ! cmp ${p} ${core}${p}; then
             echo "$p in tree and $p in core snap are unexpectedly not the same"
             exit 1
@@ -80,10 +89,10 @@ prepare_classic() {
         apt-cache policy snapd
         exit 1
     fi
-    if /usr/lib/snapd/snap-confine --version | MATCH unknown; then
-        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        /usr/lib/snapd/snap-confine --version
-        apt-cache policy snap-confine
+    if /usr/lib/snapd/snap-wrap --version | MATCH unknown; then
+        echo "Package build incorrect, 'snap-wrap --version' mentions 'unknown'"
+        /usr/lib/snapd/snap-wrap --version
+        apt-cache policy snap-wrap
         exit 1
     fi
 
@@ -158,7 +167,7 @@ setup_reflash_magic() {
         snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
-        # uses snap-confine and that will hide parts of the hostfs
+        # uses snap-wrap and that will hide parts of the hostfs
         IMAGE_HOME=/home/image
         mkdir -p $IMAGE_HOME
 

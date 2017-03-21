@@ -117,11 +117,11 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
-		// NOTE: This is understood by snap-confine
+		// NOTE: This is understood by snap-wrap
 		buffer.WriteString("@unrestricted\n")
 	}
 	if opts.DevMode && !opts.JailMode {
-		// NOTE: This is understood by snap-confine
+		// NOTE: This is understood by snap-wrap
 		buffer.WriteString("@complain\n")
 	}
 

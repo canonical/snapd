@@ -1,6 +1,6 @@
 summary: Check that /var/lib/lxd is bind mounted to the real thing if one exists
 details: |
-    After switching to the chroot-based snap-confine the LXD snap stopped
+    After switching to the chroot-based snap-wrap the LXD snap stopped
     working (even in devmode) because it relied on access to /var/lib/lxd from
     the host filesystem. While this would never work in an all-snap image it is
     still important to ensure that it works in classic devmode environment.

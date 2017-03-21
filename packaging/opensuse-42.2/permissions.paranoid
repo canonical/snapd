@@ -1,1 +1,1 @@
-/usr/lib/snapd/snap-confine                             root:root         755
+/usr/lib/snapd/snap-wrap                             root:root         755

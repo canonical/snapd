@@ -1,6 +1,6 @@
-summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1595444
+summary: Regression check for https://bugs.launchpad.net/snap-wrap/+bug/1595444
 details: |
-    This task checks the behavior of snap-confine when it is started from
+    This task checks the behavior of snap-wrap when it is started from
     a directory that doesn't exist in the execution environment (chroot).
 # This test only applies to classic systems
 systems: [-ubuntu-core-16-*]
@@ -15,7 +15,7 @@ execute: |
     echo "We can run the 'pwd' tool and it reports /tmp"
     [ "$(cd /tmp && test-snapd-tools.cmd pwd)" = "/tmp" ]
     echo "But if we go to a location that is not available to snaps (e.g. /foo)"
-    echo "Then snap-confine moves us to /var/lib/snapd/void"
+    echo "Then snap-wrap moves us to /var/lib/snapd/void"
     [ "$(cd /foo && test-snapd-tools.cmd pwd)" = "/var/lib/snapd/void" ]
     echo "And that directory is not readable or writable"
     [ "$(cd /foo && test-snapd-tools.cmd ls 2>&1)" = "ls: cannot open directory '.': Permission denied" ];

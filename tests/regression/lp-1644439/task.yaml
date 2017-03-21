@@ -1,11 +1,11 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
 details: |
-    snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
-    mount namespaces of each snap. In the case that snap-confine is invoked
+    snap-wrap uses privately-shared /run/snapd/ns to store bind-mounted
+    mount namespaces of each snap. In the case that snap-wrap is invoked
     from the mount namespace it typically constructs, the said directory does
     not contain mount entries for preserved namespaces as those are only
     visible in the main, outer namespace. In order to operate in such an
-    environment snap-confine must first re-associate its own process with
+    environment snap-wrap must first re-associate its own process with
     another namespace in which the /run/snapd/ns directory is visible.
     The most obvious candidate is pid one, which definitely doesn't run in a
     snap-specific namespace, has a predictable PID and is long lived.

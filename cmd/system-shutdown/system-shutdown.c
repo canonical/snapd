@@ -29,7 +29,7 @@
 #include <errno.h>		// errno, sys_errlist
 
 #include "system-shutdown-utils.h"
-#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-wrap-private/string-utils.h"
 
 int main(int argc, char *argv[])
 {

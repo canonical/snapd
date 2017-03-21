@@ -217,13 +217,16 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 }
 
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
-	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-wrap")
+	if !osutil.FileExists(snapConfine) {
+		snapConfine = filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	}
 	if !osutil.FileExists(snapConfine) {
 		if hook != "" {
-			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-{confine,wrap}", hook, info.Name())
 			return nil
 		}
-		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+		return fmt.Errorf(i18n.G("missing snap-{confine,wrap}: try updating your snapd package"))
 	}
 
 	if err := createUserDataDirs(info); err != nil {

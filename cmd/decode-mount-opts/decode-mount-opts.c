@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../libsnap-confine-private/mount-opt.h"
+#include "../libsnap-wrap-private/mount-opt.h"
 
 int main(int argc, char *argv[])
 {

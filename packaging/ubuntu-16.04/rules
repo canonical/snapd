@@ -56,10 +56,10 @@ endif
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
 
 override_dh_fixperms:
-	dh_fixperms -Xusr/lib/snapd/snap-confine
+	dh_fixperms -Xusr/lib/snapd/snap-wrap
 
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
+	dh_apparmor --profile-name=usr.lib.snapd.snap-wrap -psnapd
 	dh_installdeb
 
 override_dh_clean:
@@ -99,7 +99,7 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	# run the snap-confine tests
+	# run the snap-wrap tests
 	$(MAKE) -C cmd check
 endif
 

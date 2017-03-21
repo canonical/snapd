@@ -1,4 +1,4 @@
-summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1606277 
+summary: Regression check for https://bugs.launchpad.net/snap-wrap/+bug/1606277 
 details: |
     A missing bind mount for /var/log prevents access to system log files
     even if the log-observe interface is being used.

@@ -32,7 +32,7 @@ case "$ID" in
 		;;
 	opensuse)
 		# NOTE: we need to disable apparmor as the version on OpenSUSE
-		# is too old to confine snap-confine and installed snaps
+		# is too old to confine snap-wrap and installed snaps
 		# themselves. This should be changed once all the kernel
 		# patches find their way into the distribution.
 		extra_opts="--libexecdir=/usr/lib/snapd --disable-apparmor"

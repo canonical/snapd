@@ -1,0 +1,15 @@
+Welcome brave porters!
+
+This file is intended to guide you towards porting snappy (comprised of snapd
+and this project, snap-wrap) to work on a new kernel. The confinement setup by
+snap-wrap has several requirements on the kernel.
+
+TODO: list required patches (apparmor, seccomp)
+TODO: list required kernel configufation
+TODO: list minimum supported kernel version
+
+While you are working on porting those patches to your kernel of choice, you
+may configure snap-wrap with --disable-security. This switch drops
+requirement on apparmor, seccomp and udev and reduces snap-wrap to arrange
+the filesystem in a correct way for snaps to operate without really confining
+them in any way.

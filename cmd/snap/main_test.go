@@ -153,7 +153,7 @@ func mockVersion(v string) (restore func()) {
 }
 
 func mockSnapConfine() func() {
-	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-wrap")
 	if err := os.MkdirAll(dirs.DistroLibExecDir, 0755); err != nil {
 		panic(err)
 	}

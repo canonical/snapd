@@ -1,0 +1,3 @@
+summary: snap-wrap supports the --version switch
+prepare: |
+    [ "$(ubuntu-core-launcher --version)" = "snap-wrap $(cat $SPREAD_PATH/VERSION)" ]

@@ -1,7 +1,7 @@
-summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1599891
+summary: Regression check for https://bugs.launchpad.net/snap-wrap/+bug/1599891
 execute: |
-    snap_confine=/usr/lib/snapd/snap-confine
-    echo "Seeing that snap-confine is in $snap_confine"
+    snap_confine=/usr/lib/snapd/snap-wrap
+    echo "Seeing that snap-wrap is in $snap_confine"
 
     echo "I also see a corresponding apparmor profile"
     cat "/sys/kernel/security/apparmor/profiles" | MATCH "$snap_confine \(enforce\)"

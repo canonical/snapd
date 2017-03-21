@@ -49,7 +49,7 @@ const mountObserveConnectedPlugSecComp = `
 # restricted because it gives privileged read access to mount arguments and
 # should only be used with trusted apps.
 
-# FIXME: restore quotactl with parameter filtering once snap-confine can read
+# FIXME: restore quotactl with parameter filtering once snap-wrap can read
 # this syntax. See LP:#1662489 for context.
 #quotactl Q_GETQUOTA - - -
 #quotactl Q_GETINFO - - -

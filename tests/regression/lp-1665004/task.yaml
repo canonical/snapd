@@ -1,7 +1,7 @@
 summary: ensure that /var/lib/snapd/hostfs is group-owned by root
 details: |
     On a system that never ran any snap before the /var/lib/snapd/hostfs
-    directory does not exist. When snap-confine is used it will create the
+    directory does not exist. When snap-wrap is used it will create the
     directory on demand but that directory will retain the group identity of
     the user.
 prepare: |

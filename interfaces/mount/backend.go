@@ -40,7 +40,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Backend is responsible for maintaining mount files for snap-confine
+// Backend is responsible for maintaining mount files for snap-wrap
 type Backend struct{}
 
 // Name returns the name of the backend.
@@ -95,11 +95,11 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
 	content := make(map[string]*osutil.FileState)
-	// Add the new per-snap fstab file. This file will be read by snap-confine.
+	// Add the new per-snap fstab file. This file will be read by snap-wrap.
 	content[fmt.Sprintf("snap.%s.fstab", snapInfo.Name())] = fstate
 	// Add legacy per-app/per-hook fstab files. Those are identical but
-	// snap-confine doesn't yet load it from a per-snap location. This can be
-	// safely removed once snap-confine is updated.
+	// snap-wrap doesn't yet load it from a per-snap location. This can be
+	// safely removed once snap-wrap is updated.
 	for _, appInfo := range snapInfo.Apps {
 		content[fmt.Sprintf("%s.fstab", appInfo.SecurityTag())] = fstate
 	}

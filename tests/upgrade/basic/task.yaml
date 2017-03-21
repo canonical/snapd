@@ -16,14 +16,14 @@ execute: |
     dpkg -l snapd snap-confine || true
     apt-get install -y snapd
 
-    prevsnapdver=$(snap --version|grep "snapd ")
+    prevsnapdver=$(snap --version| MATCH "snapd ")
 
     echo Install a snap with it
     snap install test-snapd-tools
 
     echo Sanity check install
-    test-snapd-tools.echo Hello | grep Hello
-    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test-snapd-tools.echo Hello | MATCH Hello
+    test-snapd-tools.env | MATCH SNAP_NAME=test-snapd-tools
 
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
@@ -37,14 +37,14 @@ execute: |
         apt install -y --allow-downgrades ${GOPATH}/snapd*.deb
     fi
 
-    snapdver=$(snap --version|grep "snapd ")
+    snapdver=$(snap --version| MATCH "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
 
     echo Sanity check already installed snaps after upgrade
-    snap list | grep core
-    snap list | grep test-snapd-tools
-    test-snapd-tools.echo Hello | grep Hello
-    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    snap list | MATCH core
+    snap list | MATCH test-snapd-tools
+    test-snapd-tools.echo Hello | MATCH Hello
+    test-snapd-tools.env | MATCH SNAP_NAME=test-snapd-tools
     echo Hello > /var/tmp/myevil.txt
     test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
 
