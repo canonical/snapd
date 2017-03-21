@@ -73,16 +73,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
 
-	// Reuse map, indexed by Entry.Dir.
-	// All reused entries will not be unmounted or mounted. Reused entries must
-	// naturally exist in the desired and current maps or no reuse is possible.
-	reuse := make(map[string]bool)
-
-	// See if there are any directories that we can reuse. Go over all the
-	// entries in the current entries and if there's an identical desired entry
-	// then mark this directory / entry for reuse.
-	//
-	// Don't reuse any children if their parent changes.
+	// Compute reusable entries: those which are equal in current and desired and which
+	// are not prefixed by another entry that changed.
+	var reuse map[string]bool
 	var skipDir string
 	for i := range current {
 		dir := current[i].Dir
@@ -91,6 +84,9 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
 		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
+			if reuse == nil {
+				reuse = make(map[string]bool)
+			}
 			reuse[dir] = true
 			continue
 		}
