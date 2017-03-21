@@ -1064,7 +1064,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	scheduleRestart(t, oldInfo)
+	maybeRestart(t, oldInfo)
 
 	return nil
 }
@@ -1227,12 +1227,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	scheduleRestart(t, newInfo)
+	maybeRestart(t, newInfo)
 
 	return nil
 }
 
-func scheduleRestart(t *state.Task, info *snap.Info) {
+// maybeRestart will schedule a reboot or restart as needed for the just linked
+// snap with info if it's a core or kernel snap.
+func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 	if release.OnClassic && info.Type == snap.TypeOS {
 		t.Logf("Requested daemon restart.")
@@ -1246,7 +1248,6 @@ func scheduleRestart(t *state.Task, info *snap.Info) {
 		st.RequestRestart(state.RestartSystem)
 		st.Lock()
 	}
-
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {

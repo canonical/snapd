@@ -282,6 +282,11 @@ func (m *DeviceManager) ensureBootOk() error {
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 		}
+		// TODO: this is a nop if snap_mode!=trying;
+		// how should react if snap_mode==try?
+		// either we expected a reboot but it didn't happen (yet),
+		// or something went seriously wrong with a reboot.
+		// Can we distinguish the two cases? how to behave in each?
 		if err := partition.MarkBootSuccessful(bootloader); err != nil {
 			return err
 		}
