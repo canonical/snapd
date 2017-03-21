@@ -86,7 +86,7 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 	var skipDir string
 	for i := range current {
 		dir := current[i].Dir
-		if skipDir != "" && strings.HasPrefix(dir, skipDir) && dir[len(skipDir)] == '/' {
+		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
 			continue
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
@@ -94,7 +94,7 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 			reuse[dir] = true
 			continue
 		}
-		skipDir = dir // set skip prefix as we're not reusing this entry
+		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
 
 	// We are now ready to compute the necessary mount changes.
