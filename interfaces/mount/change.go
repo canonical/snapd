@@ -100,16 +100,14 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 	// We are now ready to compute the necessary mount changes.
 	var changes []Change
 
-	// Unmount all the current entries (unless flagged for reuse).
-	// Because c is sorted by directory name we can iterate in reverse
-	// to ensure we unmount children before we try to unmount parents.
+	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
 		if !reuse[current[i].Dir] {
 			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
 		}
 	}
 
-	// Mount all the desired entries (unless flagged for reuse).
+	// Mount desired entries not reused.
 	for i := range desired {
 		if !reuse[desired[i].Dir] {
 			changes = append(changes, Change{Action: Mount, Entry: desired[i]})
