@@ -56,13 +56,23 @@ func (s *entrySuite) TestString(c *C) {
 }
 
 func (s *entrySuite) TestEqual(c *C) {
-	c.Assert(mount.EqualEntries(&mount.Entry{}, &mount.Entry{}), Equals, true)
-	c.Assert(mount.EqualEntries(&mount.Entry{Dir: "foo"}, &mount.Entry{Dir: "foo"}), Equals, true)
-	c.Assert(mount.EqualEntries(&mount.Entry{Options: []string{"ro"}},
-		&mount.Entry{Options: []string{"ro"}}), Equals, true)
-
-	c.Assert(mount.EqualEntries(&mount.Entry{Dir: "foo"}, &mount.Entry{Dir: "bar"}), Equals, false)
-	c.Assert(mount.EqualEntries(&mount.Entry{}, &mount.Entry{Options: []string{"ro"}}), Equals, false)
-	c.Assert(mount.EqualEntries(&mount.Entry{Options: []string{"ro"}},
-		&mount.Entry{Options: []string{"rw"}}), Equals, false)
+	var a, b *mount.Entry
+	a = &mount.Entry{}
+	b = &mount.Entry{}
+	c.Assert(a.Equal(b), Equals, true)
+	a = &mount.Entry{Dir: "foo"}
+	b = &mount.Entry{Dir: "foo"}
+	c.Assert(a.Equal(b), Equals, true)
+	a = &mount.Entry{Options: []string{"ro"}}
+	b = &mount.Entry{Options: []string{"ro"}}
+	c.Assert(a.Equal(b), Equals, true)
+	a = &mount.Entry{Dir: "foo"}
+	b = &mount.Entry{Dir: "bar"}
+	c.Assert(a.Equal(b), Equals, false)
+	a = &mount.Entry{}
+	b = &mount.Entry{Options: []string{"ro"}}
+	c.Assert(a.Equal(b), Equals, false)
+	a = &mount.Entry{Options: []string{"ro"}}
+	b = &mount.Entry{Options: []string{"rw"}}
+	c.Assert(a.Equal(b), Equals, false)
 }

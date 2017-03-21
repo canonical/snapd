@@ -91,7 +91,7 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 			continue
 		}
 		skipPrefix = "" // reset skip prefix as it no longer applies
-		if entry, ok := desiredMap[dir]; ok && EqualEntries(&current[i], entry) {
+		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
 			reuse[dir] = true
 			continue
 		}
