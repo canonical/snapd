@@ -68,7 +68,6 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	// Maps from a directory to a pointer to an Entry from the desired list.
 	desiredMap := make(map[string]*Entry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
