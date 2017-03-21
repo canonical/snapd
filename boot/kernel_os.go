@@ -166,6 +166,7 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 
 	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
 	if err != nil {
+		logger.Noticef("cannot get boot variables: %s", err)
 		return false
 	}
 
