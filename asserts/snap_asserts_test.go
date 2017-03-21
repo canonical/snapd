@@ -668,9 +668,8 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 }
 
 type snapRevSuite struct {
-	ts           time.Time
-	tsLine       string
-	validEncoded string
+	ts     time.Time
+	tsLine string
 }
 
 func (srs *snapRevSuite) SetUpSuite(c *C) {
