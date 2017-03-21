@@ -83,18 +83,18 @@ func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
 	// then mark this directory / entry for reuse.
 	//
 	// Don't reuse any children if their parent changes.
-	var skipPrefix string
+	var skipDir string
 	for i := range current {
 		dir := current[i].Dir
-		if skipPrefix != "" && strings.HasPrefix(dir, skipPrefix) && dir[len(skipPrefix)] == '/' {
+		if skipDir != "" && strings.HasPrefix(dir, skipDir) && dir[len(skipDir)] == '/' {
 			continue
 		}
-		skipPrefix = "" // reset skip prefix as it no longer applies
+		skipDir = "" // reset skip prefix as it no longer applies
 		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
 			reuse[dir] = true
 			continue
 		}
-		skipPrefix = dir // set skip prefix as we're not reusing this entry
+		skipDir = dir // set skip prefix as we're not reusing this entry
 	}
 
 	// We are now ready to compute the necessary mount changes.
