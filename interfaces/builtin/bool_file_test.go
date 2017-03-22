@@ -20,13 +20,13 @@
 package builtin_test
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -56,6 +56,14 @@ var _ = Suite(&BoolFileInterfaceSuite{
 })
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
+	plugSnapinfo := snaptest.MockInfo(c, `
+name: other
+plugs:
+ plug: bool-file
+apps:
+ app:
+  command: foo
+`, nil)
 	info := snaptest.MockInfo(c, `
 name: ubuntu-core
 slots:
@@ -83,9 +91,11 @@ plugs:
 	s.badPathSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-path"]}
 	s.parentDirPathSlot = &interfaces.Slot{SlotInfo: info.Slots["parent-dir-path"]}
 	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface-slot"]}
-	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["plug"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnapinfo.Plugs["plug"]}
 	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface-plug"]}
 }
+
+// TODO: add test for permanent slot when we have hook support.
 
 func (s *BoolFileInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bool-file")
@@ -127,9 +137,11 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
-	c.Assert(snippet, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
@@ -139,37 +151,25 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,")
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentPlugSecurityDoesNotContainSlotSecurity(c *C) {
-	// Use a fake (successful) dereferencing function for the remainder of the test.
-	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
-		return path, nil
-	})
-	var err error
-	var slotSnippet, plugSnippet []byte
-	plugSnippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	slotSnippet, err = s.iface.PermanentSlotSnippet(s.gpioSlot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	// Ensure that we don't accidentally give plug-side permissions to slot-side.
-	c.Assert(bytes.Contains(plugSnippet, slotSnippet), Equals, false)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,")
 }
 
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.ConnectedPlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
+		apparmorSpec := &apparmor.Specification{}
+		apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.missingPathSlot)
 	}, PanicMatches, "slot is not sanitized")
 }
 
@@ -213,30 +213,4 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
-	// Extra apparmor permission to provide GPIOs
-	expectedGPIOSnippet := []byte(`
-/sys/class/gpio/export rw,
-/sys/class/gpio/unexport rw,
-/sys/class/gpio/gpio[0-9]+/direction rw,
-`)
-	snippet, err := s.iface.PermanentSlotSnippet(s.gpioSlot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
-	// No extra apparmor permission to provide LEDs
-	snippet, err := s.iface.PermanentSlotSnippet(s.ledSlot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetPanicksOnUnsanitizedSlots(c *C) {
-	// Unsanitized slots should never be used and cause a panic.
-	c.Assert(func() {
-		s.iface.PermanentSlotSnippet(s.missingPathSlot, interfaces.SecurityAppArmor)
-	}, PanicMatches, "slot is not sanitized")
 }

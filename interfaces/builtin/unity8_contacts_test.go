@@ -23,36 +23,55 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type Unity8ContactsInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.Slot
+	coreSlot *interfaces.Slot
+	plug     *interfaces.Plug
 }
 
-var _ = Suite(&Unity8ContactsInterfaceSuite{
-	iface: builtin.NewUnity8ContactsInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&Unity8ContactsInterfaceSuite{})
+
+func (s *Unity8ContactsInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [unity8-contacts]
+`
+
+	const mockCoreSlotInfoYaml = `name: contacts
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [unity8-contacts]
+`
+	s.iface = builtin.NewUnity8ContactsInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "unity8-contacts",
 			Interface: "unity8-contacts",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "unity8-contacts",
-			Interface: "unity8-contacts",
-		},
-	},
-})
+	}
+
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity8-contacts"]}
+
+	slotSnap := snaptest.MockInfo(c, mockCoreSlotInfoYaml, nil)
+	s.coreSlot = &interfaces.Slot{SlotInfo: slotSnap.Slots["unity8-contacts"]}
+}
 
 func (s *Unity8ContactsInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity8-contacts")
@@ -72,9 +91,10 @@ func (s *Unity8ContactsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *Unity8ContactsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
 // The label glob when all apps are bound to the contacts slot
@@ -93,9 +113,12 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the contacts slot
@@ -115,9 +138,12 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the calendar slot
@@ -135,67 +161,63 @@ func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 		},
 	}
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.unity8.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `peer=(label="snap.unity8.app"),`)
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
+
 	// verify apparmor connected
-	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic connected
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
+	c.Assert(snippet, testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
-	c.Assert(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic didn't connect
-	c.Assert(string(snippet), Not(testutil.Contains), "peer=(label=unconfined),")
+	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "peer=(label=\"snap.other.*\")")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "peer=(label=\"snap.other.app\")")
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "name=\"org.gnome.evolution.dataserver.Sources5\"")
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	slot := &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "cal"},
-			Name:      "contacts",
-			Interface: "unity8-contacts",
-			Apps: map[string]*snap.AppInfo{
-				"app": {
-					Snap: &snap.Info{
-						SuggestedName: "contacts",
-					},
-					Name: "app"}},
-		},
-	}
-
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets), Equals, 1)
-	c.Assert(len(snippets["snap.contacts.app"]), Equals, 1)
-	c.Check(string(snippets["snap.contacts.app"][0]), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.contacts.app"})
+	c.Check(seccompSpec.SnippetForTag("snap.contacts.app"), testutil.Contains, "listen\n")
 }

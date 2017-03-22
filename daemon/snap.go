@@ -105,7 +105,7 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
-func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
+func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -116,7 +116,10 @@ func allLocalSnapInfos(st *state.State, all bool) ([]aboutSnap, error) {
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for _, snapst := range snapStates {
+	for name, snapst := range snapStates {
+		if len(wanted) > 0 && !wanted[name] {
+			continue
+		}
 		var aboutThis []aboutSnap
 		var info *snap.Info
 		var publisher string

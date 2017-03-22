@@ -21,43 +21,55 @@ package apparmor
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+
+	"sort"
+	"strings"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
 	// snippets are indexed by security tag.
-	snippets     map[string][][]byte
+	snippets     map[string][]string
 	securityTags []string
 }
 
 // AddSnippet adds a new apparmor snippet.
-func (spec *Specification) AddSnippet(snippet []byte) error {
+func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
-		return nil
+		return
 	}
 	if spec.snippets == nil {
-		spec.snippets = make(map[string][][]byte)
+		spec.snippets = make(map[string][]string)
 	}
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		sort.Strings(spec.snippets[tag])
 	}
-
-	return nil
 }
 
 // Snippets returns a deep copy of all the added snippets.
-func (spec *Specification) Snippets() map[string][][]byte {
-	result := make(map[string][][]byte, len(spec.snippets))
+func (spec *Specification) Snippets() map[string][]string {
+	result := make(map[string][]string, len(spec.snippets))
 	for k, v := range spec.snippets {
-		vCopy := make([][]byte, 0, len(v))
-		for _, vElem := range v {
-			vElemCopy := make([]byte, len(vElem))
-			copy(vElemCopy, vElem)
-			vCopy = append(vCopy, vElemCopy)
-		}
-		result[k] = vCopy
+		result[k] = append([]string(nil), v...)
 	}
 	return result
+}
+
+// SnippetForTag returns a combined snippet for given security tag with individual snippets
+// joined with newline character. Empty string is returned for non-existing security tag.
+func (spec *Specification) SnippetForTag(tag string) string {
+	return strings.Join(spec.snippets[tag], "\n")
+}
+
+// SecurityTags returns a list of security tags which have a snippet.
+func (spec *Specification) SecurityTags() []string {
+	var tags []string
+	for t := range spec.snippets {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 // Implementation of methods required by interfaces.Specification

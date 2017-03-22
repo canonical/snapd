@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -179,17 +180,19 @@ func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := []byte(`
+	expectedSnippet1 := `
 # Description: Give access to a specific IIO device on the system.
 
 /dev/iio:device1 rw,
 /sys/bus/iio/devices/iio:device1/ r,
 /sys/bus/iio/devices/iio:device1/** rwk,
-`)
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+`
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
-
 }
 
 func (s *IioInterfaceSuite) TestAutoConnect(c *C) {

@@ -120,37 +120,8 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
-	// Restore real OS info at the end of this function.
-	defer release.MockReleaseInfo(&release.OS{})()
-	distros := []struct {
-		id        string
-		idVersion string
-		devmode   bool
-	}{
-		// Please keep this list sorted
-		{id: "arch", devmode: true},
-		{id: "debian", devmode: true},
-		{id: "elementary", devmode: true},
-		{id: "elementary", idVersion: "0.4", devmode: false},
-		{id: "fedora", devmode: true},
-		{id: "gentoo", devmode: true},
-		{id: "neon", devmode: false},
-		{id: "opensuse", devmode: true},
-		{id: "rhel", devmode: true},
-		{id: "ubuntu", devmode: false},
-		{id: "ubuntu-core", devmode: false},
-		{id: "linuxmint", devmode: true},
-		{id: "linuxmint", idVersion: "18.1", devmode: false},
-		{id: "galliumos", devmode: true},
-		{id: "galliumos", idVersion: "2.0", devmode: false},
-		{id: "peppermint", devmode: true},
-		{id: "peppermint", idVersion: "7.0", devmode: false},
-		{id: "zorin", idVersion: "", devmode: true},
-		{id: "zorin", idVersion: "12", devmode: false},
-	}
-	for _, distro := range distros {
-		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
-		release.MockReleaseInfo(rel)
-		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode, Commentf("distro %#v incorrect", distro))
+	for _, devmode := range []bool{true, false} {
+		release.MockForcedDevmode(devmode)
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }

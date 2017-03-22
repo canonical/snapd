@@ -36,7 +36,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -102,22 +101,20 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
-		snippet := spec.snippets[securityTag]
-		addContent(securityTag, opts, snippet, content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		snippet := spec.snippets[securityTag]
-		addContent(securityTag, opts, snippet, content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetsForTag []string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -129,11 +126,7 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippets
 	}
 
 	buffer.Write(defaultTemplate)
-	sort.Strings(snippetsForTag)
-	for _, snippet := range snippetsForTag {
-		buffer.WriteString(snippet)
-		buffer.WriteRune('\n')
-	}
+	buffer.WriteString(snippetForTag)
 
 	content[securityTag] = &osutil.FileState{
 		Content: buffer.Bytes(),
