@@ -968,12 +968,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return &state.Retry{After: 3 * time.Minute}
 		}
 	}
+
+	st.Lock()
+	defer st.Unlock()
 	if err = config.DeleteConfigurationSnapshotMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
 		return err
 	}
-	st.Lock()
 	Set(st, snapsup.Name(), snapst)
-	st.Unlock()
 	return nil
 }
 
@@ -1329,6 +1330,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
 	if err != nil {
+		return err
+	}
+
+	if err = config.RestoreConfigurationSnapshotMaybe(st, snapsup.Name(), oldCurrent); err != nil {
 		return err
 	}
 
