@@ -668,9 +668,8 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 }
 
 type snapRevSuite struct {
-	ts           time.Time
-	tsLine       string
-	validEncoded string
+	ts     time.Time
+	tsLine string
 }
 
 func (srs *snapRevSuite) SetUpSuite(c *C) {
@@ -1449,6 +1448,46 @@ func (sds *snapDevSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDevErrPrefix+test.expectedErr)
+	}
+}
+
+func (sds *snapDevSuite) TestRevokedValidation(c *C) {
+	// Multiple non-revoking items are fine.
+	encoded := strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n",
+		1)
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	// Multiple revocations for different developers are fine.
+	encoded = strings.Replace(sds.validEncoded, sds.developersLines,
+		"developers:\n"+
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n"+
+			"  -\n    developer-id: dev-id3\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		1)
+	_, err = asserts.Decode([]byte(encoded))
+	c.Check(err, IsNil)
+
+	invalidTests := []string{
+		// Multiple revocations.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n    until: 2017-02-01T00:00:00.0Z\n",
+		// Revocation after non-revoking.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-03-01T00:00:00.0Z\n    until: 2017-03-01T00:00:00.0Z\n",
+		// Non-revoking after revocation.
+		"developers:\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-01-01T00:00:00.0Z\n    until: 2017-01-01T00:00:00.0Z\n" +
+			"  -\n    developer-id: dev-id2\n    since: 2017-02-01T00:00:00.0Z\n",
+	}
+	for _, test := range invalidTests {
+		encoded := strings.Replace(sds.validEncoded, sds.developersLines, test, 1)
+		_, err := asserts.Decode([]byte(encoded))
+		c.Check(err, ErrorMatches, snapDevErrPrefix+`revocation for developer "dev-id2" must be standalone but found other "developers" items`)
 	}
 }
 
