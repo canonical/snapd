@@ -1,6 +1,6 @@
 summary: Checks for special cases of snap install from the store
 
-systems: [+ubuntu-core-16-64]
+systems: [ubuntu-core-16-*]
 
 environment:
     SNAP_NAME: test-snapd-tools

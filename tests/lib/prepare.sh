@@ -66,7 +66,10 @@ prepare_each_classic() {
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
     fi
-
+    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+        exit 1
+    fi
 }
 
 prepare_classic() {
@@ -129,8 +132,8 @@ EOF
         update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
-        mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
@@ -326,7 +329,7 @@ prepare_all_snap() {
 
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
-    for name in $gadget_name $kernel_name $core_name; do
+    for name in $gadget_name $kernel_name core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"

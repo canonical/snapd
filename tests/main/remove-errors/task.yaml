@@ -7,7 +7,7 @@ execute: |
 
     . "$TESTSLIB/names.sh"
     echo "Ensure the important snaps can not be removed"
-    for sn in $core_name $kernel_name $gadget_name; do
+    for sn in core $kernel_name $gadget_name; do
         if snap remove $sn; then
             echo "It should not be possible to remove $sn"
             exit 1
