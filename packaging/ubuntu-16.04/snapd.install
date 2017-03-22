@@ -20,8 +20,10 @@ etc/apparmor.d/usr.lib.snapd.snap-confine
 lib/udev/rules.d/80-snappy-assign.rules
 lib/udev/snappy-app-dev
 usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-confine-suid-trampoline
 usr/lib/snapd/snap-discard-ns
 usr/lib/snapd/snap-update-ns
+usr/share/man/man5/snap-confine-suid-trampoline.5
 usr/share/man/man5/snap-confine.5
 usr/share/man/man5/snap-update-ns.5
 usr/share/man/man5/snap-discard-ns.5

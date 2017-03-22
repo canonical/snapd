@@ -6,7 +6,7 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-update-ns
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-update-ns snap-confine-suid-trampoline
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -418,3 +418,25 @@ snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
 snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snap-confine-suid-trampoline
+##
+
+libexec_PROGRAMS += snap-confine-suid-trampoline/snap-confine-suid-trampoline
+CLEANFILES += snap-confine-suid-trampoline/snap-confine-suid-trampoline.5
+EXTRA_DIST += snap-confine-suid-trampoline/snap-confine-suid-trampoline.rst
+dist_man_MANS += snap-confine-suid-trampoline/snap-confine-suid-trampoline.5
+
+snap_confine_suid_trampoline_snap_confine_suid_trampoline_SOURCES = \
+	snap-confine-suid-trampoline/main.c
+snap_confine_suid_trampoline_snap_confine_suid_trampoline_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
+snap_confine_suid_trampoline_snap_confine_suid_trampoline_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
+
+snap-confine-suid-trampoline/%.5: snap-confine-suid-trampoline/%.rst
+	mkdir -p snap-confine-suid-trampoline
+	$(HAVE_RST2MAN) $^ > $@
+
+# Ensure that suid-trampoline is +s (setuid)
+install-exec-hook::
+	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine-suid-trampoline

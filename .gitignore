@@ -18,6 +18,7 @@ po/snappy.pot
 .dirstamp
 cmd/decode-mount-opts/decode-mount-opts
 cmd/libsnap-confine-private/unit-tests
+cmd/snap-confine-suid-trampoline/snap-confine-suid-trampoline
 cmd/snap-confine/snap-confine
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-confine/unit-tests
