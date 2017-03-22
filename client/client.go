@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer() func(string, string) (net.Conn, error) {
+func unixDialer(_, _ string) (net.Conn, error) {
 	// We have two sockets available: the SnapdSocket (which provides
 	// administrative access), and the SnapSocket (which doesn't). Use the most
 	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
@@ -49,9 +49,7 @@ func unixDialer() func(string, string) (net.Conn, error) {
 		socketPath = dirs.SnapSocket
 	}
 
-	return func(_, _ string) (net.Conn, error) {
-		return net.Dial("unix", socketPath)
-	}
+	return net.Dial("unix", socketPath)
 }
 
 type doer interface {
@@ -91,7 +89,7 @@ func New(config *Config) *Client {
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer()},
+				Transport: &http.Transport{Dial: unixDialer},
 			},
 			disableAuth: config.DisableAuth,
 		}
