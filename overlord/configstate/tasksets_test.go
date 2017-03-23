@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -39,23 +40,36 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 }
 
 var configureTests = []struct {
-	patch    map[string]interface{}
-	optional bool
+	patch      map[string]interface{}
+	optional   bool
+	ignoreFail bool
 }{{
-	patch:    nil,
-	optional: true,
+	patch:      nil,
+	optional:   true,
+	ignoreFail: false,
 }, {
-	patch:    map[string]interface{}{},
-	optional: true,
+	patch:      map[string]interface{}{},
+	optional:   true,
+	ignoreFail: false,
 }, {
-	patch:    map[string]interface{}{"foo": "bar"},
-	optional: false,
+	patch:      map[string]interface{}{"foo": "bar"},
+	optional:   false,
+	ignoreFail: false,
+}, {
+	patch:      nil,
+	optional:   true,
+	ignoreFail: true,
 }}
 
 func (s *tasksetsSuite) TestConfigure(c *C) {
 	for _, test := range configureTests {
+		var flags int
+		if test.ignoreFail {
+			flags |= snapstate.IgnoreHookFailure
+		}
+
 		s.state.Lock()
-		taskset := configstate.Configure(s.state, "test-snap", test.patch)
+		taskset := configstate.Configure(s.state, "test-snap", test.patch, flags)
 		s.state.Unlock()
 
 		tasks := taskset.Tasks()
@@ -79,6 +93,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.Snap, Equals, "test-snap")
 		c.Assert(hooksup.Hook, Equals, "configure")
 		c.Assert(hooksup.Optional, Equals, test.optional)
+		c.Assert(hooksup.IgnoreFail, Equals, test.ignoreFail)
 
 		context, err := hookstate.NewContext(task, &hooksup, nil)
 		c.Check(err, IsNil)

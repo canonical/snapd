@@ -41,6 +41,11 @@ const (
 	maybeCore = 1 << iota
 )
 
+// control flags for "Configure()"
+const (
+	IgnoreHookFailure = 1 << iota
+)
+
 func needsMaybeCore(typ snap.Type) int {
 	if typ == snap.TypeOS {
 		return maybeCore
@@ -225,14 +230,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 
-	configSet := Configure(st, snapsup.Name(), defaults)
+	var confFlags int
+	if snapsup.Name() == "core" {
+		confFlags |= IgnoreHookFailure
+	}
+	configSet := Configure(st, snapsup.Name(), defaults, confFlags)
 	configSet.WaitAll(installSet)
 	installSet.AddAll(configSet)
 
 	return installSet, nil
 }
 
-var Configure = func(st *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	panic("internal error: snapstate.Configure is unset")
 }
 
