@@ -47,7 +47,6 @@ restore: |
 execute: |
     CONNECTED_PATTERN=":firewall-control +firewall-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +firewall-control-consumer:firewall-control"
-    . "$TESTSLIB/names.sh"
 
     echo "Then it is not connected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -55,7 +54,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect firewall-control-consumer:firewall-control ${core_name}:firewall-control
+    snap connect firewall-control-consumer:firewall-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And the snap creates a firewall rule"
@@ -73,7 +72,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect firewall-control-consumer:firewall-control ${core_name}:firewall-control
+    snap disconnect firewall-control-consumer:firewall-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"
