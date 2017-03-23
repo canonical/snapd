@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -233,149 +232,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	// invoked only if snap has a current active revision
-
-	st := t.State()
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-
-	info, err := Info(t.State(), snapsup.Name(), snapsup.Revision())
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
-	err = m.backend.UnlinkSnap(info, pb)
-	st.Lock()
-	if err != nil {
-		return err
-	}
-
-	// mark as inactive
-	snapst.Active = false
-	Set(st, snapsup.Name(), snapst)
-	return nil
-}
-
-func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	t.State().Lock()
-	info, err := Info(t.State(), snapsup.Name(), snapsup.Revision())
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err = m.backend.RemoveSnapData(info); err != nil {
-		return err
-	}
-
-	// Only remove data common between versions if this is the last version
-	if len(snapst.Sequence) == 1 {
-		if err = m.backend.RemoveSnapCommonData(info); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-
-	st.Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	if snapst.Current == snapsup.Revision() && snapst.Active {
-		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.Name())
-	}
-
-	if len(snapst.Sequence) == 1 {
-		snapst.Sequence = nil
-		snapst.Current = snap.Revision{}
-	} else {
-		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
-		for _, si := range snapst.Sequence {
-			if si.Revision == snapsup.Revision() {
-				// leave out
-				continue
-			}
-			newSeq = append(newSeq, si)
-		}
-		snapst.Sequence = newSeq
-		if snapst.Current == snapsup.Revision() {
-			snapst.Current = newSeq[len(newSeq)-1].Revision
-		}
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	typ, err := snapst.Type()
-	if err != nil {
-		return err
-	}
-	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
-	if err != nil {
-		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.Name(), err)
-		st.Unlock()
-		return &state.Retry{After: 3 * time.Minute}
-	}
-	if len(snapst.Sequence) == 0 {
-		err = m.backend.DiscardSnapNamespace(snapsup.Name())
-		if err != nil {
-			st.Lock()
-			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.Name(), err)
-			st.Unlock()
-			return &state.Retry{After: 3 * time.Minute}
-		}
-	}
-	st.Lock()
-	Set(st, snapsup.Name(), snapst)
-	st.Unlock()
-	return nil
-}
-
-func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	snapsup, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	t.State().Lock()
-	var typ snap.Type
-	err = t.Get("snap-type", &typ)
-	t.State().Unlock()
-	// backward compatibility
-	if err == state.ErrNoState {
-		typ = "app"
-	} else if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb)
-}
-
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -419,35 +275,27 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
+func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, err := TaskSnapSetup(t)
+	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo()
-	if err != nil {
+	t.State().Lock()
+	var typ snap.Type
+	err = t.Get("snap-type", &typ)
+	t.State().Unlock()
+	// backward compatibility
+	if err == state.ErrNoState {
+		typ = "app"
+	} else if err != nil {
 		return err
 	}
 
-	snapst.Active = true
-	st.Unlock()
-	err = m.backend.LinkSnap(oldInfo)
-	st.Lock()
-	if err != nil {
-		return err
-	}
-
-	// mark as active again
-	Set(st, snapsup.Name(), snapst)
-
-	return nil
-
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -481,26 +329,35 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
+func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
 
 	oldInfo, err := snapst.CurrentInfo()
-	if err != nil && err != ErrNoCurrent {
+	if err != nil {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
+	snapst.Active = true
+	st.Unlock()
+	err = m.backend.LinkSnap(oldInfo)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// mark as active again
+	Set(st, snapsup.Name(), snapst)
+
+	return nil
+
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -523,6 +380,54 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := &TaskProgressAdapter{task: t}
 	return m.backend.CopySnapData(newInfo, oldInfo, pb)
+}
+
+func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	oldInfo, err := snapst.CurrentInfo()
+	if err != nil && err != ErrNoCurrent {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
+}
+
+func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	if t.Status() != state.DoneStatus {
+		// it failed
+		return nil
+	}
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	m.backend.ClearTrashedData(info)
+
+	return nil
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -759,12 +664,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func setLastRefresh(st *state.State) {
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.last", time.Now())
-	tr.Commit()
-}
-
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
@@ -789,28 +688,122 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
+	// invoked only if snap has a current active revision
+
 	st := t.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	if t.Status() != state.DoneStatus {
-		// it failed
-		return nil
-	}
-
-	_, snapst, err := snapSetupAndState(t)
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
 
-	info, err := snapst.CurrentInfo()
+	info, err := Info(t.State(), snapsup.Name(), snapsup.Revision())
 	if err != nil {
 		return err
 	}
 
-	m.backend.ClearTrashedData(info)
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock() // pb itself will ask for locking
+	err = m.backend.UnlinkSnap(info, pb)
+	st.Lock()
+	if err != nil {
+		return err
+	}
 
+	// mark as inactive
+	snapst.Active = false
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	t.State().Lock()
+	info, err := Info(t.State(), snapsup.Name(), snapsup.Revision())
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err = m.backend.RemoveSnapData(info); err != nil {
+		return err
+	}
+
+	// Only remove data common between versions if this is the last version
+	if len(snapst.Sequence) == 1 {
+		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	if snapst.Current == snapsup.Revision() && snapst.Active {
+		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.Name())
+	}
+
+	if len(snapst.Sequence) == 1 {
+		snapst.Sequence = nil
+		snapst.Current = snap.Revision{}
+	} else {
+		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
+		for _, si := range snapst.Sequence {
+			if si.Revision == snapsup.Revision() {
+				// leave out
+				continue
+			}
+			newSeq = append(newSeq, si)
+		}
+		snapst.Sequence = newSeq
+		if snapst.Current == snapsup.Revision() {
+			snapst.Current = newSeq[len(newSeq)-1].Revision
+		}
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
+	if err != nil {
+		st.Lock()
+		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.Name(), err)
+		st.Unlock()
+		return &state.Retry{After: 3 * time.Minute}
+	}
+	if len(snapst.Sequence) == 0 {
+		err = m.backend.DiscardSnapNamespace(snapsup.Name())
+		if err != nil {
+			st.Lock()
+			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.Name(), err)
+			st.Unlock()
+			return &state.Retry{After: 3 * time.Minute}
+		}
+	}
+	st.Lock()
+	Set(st, snapsup.Name(), snapst)
+	st.Unlock()
 	return nil
 }
