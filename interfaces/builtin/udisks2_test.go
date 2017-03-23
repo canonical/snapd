@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -211,18 +212,15 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, Not(IsNil))
-	}
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 2)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
@@ -237,4 +235,20 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Check(seccompSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, "mount\n")
+}
+
+func (s *UDisks2InterfaceSuite) TestDBusConnectedPlug(c *C) {
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
+	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `<policy context="default">`)
+}
+
+func (s *UDisks2InterfaceSuite) TestDBusPermanentSlot(c *C) {
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
+	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `<policy user="root">`)
 }

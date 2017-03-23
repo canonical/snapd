@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
@@ -1172,11 +1173,12 @@ func (iface *ModemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
+func (iface *ModemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerConnectedPlugDBus)
+	return nil
+}
+
 func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(modemManagerConnectedPlugDBus), nil
-	}
 	return nil, nil
 }
 
@@ -1185,12 +1187,15 @@ func (iface *ModemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specifi
 	return nil
 }
 
+func (iface *ModemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotDBus)
+	return nil
+}
+
 func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityUDev:
 		return []byte(modemManagerPermanentSlotUdev), nil
-	case interfaces.SecurityDBus:
-		return []byte(modemManagerPermanentSlotDBus), nil
 	}
 	return nil, nil
 }
