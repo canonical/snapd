@@ -1075,11 +1075,6 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
@@ -1191,11 +1186,6 @@ func isTrue(form *multipart.Form, key string) bool {
 }
 
 func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
@@ -1254,11 +1244,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if !strings.HasPrefix(contentType, "multipart/") {
 		return BadRequest("unknown content type: %s", contentType)
-	}
-
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
 	}
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
@@ -2353,4 +2338,19 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
+}
+
+var changeRoute *mux.Route
+
+func changeURL(chg string) string {
+	if changeRoute == nil {
+		return "error: changeRoute not set"
+	}
+
+	if u, err := changeRoute.URL("id", chg); err == nil {
+		return u.String()
+	}
+
+	// maybe panic
+	return "error: unable to determine URL for change"
 }

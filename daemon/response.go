@@ -61,14 +61,8 @@ type resp struct {
 //      these fields inside resp.
 type Meta struct {
 	Sources           []string `json:"sources,omitempty"`
-	Paging            *Paging  `json:"paging,omitempty"`
 	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
 	Change            string   `json:"change,omitempty"`
-}
-
-type Paging struct {
-	Page  int `json:"page"`
-	Pages int `json:"pages"`
 }
 
 type respJSON struct {
@@ -100,12 +94,8 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	hdr := w.Header()
 	if r.Status == http.StatusAccepted || r.Status == http.StatusCreated {
-		if m, ok := r.Result.(map[string]interface{}); ok {
-			if location, ok := m["resource"]; ok {
-				if location, ok := location.(string); ok && location != "" {
-					hdr.Set("Location", location)
-				}
-			}
+		if r.Meta.Change != "" {
+			hdr.Set("Location", changeURL(r.Meta.Change))
 		}
 	}
 
@@ -161,7 +151,7 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 	}
 }
 
-// AsyncResponse builds an "async" response from the given *Task
+// AsyncResponse builds an "async" response
 func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,

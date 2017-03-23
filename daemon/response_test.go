@@ -39,14 +39,12 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 
 	rsp := &resp{
 		Status: http.StatusAccepted,
-		Result: map[string]interface{}{
-			"resource": "foo/bar",
-		},
+		Meta:   &Meta{Change: "foo"},
 	}
 
 	rsp.ServeHTTP(rec, nil)
 	hdr := rec.Header()
-	c.Check(hdr.Get("Location"), check.Equals, "foo/bar")
+	c.Check(hdr.Get("Location"), check.Equals, "/v2/changes/foo")
 }
 
 func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
@@ -54,14 +52,12 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 
 	rsp := &resp{
 		Status: http.StatusCreated,
-		Result: map[string]interface{}{
-			"resource": "foo/bar",
-		},
+		Meta:   &Meta{Change: "foo"},
 	}
 
 	rsp.ServeHTTP(rec, nil)
 	hdr := rec.Header()
-	c.Check(hdr.Get("Location"), check.Equals, "foo/bar")
+	c.Check(hdr.Get("Location"), check.Equals, "/v2/changes/foo")
 }
 
 func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
@@ -69,9 +65,7 @@ func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 
 	rsp := &resp{
 		Status: http.StatusTeapot,
-		Result: map[string]interface{}{
-			"resource": "foo/bar",
-		},
+		Meta:   &Meta{Change: "foo"},
 	}
 
 	rsp.ServeHTTP(rec, nil)

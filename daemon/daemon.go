@@ -264,6 +264,9 @@ func (d *Daemon) addRoutes() {
 	// also maybe add a /favicon.ico handler...
 
 	d.router.NotFoundHandler = NotFound("not found")
+
+	// XXX: hackish. Should we do this atomically / with a lock held?
+	changeRoute = d.router.Get(stateChangeCmd.Path)
 }
 
 var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
