@@ -15,8 +15,8 @@ execute: |
     
     echo "Breaking the configure hook of the core snap"
     unsquashfs /var/lib/snapd/snaps/core_$(cat prevBoot).snap
-    printf '#!/bin/sh\nfalse\n' > squashfs-root/meta/hooks/configure
-    chmod 644 squashfs-root/meta/hooks/configure
+    printf '#!/bin/sh\necho somethingbroken\nfalse\n' > squashfs-root/meta/hooks/configure
+    chmod 755 squashfs-root/meta/hooks/configure
 
     . $TESTSLIB/snaps.sh
     mksnap "squashfs-root" "$BROKEN_CORE_SNAP"
@@ -31,5 +31,5 @@ execute: |
     chg_id=$(change_id "Install \"core\" snap from file \"$BROKEN_CORE_SNAP\"" Done)
 
     echo "Verify the snap change"
-    snap change $chg_id | MATCH ".*INFO ignoring failure in hook \"configure\":.*"
+    snap change $chg_id | MATCH ".*INFO ignoring failure in hook \"configure\":.*somethingbroken.*"
 
