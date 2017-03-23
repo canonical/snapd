@@ -17,6 +17,8 @@
  *
  */
 
+// Package ifacestate implements the manager and state aspects
+// responsible for the maintenance of interfaces the system.
 package ifacestate
 
 import (
