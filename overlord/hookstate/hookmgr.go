@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -287,8 +288,20 @@ func snapCmd() string {
 	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
 }
 
+func killemAll(cmd *exec.Cmd) error {
+	pgid, err := syscall.Getpgid(cmd.Process.Pid)
+	if err != nil {
+		return err
+	}
+	return syscall.Kill(-pgid, 9)
+}
+
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
 	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
+
+	// setup a process group for the command so that we can kill parent
+	// and children on e.g. timeout
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
@@ -308,8 +321,8 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	// add timeout handling
 	if maxRuntime > 0 {
 		killTimer := time.AfterFunc(maxRuntime, func() {
-			if err := command.Process.Kill(); err != nil {
-				logger.Noticef("cannot kill hook %q for snap %q: %s", hookName, snapName, err)
+			if err := killemAll(command); err != nil {
+				logger.Noticef("cannot kill %q: %s", hookName, err)
 			}
 			// ensure we log what happened
 			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
@@ -332,7 +345,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Hook was aborted.
 	case <-tomb.Dying():
-		if err := command.Process.Kill(); err != nil {
+		if err := killemAll(command); err != nil {
 			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 		}
 		return nil, fmt.Errorf("hook %q aborted", hookName)
