@@ -314,7 +314,6 @@ func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
-
 	}
 
 	// only system services need bus policy
