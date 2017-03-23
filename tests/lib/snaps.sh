@@ -14,3 +14,15 @@ install_local() {
 install_local_devmode() {
     install_local "$1" --devmode
 }
+
+mksnap() {
+    dir="$1"
+    snap="$2"
+    
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # trusty does not support  -Xcompression-level 1
+        mksquashfs "$dir" "$snap" -comp gzip
+    else
+        mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1
+    fi
+}
