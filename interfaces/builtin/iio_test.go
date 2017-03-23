@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -171,11 +172,12 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	expectedSnippet1 := []byte(`KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"
-`)
+	expectedSnippet1 := `KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 }
 

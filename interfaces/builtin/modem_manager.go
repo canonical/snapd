@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -1192,11 +1193,12 @@ func (iface *ModemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 	return nil
 }
 
+func (iface *ModemManagerInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(modemManagerPermanentSlotUdev)
+	return nil
+}
+
 func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		return []byte(modemManagerPermanentSlotUdev), nil
-	}
 	return nil, nil
 }
 

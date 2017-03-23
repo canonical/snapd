@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -98,8 +99,7 @@ capability sys_rawio, # required by iopl
 
 /dev/port rw,
 `
-	expectedSnippet3 := []byte(`KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"
-`)
+	expectedSnippet3 := `KERNEL=="port", TAG+="snap_client-snap_app-accessing-io-ports"`
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -108,9 +108,11 @@ capability sys_rawio, # required by iopl
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-io-ports")
 	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet := udevSpec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 }
 
 func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
