@@ -371,6 +371,12 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
+func setLastRefresh(st *state.State) {
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.last", time.Now())
+	tr.Commit()
+}
+
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
