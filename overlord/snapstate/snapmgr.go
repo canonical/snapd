@@ -17,7 +17,6 @@
  *
  */
 
-// Package snapstate implements the manager and state aspects responsible for the installation and removal of snaps.
 package snapstate
 
 import (
@@ -36,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -272,13 +270,6 @@ func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	return false
 }
 
-func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
-	if userID == 0 {
-		return nil, nil
-	}
-	return auth.User(st, userID)
-}
-
 type cachedStoreKey struct{}
 
 // ReplaceStore replaces the store used by the manager.
@@ -303,59 +294,6 @@ func Store(st *state.State) StoreService {
 		return cachedStore
 	}
 	panic("internal error: needing the store before managers have initialized it")
-}
-
-func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) (*snap.Info, error) {
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return nil, err
-	}
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	if curInfo.SnapID == "" { // covers also trymode
-		return nil, fmt.Errorf("cannot refresh local snap %q", curInfo.Name())
-	}
-
-	refreshCand := &store.RefreshCandidate{
-		// the desired channel
-		Channel:  channel,
-		SnapID:   curInfo.SnapID,
-		Revision: curInfo.Revision,
-		Epoch:    curInfo.Epoch,
-	}
-
-	theStore := Store(st)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
-	st.Lock()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
-	}
-	if len(res) == 0 {
-		return nil, &snap.NoUpdateAvailableError{Snap: curInfo.Name()}
-	}
-
-	return res[0], nil
-}
-
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
-	user, err := userFromUserID(st, userID)
-	if err != nil {
-		return nil, err
-	}
-	theStore := Store(st)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  channel,
-		Revision: revision,
-	}
-	snap, err := theStore.SnapInfo(spec, user)
-	st.Lock()
-	return snap, err
 }
 
 // Manager returns a new snap manager.
