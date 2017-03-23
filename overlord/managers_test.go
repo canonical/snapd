@@ -79,6 +79,8 @@ type mgrsSuite struct {
 	serveIDtoName map[string]string
 	serveSnapPath map[string]string
 	serveRevision map[string]string
+
+	hijackServeSnap func(http.ResponseWriter)
 }
 
 var (
@@ -402,6 +404,10 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			}
 			w.Write(output)
 		case "snap":
+			if ms.hijackServeSnap != nil {
+				ms.hijackServeSnap(w)
+				return
+			}
 			snapR, err := os.Open(ms.serveSnapPath[comps[2]])
 			if err != nil {
 				panic(err)
@@ -1497,6 +1503,83 @@ apps:
 	dest, err = os.Readlink(app3Alias)
 	c.Assert(err, IsNil)
 	c.Check(dest, Equals, "bar.app3")
+}
+
+func (ms *mgrsSuite) TestHappyStopWhileDownloadingHeader(c *C) {
+	ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+version: 1.0
+`
+	snapPath, _ := ms.makeStoreTestSnap(c, snapYamlContent, "42")
+	ms.serveSnap(snapPath, "42")
+
+	stopped := make(chan struct{})
+	ms.hijackServeSnap = func(_ http.ResponseWriter) {
+		ms.o.Stop()
+		close(stopped)
+	}
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	ms.o.Loop()
+
+	<-stopped
+
+	st.Lock()
+	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+}
+
+func (ms *mgrsSuite) TestHappyStopWhileDownloadingBody(c *C) {
+	ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+version: 1.0
+`
+	snapPath, _ := ms.makeStoreTestSnap(c, snapYamlContent, "42")
+	ms.serveSnap(snapPath, "42")
+
+	stopped := make(chan struct{})
+	ms.hijackServeSnap = func(w http.ResponseWriter) {
+		w.WriteHeader(200)
+		// best effort to reach the body reading part in the client
+		w.Write(make([]byte, 10000))
+		time.Sleep(100 * time.Millisecond)
+		w.Write(make([]byte, 10000))
+		ms.o.Stop()
+		close(stopped)
+	}
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	ms.o.Loop()
+
+	<-stopped
+
+	st.Lock()
+	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
 type authContextSetupSuite struct {
