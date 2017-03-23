@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -75,7 +76,8 @@ type HookSetup struct {
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
 
-	IgnoreFail bool `json:"ignore-fail,omitempty"`
+	IgnoreFail bool          `json:"ignore-fail,omitempty"`
+	MaxRuntime time.Duration `json:"max-runtime,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -248,7 +250,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), tomb)
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.MaxRuntime(), tomb)
 }
 
 var runHook = runHookImpl
@@ -285,7 +287,7 @@ func snapCmd() string {
 	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
 	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// Make sure the hook has its context defined so it can communicate via the
@@ -297,6 +299,17 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	buffer := bytes.NewBuffer(nil)
 	command.Stdout = buffer
 	command.Stderr = buffer
+
+	if maxRuntime > 0 {
+		killTimer := time.AfterFunc(maxRuntime, func() {
+			if err := command.Process.Kill(); err != nil {
+				logger.Noticef("cannot kill hook %q for snap %q: %s", hookName, snapName, err)
+			}
+			// ensure we log what happened
+			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
+		})
+		defer killTimer.Stop()
+	}
 
 	// Actually run the hook.
 	if err := command.Start(); err != nil {

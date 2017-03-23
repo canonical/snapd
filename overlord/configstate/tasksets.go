@@ -21,6 +21,7 @@ package configstate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -39,6 +40,8 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Hook:       "configure",
 		Optional:   len(patch) == 0,
 		IgnoreFail: flags&snapstate.IgnoreHookFailure > 0,
+		// all configure hooks must finish within 1 minute
+		MaxRuntime: 1 * time.Minute,
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {
