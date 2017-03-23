@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -309,6 +310,23 @@ func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 	return nil, nil
 }
 
+func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	bus, name, err := iface.getAttribs(slot.Attrs)
+	if err != nil {
+		return err
+	}
+
+	// only system services need bus policy
+	if bus != "system" {
+		return nil
+	}
+
+	old := "###DBUS_NAME###"
+	new := name
+	spec.AddSnippet(strings.Replace(dbusPermanentSlotDBus, old, new, -1))
+	return nil
+}
+
 func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
@@ -337,25 +355,6 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 }
 
 func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		bus, name, err := iface.getAttribs(slot.Attrs)
-		if err != nil {
-			return nil, err
-
-		}
-
-		// only system services need bus policy
-		if bus != "system" {
-			return nil, nil
-		}
-
-		old := []byte("###DBUS_NAME###")
-		new := []byte(name)
-		snippet := bytes.Replace([]byte(dbusPermanentSlotDBus), old, new, -1)
-
-		return []byte(snippet), nil
-	}
 	return nil, nil
 }
 

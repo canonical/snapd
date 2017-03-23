@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -341,6 +342,16 @@ func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	return nil, nil
 }
 
+func (iface *UDisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2ConnectedPlugDBus)
+	return nil
+}
+
+func (iface *UDisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotDBus)
+	return nil
+}
+
 func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -350,10 +361,6 @@ func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(udisks2ConnectedPlugDBus), nil
-	}
 	return nil, nil
 }
 
@@ -364,8 +371,6 @@ func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 
 func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(udisks2PermanentSlotDBus), nil
 	case interfaces.SecurityUDev:
 		return []byte(udisks2PermanentSlotUDev), nil
 	}
