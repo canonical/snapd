@@ -17,7 +17,6 @@
  *
  */
 
-// Package snapstate implements the manager and state aspects responsible for the installation and removal of snaps.
 package snapstate
 
 import (

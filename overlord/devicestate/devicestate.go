@@ -17,6 +17,8 @@
  *
  */
 
+// Package devicestate implements the manager and state aspects responsible
+// for the device identity and policies.
 package devicestate
 
 import (

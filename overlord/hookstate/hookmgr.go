@@ -17,8 +17,6 @@
  *
  */
 
-// Package hookstate implements the manager and state aspects responsible for
-// the running of hooks.
 package hookstate
 
 import (

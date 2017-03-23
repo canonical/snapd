@@ -17,6 +17,9 @@
  *
  */
 
+// Package assertstate implements the manager and state aspects responsible
+// for the enforcement of assertions in the system and manages the system-wide
+// assertion database.
 package assertstate
 
 import (
