@@ -231,6 +231,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet := state.NewTaskSet(tasks...)
 
 	var confFlags int
+	// This is slightly ugly, ideally we would check the type instead
+	// of hardcoding the name here. Unfortunately we do not have the
+	// type until we actually run the change.
 	if snapsup.Name() == "core" {
 		confFlags |= IgnoreHookFailure
 	}
