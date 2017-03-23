@@ -300,6 +300,12 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	command.Stdout = buffer
 	command.Stderr = buffer
 
+	// Actually run the hook.
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+
+	// add timeout handling
 	if maxRuntime > 0 {
 		killTimer := time.AfterFunc(maxRuntime, func() {
 			if err := command.Process.Kill(); err != nil {
@@ -309,11 +315,6 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
 		})
 		defer killTimer.Stop()
-	}
-
-	// Actually run the hook.
-	if err := command.Start(); err != nil {
-		return nil, err
 	}
 
 	hookCompleted := make(chan struct{})
