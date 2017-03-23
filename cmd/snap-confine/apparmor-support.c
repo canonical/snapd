@@ -78,6 +78,8 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	if (aa_getcon(&label, &mode) < 0) {
 		die("cannot query current apparmor profile");
 	}
+	debug("apparmor label on snap-confine is: %s", label);
+	debug("apparmor mode is: %s", mode);
 	// The label has a special value "unconfined" that is applied to all
 	// processes without a dedicated profile. If that label is used then the
 	// current process is not confined. All other labels imply confinement.

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -181,11 +182,12 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 		c.Assert(err, IsNil)
 		c.Assert(seccompSpec.Snippets(), HasLen, 0)
 		// No extra dbus permissions for plug
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
+		dbusSpec := &dbus.Specification{}
+		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, slot)
 		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
+		c.Assert(dbusSpec.Snippets(), HasLen, 0)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
@@ -202,11 +204,12 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 	// No extra dbus permissions for plug
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
+	dbusSpec := &dbus.Specification{}
+	err = dbusSpec.AddPermanentPlug(s.iface, s.plug)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 	// No extra udev permissions for plug
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
+	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	// No extra udev permissions for plug
