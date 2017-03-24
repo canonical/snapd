@@ -31,29 +31,30 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	services map[string]Service
+	services map[string]*Service
 }
 
 // AddService adds a new systemd service unit.
-func (spec *Specification) AddService(name string, s Service) error {
+func (spec *Specification) AddService(name string, s *Service) error {
 	if old, ok := spec.services[name]; ok && old != s {
 		return fmt.Errorf("interface requires conflicting system needs")
 	}
 	if spec.services == nil {
-		spec.services = make(map[string]Service)
+		spec.services = make(map[string]*Service)
 	}
 	spec.services[name] = s
 	return nil
 }
 
 // Services returns a deep copy of all the added services.
-func (spec *Specification) Services() map[string]Service {
+func (spec *Specification) Services() map[string]*Service {
 	if spec.services == nil {
 		return nil
 	}
-	result := make(map[string]Service, len(spec.services))
+	result := make(map[string]*Service, len(spec.services))
 	for k, v := range spec.services {
-		result[k] = v
+		svc := *v
+		result[k] = &svc
 	}
 	return result
 }
