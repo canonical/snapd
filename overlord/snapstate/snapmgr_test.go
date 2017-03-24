@@ -3189,13 +3189,26 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 		SnapType: "app",
 	})
 
+	snapstate.Set(s.state, "another-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("some-snap", "foo", "bar")
+	tr.Commit()
+
+	// a config for some other snap to verify its not accidentally destroyed
+	tr = config.NewTransaction(s.state)
+	tr.Set("another-snap", "bar", "baz")
 	tr.Commit()
 
 	var res string
 	tr = config.NewTransaction(s.state)
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
+	c.Assert(tr.Get("another-snap", "bar", &res), IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0))
@@ -3216,6 +3229,10 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	err = tr.Get("some-snap", "foo", &res)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no "foo" configuration option`)
+
+	// and another snap has its config intact
+	c.Assert(tr.Get("another-snap", "bar", &res), IsNil)
+	c.Assert(res, Equals, "baz")
 }
 
 func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
