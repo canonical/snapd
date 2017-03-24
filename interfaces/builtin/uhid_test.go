@@ -94,7 +94,7 @@ func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(snippet, Equals, expectedSnippet1)
 }
 
 func (s *UhidInterfaceSuite) TestAutoConnect(c *C) {

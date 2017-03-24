@@ -112,7 +112,7 @@ capability sys_rawio, # required by iopl
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *IioPortsControlInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {

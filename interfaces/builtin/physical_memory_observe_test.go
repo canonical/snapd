@@ -112,5 +112,5 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet2)
 }
