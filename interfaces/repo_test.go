@@ -1304,57 +1304,6 @@ var testInterface = &ifacetest.TestInterface{
 	},
 }
 
-func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
-	repo := s.emptyRepo
-	c.Assert(repo.AddInterface(testInterface), IsNil)
-	c.Assert(repo.AddPlug(s.plug), IsNil)
-	c.Assert(repo.AddSlot(s.slot), IsNil)
-	// Snaps should get static security now
-	var snippets map[string][][]byte
-	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": {
-			[]byte(`static plug snippet`),
-		},
-		"snap.consumer.hook.configure": {
-			[]byte(`static plug snippet`),
-		},
-	})
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": {
-			[]byte(`static slot snippet`),
-		},
-	})
-	// Establish connection between plug and slot
-	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
-	err = repo.Connect(connRef)
-	c.Assert(err, IsNil)
-	// Snaps should get static and connection-specific security now
-	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": {
-			[]byte(`static plug snippet`),
-			[]byte(`connection-specific plug snippet`),
-		},
-		"snap.consumer.hook.configure": {
-			[]byte(`static plug snippet`),
-			[]byte(`connection-specific plug snippet`),
-		},
-	})
-	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
-	c.Assert(err, IsNil)
-	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": {
-			[]byte(`static slot snippet`),
-			[]byte(`connection-specific slot snippet`),
-		},
-	})
-}
-
 func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	repo := s.emptyRepo
 	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}

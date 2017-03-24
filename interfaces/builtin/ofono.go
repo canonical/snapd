@@ -242,10 +242,6 @@ func (iface *OfonoInterface) Name() string {
 	return "ofono"
 }
 
-func (iface *OfonoInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -256,10 +252,6 @@ func (iface *OfonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	}
 	return nil
 
-}
-
-func (iface *OfonoInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *OfonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
@@ -277,10 +269,6 @@ func (iface *OfonoInterface) UdevPermanentSlot(spec *udev.Specification, slot *i
 	return nil
 }
 
-func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
@@ -291,10 +279,6 @@ func (iface *OfonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 func (iface *OfonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
-}
-
-func (iface *OfonoInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *OfonoInterface) SanitizePlug(plug *interfaces.Plug) error {
