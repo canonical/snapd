@@ -77,7 +77,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 		return []byte{}, nil
 	}
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
-		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
+		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
 	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
@@ -96,7 +96,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
-		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
+		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 1)
@@ -118,11 +118,11 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 
 func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
-		err := spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
+		err := spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 		if err != nil {
 			return err
 		}
-		return spec.AddService("snap.samba.interface.bar.service", systemd.Service{ExecStart: "/bin/false"})
+		return spec.AddService("snap.samba.interface.bar.service", &systemd.Service{ExecStart: "/bin/false"})
 	}
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 1)
 	s.systemctlCmd.ForgetCalls()
@@ -136,7 +136,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 
 	// Change what the interface returns to simulate some useful change
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *interfaces.Slot) error {
-		return spec.AddService("snap.samba.interface.foo.service", systemd.Service{ExecStart: "/bin/true"})
+		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
 	}
 	// Update over to the same snap to regenerate security
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)

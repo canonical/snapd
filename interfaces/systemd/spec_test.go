@@ -32,21 +32,21 @@ var _ = Suite(&specSuite{})
 func (s *specSuite) TestSmoke(c *C) {
 	spec := systemd.Specification{}
 	c.Assert(spec.Services(), IsNil)
-	svc1 := systemd.Service{ExecStart: "one"}
+	svc1 := &systemd.Service{ExecStart: "one"}
 	err := spec.AddService("svc1.service", svc1)
 	c.Assert(err, IsNil)
-	svc2 := systemd.Service{ExecStart: "two"}
+	svc2 := &systemd.Service{ExecStart: "two"}
 	err = spec.AddService("svc2.service", svc2)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Services(), DeepEquals, map[string]systemd.Service{
+	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
 		"svc1.service": svc1,
 		"svc2.service": svc2,
 	})
 }
 
 func (s *specSuite) TestClashing(c *C) {
-	svc1 := systemd.Service{ExecStart: "one"}
-	svc2 := systemd.Service{ExecStart: "two"}
+	svc1 := &systemd.Service{ExecStart: "one"}
+	svc2 := &systemd.Service{ExecStart: "two"}
 	spec := systemd.Specification{}
 	err := spec.AddService("foo.service", svc1)
 	c.Assert(err, IsNil)
