@@ -36,5 +36,5 @@ func BootID() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSuffix(string(bytes), "\n"), nil
+	return strings.TrimSpace(string(bytes)), nil
 }
