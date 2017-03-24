@@ -208,9 +208,6 @@ func DeleteConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap
 func DeleteSnapConfig(st *state.State, snapName string) error {
 	var config map[string]map[string]*json.RawMessage // snap => key => value
 
-	st.Lock()
-	defer st.Unlock()
-
 	err := st.Get("config", &config)
 	if err == state.ErrNoState {
 		return nil
