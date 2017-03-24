@@ -325,8 +325,6 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 			if err := killemAll(command); err != nil {
 				logger.Noticef("cannot kill %q: %s", hookName, err)
 			}
-			// ensure we log what happened
-			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
 		})
 		defer killTimer.Stop()
 	}
@@ -342,6 +340,10 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	select {
 	// Hook completed; it may or may not have been successful.
 	case <-hookCompleted:
+		// check if hook completed because kill-timer was triggered
+		if killTimer != nil && !killTimer.Stop() {
+			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
+		}
 		return buffer.Bytes(), hookError
 
 	// Hook was aborted.
