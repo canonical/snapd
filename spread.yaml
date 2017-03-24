@@ -320,7 +320,8 @@ suites:
             fi
 
     tests/nightly/:
-        summary: Suite for nightly, expencive, tests
+        summary: Suite for nightly, expensive, tests
+        manual: true
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
