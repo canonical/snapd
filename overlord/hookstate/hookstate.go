@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,23 @@
  *
  */
 
-package configstate
+// Package hookstate implements the manager and state aspects responsible for
+// the running of hooks.
+package hookstate
 
 import (
-	"regexp"
-
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
-}
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
+	task := st.NewTask("run-hook", summary)
+	task.Set("hook-setup", setup)
 
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
+	// Initial data for Context.Get/Set.
+	if len(contextData) > 0 {
+		task.Set("hook-context", contextData)
 	}
-
-	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
-
-	return manager, nil
+	return task
 }

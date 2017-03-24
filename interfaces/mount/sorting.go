@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,26 @@
  *
  */
 
-package configstate
+package mount
 
 import (
-	"regexp"
-
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
+	"strings"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
-}
+// byMagicDir allows sorting an array of entries that automagically assumes
+// each entry ends with a trailing slash.
+type byMagicDir []Entry
 
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
+func (c byMagicDir) Len() int      { return len(c) }
+func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byMagicDir) Less(i, j int) bool {
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
 	}
-
-	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
-
-	return manager, nil
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
 }

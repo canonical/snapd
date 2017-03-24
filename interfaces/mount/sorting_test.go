@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,32 @@
  *
  */
 
-package configstate
+package mount
 
 import (
-	"regexp"
+	"sort"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
+	. "gopkg.in/check.v1"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
-}
+type sortSuite struct{}
 
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
+var _ = Suite(&sortSuite{})
+
+func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
+	// Naively sorted entries.
+	entries := []Entry{
+		{Dir: "/a/b"},
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b/c"},
 	}
-
-	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
-
-	return manager, nil
+	sort.Sort(byMagicDir(entries))
+	// Entries sorted as if they had a trailing slash.
+	c.Assert(entries, DeepEquals, []Entry{
+		{Dir: "/a/b-1"},
+		{Dir: "/a/b-1/3"},
+		{Dir: "/a/b"},
+		{Dir: "/a/b/c"},
+	})
 }
