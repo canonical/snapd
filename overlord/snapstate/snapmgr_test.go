@@ -3200,7 +3200,7 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	tr.Set("some-snap", "foo", "bar")
 	tr.Commit()
 
-	// a config for some other snap to verify its not accidently destroyed
+	// a config for some other snap to verify its not accidentally destroyed
 	tr = config.NewTransaction(s.state)
 	tr.Set("another-snap", "bar", "baz")
 	tr.Commit()
