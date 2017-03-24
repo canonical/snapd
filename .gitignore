@@ -30,6 +30,11 @@ cmd/system-shutdown/unit-tests
 # manual pages
 cmd/*/*.[1-9]
 
+# auto-generated systemd units
+data/systemd/snapd.autoimport.service
+data/systemd/snapd.refresh.service
+data/systemd/snapd.service
+
 # test-driver
 *.log
 *.trs
