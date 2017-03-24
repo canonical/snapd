@@ -29,7 +29,7 @@ type specSuite struct{}
 
 var _ = Suite(&specSuite{})
 
-func (s *specSuite) TestSmoke(c *C) {
+func (s *specSuite) TestAddService(c *C) {
 	spec := systemd.Specification{}
 	c.Assert(spec.Services(), IsNil)
 	svc1 := &systemd.Service{ExecStart: "one"}
