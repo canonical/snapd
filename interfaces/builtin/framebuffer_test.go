@@ -111,5 +111,5 @@ func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(snippet, Equals, expectedSnippet2)
 }
