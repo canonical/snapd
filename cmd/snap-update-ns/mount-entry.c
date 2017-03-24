@@ -54,12 +54,12 @@ static struct sc_mount_entry *sc_clone_mount_entry_from_mntent(const struct
 	if (result == NULL) {
 		die("cannot allocate memory");
 	}
-	result->entry.mnt_fsname = strdup(entry->mnt_fsname ? : "");
-	if (result->entry.mnt_fsname == NULL) {
-		die("cannot copy string");
-	}
 	result->entry.mnt_dir = strdup(entry->mnt_dir ? : "");
 	if (result->entry.mnt_dir == NULL) {
+		die("cannot copy string");
+	}
+	result->entry.mnt_fsname = strdup(entry->mnt_fsname ? : "");
+	if (result->entry.mnt_fsname == NULL) {
 		die("cannot copy string");
 	}
 	result->entry.mnt_type = strdup(entry->mnt_type ? : "");
@@ -114,11 +114,15 @@ int sc_compare_mount_entry(const struct sc_mount_entry *a,
 	if (a == NULL || b == NULL) {
 		die("cannot compare NULL mount entry");
 	}
-	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
+	// NOTE: sort reorder field so that mnt_dir is before
+	// mnt_fsname. This ordering is a little bit more interesting
+	// as the directory matters more and allows us to do useful
+	// things later.
+	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
 	if (result != 0) {
 		return result;
 	}
-	result = strcmp(a->entry.mnt_dir, b->entry.mnt_dir);
+	result = strcmp(a->entry.mnt_fsname, b->entry.mnt_fsname);
 	if (result != 0) {
 		return result;
 	}

@@ -37,6 +37,7 @@ struct sc_mount_entry_list {
 struct sc_mount_entry {
 	struct mntent entry;
 	struct sc_mount_entry *prev, *next;
+	unsigned int reuse;	// internal flag, not compared
 };
 
 /**
@@ -63,6 +64,8 @@ void sc_save_mount_profile(const struct sc_mount_entry_list *list,
  * Returns 0 if both entries are equal, a number less than zero if the first
  * entry sorts before the second entry or a number greater than zero if the
  * second entry sorts before the second entry.
+ *
+ * The order of comparison is: mnt_{dir,fsname,type,opts,freq,passno}.
  **/
 int
 sc_compare_mount_entry(const struct sc_mount_entry *a,
@@ -74,7 +77,8 @@ sc_compare_mount_entry(const struct sc_mount_entry *a,
  * The list is sorted and all the next/prev pointers are updated to point to
  * the lexically subsequent/preceding element.
  *
- * This function sorts in the ascending order.
+ * This function sorts in the ascending order, as specified by
+ * sc_compare_mount_entry.
  **/
 void sc_sort_mount_entry_list(struct sc_mount_entry_list *list);
 
