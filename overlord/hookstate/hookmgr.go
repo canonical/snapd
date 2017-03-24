@@ -320,13 +320,11 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// add timeout handling
 	var killTimer *time.Timer
+	var killTimerCh <-chan time.Time
 	if maxRuntime > 0 {
-		killTimer = time.AfterFunc(maxRuntime, func() {
-			if err := killemAll(command); err != nil {
-				logger.Noticef("cannot kill %q: %s", hookName, err)
-			}
-		})
+		killTimer = time.NewTimer(maxRuntime)
 		defer killTimer.Stop()
+		killTimerCh = killTimer.C
 	}
 
 	hookCompleted := make(chan struct{})
@@ -340,13 +338,14 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	select {
 	// Hook completed; it may or may not have been successful.
 	case <-hookCompleted:
-		// check if hook completed because kill-timer was triggered
-		if killTimer != nil && !killTimer.Stop() {
-			fmt.Fprintf(buffer, "\nexceeded maximum runtime of %s\n", maxRuntime)
-		}
 		return buffer.Bytes(), hookError
-
-	// Hook was aborted.
+	// max timeout reached
+	case <-killTimerCh:
+		if err := killemAll(command); err != nil {
+			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+		}
+		return buffer.Bytes(), fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
+		// Hook was aborted.
 	case <-tomb.Dying():
 		if killTimer != nil {
 			killTimer.Stop()
