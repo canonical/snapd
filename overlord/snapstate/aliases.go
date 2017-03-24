@@ -73,72 +73,9 @@ func setAliases(st *state.State, snapName string, aliases map[string]string) {
 	st.Set("aliases", allAliases)
 }
 
-// Alias enables the provided aliases for the snap with the given name.
-func Alias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !snapst.Active {
-		return nil, fmt.Errorf("enabling aliases for disabled snap %q not supported", snapName)
-	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
-		return nil, err
-	}
+// TODO: reintroduce Alias, Unalias following the new meanings
 
-	snapsup := &SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: snapName},
-	}
-
-	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Enable aliases for snap %q"), snapsup.Name()))
-	alias.Set("snap-setup", &snapsup)
-	toEnable := map[string]string{}
-	for _, alias := range aliases {
-		toEnable[alias] = "enabled"
-	}
-	alias.Set("aliases", toEnable)
-
-	return state.NewTaskSet(alias), nil
-}
-
-// Unalias explicitly disables the provided aliases for the snap with the given name.
-func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !snapst.Active {
-		return nil, fmt.Errorf("disabling aliases for disabled snap %q not supported", snapName)
-	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
-		return nil, err
-	}
-
-	snapsup := &SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: snapName},
-	}
-
-	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapsup.Name()))
-	alias.Set("snap-setup", &snapsup)
-	toDisable := map[string]string{}
-	for _, alias := range aliases {
-		toDisable[alias] = "disabled"
-	}
-	alias.Set("aliases", toDisable)
-
-	return state.NewTaskSet(alias), nil
-}
-
-// ResetAliases resets the provided aliases for the snap with the given name to their default state, enabled for auto-aliases, disabled otherwise.
-func ResetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
+func resetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err == state.ErrNoState {
