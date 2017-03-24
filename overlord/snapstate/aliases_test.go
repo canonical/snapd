@@ -118,12 +118,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
 		},
 		{
-			op:      "matching-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-		},
-		{
-			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			op:   "remove-snap-aliases",
+			name: "alias-snap",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -242,12 +238,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAuto(c *C) {
 			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
 		},
 		{
-			op:      "matching-aliases",
-			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
-		},
-		{
-			op:        "update-aliases",
-			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			op:   "remove-snap-aliases",
+			name: "alias-snap",
 		},
 	}
 	// start with an easier-to-read error if this fails:

@@ -407,48 +407,6 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.UpdateAliases(aliases, nil)
 }
 
-func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapName := snapsup.Name()
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
-	aliasStatuses, err := getAliases(st, snapName)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	var aliases []*backend.Alias
-	for alias, aliasStatus := range aliasStatuses {
-		if enabledAlias(aliasStatus) {
-			aliasApp := curInfo.Aliases[alias]
-			if aliasApp == nil {
-				// not a known alias, skip
-				continue
-			}
-			aliases = append(aliases, &backend.Alias{
-				Name:   alias,
-				Target: filepath.Base(aliasApp.WrapperPath()),
-			})
-		}
-	}
-	st.Unlock()
-	rmAliases, err := m.backend.MatchingAliases(aliases)
-	st.Lock()
-	if err != nil {
-		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
-	}
-	st.Unlock()
-	defer st.Lock()
-	return m.backend.UpdateAliases(nil, rmAliases)
-}
-
 func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
