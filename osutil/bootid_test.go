@@ -30,7 +30,7 @@ type bootIdSuite struct{}
 var _ = Suite(&bootIdSuite{})
 
 func (s *bootIdSuite) TestSmoke(c *C) {
-	id, err := osutil.GetBootID()
+	id, err := osutil.BootID()
 	c.Assert(err, IsNil)
 	c.Assert(id, HasLen, 36)
 }

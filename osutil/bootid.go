@@ -25,8 +25,8 @@ import (
 	"strings"
 )
 
-// GetBootID returns the randomly generated boot identifier.
-func GetBootID() (string, error) {
+// BootID returns the randomly generated boot identifier.
+func BootID() (string, error) {
 	file, err := os.Open("/proc/sys/kernel/random/boot_id")
 	if err != nil {
 		return "", err
