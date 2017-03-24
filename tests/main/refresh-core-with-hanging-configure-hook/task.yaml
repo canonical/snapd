@@ -24,7 +24,7 @@ execute: |
     mksnap "squashfs-root" "$BROKEN_CORE_SNAP"
     rm -rf squshfs-root
 
-    echo "Installing a new core which will trigger running the conifgure hook"
+    echo "Installing a new core which will trigger running the configure hook"
     snap install --dangerous $BROKEN_CORE_SNAP
 
     echo "Checking changes"

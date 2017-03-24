@@ -319,8 +319,9 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	}
 
 	// add timeout handling
+	var killTimer *time.Timer
 	if maxRuntime > 0 {
-		killTimer := time.AfterFunc(maxRuntime, func() {
+		killTimer = time.AfterFunc(maxRuntime, func() {
 			if err := killemAll(command); err != nil {
 				logger.Noticef("cannot kill %q: %s", hookName, err)
 			}
@@ -345,6 +346,9 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 	// Hook was aborted.
 	case <-tomb.Dying():
+		if killTimer != nil {
+			killTimer.Stop()
+		}
 		if err := killemAll(command); err != nil {
 			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 		}
