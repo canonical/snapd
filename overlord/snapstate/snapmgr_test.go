@@ -863,7 +863,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(snapsup.Channel, Equals, "some-channel")
 }
 
-func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfiugre(c *C) {
+func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

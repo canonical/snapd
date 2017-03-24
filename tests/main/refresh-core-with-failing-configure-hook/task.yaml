@@ -22,7 +22,7 @@ execute: |
     mksnap "squashfs-root" "$BROKEN_CORE_SNAP"
     rm -rf squshfs-root
 
-    echo "Installing a new core which will trigger running the conifgure hook"
+    echo "Installing a new core which will trigger running the configure hook"
     snap install --dangerous $BROKEN_CORE_SNAP
 
     echo "Checking changes"
@@ -31,5 +31,5 @@ execute: |
     chg_id=$(change_id "Install \"core\" snap from file \"$BROKEN_CORE_SNAP\"" Done)
 
     echo "Verify the snap change"
-    snap change $chg_id | MATCH ".*INFO ignoring failure in hook \"configure\":.*somethingbroken.*"
+    snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\":.*somethingbroken.*"
 
