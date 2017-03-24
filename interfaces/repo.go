@@ -656,16 +656,6 @@ func (r *Repository) Interfaces() *Interfaces {
 	return ifaces
 }
 
-// SecuritySnippetsForSnap collects all of the snippets of a given security
-// system that affect a given snap. The return value is indexed by app/hook
-// security tag within that snap.
-func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	return r.securitySnippetsForSnap(snapName, securitySystem)
-}
-
 func addSnippet(snapName, uniqueName string, apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snippets map[string][][]byte, snippet []byte) {
 	if len(snippet) == 0 {
 		return
@@ -682,49 +672,6 @@ func addSnippet(snapName, uniqueName string, apps map[string]*snap.AppInfo, hook
 		securityTag := snap.NoneSecurityTag(snapName, uniqueName)
 		snippets[securityTag] = append(snippets[securityTag], snippet)
 	}
-}
-
-func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
-	var snippets = make(map[string][][]byte)
-	// Find all of the slots that affect this snap because of plug connection.
-	for _, slot := range r.slots[snapName] {
-		iface := r.ifaces[slot.Interface]
-		// Add the static snippet for the slot
-		snippet, err := iface.PermanentSlotSnippet(slot, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
-
-		// Add connection-specific snippet specific to each plug
-		for plug := range r.slotPlugs[slot] {
-			snippet, err := iface.ConnectedSlotSnippet(plug, slot, securitySystem)
-			if err != nil {
-				return nil, err
-			}
-			addSnippet(snapName, slot.Name, slot.Apps, nil, snippets, snippet)
-		}
-	}
-	// Find all of the plugs that affect this snap because of slot connection
-	for _, plug := range r.plugs[snapName] {
-		iface := r.ifaces[plug.Interface]
-		// Add the static snippet for the plug
-		snippet, err := iface.PermanentPlugSnippet(plug, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
-
-		// Add connection-specific snippet specific to each slot
-		for slot := range r.plugSlots[plug] {
-			snippet, err := iface.ConnectedPlugSnippet(plug, slot, securitySystem)
-			if err != nil {
-				return nil, err
-			}
-			addSnippet(snapName, plug.Name, plug.Apps, plug.Hooks, snippets, snippet)
-		}
-	}
-	return snippets, nil
 }
 
 // SnapSpecification returns the specification of a given snap in a given security system.
