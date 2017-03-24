@@ -102,7 +102,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 }
@@ -2098,12 +2098,12 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		SnapType: "app",
 	})
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		switch info.Name() {
 		case "some-snap":
-			return []string{"aliasA"}, nil
+			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
-			return []string{"aliasB"}, nil
+			return map[string]string{"aliasB": "cmdB"}, nil
 		}
 		return nil, nil
 	}
@@ -2237,12 +2237,12 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		SnapType: "app",
 	})
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		switch info.Name() {
 		case "some-snap":
-			return []string{"aliasA"}, nil
+			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
-			return []string{"aliasB"}, nil
+			return map[string]string{"aliasB": "cmdB"}, nil
 		}
 		return nil, nil
 	}
@@ -5883,9 +5883,8 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 }
 
 func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
-
-	defer release.MockReleaseInfo(&release.OS{ID: "unsupported"})()
-
+	r := release.MockForcedDevmode(true)
+	defer r()
 	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
 
 	s.state.Lock()
@@ -5923,9 +5922,8 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
-
-	defer release.MockReleaseInfo(&release.OS{ID: "unsupported"})()
-
+	r := release.MockForcedDevmode(true)
+	defer r()
 	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
 
 	defer s.snapmgr.Stop()
@@ -5939,9 +5937,8 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
-
-	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu"})()
-
+	r := release.MockForcedDevmode(false)
+	defer r()
 	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, false)
 
 	s.state.Lock()

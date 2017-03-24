@@ -267,6 +267,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   fuse-support:
     allow-installation:
       slot-snap-type:
@@ -328,11 +333,6 @@ slots:
         - core
     deny-auto-connection: true
   kubernetes-support:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  framebuffer:
     allow-installation:
       slot-snap-type:
         - core
@@ -534,7 +534,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  thumbnailer:
+  thumbnailer-service:
     allow-installation:
       slot-snap-type:
         - app

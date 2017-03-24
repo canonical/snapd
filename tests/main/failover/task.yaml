@@ -1,6 +1,6 @@
 summary: check that the core and kernel snaps roll back correctly after a failed upgrade
 
-systems: [ubuntu-core-16-64, ubuntu-core-16-arm-32, ubuntu-core-16-arm-64]
+systems: [ubuntu-core-16-*]
 
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental
@@ -43,20 +43,19 @@ execute: |
         truncate -s 0 /tmp/unpack/lib/systemd/systemd
     }
 
-    . $TESTSLIB/names.sh
     . $TESTSLIB/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first pass, save current target snap revision
-        snap list | awk "/^${core_name} / {print(\$3)}" > prevBoot
+        snap list | awk "/^core / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap
+        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/core_$(cat prevBoot).snap
 
         # set failure condition
         eval ${INJECT_FAILURE}
 
         # repack new target snap
-        snapbuild /tmp/unpack . && mv ${core_name}_*.snap failing.snap
+        snapbuild /tmp/unpack . && mv core_*.snap failing.snap
 
         # install new target snap
         chg_id=$(snap install --dangerous failing.snap --no-wait)
@@ -64,9 +63,9 @@ execute: |
         while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
 
         # check boot env vars
-        snap list | awk "/^${core_name} / {print(\$3)}" > failBoot
-        test "$(bootenv snap_core)" = "${core_name}_$(cat prevBoot).snap"
-        test "$(bootenv snap_try_core)" = "${core_name}_$(cat failBoot).snap"
+        snap list | awk "/^core / {print(\$3)}" > failBoot
+        test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_core)" = "core_$(cat failBoot).snap"
 
         REBOOT
     fi
@@ -74,7 +73,7 @@ execute: |
     # after rollback, we have the original target snap for a while
     # wait until the kernel and core snap revisions are in place
     while true ; do
-        current=$(snap list | awk "/^${core_name} / {print(\$3)}")
+        current=$(snap list | awk "/^core / {print(\$3)}")
         if [ "$current" = "$(cat prevBoot)" ] ; then
             break
         fi
@@ -87,6 +86,6 @@ execute: |
         sleep 1
     done
 
-    test "$(bootenv snap_core)" = "${core_name}_$(cat prevBoot).snap"
+    test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
     # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
     # test "$(bootenv snap_try_${TARGET_SNAP})" = ""
