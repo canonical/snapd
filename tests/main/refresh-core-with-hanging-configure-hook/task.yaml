@@ -33,7 +33,7 @@ execute: |
     chg_id=$(change_id "Install \"core\" snap from file \"$BROKEN_CORE_SNAP\"" Done)
 
     echo "Verify the snap change"
-    snap change $chg_id | MATCH ".*INFO ignoring failure in hook \"configure\".*"
+    snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\".*"
     snap change $chg_id | MATCH ".*ithangs.*"
     snap change $chg_id | MATCH ".*exceeded maximum runtime of 1m0s.*"
 
