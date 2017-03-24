@@ -319,6 +319,25 @@ suites:
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
             fi
 
+    tests/nightly/:
+        summary: Suite for nightly, expensive, tests
+        manual: true
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd
+            fi
+
     tests/nested/:
         summary: Tests for nested images
         environment:
