@@ -115,5 +115,5 @@ capability sys_rawio,
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
 	snippet := udevSpec.Snippets()[0]
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet2)
 }
