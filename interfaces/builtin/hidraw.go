@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 // HidrawInterface is the type for hidraw interfaces.
@@ -113,24 +113,25 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
+func (iface *HidrawInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
+	}
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
+	}
+	path, ok := slot.Attrs["path"].(string)
+	if !ok || path == "" {
+		return nil
+	}
+	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	return nil
+}
+
 // PermanentSlotSnippet returns snippets granted on install
 func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		path, ok := slot.Attrs["path"].(string)
-		if !ok || path == "" {
-			return nil, nil
-		}
-		return udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
-	}
 	return nil, nil
 }
 
@@ -163,25 +164,24 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
+func (iface *HidrawInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
+	}
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
+	}
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
+	}
+	return nil
+}
+
 // ConnectedPlugSnippet returns security snippet specific to the plug
 func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		var udevSnippet bytes.Buffer
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			udevSnippet.Write(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
-		}
-		return udevSnippet.Bytes(), nil
-	}
 	return nil, nil
 }
 
