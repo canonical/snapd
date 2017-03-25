@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -271,11 +272,12 @@ func (iface *OfonoInterface) DBusPermanentSlot(spec *dbus.Specification, plug *i
 	return nil
 }
 
+func (iface *OfonoInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(ofonoPermanentSlotUdev)
+	return nil
+}
+
 func (iface *OfonoInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		return []byte(ofonoPermanentSlotUdev), nil
-	}
 	return nil, nil
 }
 

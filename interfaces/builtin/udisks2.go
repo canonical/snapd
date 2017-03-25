@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const udisks2PermanentSlotAppArmor = `
@@ -369,11 +370,12 @@ func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
+func (iface *UDisks2Interface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotUDev)
+	return nil
+}
+
 func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		return []byte(udisks2PermanentSlotUDev), nil
-	}
 	return nil, nil
 }
 
