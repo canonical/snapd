@@ -102,7 +102,7 @@ func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
 	}
 	serviceName := interfaces.InterfaceServiceName(slot.Snap.Name(), fmt.Sprintf("gpio-%d", gpioNum))
-	service := systemd.Service{
+	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
