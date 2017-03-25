@@ -130,21 +130,6 @@ func (iface *HidrawInterface) UdevPermanentSlot(spec *udev.Specification, slot *
 	return nil
 }
 
-// PermanentSlotSnippet returns snippets granted on install
-func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentPlugSnippet no permissions provided to plug permanently
-func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
@@ -178,11 +163,6 @@ func (iface *HidrawInterface) UdevConnectedPlug(spec *udev.Specification, plug *
 		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
 	}
 	return nil
-}
-
-// ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

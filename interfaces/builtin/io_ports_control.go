@@ -83,11 +83,6 @@ func (iface *IioPortsControlInterface) SanitizePlug(plug *interfaces.Plug) error
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *IioPortsControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *IioPortsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugAppArmor)
 	return nil
@@ -102,24 +97,9 @@ func (iface *IioPortsControlInterface) UdevConnectedPlug(spec *udev.Specificatio
 	return nil
 }
 
-// Getter for the security snippet specific to the plug
-func (iface *IioPortsControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *IioPortsControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(ioPortsControlConnectedPlugSecComp)
 	return nil
-}
-
-// No extra permissions granted on connection
-func (iface *IioPortsControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *IioPortsControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

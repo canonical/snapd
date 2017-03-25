@@ -71,11 +71,6 @@ func (iface *FramebufferInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *FramebufferInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *FramebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(framebufferConnectedPlugAppArmor)
 	return nil
@@ -88,21 +83,6 @@ func (iface *FramebufferInterface) UdevConnectedPlug(spec *udev.Specification, p
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil
-}
-
-// Getter for the security snippet specific to the plug
-func (iface *FramebufferInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *FramebufferInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *FramebufferInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *FramebufferInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

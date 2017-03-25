@@ -136,21 +136,6 @@ func (iface *SerialPortInterface) UdevPermanentSlot(spec *udev.Specification, sl
 	return nil
 }
 
-// PermanentSlotSnippet returns snippets granted on install
-func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentPlugSnippet no permissions provided to plug permanently
-func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule is an approximation of serialDeviceNodePattern
@@ -184,11 +169,6 @@ func (iface *SerialPortInterface) UdevConnectedPlug(spec *udev.Specification, pl
 		spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
 	}
 	return nil
-}
-
-// ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *SerialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
