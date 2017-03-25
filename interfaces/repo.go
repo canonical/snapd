@@ -656,24 +656,6 @@ func (r *Repository) Interfaces() *Interfaces {
 	return ifaces
 }
 
-func addSnippet(snapName, uniqueName string, apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snippets map[string][][]byte, snippet []byte) {
-	if len(snippet) == 0 {
-		return
-	}
-	for appName := range apps {
-		securityTag := snap.AppSecurityTag(snapName, appName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-	for hookName := range hooks {
-		securityTag := snap.HookSecurityTag(snapName, hookName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-	if len(apps) == 0 && len(hooks) == 0 {
-		securityTag := snap.NoneSecurityTag(snapName, uniqueName)
-		snippets[securityTag] = append(snippets[securityTag], snippet)
-	}
-}
-
 // SnapSpecification returns the specification of a given snap in a given security system.
 func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName string) (Specification, error) {
 	r.m.Lock()
