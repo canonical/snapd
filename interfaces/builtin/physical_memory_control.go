@@ -75,11 +75,6 @@ func (iface *PhysicalMemoryControlInterface) SanitizePlug(plug *interfaces.Plug)
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *PhysicalMemoryControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *PhysicalMemoryControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(physicalMemoryControlConnectedPlugAppArmor)
 	return nil
@@ -92,21 +87,6 @@ func (iface *PhysicalMemoryControlInterface) UdevConnectedPlug(spec *udev.Specif
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil
-}
-
-// Getter for the security snippet specific to the plug
-func (iface *PhysicalMemoryControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *PhysicalMemoryControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *PhysicalMemoryControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *PhysicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

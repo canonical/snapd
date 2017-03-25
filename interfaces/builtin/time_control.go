@@ -120,11 +120,6 @@ func (iface *TimeControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *TimeControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *TimeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(timeControlConnectedPlugAppArmor)
 	return nil
@@ -137,21 +132,6 @@ func (iface *TimeControlInterface) UdevConnectedPlug(spec *udev.Specification, p
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil
-}
-
-// Getter for the security snippet specific to the plug
-func (iface *TimeControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *TimeControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *TimeControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *TimeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

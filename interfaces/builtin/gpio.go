@@ -81,11 +81,6 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// PermanentPlugSnippet returns security snippets for plug at install
-func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
@@ -99,20 +94,6 @@ func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	spec.AddSnippet(fmt.Sprintf("%s/* rwk,", dereferencedPath))
 	return nil
 
-}
-
-// ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentSlotSnippet - no slot snippets provided
-func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {

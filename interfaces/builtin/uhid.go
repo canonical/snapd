@@ -64,11 +64,6 @@ func (iface *UhidInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// No permmissions granted to slot permanently
-func (iface *UhidInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(uhidConnectedPlugAppArmor)
 	return nil
@@ -81,21 +76,6 @@ func (iface *UhidInterface) UdevConnectedPlug(spec *udev.Specification, plug *in
 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
 	}
 	return nil
-}
-
-// Getter for the security system specific to the plug
-func (iface *UhidInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *UhidInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permmissions granted to plug permanently
-func (iface *UhidInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
