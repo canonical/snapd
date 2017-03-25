@@ -35,6 +35,7 @@ type AliasesStatus string
 
 // Possible global aliases statuses for a snap.
 const (
+	UnsetAliases    AliasesStatus = ""
 	EnabledAliases  AliasesStatus = "enabled"
 	DisabledAliases AliasesStatus = "disabled"
 )
@@ -349,4 +350,36 @@ func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesS
 		return conflicts, &AliasConflictError{Snap: snapName, Conflicts: conflicts}
 	}
 	return nil, nil
+}
+
+// disableAliases returns a newStatus and newAliases corresponding to the disabling of curStatus and curAliases, for manual aliases that means removed.
+func disableAliases(curStatus AliasesStatus, curAliases map[string]*AliasTarget) (newStatus AliasesStatus, newAliases map[string]*AliasTarget) {
+	newAliases = make(map[string]*AliasTarget, len(curAliases))
+	for alias, curTarget := range curAliases {
+		if curTarget.Auto != "" {
+			newAliases[alias] = &AliasTarget{Auto: curTarget.Auto}
+		}
+	}
+	return DisabledAliases, newAliases
+}
+
+// retireAutoAliases returns newAliases by retiring the automatic aliases autoAliases from curAliases, used as the task retire-auto-aliases to handle transfers of automatic aliases in a refresh.
+func retireAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
+	newAliases = make(map[string]*AliasTarget, len(curAliases))
+	for alias, aliasTarget := range curAliases {
+		newAliases[alias] = aliasTarget
+	}
+	for _, alias := range autoAliases {
+		curTarget := curAliases[alias]
+		if curTarget == nil {
+			// nothing to do
+			continue
+		}
+		if curTarget.Manual == "" {
+			delete(newAliases, alias)
+		} else {
+			newAliases[alias] = &AliasTarget{Manual: curTarget.Manual}
+		}
+	}
+	return newAliases
 }
