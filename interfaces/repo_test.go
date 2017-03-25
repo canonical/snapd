@@ -1255,8 +1255,7 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	})
 }
 
-// Tests for Repository.SecuritySnippetsForSnap()
-// and for SnapSpecification()
+// Tests for Repository.SnapSpecification
 
 const testSecurity SecuritySystem = "test"
 
@@ -1318,7 +1317,7 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	})
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippets(c *C) {
+func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
 	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
 	iface := &ifacetest.TestInterface{
@@ -1348,7 +1347,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippe
 	c.Assert(spec, IsNil)
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
+func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
