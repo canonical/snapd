@@ -461,3 +461,20 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstSnaps(c *C) {
 	c.Check(err, ErrorMatches, `cannot enable alias "some-snap.foo" for "alias-snap", it conflicts with the command namespace of installed snap "some-snap"`)
 	c.Check(confl, IsNil)
 }
+
+func (s *snapmgrTestSuite) TestDisableAliases(c *C) {
+	aliases := map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias3": {Manual: "manual3", Auto: "cmd3"},
+		"alias4": {Manual: "manual4"},
+	}
+
+	status, dis := snapstate.DisableAliases(snapstate.EnabledAliases, aliases)
+	c.Check(status, Equals, snapstate.DisabledAliases)
+	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias3": {Auto: "cmd3"},
+	})
+}

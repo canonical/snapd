@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -817,5 +817,206 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+// aliases v2
+
+func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	status := snapst.AliasesStatus
+	curAliases := snapst.Aliases
+	// TODO: implement --prefer/--unaliased logic
+	if status == UnsetAliases {
+		status = EnabledAliases
+	}
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
+	if err != nil {
+		return err
+	}
+	_, err = checkAliasesConflicts(st, snapName, status, newAliases)
+	if err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.AliasesStatus = status
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) undoSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	var oldAliases map[string]*AliasTarget
+	err := t.Get("old-aliases-v2", &oldAliases)
+	if err == state.ErrNoState {
+		// nothing to do
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	status := snapst.AliasesStatus
+
+	// check if the old aliases creates conflicts now
+	_, err = checkAliasesConflicts(st, snapName, status, oldAliases)
+	if _, ok := err.(*AliasConflictError); ok {
+		// best we can do is reinstate with all aliases disabled
+		t.Errorf("cannot reinstate alias state because of conflicts, disabling: %v", err)
+		status, oldAliases = disableAliases(status, oldAliases)
+	} else if err != nil {
+		return err
+	}
+
+	snapst.AliasesStatus = status
+	snapst.Aliases = oldAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+// XXX: doRemoveAliasesV2
+
+func (m *SnapManager) doSetupAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	// XXX: deal with pending
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	status := snapst.AliasesStatus
+	curAliases := snapst.Aliases
+
+	return applyAliasesChange(st, snapsup.Name(), DisabledAliases, nil, status, curAliases, m.backend)
+}
+
+func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	// TODO: share code with doSetAutoAliasesV2 once the logic is more complex
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	status := snapst.AliasesStatus
+	curAliases := snapst.Aliases
+
+	// TODO: implement --prefer/--unaliased logic
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
+	if err != nil {
+		return err
+	}
+	_, err = checkAliasesConflicts(st, snapName, status, newAliases)
+	if err != nil {
+		return err
+	}
+
+	if err := applyAliasesChange(st, snapName, status, curAliases, status, newAliases, m.backend); err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	// TODO: share code with undoSetAutoAliasesV2 once the logic is more complex?
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	var oldAliases map[string]*AliasTarget
+	err := t.Get("old-aliases-v2", &oldAliases)
+	if err == state.ErrNoState {
+		// nothing to do
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	curStatus := snapst.AliasesStatus
+	status := curStatus
+
+	// check if the old states creates conflicts now
+	_, err = checkAliasesConflicts(st, snapName, status, oldAliases)
+	if _, ok := err.(*AliasConflictError); ok {
+		// best we can do is reinstate with all aliases disabled
+		t.Errorf("cannot reinstate alias state because of conflicts, disabling: %v", err)
+		status, oldAliases = disableAliases(status, oldAliases)
+	} else if err != nil {
+		return err
+	}
+
+	curAliases := snapst.Aliases
+	if err := applyAliasesChange(st, snapName, curStatus, curAliases, status, oldAliases, m.backend); err != nil {
+		return err
+	}
+
+	snapst.AliasesStatus = status
+	snapst.Aliases = oldAliases
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) doRetireAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var which []string
+	err = t.Get("aliases", &which)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.Name()
+	status := snapst.AliasesStatus
+	curAliases := snapst.Aliases
+
+	newAliases := retireAutoAliases(st, curAliases, which)
+
+	if err := applyAliasesChange(st, snapName, status, curAliases, status, newAliases, m.backend); err != nil {
+		return err
+	}
+
+	t.Set("old-aliases-v2", curAliases)
+	snapst.Aliases = newAliases
+	Set(st, snapName, snapst)
 	return nil
 }
