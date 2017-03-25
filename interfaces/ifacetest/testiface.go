@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
@@ -80,6 +81,7 @@ type TestInterface struct {
 	AppArmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
 
 	// Support for interacting with the kmod backend.
+
 	KModConnectedPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	KModConnectedSlotCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	KModPermanentPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug) error
@@ -98,6 +100,13 @@ type TestInterface struct {
 	DBusConnectedSlotCallback func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	DBusPermanentPlugCallback func(spec *dbus.Specification, plug *interfaces.Plug) error
 	DBusPermanentSlotCallback func(spec *dbus.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the systemd backend.
+
+	SystemdConnectedPlugCallback func(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedSlotCallback func(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdPermanentPlugCallback func(spec *systemd.Specification, plug *interfaces.Plug) error
+	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -385,6 +394,36 @@ func (t *TestInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interf
 func (t *TestInterface) DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error {
 	if t.DBusPermanentPlugCallback != nil {
 		return t.DBusPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+// Support for interacting with the systemd backend.
+
+func (t *TestInterface) SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SystemdConnectedPlugCallback != nil {
+		return t.SystemdConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SystemdConnectedSlotCallback != nil {
+		return t.SystemdConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.Slot) error {
+	if t.SystemdPermanentSlotCallback != nil {
+		return t.SystemdPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error {
+	if t.SystemdPermanentPlugCallback != nil {
+		return t.SystemdPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
