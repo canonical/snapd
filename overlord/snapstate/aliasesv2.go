@@ -65,6 +65,37 @@ func (as *AliasState) AutoTarget() string {
 	}
 }
 
+/*
+   There are two kinds of aliases:
+
+   * automatic aliases listed with their target application in the
+     snap-declaration of the snap (states: auto,disabled,overridden)
+
+   * manual aliases setup with "snap alias SNAP.APP ALIAS" (states:
+     manual,overridden)
+
+   Further
+
+   * all automatic aliases of a snap are either enabled (state: auto)
+     or disabled together
+
+   * disabling a manual alias removes it from disk and state (for
+     simplicity there is no disabled state for manual aliases)
+
+   * therefore enabled automatic aliases and manual aliases never mix
+     for a snap (no snap with mixed auto and manual/overridden states)
+
+   * a snap with manual aliases can only have disabled or overridden
+     automatic aliases, the latter means a manual alias overlaid on
+     top of what is declared by the snap as an automatic alias
+
+   Given that aliases are shared and can conflict between snaps and
+   (because of --prefer/prefer) some operations might need to touch
+   implicitly the aliases of other snaps, the execution of all tasks
+   touching alias states or aliases on disk are serialized, see
+   SnapManager.blockedTask
+*/
+
 // TODO: helper from snap
 func composeTarget(snapName, targetApp string) string {
 	if targetApp == snapName {
