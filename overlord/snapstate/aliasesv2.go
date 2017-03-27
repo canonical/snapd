@@ -49,7 +49,9 @@ func composeTarget(snapName, targetApp string) string {
 	return fmt.Sprintf("%s.%s", snapName, targetApp)
 }
 
-// applyAliasChange applies the necessary changes to aliases on disk to go from prevStates to newStates for the aliases of snapName. It assumes that conflicts have already been checked.
+// applyAliasChange applies the necessary changes to aliases on disk
+// to go from prevStates to newStates for the aliases of snapName. It
+// assumes that conflicts have already been checked.
 func applyAliasChange(st *state.State, snapName string, prevStates map[string]*AliasState, newStates map[string]*AliasState, be managerBackend) error {
 	var add, remove []*backend.Alias
 	for alias, prevState := range prevStates {
