@@ -37,7 +37,7 @@ update_core_snap_for_classic_reexec() {
     cp /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    mksnap "squashfs-root" "$snap"
+    mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap
