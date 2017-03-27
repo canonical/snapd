@@ -20,10 +20,12 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const onlineAccountsServicePermanentSlotAppArmor = `
@@ -84,45 +86,28 @@ func (iface *OnlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *OnlineAccountsServiceInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	default:
-		return nil, nil
-	}
+func (iface *OnlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
+	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(onlineAccountsServiceConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	default:
-		return nil, nil
-	}
+func (iface *OnlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedSlotAppArmor, old, new, -1))
+	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(onlineAccountsServiceConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *OnlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(onlineAccountsServicePermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *OnlineAccountsServiceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(onlineAccountsServicePermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(onlineAccountsServicePermanentSlotSecComp), nil
-	default:
-		return nil, nil
-	}
+func (iface *OnlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(onlineAccountsServicePermanentSlotSecComp)
+	return nil
 }
 
 func (iface *OnlineAccountsServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
