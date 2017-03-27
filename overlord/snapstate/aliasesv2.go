@@ -234,7 +234,10 @@ func autoAliasStatesDelta(st *state.State, names []string) (touched map[string][
 	return touched, retired, firstErr
 }
 
-// refreshAliasStates applies the current snap-declaration aliases considering which applications exist in info and produces new alias states for the snap. It preserves the overall enabled or disabled state of automatic aliases for the snap.
+// refreshAliasStates applies the current snap-declaration aliases
+// considering which applications exist in info and produces new alias
+// states for the snap. It preserves the overall enabled or disabled
+// state of automatic aliases for the snap.
 func refreshAliasStates(st *state.State, info *snap.Info, curStates map[string]*AliasState) (newStates map[string]*AliasState, err error) {
 	auto := true
 	for _, aliasState := range curStates {
@@ -342,7 +345,9 @@ func checkAgainstEnabledAliasStates(st *state.State, checkedSnap string, checker
 	return nil
 }
 
-// checkAliasStatesConflicts checks candStates for conflicts against other snaps' alias states returning conflicting snaps and aliases for alias conflicts.
+// checkAliasStatesConflicts checks candStates for conflicts against
+// other snaps' alias states returning conflicting snaps and aliases
+// for alias conflicts.
 func checkAliasStatesConflicts(st *state.State, snapName string, candStates map[string]*AliasState) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
@@ -355,14 +360,16 @@ func checkAliasStatesConflicts(st *state.State, snapName string, candStates map[
 		if candState.Enabled() {
 			enabled[alias] = true
 		}
+		namespace := alias
+		if i := strings.IndexRune(alias, '.'); i != -1 {
+			namespace = alias[:i]
+		}
 		// check against snap namespaces
-		for name := range snapNames {
-			if name == alias || strings.HasPrefix(alias, name+".") {
-				return nil, &AliasConflictError{
-					Alias:  alias,
-					Snap:   snapName,
-					Reason: fmt.Sprintf("it conflicts with the command namespace of installed snap %q", name),
-				}
+		if snapNames[namespace] != nil {
+			return nil, &AliasConflictError{
+				Alias:  alias,
+				Snap:   snapName,
+				Reason: fmt.Sprintf("it conflicts with the command namespace of installed snap %q", namespace),
 			}
 		}
 	}
