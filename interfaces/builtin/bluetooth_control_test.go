@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -94,14 +95,16 @@ func (s *BluetoothControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *BluetoothControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability net_admin")
+
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	snippets := seccompSpec.Snippets()
-	c.Assert(len(snippets["snap.other.app2"]), Equals, 1)
-	c.Check(string(snippets["snap.other.app2"][0]), testutil.Contains, "\nbind\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nbind\n")
 }

@@ -23,8 +23,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,26 @@ type DcdbasControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&DcdbasControlInterfaceSuite{
-	iface: builtin.NewDcdbasControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&DcdbasControlInterfaceSuite{})
+
+func (s *DcdbasControlInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: other
+apps:
+ app:
+    command: foo
+    plugs: [dcdbas-control]
+`, nil)
+	s.iface = builtin.NewDcdbasControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "dcdbas-control",
 			Interface: "dcdbas-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "dcdbas-control",
-			Interface: "dcdbas-control",
-		},
-	},
-})
+	}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["dcdbas-control"]}
+}
 
 func (s *DcdbasControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dcdbas-control")
@@ -81,8 +86,9 @@ func (s *DcdbasControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *DcdbasControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Assert(string(snippet), testutil.Contains, `/dcdbas/smi_data`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/dcdbas/smi_data`)
 }
