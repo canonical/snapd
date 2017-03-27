@@ -48,10 +48,8 @@ execute: |
     echo Hello > /var/tmp/myevil.txt
     test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
 
-    . "$TESTSLIB/names.sh"
-
     echo Check migrating to types in state
-    coreType=$(jq -r '.data.snaps["'${core_name}'"].type' /var/lib/snapd/state.json)
+    coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
     testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
     [ "$testSnapType" = "app" ]
