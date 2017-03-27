@@ -31,13 +31,11 @@ prepare: |
 
 restore: |
     . "$TESTSLIB/systemd.sh"
-    
+
     systemd_stop_and_destroy_unit $SERVICE_NAME
     rm -f network-observe-consumer_1.0_all.snap net-query.output $SERVICE_FILE
 
 execute: |
-    . "$TESTSLIB/names.sh"
-
     CONNECTED_PATTERN=":network-observe +network-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +network-observe-consumer:network-observe"
 
@@ -47,7 +45,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect network-observe-consumer:network-observe ${core_name}:network-observe
+    snap connect network-observe-consumer:network-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can query network status information"
@@ -56,7 +54,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect network-observe-consumer:network-observe ${core_name}:network-observe
+    snap disconnect network-observe-consumer:network-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not query network status information"
