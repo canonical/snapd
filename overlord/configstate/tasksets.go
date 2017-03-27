@@ -38,7 +38,7 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Snap:       snapName,
 		Hook:       "configure",
 		Optional:   len(patch) == 0,
-		IgnoreFail: flags&snapstate.IgnoreHookFailure > 0,
+		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {
