@@ -293,23 +293,7 @@ func killemAll(cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	if err := syscall.Kill(-pgid, 9); err != nil {
-		return err
-	}
-
-	timeoutDuration := 5 * time.Second
-	exited := make(chan struct{})
-	timeout := time.NewTimer(timeoutDuration)
-	go func() {
-		cmd.Wait()
-		close(exited)
-	}()
-	select {
-	case <-exited:
-		return nil
-	case <-timeout.C:
-		return fmt.Errorf("pgid %v did not exit after %s", pgid, timeoutDuration)
-	}
+	return syscall.Kill(-pgid, 9)
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
@@ -335,12 +319,16 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	}
 
 	// add timeout handling
-	var killTimer *time.Timer
-	var killTimerCh <-chan time.Time
+	var killTimer, cmdWaitTimer *time.Timer
+	var killTimerCh, cmdWaitTimerCh <-chan time.Time
 	if maxRuntime > 0 {
 		killTimer = time.NewTimer(maxRuntime)
 		defer killTimer.Stop()
 		killTimerCh = killTimer.C
+
+		cmdWaitTimer = time.NewTimer(maxRuntime + 10*time.Second)
+		defer cmdWaitTimer.Stop()
+		cmdWaitTimerCh = cmdWaitTimer.C
 	}
 
 	hookCompleted := make(chan struct{})
@@ -351,23 +339,39 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		close(hookCompleted)
 	}()
 
-	select {
-	// Hook completed; it may or may not have been successful.
-	case <-hookCompleted:
-		return buffer.Bytes(), hookError
-	// max timeout reached
-	case <-killTimerCh:
-		if err := killemAll(command); err != nil {
-			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
-		}
-		// its ok to use buffer.Bytes() here, killemAll() calls
-		// cmd.Wait() internally and errors if that does not work
-		return buffer.Bytes(), fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
+	var abortOrTimeoutError error
+out:
+	for {
+		select {
+		// Hook completed; it may or may not have been successful.
+		case <-hookCompleted:
+			break out
+		// max timeout reached
+		case <-killTimerCh:
+			if err := killemAll(command); err != nil {
+				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+			}
+			abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
+		// cmdWaitTimeout was reached, i.e. command.Wait() did not
+		// finish in a reasonable amount of time, we can not use
+		// buffer in this case
+		case <-cmdWaitTimerCh:
+			return nil, fmt.Errorf("exceeded maximum runtime of %s and did not stop", maxRuntime)
 		// Hook was aborted.
-	case <-tomb.Dying():
-		if err := killemAll(command); err != nil {
-			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+		case <-tomb.Dying():
+			// tomb.Dyning() will keep sending but we just need
+			// to handle it once
+			if abortOrTimeoutError != nil {
+				continue
+			}
+			if err := killemAll(command); err != nil {
+				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+			}
+			abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
 		}
-		return nil, fmt.Errorf("hook %q aborted", hookName)
 	}
+	if abortOrTimeoutError != nil {
+		return buffer.Bytes(), abortOrTimeoutError
+	}
+	return buffer.Bytes(), hookError
 }
