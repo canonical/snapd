@@ -437,7 +437,6 @@ slots:
     allow-installation:
       slot-snap-type:
         - app
-        - core
     deny-connection: true
   ofono:
     allow-installation:
