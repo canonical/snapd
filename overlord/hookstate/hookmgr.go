@@ -293,7 +293,23 @@ func killemAll(cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	return syscall.Kill(-pgid, 9)
+	if err := syscall.Kill(-pgid, 9); err != nil {
+		return err
+	}
+
+	timeoutDuration := 5 * time.Second
+	exited := make(chan struct{})
+	timeout := time.NewTimer(timeoutDuration)
+	go func() {
+		cmd.Wait()
+		close(exited)
+	}()
+	select {
+	case <-exited:
+		return nil
+	case <-timeout.C:
+		return fmt.Errorf("pgid %v did not exit after %s", pgid, timeoutDuration)
+	}
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
@@ -344,6 +360,8 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		if err := killemAll(command); err != nil {
 			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 		}
+		// its ok to use buffer.Bytes() here, killemAll() calls
+		// cmd.Wait() internally and errors if that does not work
 		return buffer.Bytes(), fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
 		// Hook was aborted.
 	case <-tomb.Dying():
