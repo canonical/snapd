@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -79,15 +81,18 @@ func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	dbusSpec := &dbus.Specification{}
+	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+	dbusSpec = &dbus.Specification{}
+	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 0)
 
 	spec := &kmod.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)

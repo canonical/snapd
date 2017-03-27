@@ -531,7 +531,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  thumbnailer:
+  thumbnailer-service:
     allow-installation:
       slot-snap-type:
         - app
