@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
 const locationObservePermanentSlotAppArmor = `
@@ -213,8 +214,14 @@ func (iface *LocationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObserveConnectedPlugDBus)
+	return nil
+}
+
+func (iface *LocationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(locationObservePermanentSlotDBus)
+	return nil
 }
 
 func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -225,27 +232,9 @@ func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(locationObserveConnectedPlugDBus), nil
-	default:
-		return nil, nil
-	}
-}
-
 func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(locationObservePermanentSlotAppArmor)
 	return nil
-}
-
-func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(locationObservePermanentSlotDBus), nil
-	default:
-		return nil, nil
-	}
 }
 
 func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -254,10 +243,6 @@ func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Spec
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *LocationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {

@@ -71,7 +71,7 @@ func plugAppLabelExpr(plug *interfaces.Plug) string {
 }
 
 // Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) []byte {
+func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) string {
 	const udevHeader string = `IMPORT{builtin}="usb_id"`
 	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
 	const udevSuffix string = `, %s+="%s"`
@@ -80,8 +80,7 @@ func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, k
 	udevSnippet.WriteString(udevHeader + "\n")
 	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
 	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
-	udevSnippet.WriteString("\n")
-	return udevSnippet.Bytes()
+	return udevSnippet.String()
 }
 
 // Function to create an udev TAG, essentially the cgroup name for
