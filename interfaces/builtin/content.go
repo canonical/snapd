@@ -91,14 +91,6 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *ContentInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ContentInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 // path is an internal helper that extract the "read" and "write" attribute
 // of the slot
 func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string {
@@ -182,14 +174,6 @@ func (iface *ContentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 	spec.AddSnippet(contentSnippet.String())
 	return nil
-}
-
-func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
