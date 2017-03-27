@@ -16,5 +16,4 @@ install:
 
 script:
     - ./run-checks --static
-    - ./run-checks --unit
     - ./run-checks --spread
