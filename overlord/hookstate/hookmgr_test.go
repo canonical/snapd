@@ -298,6 +298,9 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	})
 	defer restore()
 
+	restore = hookstate.MockCmdWaitTimeout(100 * time.Millisecond)
+	defer restore()
+
 	s.manager.Ensure()
 	completed := make(chan struct{})
 	go func() {

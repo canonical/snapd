@@ -289,6 +289,7 @@ func snapCmd() string {
 }
 
 var syscallKill = syscall.Kill
+var cmdWaitTimeout = 5 * time.Second
 
 func killemAll(cmd *exec.Cmd) error {
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
@@ -345,33 +346,34 @@ out:
 		// Hook completed; it may or may not have been successful.
 		case <-hookCompleted:
 			break out
-		// max timeout reached
+		// Max timeout reached, process will get killed below
 		case <-killTimerCh:
-			if err := killemAll(command); err != nil {
-				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
-			}
 			abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
-			// add timer to ensure we wait only a reasonable
-			// amount of time for "hookCompleted". i.e. we
-			// do not want to hang if the hook becomes unkillable
-			// for some reason (eg. hardware problems)
-			cmdWaitTimer = time.NewTimer(maxRuntime)
-			defer cmdWaitTimer.Stop()
-			cmdWaitTimerCh = cmdWaitTimer.C
+		// Hook was aborted, process will get killed below
+		case <-dyingCh:
+			dyingCh = nil
+			abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
 		// cmdWaitTimeout was reached, i.e. command.Wait() did not
 		// finish in a reasonable amount of time, we can not use
-		// buffer in this case
+		// buffer in this case so return without it.
 		case <-cmdWaitTimerCh:
 			return nil, fmt.Errorf("exceeded maximum runtime of %s and did not stop", maxRuntime)
-		// Hook was aborted.
-		case <-dyingCh:
-			if err := killemAll(command); err != nil {
-				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
-			}
-			abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
-			dyingCh = nil
 		}
+
+		// select above exited which means that aborted or killTimeout
+		// was reached. Kill the command and wait for command.Wait()
+		// to clean it up (but limit the wait with the cmdWaitTimer)
+		if cmdWaitTimerCh != nil {
+			continue
+		}
+		if err := killemAll(command); err != nil {
+			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+		}
+		cmdWaitTimer = time.NewTimer(cmdWaitTimeout)
+		defer cmdWaitTimer.Stop()
+		cmdWaitTimerCh = cmdWaitTimer.C
 	}
+
 	if abortOrTimeoutError != nil {
 		return buffer.Bytes(), abortOrTimeoutError
 	}
