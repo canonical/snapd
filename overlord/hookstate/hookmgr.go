@@ -296,6 +296,9 @@ func killemAll(cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
+	if pgid == 1 {
+		return fmt.Errorf("cannot kill pgid 1")
+	}
 	return syscallKill(-pgid, 9)
 }
 
