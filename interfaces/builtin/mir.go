@@ -81,10 +81,6 @@ func (iface *MirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *MirInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *MirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -101,28 +97,14 @@ func (iface *MirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *MirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *MirInterface) PermanentSlotSnippet(
-	slot *interfaces.Slot,
-	securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
 	return nil
-}
-
-func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {

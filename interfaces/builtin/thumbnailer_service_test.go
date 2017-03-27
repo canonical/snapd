@@ -30,68 +30,68 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ThumbnailerInterfaceSuite struct {
+type ThumbnailerServiceInterfaceSuite struct {
 	iface       interfaces.Interface
 	coreSlot    *interfaces.Slot
 	classicSlot *interfaces.Slot
 	plug        *interfaces.Plug
 }
 
-var _ = Suite(&ThumbnailerInterfaceSuite{})
+var _ = Suite(&ThumbnailerServiceInterfaceSuite{})
 
-func (s *ThumbnailerInterfaceSuite) SetUpTest(c *C) {
+func (s *ThumbnailerServiceInterfaceSuite) SetUpTest(c *C) {
 	// a thumbnailer slot on a thumbnailer snap
-	const thumbnailerMockCoreSlotSnapInfoYaml = `name: thumbnailer
+	const thumbnailerServiceMockCoreSlotSnapInfoYaml = `name: thumbnailer-service
 version: 1.0
 apps:
  app:
   command: foo
-  slots: [thumbnailer]
+  slots: [thumbnailer-service]
 `
-	// a thumbnailer slot on the core snap (as automatically added on classic)
-	const thumbnailerMockClassicSlotSnapInfoYaml = `name: core
+	// a thumbnailer-service slot on the core snap (as automatically added on classic)
+	const thumbnailerServiceMockClassicSlotSnapInfoYaml = `name: core
 type: os
 slots:
- thumbnailer:
-  interface: thumbnailer
+ thumbnailer-service:
+  interface: thumbnailer-service
 `
 	const mockPlugSnapInfo = `name: client
 version: 1.0
 apps:
  app:
   command: foo
-  plugs: [thumbnailer]
+  plugs: [thumbnailer-service]
 `
-	s.iface = &builtin.ThumbnailerInterface{}
-	// thumbnailer snap with thumbnailer slot on an core/all-snap install.
-	snapInfo := snaptest.MockInfo(c, thumbnailerMockCoreSlotSnapInfoYaml, nil)
-	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["thumbnailer"]}
-	// thumbnailer slot on a core snap in a classic install.
-	snapInfo = snaptest.MockInfo(c, thumbnailerMockClassicSlotSnapInfoYaml, nil)
-	s.classicSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["thumbnailer"]}
+	s.iface = &builtin.ThumbnailerServiceInterface{}
+	// thumbnailer-service snap with thumbnailer-service slot on an core/all-snap install.
+	snapInfo := snaptest.MockInfo(c, thumbnailerServiceMockCoreSlotSnapInfoYaml, nil)
+	s.coreSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["thumbnailer-service"]}
+	// thumbnailer-service slot on a core snap in a classic install.
+	snapInfo = snaptest.MockInfo(c, thumbnailerServiceMockClassicSlotSnapInfoYaml, nil)
+	s.classicSlot = &interfaces.Slot{SlotInfo: snapInfo.Slots["thumbnailer-service"]}
 
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["thumbnailer"]}
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["thumbnailer-service"]}
 }
 
-func (s *ThumbnailerInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "thumbnailer")
+func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {
+	c.Check(s.iface.Name(), Equals, "thumbnailer-service")
 }
 
-func (s *ThumbnailerInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *ThumbnailerServiceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Check(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "thumbnailer"`)
+		PanicMatches, `slot is not of interface "thumbnailer-service"`)
 	c.Check(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "thumbnailer"`)
+		PanicMatches, `plug is not of interface "thumbnailer-service"`)
 }
 
-func (s *ThumbnailerInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected slots have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer.app"), testutil.Contains, `interface=com.canonical.Thumbnailer`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `interface=com.canonical.Thumbnailer`)
 
 	// slots have no permanent snippet on classic
 	apparmorSpec = &apparmor.Specification{}
@@ -103,16 +103,16 @@ func (s *ThumbnailerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec = &apparmor.Specification{}
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
 }
 
-func (s *ThumbnailerInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C) {
+func (s *ThumbnailerServiceInterfaceSuite) TestSlotGrantedAccessToPlugFiles(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer.app"})
-	snippet := apparmorSpec.SnippetForTag("snap.thumbnailer.app")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.thumbnailer-service.app")
 	c.Check(snippet, testutil.Contains, `@{INSTALL_DIR}/client/**`)
 	c.Check(snippet, testutil.Contains, `@{HOME}/snap/client/**`)
 	c.Check(snippet, testutil.Contains, `/var/snap/client/**`)
