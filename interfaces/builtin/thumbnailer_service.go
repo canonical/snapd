@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-const thumbnailerPermanentSlotAppArmor = `
+const thumbnailerServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_query_label API. This
 # discloses the AppArmor policy for all processes.
 
@@ -51,7 +51,7 @@ dbus (bind)
     name=com.canonical.Thumbnailer,
 `
 
-const thumbnailerConnectedSlotAppArmor = `
+const thumbnailerServiceConnectedSlotAppArmor = `
 # Description: Allow access to plug's data directory.
 
 @{INSTALL_DIR}/###PLUG_SNAP_NAME###/**     r,
@@ -66,7 +66,7 @@ dbus (receive, send)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
-const thumbnailerConnectedPlugAppArmor = `
+const thumbnailerServiceConnectedPlugAppArmor = `
 # Description: allow access to the thumbnailer D-Bus service.
 
 #include <abstractions/dbus-session-strict>
@@ -78,18 +78,14 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type ThumbnailerInterface struct{}
+type ThumbnailerServiceInterface struct{}
 
-func (iface *ThumbnailerInterface) Name() string {
-	return "thumbnailer"
+func (iface *ThumbnailerServiceInterface) Name() string {
+	return "thumbnailer-service"
 }
 
-func (iface *ThumbnailerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ThumbnailerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	snippet := thumbnailerConnectedPlugAppArmor
+func (iface *ThumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet = strings.Replace(snippet, old, new, -1)
@@ -97,21 +93,13 @@ func (iface *ThumbnailerInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	return nil
 }
 
-func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ThumbnailerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(thumbnailerPermanentSlotAppArmor)
+func (iface *ThumbnailerServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(thumbnailerServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ThumbnailerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ThumbnailerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	snippet := thumbnailerConnectedSlotAppArmor
+func (iface *ThumbnailerServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	snippet := thumbnailerServiceConnectedSlotAppArmor
 	old := "###PLUG_SNAP_NAME###"
 	new := plug.Snap.Name()
 	snippet = strings.Replace(snippet, old, new, -1)
@@ -123,24 +111,20 @@ func (iface *ThumbnailerInterface) AppArmorConnectedSlot(spec *apparmor.Specific
 	return nil
 }
 
-func (iface *ThumbnailerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *ThumbnailerInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *ThumbnailerServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ThumbnailerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *ThumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	return nil
 }
 
-func (iface *ThumbnailerInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *ThumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
