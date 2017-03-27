@@ -387,6 +387,10 @@ var defaultTemplate = `
   /sys/class/ r,
   /sys/class/**/ r,
 
+  # Allow all snaps to chroot
+  capability sys_chroot,
+  /{,usr/}sbin/chroot ixr,
+
 ###SNIPPETS###
 }
 `

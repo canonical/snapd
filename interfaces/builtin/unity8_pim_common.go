@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
@@ -109,6 +110,11 @@ func (iface *unity8PimCommonInterface) PermanentPlugSnippet(plug *interfaces.Plu
 	return nil, nil
 }
 
+func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	//FIXME: Implement support after session services are available.
+	return nil
+}
+
 func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -136,13 +142,7 @@ func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 }
 
 func (iface *unity8PimCommonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		//FIXME: Implement support after session services are available.
-		return nil, nil
-	default:
-		return nil, nil
-	}
+	return nil, nil
 }
 
 func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
