@@ -327,10 +327,6 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		killTimer = time.NewTimer(maxRuntime)
 		defer killTimer.Stop()
 		killTimerCh = killTimer.C
-
-		cmdWaitTimer = time.NewTimer(2 * maxRuntime)
-		defer cmdWaitTimer.Stop()
-		cmdWaitTimerCh = cmdWaitTimer.C
 	}
 
 	hookCompleted := make(chan struct{})
@@ -342,6 +338,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	}()
 
 	var abortOrTimeoutError error
+	dyingCh := tomb.Dying()
 out:
 	for {
 		select {
@@ -354,22 +351,25 @@ out:
 				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 			}
 			abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
+			// add timer to ensure we wait only a reasonable
+			// amount of time for "hookCompleted". i.e. we
+			// do not want to hang if the hook becomes unkillable
+			// for some reason (eg. hardware problems)
+			cmdWaitTimer = time.NewTimer(maxRuntime)
+			defer cmdWaitTimer.Stop()
+			cmdWaitTimerCh = cmdWaitTimer.C
 		// cmdWaitTimeout was reached, i.e. command.Wait() did not
 		// finish in a reasonable amount of time, we can not use
 		// buffer in this case
 		case <-cmdWaitTimerCh:
 			return nil, fmt.Errorf("exceeded maximum runtime of %s and did not stop", maxRuntime)
 		// Hook was aborted.
-		case <-tomb.Dying():
-			// tomb.Dyning() will keep sending but we just need
-			// to handle it once
-			if abortOrTimeoutError != nil {
-				continue
-			}
+		case <-dyingCh:
 			if err := killemAll(command); err != nil {
 				return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 			}
 			abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
+			dyingCh = nil
 		}
 	}
 	if abortOrTimeoutError != nil {
