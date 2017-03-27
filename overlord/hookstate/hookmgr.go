@@ -347,9 +347,6 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		return buffer.Bytes(), fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
 		// Hook was aborted.
 	case <-tomb.Dying():
-		if killTimer != nil {
-			killTimer.Stop()
-		}
 		if err := killemAll(command); err != nil {
 			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 		}
