@@ -288,12 +288,14 @@ func snapCmd() string {
 	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
 }
 
+var syscallKill = syscall.Kill
+
 func killemAll(cmd *exec.Cmd) error {
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
 	if err != nil {
 		return err
 	}
-	return syscall.Kill(-pgid, 9)
+	return syscallKill(-pgid, 9)
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
@@ -326,7 +328,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		defer killTimer.Stop()
 		killTimerCh = killTimer.C
 
-		cmdWaitTimer = time.NewTimer(maxRuntime + 10*time.Second)
+		cmdWaitTimer = time.NewTimer(2 * maxRuntime)
 		defer cmdWaitTimer.Stop()
 		cmdWaitTimerCh = cmdWaitTimer.C
 	}

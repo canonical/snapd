@@ -19,10 +19,20 @@
 
 package hookstate
 
+import "syscall"
+
 func MockReadlink(f func(string) (string, error)) func() {
 	oldReadlink := osReadlink
 	osReadlink = f
 	return func() {
 		osReadlink = oldReadlink
+	}
+}
+
+func MockSyscallKill(f func(int, syscall.Signal) error) func() {
+	oldSyscallKill := syscallKill
+	syscallKill = f
+	return func() {
+		syscallKill = oldSyscallKill
 	}
 }
