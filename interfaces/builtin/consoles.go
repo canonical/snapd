@@ -20,11 +20,11 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const consolesUdevRule = `
@@ -75,43 +75,18 @@ func (iface *ConsolesInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *ConsolesInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *ConsolesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(consolesConnectedPlugAppArmor)
 	return nil
 }
 
-// Getter for the security snippet specific to the plug
-func (iface *ConsolesInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(consolesConnectedPlugAppArmor), nil
+func (iface *ConsolesInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(consolesUdevRule, tag))
 
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(consolesUdevRule, tag))
-
-		}
-		return tagSnippet.Bytes(), nil
 	}
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *ConsolesInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *ConsolesInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	return nil
 }
 
 func (iface *ConsolesInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
