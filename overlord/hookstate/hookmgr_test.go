@@ -319,12 +319,12 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms and did not stop`)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms, but did not stop`)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms and did not stop`)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms, but did not stop`)
 }
 
 func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreFail(c *C) {

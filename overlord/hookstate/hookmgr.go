@@ -357,7 +357,7 @@ out:
 		// finish in a reasonable amount of time, we can not use
 		// buffer in this case so return without it.
 		case <-cmdWaitTimerCh:
-			return nil, fmt.Errorf("exceeded maximum runtime of %s and did not stop", maxRuntime)
+			return nil, fmt.Errorf("%v, but did not stop", abortOrTimeoutError)
 		}
 
 		// select above exited which means that aborted or killTimeout
@@ -372,6 +372,7 @@ out:
 		cmdWaitTimer = time.NewTimer(cmdWaitTimeout)
 		defer cmdWaitTimer.Stop()
 		cmdWaitTimerCh = cmdWaitTimer.C
+		killTimerCh = nil
 	}
 
 	if abortOrTimeoutError != nil {
