@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -182,33 +184,25 @@ func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	system := interfaces.SecuritySecComp
-
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	system := interfaces.SecuritySecComp
-
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetDBus(c *C) {
-	system := interfaces.SecurityDBus
-
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetDBus(c *C) {
-	system := interfaces.SecurityDBus
-
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
