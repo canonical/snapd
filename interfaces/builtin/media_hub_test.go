@@ -202,7 +202,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetDBus(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetDBus(c *C) {
-	spec := &seccomp.Specification{}
+	spec := &dbus.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
