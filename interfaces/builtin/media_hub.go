@@ -157,10 +157,6 @@ func (iface *MediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *MediaHubInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -168,17 +164,9 @@ func (iface *MediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *MediaHubInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *MediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(mediaHubPermanentSlotAppArmor)
 	return nil
-}
-
-func (iface *MediaHubInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -186,10 +174,6 @@ func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specificati
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
 	return nil
-}
-
-func (iface *MediaHubInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *MediaHubInterface) SanitizePlug(plug *interfaces.Plug) error {
