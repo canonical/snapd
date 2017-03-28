@@ -54,10 +54,10 @@ endif
 # security of the system.  Discuss a proper approach to this for downstreams
 # if and when they approach us
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-	# On Ubuntu 14.04 snapd cannot add the libcap dependency because of a
-	# feature/bug in apt where this would stop updates for some people (apt
-	# tries not to install new packages unless `dist-upgrade' command is used).
-	# As a work-around we link to libcap statically.
+    # On Ubuntu 14.04 snapd cannot add the libcap dependency because of a
+    # feature/bug in apt where this would stop updates for some people (apt
+    # tries not to install new packages unless `dist-upgrade' command is used).
+    # As a work-around we link to libcap statically.
     VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap
 else
     VENDOR_ARGS=--disable-apparmor
