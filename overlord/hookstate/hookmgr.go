@@ -210,11 +210,11 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	if hookExists {
 		output, err := runHook(context, tomb)
 		if err != nil {
+			if hooksup.ReportOnErrtracker {
+				reportHookFailureOnErrtracker(context, output, err)
+			}
 			origErr := err
 			err = osutil.OutputErr(output, err)
-			if hooksup.ReportOnErrtracker {
-				reportHookFailureOnErrtracker(context, err)
-			}
 			if hooksup.IgnoreFail {
 				task.State().Lock()
 				task.Errorf("ignoring failure in hook %q: %v\noutput: %q", hooksup.Hook, origErr, err)
@@ -378,9 +378,9 @@ out:
 
 var errtrackerReport = errtracker.Report
 
-func reportHookFailureOnErrtracker(context *Context, err error) {
-	errmsg := err.Error()
-	dupSig := fmt.Sprintf("%s:%s:%s", context.SnapName(), context.HookName(), err)
+func reportHookFailureOnErrtracker(context *Context, output []byte, err error) {
+	errmsg := fmt.Sprintf("hook %s for snap %s failed with: %s. Output: %q", context.HookName(), context.SnapName(), err, output)
+	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%q", context.SnapName(), context.HookName(), err, output)
 	extra := map[string]string{
 		"HookName": context.HookName(),
 	}
@@ -389,8 +389,8 @@ func reportHookFailureOnErrtracker(context *Context, err error) {
 	}
 	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
 	if err != nil {
-		logger.Noticef("cannot report hook failure: %s", err)
+		logger.Debugf("Cannot report hook failure: %s", err)
 	} else {
-		logger.Noticef("reported hook failure from %s as %s", context.HookName(), oopsid)
+		logger.Debugf("Reported hook failure from %s for snap %s as %s", context.HookName(), context.SnapName(), oopsid)
 	}
 }
