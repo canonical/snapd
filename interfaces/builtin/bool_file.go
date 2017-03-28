@@ -78,16 +78,6 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
-// Applications associated with the slot don't gain any extra permissions.
-func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *BoolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	gpioSnippet := `
 /sys/class/gpio/export rw,
@@ -112,18 +102,6 @@ func (iface *BoolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rwk,", path))
 	return nil
-}
-
-// ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
-// Applications associated with the plug gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentPlugSnippet returns the configuration snippet required to use a bool-file interface.
-// Applications associated with the plug don't gain any extra permissions.
-func (iface *BoolFileInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {

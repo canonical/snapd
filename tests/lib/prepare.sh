@@ -3,6 +3,7 @@
 set -eux
 
 . $TESTSLIB/apt.sh
+. $TESTSLIB/snaps.sh
 
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
@@ -36,12 +37,7 @@ update_core_snap_for_classic_reexec() {
     cp /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        # trusty does not support  -Xcompression-level 1
-        mksquashfs squashfs-root "$snap" -comp gzip
-    else
-        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
-    fi
+    mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap
