@@ -335,7 +335,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		return buffer.Bytes(), hookError
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
-		abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
+		abortOrTimeoutError = fmt.Errorf("hook aborted")
 	case <-killTimerCh:
 		// Max timeout reached, process will get killed below
 		abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
@@ -345,7 +345,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	// was reached. Kill the command and wait for command.Wait()
 	// to clean it up (but limit the wait with the cmdWaitTimer)
 	if err := killemAll(command); err != nil {
-		return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+		return nil, fmt.Errorf("cannot abort hook: %s", err)
 	}
 	select {
 	case <-time.After(cmdWaitTimeout):
@@ -357,7 +357,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(buffer, "\n%s", abortOrTimeoutError)
+	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
 }
