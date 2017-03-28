@@ -36,4 +36,3 @@ execute: |
     snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\".*"
     snap change $chg_id | MATCH ".*ithangs.*"
     snap change $chg_id | MATCH ".*exceeded maximum runtime of 1m0s.*"
-
