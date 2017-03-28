@@ -49,11 +49,11 @@ func configureHookTimeout() time.Duration {
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
-		Snap:               snapName,
-		Hook:               "configure",
-		Optional:           len(patch) == 0,
-		IgnoreFail:         flags&snapstate.IgnoreHookFailure != 0,
-		ReportOnErrtracker: flags&snapstate.ReportHookFailureOnErrtracker != 0,
+		Snap:        snapName,
+		Hook:        "configure",
+		Optional:    len(patch) == 0,
+		IgnoreError: flags&snapstate.IgnoreHookError != 0,
+		TrackError:  flags&snapstate.TrackHookError != 0,
 		// all configure hooks must finish within this timeout
 		Timeout: configureHookTimeout(),
 	}

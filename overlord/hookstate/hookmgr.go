@@ -76,9 +76,9 @@ type HookSetup struct {
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
 
-	IgnoreFail         bool          `json:"ignore-fail,omitempty"`
-	Timeout            time.Duration `json:"timeout,omitempty"`
-	ReportOnErrtracker bool          `json:"report-on-errtracker,omitempty"`
+	Timeout     time.Duration `json:"timeout,omitempty"`
+	IgnoreError bool          `json:"ignore-fail,omitempty"`
+	TrackError  bool          `json:"track-error,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -209,11 +209,11 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	if hookExists {
 		output, err := runHook(context, tomb)
 		if err != nil {
-			if hooksup.ReportOnErrtracker {
-				reportHookFailureOnErrtracker(context, output, err)
+			if hooksup.TrackError {
+				trackHookError(context, output, err)
 			}
 			err = osutil.OutputErr(output, err)
-			if hooksup.IgnoreFail {
+			if hooksup.IgnoreError {
 				task.State().Lock()
 				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
 				task.State().Unlock()
@@ -362,14 +362,14 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 
 var errtrackerReport = errtracker.Report
 
-func reportHookFailureOnErrtracker(context *Context, output []byte, err error) {
-	errmsg := fmt.Sprintf("hook %s for snap %s failed with: %s. Output: %s", context.HookName(), context.SnapName(), err, output)
+func trackHookError(context *Context, output []byte, err error) {
+	errmsg := fmt.Sprintf("hook %s in snap %q failed: %v", context.HookName(), context.SnapName(), osutil.OutputErr(output, err))
 	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.SnapName(), context.HookName(), err, output)
 	extra := map[string]string{
 		"HookName": context.HookName(),
 	}
-	if context.setup.IgnoreFail {
-		extra["IgnoreFail"] = "1"
+	if context.setup.IgnoreError {
+		extra["IgnoreError"] = "1"
 	}
 	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
 	if err == nil {

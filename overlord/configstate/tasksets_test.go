@@ -42,32 +42,32 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 }
 
 var configureTests = []struct {
-	patch      map[string]interface{}
-	optional   bool
-	ignoreFail bool
+	patch       map[string]interface{}
+	optional    bool
+	ignoreError bool
 }{{
-	patch:      nil,
-	optional:   true,
-	ignoreFail: false,
+	patch:       nil,
+	optional:    true,
+	ignoreError: false,
 }, {
-	patch:      map[string]interface{}{},
-	optional:   true,
-	ignoreFail: false,
+	patch:       map[string]interface{}{},
+	optional:    true,
+	ignoreError: false,
 }, {
-	patch:      map[string]interface{}{"foo": "bar"},
-	optional:   false,
-	ignoreFail: false,
+	patch:       map[string]interface{}{"foo": "bar"},
+	optional:    false,
+	ignoreError: false,
 }, {
-	patch:      nil,
-	optional:   true,
-	ignoreFail: true,
+	patch:       nil,
+	optional:    true,
+	ignoreError: true,
 }}
 
 func (s *tasksetsSuite) TestConfigure(c *C) {
 	for _, test := range configureTests {
 		var flags int
-		if test.ignoreFail {
-			flags |= snapstate.IgnoreHookFailure
+		if test.ignoreError {
+			flags |= snapstate.IgnoreHookError
 		}
 
 		s.state.Lock()
@@ -95,7 +95,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.Snap, Equals, "test-snap")
 		c.Assert(hooksup.Hook, Equals, "configure")
 		c.Assert(hooksup.Optional, Equals, test.optional)
-		c.Assert(hooksup.IgnoreFail, Equals, test.ignoreFail)
+		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
 		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
 		context, err := hookstate.NewContext(task, &hooksup, nil)

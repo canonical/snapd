@@ -223,11 +223,11 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	checkTaskLogContains(c, s.task, ".*failed at user request.*")
 }
 
-func (s *hookManagerSuite) TestHookTaskHandleIgnoreFailWorks(c *C) {
+func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 	s.state.Lock()
 	var hooksup hookstate.HookSetup
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.IgnoreFail = true
+	hooksup.IgnoreError = true
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
@@ -336,13 +336,13 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms, but did not stop`)
 }
 
-func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreFail(c *C) {
+func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
 	var hooksup hookstate.HookSetup
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
 	hooksup.Timeout = time.Duration(200 * time.Millisecond)
-	hooksup.IgnoreFail = true
+	hooksup.IgnoreError = true
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
@@ -626,14 +626,14 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	s.state.Lock()
 	var hooksup hookstate.HookSetup
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.ReportOnErrtracker = true
+	hooksup.TrackError = true
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
 	errtrackerCalled := false
 	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
 		c.Check(snap, Equals, "test-snap")
-		c.Check(errmsg, Equals, "hook configure for snap test-snap failed with: exit status 1. Output: hook failed at user request\n")
+		c.Check(errmsg, Equals, "hook configure in snap \"test-snap\" failed: hook failed at user request")
 		c.Check(dupSig, Equals, "hook:test-snap:configure:exit status 1\nhook failed at user request\n")
 
 		errtrackerCalled = true
