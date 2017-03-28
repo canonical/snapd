@@ -568,3 +568,11 @@ func (iface *DockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.S
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *DockerSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DockerSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

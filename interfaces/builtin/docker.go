@@ -76,3 +76,11 @@ func (iface *DockerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *DockerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DockerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

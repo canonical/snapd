@@ -1215,3 +1215,11 @@ func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Sl
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *ModemManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *ModemManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

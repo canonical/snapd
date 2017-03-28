@@ -230,3 +230,11 @@ func (iface *FwupdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *FwupdInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *FwupdInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

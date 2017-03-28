@@ -106,3 +106,11 @@ func (iface *IioPortsControlInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func (iface *IioPortsControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *IioPortsControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

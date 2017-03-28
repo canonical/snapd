@@ -225,3 +225,13 @@ func (iface *BluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *BluezInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+
+}
+
+func (iface *BluezInterface) ValidateSlot(plug *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+
+}

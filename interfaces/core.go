@@ -120,6 +120,12 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
+	// ValidatePlug checks if a plug's attributes are correct, altering if necessary.
+	ValidatePlug(plug *Plug, attrs map[string]interface{}) error
+
+	// ValidateSlot checks if a slot's attributes are correct, altering if necessary.
+	ValidateSlot(slot *Slot, attrs map[string]interface{}) error
+
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks

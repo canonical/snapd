@@ -198,3 +198,11 @@ func (iface *ContentInterface) MountConnectedPlug(spec *mount.Specification, plu
 	}
 	return nil
 }
+
+func (iface *ContentInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *ContentInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

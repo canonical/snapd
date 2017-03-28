@@ -255,3 +255,11 @@ func (iface *UpowerObserveInterface) AutoConnect(*interfaces.Plug, *interfaces.S
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *UpowerObserveInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *UpowerObserveInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

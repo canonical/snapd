@@ -275,3 +275,11 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func (iface *BrowserSupportInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BrowserSupportInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

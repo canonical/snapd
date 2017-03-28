@@ -117,3 +117,11 @@ func (iface *I2cInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool 
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func (iface *I2cInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *I2cInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

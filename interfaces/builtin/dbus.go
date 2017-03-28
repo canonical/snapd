@@ -398,3 +398,11 @@ func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *DbusInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *DbusInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

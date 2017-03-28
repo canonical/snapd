@@ -183,3 +183,11 @@ func (iface *unity8PimCommonInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *unity8PimCommonInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *unity8PimCommonInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

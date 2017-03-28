@@ -44,6 +44,9 @@ type TestInterface struct {
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *interfaces.Slot) error
 
+	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
+	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
+
 	// Support for interacting with the test backend.
 
 	TestConnectedPlugCallback func(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
@@ -129,6 +132,20 @@ func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 	if t.SanitizeSlotCallback != nil {
 		return t.SanitizeSlotCallback(slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	if t.ValidatePlugCallback != nil {
+		return t.ValidatePlugCallback(plug, attrs)
+	}
+	return nil
+}
+
+func (t *TestInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	if t.ValidateSlotCallback != nil {
+		return t.ValidateSlotCallback(slot, attrs)
 	}
 	return nil
 }

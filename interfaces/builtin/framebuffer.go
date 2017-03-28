@@ -89,3 +89,11 @@ func (iface *FramebufferInterface) AutoConnect(*interfaces.Plug, *interfaces.Slo
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func (iface *FramebufferInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *FramebufferInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

@@ -138,3 +138,11 @@ func (iface *TimeControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slo
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func (iface *TimeControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *TimeControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

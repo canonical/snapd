@@ -163,3 +163,11 @@ func (iface *MaliitInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *MaliitInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *MaliitInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

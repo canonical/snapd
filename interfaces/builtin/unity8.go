@@ -123,3 +123,11 @@ func (iface *Unity8Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	// allow what declarations allowed
 	return true
 }
+
+func (iface *Unity8Interface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *Unity8Interface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

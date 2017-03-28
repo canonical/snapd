@@ -132,3 +132,11 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 func (iface *BoolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
+
+func (iface *BoolFileInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *BoolFileInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

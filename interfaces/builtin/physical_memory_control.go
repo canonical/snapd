@@ -93,3 +93,11 @@ func (iface *PhysicalMemoryControlInterface) AutoConnect(*interfaces.Plug, *inte
 	// Allow what is allowed in the declarations
 	return true
 }
+
+func (iface *PhysicalMemoryControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *PhysicalMemoryControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}

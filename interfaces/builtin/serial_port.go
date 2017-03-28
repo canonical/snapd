@@ -185,3 +185,11 @@ func (iface *SerialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	}
 	return false
 }
+
+func (iface *SerialPortInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
+	return nil
+}
+
+func (iface *SerialPortInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
+	return nil
+}
