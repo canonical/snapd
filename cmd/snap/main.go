@@ -209,7 +209,10 @@ snaps on the system. Start with 'snap list' to see installed snaps.
 }
 
 // ClientConfig is the configuration of the Client used by all commands.
-var ClientConfig client.Config
+var ClientConfig = client.Config{
+	// we need the powerful snapd socket
+	Socket: dirs.SnapdSocket,
+}
 
 // Client returns a new client using ClientConfig as configuration.
 func Client() *client.Client {
