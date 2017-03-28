@@ -31,9 +31,14 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
+	if socketPath == "" {
+		socketPath = dirs.SnapdSocket
+	}
 	return func(a, b string) (net.Conn, error) {
 		return net.Dial("unix", socketPath)
 	}
