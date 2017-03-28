@@ -77,7 +77,7 @@ type HookSetup struct {
 	Optional bool          `json:"optional,omitempty"`
 
 	Timeout     time.Duration `json:"timeout,omitempty"`
-	IgnoreError bool          `json:"ignore-fail,omitempty"`
+	IgnoreError bool          `json:"ignore-error,omitempty"`
 	TrackError  bool          `json:"track-error,omitempty"`
 }
 
