@@ -21,7 +21,7 @@ execute: |
     chmod 755 squashfs-root/meta/hooks/configure
 
     . $TESTSLIB/snaps.sh
-    mksnap "squashfs-root" "$BROKEN_CORE_SNAP"
+    mksnap_fast "squashfs-root" "$BROKEN_CORE_SNAP"
     rm -rf squshfs-root
 
     echo "Installing a new core which will trigger running the configure hook"
