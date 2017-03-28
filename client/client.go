@@ -30,26 +30,11 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"syscall"
 	"time"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer() func(string, string) (net.Conn, error) {
-	// We have two sockets available: the SnapdSocket (which provides
-	// administrative access), and the SnapSocket (which doesn't). Use the most
-	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
-	// apparmor unless the snap has the snapd-control interface).
-	socketPath := dirs.SnapdSocket
-	file, err := os.OpenFile(socketPath, os.O_RDWR, 0666)
-	if err == nil {
-		file.Close()
-	} else if e, ok := err.(*os.PathError); ok && (e.Err == syscall.ENOENT || e.Err == syscall.EACCES) {
-		socketPath = dirs.SnapSocket
-	}
-
-	return func(_, _ string) (net.Conn, error) {
+func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
+	return func(a, b string) (net.Conn, error) {
 		return net.Dial("unix", socketPath)
 	}
 }
@@ -67,6 +52,9 @@ type Config struct {
 	// DisableAuth controls whether the client should send an
 	// Authorization header from reading the auth.json data.
 	DisableAuth bool
+
+	// Socket is the path to the unix socket to use
+	Socket string
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -91,7 +79,7 @@ func New(config *Config) *Client {
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer()},
+				Transport: &http.Transport{Dial: unixDialer(config.Socket)},
 			},
 			disableAuth: config.DisableAuth,
 		}
