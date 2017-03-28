@@ -10,12 +10,14 @@ restore:
     rm -rf squashfs-root
     rm -f $BROKEN_CORE_SNAP
 
+kill-timeout: 2m
+
 execute: |
     snap list | awk "/^core / {print(\$3)}" > prevBoot
     
-    echo "Breaking the configure hook of the core snap"
+    echo "Breaking the configure hook of the core snap to hang forever"
     unsquashfs /var/lib/snapd/snaps/core_$(cat prevBoot).snap
-    printf '#!/bin/sh\necho somethingbroken\nfalse\n' > squashfs-root/meta/hooks/configure
+    printf '#!/bin/sh\necho ithangs\nsleep 9999\n' > squashfs-root/meta/hooks/configure
     chmod 755 squashfs-root/meta/hooks/configure
 
     . $TESTSLIB/snaps.sh
@@ -32,5 +34,7 @@ execute: |
 
     echo "Verify the snap change"
     snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\".*"
-    snap change $chg_id | MATCH ".*somethingbroken.*"
-
+    snap change $chg_id | MATCH ".*ithangs.*"
+    # max-runtime set in prepare.sh via SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+    # in the environment
+    snap change $chg_id | MATCH ".*exceeded maximum runtime of 30s.*"

@@ -24,7 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -238,6 +240,130 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreFailWorks(c *C) {
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 	checkTaskLogContains(c, s.task, ".*ignoring failure in hook.*")
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms`)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms`)
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	// simulate a process that can not be killed
+	restore := hookstate.MockSyscallKill(func(int, syscall.Signal) error {
+		return nil
+	})
+	defer restore()
+
+	restore = hookstate.MockCmdWaitTimeout(100 * time.Millisecond)
+	defer restore()
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms, but did not stop`)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms, but did not stop`)
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreFail(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	hooksup.IgnoreFail = true
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+	c.Check(s.mockHandler.Err, IsNil)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+	checkTaskLogContains(c, s.task, `.*ignoring failure in hook.*exceeded maximum runtime of 200ms`)
 }
 
 func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {

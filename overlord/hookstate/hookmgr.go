@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -73,7 +75,8 @@ type HookSetup struct {
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
 
-	IgnoreFail bool `json:"ignore-fail,omitempty"`
+	IgnoreFail bool          `json:"ignore-fail,omitempty"`
+	Timeout    time.Duration `json:"timeout,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -233,7 +236,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), tomb)
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
 }
 
 var runHook = runHookImpl
@@ -270,8 +273,26 @@ func snapCmd() string {
 	return filepath.Join(filepath.Dir(exe), "../../bin/snap")
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
+var syscallKill = syscall.Kill
+var cmdWaitTimeout = 5 * time.Second
+
+func killemAll(cmd *exec.Cmd) error {
+	pgid, err := syscall.Getpgid(cmd.Process.Pid)
+	if err != nil {
+		return err
+	}
+	if pgid == 1 {
+		return fmt.Errorf("cannot kill pgid 1")
+	}
+	return syscallKill(-pgid, 9)
+}
+
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
 	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
+
+	// setup a process group for the command so that we can kill parent
+	// and children on e.g. timeout
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.
@@ -288,6 +309,12 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		return nil, err
 	}
 
+	// add timeout handling
+	var killTimerCh <-chan time.Time
+	if timeout > 0 {
+		killTimerCh = time.After(timeout)
+	}
+
 	hookCompleted := make(chan struct{})
 	var hookError error
 	go func() {
@@ -296,16 +323,36 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		close(hookCompleted)
 	}()
 
+	var abortOrTimeoutError error
 	select {
-	// Hook completed; it may or may not have been successful.
 	case <-hookCompleted:
+		// Hook completed; it may or may not have been successful.
 		return buffer.Bytes(), hookError
-
-	// Hook was aborted.
 	case <-tomb.Dying():
-		if err := command.Process.Kill(); err != nil {
-			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
-		}
-		return nil, fmt.Errorf("hook %q aborted", hookName)
+		// Hook was aborted, process will get killed below
+		abortOrTimeoutError = fmt.Errorf("hook %q aborted", hookName)
+	case <-killTimerCh:
+		// Max timeout reached, process will get killed below
+		abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
 	}
+
+	// select above exited which means that aborted or killTimeout
+	// was reached. Kill the command and wait for command.Wait()
+	// to clean it up (but limit the wait with the cmdWaitTimer)
+	if err := killemAll(command); err != nil {
+		return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+	}
+	select {
+	case <-time.After(cmdWaitTimeout):
+		// cmdWaitTimeout was reached, i.e. command.Wait() did not
+		// finish in a reasonable amount of time, we can not use
+		// buffer in this case so return without it.
+		return nil, fmt.Errorf("%v, but did not stop", abortOrTimeoutError)
+	case <-hookCompleted:
+		// cmd.Wait came back from waiting the killed process
+		break
+	}
+	fmt.Fprintf(buffer, "\n%s", abortOrTimeoutError)
+
+	return buffer.Bytes(), abortOrTimeoutError
 }

@@ -23,6 +23,8 @@ package configstate
 
 import (
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -34,6 +36,16 @@ func init() {
 	snapstate.Configure = Configure
 }
 
+func configureHookTimeout() time.Duration {
+	timeout := 5 * time.Minute
+	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
+		if to, err := time.ParseDuration(s); err == nil {
+			timeout = to
+		}
+	}
+	return timeout
+}
+
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
@@ -41,6 +53,8 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Hook:       "configure",
 		Optional:   len(patch) == 0,
 		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
+		// all configure hooks must finish within this timeout
+		Timeout: configureHookTimeout(),
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {
