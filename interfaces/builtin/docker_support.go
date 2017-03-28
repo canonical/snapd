@@ -526,10 +526,6 @@ func (iface *DockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
@@ -537,10 +533,6 @@ func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
 	}
 	return nil
-}
-
-func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -551,14 +543,6 @@ func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	}
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {

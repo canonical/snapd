@@ -820,6 +820,25 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	return readInfo(name, sideInfo)
 }
 
+// AutoRefreshAssertions allows to hook fetching of important assertions
+// into the Autorefresh function.
+var AutoRefreshAssertions func(st *state.State, userID int) error
+
+// AutoRefresh is the wrapper that will do a refresh of all the installed
+// snaps on the system. In addition to that it will also refresh important
+// assertions.
+func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+	userID := 0
+
+	if AutoRefreshAssertions != nil {
+		if err := AutoRefreshAssertions(st, userID); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return UpdateMany(st, nil, userID)
+}
+
 // Enable sets a snap to the active state
 func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
@@ -1421,25 +1440,6 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
-}
-
-// AutoRefreshAssertions allows to hook fetching of important assertions
-// into the Autorefresh function.
-var AutoRefreshAssertions func(st *state.State, userID int) error
-
-// AutoRefresh is the wrapper that will do a refresh of all the installed
-// snaps on the system. In addition to that it will also refresh important
-// assertions.
-func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
-	userID := 0
-
-	if AutoRefreshAssertions != nil {
-		if err := AutoRefreshAssertions(st, userID); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return UpdateMany(st, nil, userID)
 }
 
 // CoreInfo finds the current OS snap's info. If both

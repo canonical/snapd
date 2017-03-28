@@ -50,18 +50,19 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 	{Classic: true},
 }
 
-func createSnippetForApps(apps map[string]*snap.AppInfo) []byte {
+func createSnippetForApps(apps map[string]*snap.AppInfo) string {
 	var buffer bytes.Buffer
 	for appName := range apps {
 		buffer.WriteString(appName)
 	}
-	return buffer.Bytes()
+	return buffer.String()
 }
 
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &udev.Backend{}
 
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Mock away any real udev interaction
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
@@ -84,8 +85,9 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		s.udevadmCmd.ForgetCalls()
@@ -105,11 +107,13 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		s.udevadmCmd.ForgetCalls()
@@ -131,8 +135,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -147,8 +152,9 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -168,8 +174,9 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return createSnippetForApps(slot.Apps), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet(createSnippetForApps(slot.Apps))
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -190,11 +197,13 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return createSnippetForApps(slot.Apps), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet(createSnippetForApps(slot.Apps))
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -217,8 +226,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return createSnippetForApps(slot.Apps), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet(createSnippetForApps(slot.Apps))
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1WithNmbd, 0)
@@ -239,11 +249,13 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return createSnippetForApps(slot.Apps), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet(createSnippetForApps(slot.Apps))
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlWithHook, 0)
@@ -264,8 +276,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -282,8 +295,9 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.PlugNoAppsYaml, 0)
@@ -300,8 +314,9 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SlotNoAppsYaml, 0)
@@ -329,8 +344,9 @@ func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -351,8 +367,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+	s.Iface.UdevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("dummy")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1NoSlot, 0)
