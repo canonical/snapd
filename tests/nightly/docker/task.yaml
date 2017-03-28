@@ -1,5 +1,4 @@
 summary: Check that the docker snap works
-manual: true
 systems: [ubuntu-16.04-*, ubuntu-core-16-*64, ubuntu-14.04-64]
 
 prepare: |
