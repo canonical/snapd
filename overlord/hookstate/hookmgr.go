@@ -207,11 +207,10 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	if hookExists {
 		output, err := runHook(context, tomb)
 		if err != nil {
-			origErr := err
 			err = osutil.OutputErr(output, err)
 			if hooksup.IgnoreFail {
 				task.State().Lock()
-				task.Errorf("ignoring failure in hook %q: %v\noutput: %q", hooksup.Hook, origErr, err)
+				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
 				task.State().Unlock()
 			} else {
 				if handlerErr := context.Handler().Error(err); handlerErr != nil {
