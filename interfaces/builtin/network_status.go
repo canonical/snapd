@@ -20,9 +20,12 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
 const networkStatusPermanentSlotAppArmor = `
@@ -93,44 +96,28 @@ func (iface *NetworkStatusInterface) Name() string {
 	return "network-status"
 }
 
-func (iface *NetworkStatusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *NetworkStatusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	const old = "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	spec.AddSnippet(strings.Replace(networkStatusConnectedPlugAppArmor, old, new, -1))
+	return nil
 }
 
-func (iface *NetworkStatusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(networkStatusConnectedPlugAppArmor)
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		var new []byte
-		new = slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *NetworkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkStatusPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *NetworkStatusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(networkStatusPermanentSlotDBus), nil
-	case interfaces.SecurityAppArmor:
-		return []byte(networkStatusPermanentSlotAppArmor), nil
-	}
-	return nil, nil
+func (iface *NetworkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	const old = "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	spec.AddSnippet(strings.Replace(networkStatusConnectedSlotAppArmor, old, new, -1))
+	return nil
 }
 
-func (iface *NetworkStatusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(networkStatusConnectedSlotAppArmor)
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		var new []byte
-		new = plugAppLabelExpr(plug)
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *NetworkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(networkStatusPermanentSlotDBus)
+	return nil
 }
 
 func (iface *NetworkStatusInterface) SanitizePlug(plug *interfaces.Plug) error {
