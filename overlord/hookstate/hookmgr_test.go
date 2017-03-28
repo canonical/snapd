@@ -212,6 +212,34 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	checkTaskLogContains(c, s.task, ".*failed at user request.*")
 }
 
+func (s *hookManagerSuite) TestHookTaskHandleIgnoreFailWorks(c *C) {
+	s.state.Lock()
+	var hooksup hookstate.HookSetup
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.IgnoreFail = true
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to exit 1, and print something to stderr
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+	checkTaskLogContains(c, s.task, ".*ignoring failure in hook.*")
+}
+
 func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	// Force the snap command to hang
 	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")

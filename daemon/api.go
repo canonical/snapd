@@ -1471,7 +1471,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	taskset := configstate.Configure(st, snapName, patchValues)
+	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
