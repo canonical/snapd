@@ -389,7 +389,7 @@ func reportHookFailureOnErrtracker(context *Context, output []byte, err error) {
 	}
 	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
 	if err == nil {
-		logger.Noticef("Reported hook failure from %s for snap %s as %s", context.HookName(), context.SnapName(), oopsid)
+		logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.SnapName(), oopsid)
 	} else {
 		logger.Debugf("Cannot report hook failure: %s", err)
 	}
