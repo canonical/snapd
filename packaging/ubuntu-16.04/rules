@@ -171,13 +171,8 @@ override_dh_install:
 	# install snapd's systemd units, done here instead of
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
-	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	$(MAKE) -C data/systemd install DESTDIR=debian/snapd/ SYSTEMSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	dh_install
 
