@@ -25,7 +25,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -120,34 +123,36 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 
 // TestInterface hands out empty plug security snippets
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	iface := s.iface.(*ifacetest.TestInterface)
+
+	apparmorSpec := &apparmor.Specification{}
+	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, s.slot), IsNil)
+	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
+
+	seccompSpec := &seccomp.Specification{}
+	c.Assert(iface.SecCompConnectedPlug(seccompSpec, s.plug, s.slot), IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 0)
+
+	dbusSpec := &dbus.Specification{}
+	c.Assert(iface.DBusConnectedPlug(dbusSpec, s.plug, s.slot), IsNil)
+	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	iface := s.iface.(*ifacetest.TestInterface)
+
+	apparmorSpec := &apparmor.Specification{}
+	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, s.slot), IsNil)
+	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
+
+	seccompSpec := &seccomp.Specification{}
+	c.Assert(iface.SecCompConnectedSlot(seccompSpec, s.plug, s.slot), IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 0)
+
+	dbusSpec := &dbus.Specification{}
+	c.Assert(iface.DBusConnectedSlot(dbusSpec, s.plug, s.slot), IsNil)
+	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 
 func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
