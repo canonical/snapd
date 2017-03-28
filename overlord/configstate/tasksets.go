@@ -23,6 +23,7 @@ package configstate
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/i18n/dumb"
@@ -35,6 +36,16 @@ func init() {
 	snapstate.Configure = Configure
 }
 
+func maxConfigureHookRuntime() time.Duration {
+	maxRuntime := 5 * time.Minute
+	if mrs := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); mrs != "" {
+		if mr, err := time.ParseDuration(mrs); err == nil {
+			maxRuntime = mr
+		}
+	}
+	return maxRuntime
+}
+
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
@@ -42,8 +53,8 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Hook:       "configure",
 		Optional:   len(patch) == 0,
 		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
-		// all configure hooks must finish within 1 minute
-		MaxRuntime: 1 * time.Minute,
+		// all configure hooks must finish within this timeout
+		MaxRuntime: maxConfigureHookRuntime(),
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {

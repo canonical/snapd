@@ -35,4 +35,6 @@ execute: |
     echo "Verify the snap change"
     snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\".*"
     snap change $chg_id | MATCH ".*ithangs.*"
-    snap change $chg_id | MATCH ".*exceeded maximum runtime of 1m0s.*"
+    # max-runtime set in prepare.sh via SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+    # in the environment
+    snap change $chg_id | MATCH ".*exceeded maximum runtime of 30s.*"
