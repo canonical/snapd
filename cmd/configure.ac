@@ -16,6 +16,9 @@ AC_PROG_RANLIB
 AC_LANG([C])
 # Checks for libraries.
 
+# check for large file support
+AC_SYS_LARGEFILE
+
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])

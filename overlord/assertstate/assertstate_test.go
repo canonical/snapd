@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -947,7 +948,67 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	c.Check(snapDecl.SnapName(), Equals, "foo")
 }
 
-func (s *assertMgrSuite) TestAutoAliases(c *C) {
+func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// prereqs for developer assertions in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// not from the store
+	aliases, err := assertstate.AutoAliases(s.state, &snap.Info{SuggestedName: "local"})
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// missing
+	_, err = assertstate.AutoAliases(s.state, &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "baz",
+			SnapID:   "baz-id",
+		},
+	})
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+
+	info := snaptest.MockInfo(c, `
+name: foo
+apps:
+   cmd1:
+     aliases: [alias1]
+   cmd2:
+     aliases: [alias2]
+`, &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+	})
+
+	// empty list
+	// have a declaration in the system db
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, info)
+	c.Assert(err, IsNil)
+	c.Check(aliases, HasLen, 0)
+
+	// some aliases
+	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
+		"auto-aliases": []interface{}{"alias1", "alias2", "alias3"},
+		"revision":     "1",
+	})
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	aliases, err = assertstate.AutoAliases(s.state, info)
+	c.Assert(err, IsNil)
+	c.Check(aliases, DeepEquals, map[string]string{
+		"alias1": "cmd1",
+		"alias2": "cmd2",
+	})
+}
+
+func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -987,8 +1048,17 @@ func (s *assertMgrSuite) TestAutoAliases(c *C) {
 
 	// some aliases
 	snapDeclFoo = s.snapDecl(c, "foo", map[string]interface{}{
-		"auto-aliases": []interface{}{"alias1", "alias2"},
-		"revision":     "1",
+		"aliases": []interface{}{
+			map[string]interface{}{
+				"name":   "alias1",
+				"target": "cmd1",
+			},
+			map[string]interface{}{
+				"name":   "alias2",
+				"target": "cmd2",
+			},
+		},
+		"revision": "1",
 	})
 	err = assertstate.Add(s.state, snapDeclFoo)
 	c.Assert(err, IsNil)
@@ -999,7 +1069,10 @@ func (s *assertMgrSuite) TestAutoAliases(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(aliases, DeepEquals, []string{"alias1", "alias2"})
+	c.Check(aliases, DeepEquals, map[string]string{
+		"alias1": "cmd1",
+		"alias2": "cmd2",
+	})
 }
 
 func (s *assertMgrSuite) TestPublisher(c *C) {

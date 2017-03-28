@@ -102,7 +102,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	snapstate.AutoAliases = func(*state.State, *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
 }
@@ -861,6 +861,34 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "os",
+	})
+
+	oldConfigure := snapstate.Configure
+	defer func() { snapstate.Configure = oldConfigure }()
+
+	var configureFlags int
+	snapstate.Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+		configureFlags = flags
+		return state.NewTaskSet()
+	}
+
+	_, err := snapstate.Update(s.state, "core", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// ensure the core snap sets the "ignore-hook-failure" flag
+	c.Check(configureFlags&snapstate.IgnoreHookFailure, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
@@ -2098,12 +2126,12 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 		SnapType: "app",
 	})
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		switch info.Name() {
 		case "some-snap":
-			return []string{"aliasA"}, nil
+			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
-			return []string{"aliasB"}, nil
+			return map[string]string{"aliasB": "cmdB"}, nil
 		}
 		return nil, nil
 	}
@@ -2237,12 +2265,12 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		SnapType: "app",
 	})
 
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) ([]string, error) {
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		switch info.Name() {
 		case "some-snap":
-			return []string{"aliasA"}, nil
+			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
-			return []string{"aliasB"}, nil
+			return map[string]string{"aliasB": "cmdB"}, nil
 		}
 		return nil, nil
 	}
