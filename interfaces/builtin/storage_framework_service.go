@@ -96,10 +96,6 @@ func (iface *StorageFrameworkServiceInterface) Name() string {
 	return "storage-framework-service"
 }
 
-func (iface *StorageFrameworkServiceInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *StorageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	snippet := storageFrameworkServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
@@ -107,10 +103,6 @@ func (iface *StorageFrameworkServiceInterface) AppArmorConnectedPlug(spec *appar
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *StorageFrameworkServiceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *StorageFrameworkServiceInterface) ApparmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -127,10 +119,6 @@ func (iface *StorageFrameworkServiceInterface) AppArmorPermanentSlot(spec *appar
 	return nil
 }
 
-func (iface *StorageFrameworkServiceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
@@ -138,10 +126,6 @@ func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *appar
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *StorageFrameworkServiceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *StorageFrameworkServiceInterface) SanitizePlug(plug *interfaces.Plug) error {
