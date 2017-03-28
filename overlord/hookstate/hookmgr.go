@@ -352,5 +352,7 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
+	fmt.Fprintf(buffer, "\n%s", abortOrTimeoutError)
+
 	return buffer.Bytes(), abortOrTimeoutError
 }
