@@ -4,7 +4,7 @@ Requires=snapd.socket
 
 [Service]
 ExecStart=@libexecdir@/snapd/snapd
-EnvironmentFile=@SNAPD_ENVIRONMENT_FILE@
+EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 
 [Install]
