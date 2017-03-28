@@ -76,7 +76,7 @@ type HookSetup struct {
 	Optional bool          `json:"optional,omitempty"`
 
 	IgnoreFail bool          `json:"ignore-fail,omitempty"`
-	MaxRuntime time.Duration `json:"max-runtime,omitempty"`
+	Timeout    time.Duration `json:"timeout,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -237,7 +237,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.MaxRuntime(), tomb)
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
 }
 
 var runHook = runHookImpl
@@ -288,7 +288,7 @@ func killemAll(cmd *exec.Cmd) error {
 	return syscallKill(-pgid, 9)
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, maxRuntime time.Duration, tomb *tomb.Tomb) ([]byte, error) {
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
 	command := exec.Command(snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// setup a process group for the command so that we can kill parent
@@ -313,8 +313,8 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	// add timeout handling
 	var killTimer, cmdWaitTimer *time.Timer
 	var killTimerCh, cmdWaitTimerCh <-chan time.Time
-	if maxRuntime > 0 {
-		killTimer = time.NewTimer(maxRuntime)
+	if timeout > 0 {
+		killTimer = time.NewTimer(timeout)
 		defer killTimer.Stop()
 		killTimerCh = killTimer.C
 	}
@@ -337,7 +337,7 @@ out:
 			break out
 		// Max timeout reached, process will get killed below
 		case <-killTimerCh:
-			abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", maxRuntime)
+			abortOrTimeoutError = fmt.Errorf("exceeded maximum runtime of %s", timeout)
 		// Hook was aborted, process will get killed below
 		case <-dyingCh:
 			dyingCh = nil

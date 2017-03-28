@@ -36,14 +36,14 @@ func init() {
 	snapstate.Configure = Configure
 }
 
-func maxConfigureHookRuntime() time.Duration {
-	maxRuntime := 5 * time.Minute
-	if mrs := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); mrs != "" {
-		if mr, err := time.ParseDuration(mrs); err == nil {
-			maxRuntime = mr
+func configureHookTimeout() time.Duration {
+	timeout := 5 * time.Minute
+	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
+		if to, err := time.ParseDuration(s); err == nil {
+			timeout = to
 		}
 	}
-	return maxRuntime
+	return timeout
 }
 
 // Configure returns a taskset to apply the given configuration patch.
@@ -54,7 +54,7 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		Optional:   len(patch) == 0,
 		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
 		// all configure hooks must finish within this timeout
-		MaxRuntime: maxConfigureHookRuntime(),
+		Timeout: configureHookTimeout(),
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {

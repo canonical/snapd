@@ -247,7 +247,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.MaxRuntime = time.Duration(200 * time.Millisecond)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
@@ -285,7 +285,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.MaxRuntime = time.Duration(200 * time.Millisecond)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
@@ -332,7 +332,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreFail(c *C) {
 
 	s.state.Lock()
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.MaxRuntime = time.Duration(200 * time.Millisecond)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
 	hooksup.IgnoreFail = true
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()

@@ -34,11 +34,11 @@ import (
 
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task       *state.Task
-	setup      *HookSetup
-	id         string
-	handler    Handler
-	maxRuntime time.Duration
+	task    *state.Task
+	setup   *HookSetup
+	id      string
+	handler Handler
+	timeout time.Duration
 
 	cache  map[interface{}]interface{}
 	onDone []func() error
@@ -80,9 +80,9 @@ func (c *Context) HookName() string {
 	return c.setup.Hook
 }
 
-// MaxRuntime returns the maximum time this hook can run
-func (c *Context) MaxRuntime() time.Duration {
-	return c.setup.MaxRuntime
+// Timeout returns the maximum time this hook can run
+func (c *Context) Timeout() time.Duration {
+	return c.setup.Timeout
 }
 
 // ID returns the ID of the context.
