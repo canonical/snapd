@@ -47,3 +47,9 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 		cmdWaitTimeout = oldCmdWaitTimeout
 	}
 }
+
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}

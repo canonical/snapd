@@ -43,6 +43,8 @@ import (
 func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
+	testutil.BaseTest
+
 	state       *state.State
 	manager     *hookstate.HookManager
 	context     *hookstate.Context
@@ -64,6 +66,8 @@ hooks:
 var snapContents = ""
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
 	manager, err := hookstate.Manager(s.state)
@@ -104,9 +108,14 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 		s.context = context
 		return s.mockHandler
 	})
+	s.AddCleanup(hookstate.MockErrtrackerReport(func(string, string, string, map[string]string) (string, error) {
+		return "", nil
+	}))
 }
 
 func (s *hookManagerSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	s.manager.Stop()
 	dirs.SetRootDir("")
 }
@@ -611,4 +620,35 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
 
+}
+
+func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
+	s.state.Lock()
+	var hooksup hookstate.HookSetup
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.ReportOnErrtracker = true
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	errtrackerCalled := false
+	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
+		c.Check(snap, Equals, "test-snap")
+		c.Check(errmsg, Equals, "hook failed at user request")
+		c.Check(dupSig, Equals, "test-snap:configure:hook failed at user request")
+
+		errtrackerCalled = true
+		return "some-oopsid", nil
+	})
+
+	// Force the snap command to exit 1, and print something to stderr
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(errtrackerCalled, Equals, true)
 }

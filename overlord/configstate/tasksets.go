@@ -38,10 +38,11 @@ func init() {
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
-		Snap:       snapName,
-		Hook:       "configure",
-		Optional:   len(patch) == 0,
-		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
+		Snap:               snapName,
+		Hook:               "configure",
+		Optional:           len(patch) == 0,
+		IgnoreFail:         flags&snapstate.IgnoreHookFailure != 0,
+		ReportOnErrtracker: flags&snapstate.ReportHookFailureOnErrtracker != 0,
 		// all configure hooks must finish within 1 minute
 		MaxRuntime: 1 * time.Minute,
 	}

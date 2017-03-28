@@ -33,3 +33,4 @@ execute: |
     echo "Verify the snap change"
     snap change $chg_id | MATCH ".*ERROR ignoring failure in hook \"configure\":.*somethingbroken.*"
 
+    journalctl -u snapd | MATCH "reported hook failure from configure as.*"

@@ -34,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -77,6 +78,8 @@ type HookSetup struct {
 
 	IgnoreFail bool          `json:"ignore-fail,omitempty"`
 	MaxRuntime time.Duration `json:"max-runtime,omitempty"`
+
+	ReportOnErrtracker bool `json:"report-on-errtracker,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -208,6 +211,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		output, err := runHook(context, tomb)
 		if err != nil {
 			err = osutil.OutputErr(output, err)
+			if hooksup.ReportOnErrtracker {
+				reportHookFailureOnErrtracker(context, err)
+			}
 			if hooksup.IgnoreFail {
 				task.State().Lock()
 				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
@@ -367,4 +373,23 @@ out:
 		return buffer.Bytes(), abortOrTimeoutError
 	}
 	return buffer.Bytes(), hookError
+}
+
+var errtrackerReport = errtracker.Report
+
+func reportHookFailureOnErrtracker(context *Context, err error) {
+	errmsg := err.Error()
+	dupSig := fmt.Sprintf("%s:%s:%s", context.SnapName(), context.HookName(), err)
+	extra := map[string]string{
+		"HookName": context.HookName(),
+	}
+	if context.setup.IgnoreFail {
+		extra["IgnoreFail"] = "1"
+	}
+	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
+	if err != nil {
+		logger.Noticef("cannot report hook failure: %s", err)
+	} else {
+		logger.Noticef("reported hook failure from %s as %s", context.HookName(), oopsid)
+	}
 }

@@ -37,3 +37,4 @@ execute: |
     snap change $chg_id | MATCH ".*ithangs.*"
     snap change $chg_id | MATCH ".*exceeded maximum runtime of 1m0s.*"
 
+    journalctl -u snapd | MATCH "reported hook failure from configure as.*"
