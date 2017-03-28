@@ -172,9 +172,12 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		}
 
 		var name string
-		if snapID == "some-snap-id" {
+		switch snapID {
+		case "some-snap-id":
 			name = "some-snap"
-		} else {
+		case "core-snap-id":
+			name = "core"
+		default:
 			panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
 		}
 

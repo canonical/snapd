@@ -72,6 +72,8 @@ type HookSetup struct {
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
+
+	IgnoreFail bool `json:"ignore-fail,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -203,11 +205,17 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		output, err := runHook(context, tomb)
 		if err != nil {
 			err = osutil.OutputErr(output, err)
-			if handlerErr := context.Handler().Error(err); handlerErr != nil {
-				return handlerErr
-			}
+			if hooksup.IgnoreFail {
+				task.State().Lock()
+				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+				task.State().Unlock()
+			} else {
+				if handlerErr := context.Handler().Error(err); handlerErr != nil {
+					return handlerErr
+				}
 
-			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+				return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+			}
 		}
 	}
 
