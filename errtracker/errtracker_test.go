@@ -49,6 +49,14 @@ type ErrtrackerTestSuite struct {
 
 var _ = Suite(&ErrtrackerTestSuite{})
 
+var truePath string
+var falsePath string
+
+func init() {
+	truePath = osutil.FindInPathOrDefault("true", "/bin/true")
+	falsePath = osutil.FindInPathOrDefault("false", "/bin/false")
+}
+
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -56,16 +64,16 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPath(p))
-	s.AddCleanup(errtracker.MockHostSnapd("/bin/true"))
-	s.AddCleanup(errtracker.MockCoreSnapd("/bin/false"))
+	s.AddCleanup(errtracker.MockHostSnapd(truePath))
+	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
-	hostBuildID, err := osutil.ReadBuildID("/bin/true")
+	hostBuildID, err := osutil.ReadBuildID(truePath)
 	c.Assert(err, IsNil)
-	coreBuildID, err := osutil.ReadBuildID("/bin/false")
+	coreBuildID, err := osutil.ReadBuildID(falsePath)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion

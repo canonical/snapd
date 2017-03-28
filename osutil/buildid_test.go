@@ -46,7 +46,7 @@ func buildID(c *C, fname string) string {
 }
 
 func (s *buildIDSuite) TestReadBuildID(c *C) {
-	for _, fname := range []string{"/bin/true", "/bin/false"} {
+	for _, fname := range []string{truePath, falsePath} {
 
 		id, err := osutil.ReadBuildID(fname)
 		c.Assert(err, IsNil)
@@ -56,7 +56,7 @@ func (s *buildIDSuite) TestReadBuildID(c *C) {
 
 func (s *buildIDSuite) TestReadBuildIDNoID(c *C) {
 	stripedTruth := filepath.Join(c.MkDir(), "true")
-	osutil.CopyFile("/bin/true", stripedTruth, 0)
+	osutil.CopyFile(truePath, stripedTruth, 0)
 	output, err := exec.Command("strip", "-R", ".note.gnu.build-id", stripedTruth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
@@ -67,14 +67,14 @@ func (s *buildIDSuite) TestReadBuildIDNoID(c *C) {
 }
 
 func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
-	if !osutil.FileExists("/usr/bin/gcc") {
+	if !osutil.FileExists(gccPath) {
 		c.Skip("No gcc found")
 	}
 
 	md5Truth := filepath.Join(c.MkDir(), "true")
 	err := ioutil.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
 	c.Assert(err, IsNil)
-	output, err := exec.Command("gcc", "-Wl,-build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
+	output, err := exec.Command(gccPath, "-Wl,-build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)
 
