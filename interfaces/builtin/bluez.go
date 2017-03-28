@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -181,8 +182,9 @@ func (iface *BluezInterface) Name() string {
 	return "bluez"
 }
 
-func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *BluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(bluezPermanentSlotDBus)
+	return nil
 }
 
 func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -201,30 +203,14 @@ func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *BluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(bluezPermanentSlotDBus), nil
-	}
-	return nil, nil
-}
-
 func (iface *BluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(bluezPermanentSlotSecComp)
 	return nil
-}
-
-func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *BluezInterface) SanitizePlug(plug *interfaces.Plug) error {

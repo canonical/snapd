@@ -17,6 +17,8 @@
  *
  */
 
+// Package configstate implements the manager and state aspects responsible for
+// the configuration of snaps.
 package configstate
 
 import (
@@ -33,11 +35,12 @@ func init() {
 }
 
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(s *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
-		Snap:     snapName,
-		Hook:     "configure",
-		Optional: len(patch) == 0,
+		Snap:       snapName,
+		Hook:       "configure",
+		Optional:   len(patch) == 0,
+		IgnoreFail: flags&snapstate.IgnoreHookFailure != 0,
 	}
 	var contextData map[string]interface{}
 	if len(patch) > 0 {
