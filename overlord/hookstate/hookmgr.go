@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,6 @@
  *
  */
 
-// Package hookstate implements the manager and state aspects responsible for
-// the running of hooks.
 package hookstate
 
 import (
@@ -74,6 +72,8 @@ type HookSetup struct {
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
 	Optional bool          `json:"optional,omitempty"`
+
+	IgnoreFail bool `json:"ignore-fail,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -89,19 +89,6 @@ func Manager(s *state.State) (*HookManager, error) {
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
 	return manager, nil
-}
-
-// HookTask returns a task that will run the specified hook. Note that the
-// initial context must properly marshal and unmarshal with encoding/json.
-func HookTask(st *state.State, summary string, setup *HookSetup, contextData map[string]interface{}) *state.Task {
-	task := st.NewTask("run-hook", summary)
-	task.Set("hook-setup", setup)
-
-	// Initial data for Context.Get/Set.
-	if len(contextData) > 0 {
-		task.Set("hook-context", contextData)
-	}
-	return task
 }
 
 // Register registers a function to create Handler values whenever hooks
@@ -218,11 +205,17 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		output, err := runHook(context, tomb)
 		if err != nil {
 			err = osutil.OutputErr(output, err)
-			if handlerErr := context.Handler().Error(err); handlerErr != nil {
-				return handlerErr
-			}
+			if hooksup.IgnoreFail {
+				task.State().Lock()
+				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+				task.State().Unlock()
+			} else {
+				if handlerErr := context.Handler().Error(err); handlerErr != nil {
+					return handlerErr
+				}
 
-			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+				return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+			}
 		}
 	}
 

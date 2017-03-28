@@ -24,6 +24,8 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
+
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -96,8 +98,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # space, BIOS code and data regions on x86, etc).
 /dev/mem r,
 `
-	expectedSnippet2 := []byte(`KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"
-`)
+	expectedSnippet2 := `KERNEL=="mem", TAG+="snap_client-snap_app-accessing-physical-memory"`
 
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
@@ -107,7 +108,9 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-physical-memory")
 	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, DeepEquals, expectedSnippet2)
 }
