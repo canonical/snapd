@@ -29,8 +29,7 @@ import (
 )
 
 const onlineAccountsServicePermanentSlotAppArmor = `
-# Description: Allow operating as the Online Accounts service. Reserved because
-# this gives privileged access to the system.
+# Description: Allow operating as the Online Accounts service.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
@@ -58,8 +57,9 @@ dbus (receive, send)
 `
 
 const onlineAccountsServiceConnectedPlugAppArmor = `
-# Description: Allow using Online Accounts service. Common because the access
-# to user data is actually mediated by the Online Accounts service itself.
+# Description: Allow using Online Accounts service. Allowed to auto-connect
+# because the access to user data is actually mediated by the Online Accounts
+# service itself.
 
 #include <abstractions/dbus-session-strict>
 
