@@ -26,19 +26,27 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// AliasState describes the state of an alias in the context of a snap.
-// aliases-v2 top state entry is a snapName -> alias -> AliasState map.
-type AliasState struct {
-	Status string `json:"status"` // one of: auto,disabled,manual,overridden
-	Target string `json:"target"`
+// AliasTargets carries the targets of an alias in the context of snap.
+// If Manual is set it is the target of an enabled manual alias.
+// Auto is set to the target for an automatic alias, enabled or
+// disabled depending on the aliases status of the whole snap.
+type AliasTargets struct {
+	Manual string `json:"manual"`
+	Auto   string `json:"auto"`
 }
 
-func (as *AliasState) Enabled() bool {
-	switch as.Status {
-	case "auto", "manual", "overridden":
-		return true
+// Effective returns the target to use based on the aliasStatus of the whole snap, returns "" if the alias is disabled.
+func (at *AliasTargets) Effective(aliasesStatus string) string {
+	if at == nil {
+		return ""
 	}
-	return false
+	if at.Manual != "" {
+		return at.Manual
+	}
+	if aliasesStatus == "enabled" {
+		return at.Auto
+	}
+	return ""
 }
 
 // TODO: helper from snap
@@ -49,43 +57,41 @@ func composeTarget(snapName, targetApp string) string {
 	return fmt.Sprintf("%s.%s", snapName, targetApp)
 }
 
-// applyAliasChange applies the necessary changes to aliases on disk
-// to go from prevStates to newStates for the aliases of snapName. It
-// assumes that conflicts have already been checked.
-func applyAliasChange(st *state.State, snapName string, prevStates map[string]*AliasState, newStates map[string]*AliasState, be managerBackend) error {
+// applyAliasesChange applies the necessary changes to aliases on disk
+// to go from prevAliases under the snap global prevStatus for
+// automatic aliases to newAliases under newStatus for snapName.
+// It assumes that conflicts have already been checked.
+func applyAliasesChange(st *state.State, snapName string, prevStatus string, prevAliases map[string]*AliasTargets, newStatus string, newAliases map[string]*AliasTargets, be managerBackend) error {
 	var add, remove []*backend.Alias
-	for alias, prevState := range prevStates {
-		_, ok := newStates[alias]
-		if ok {
+	for alias, prevTargets := range prevAliases {
+		if _, ok := newAliases[alias]; ok {
 			continue
 		}
 		// gone
-		if prevState.Enabled() {
+		if effTgt := prevTargets.Effective(prevStatus); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevState.Target),
+				Target: composeTarget(snapName, effTgt),
 			})
 		}
 	}
-	for alias, newState := range newStates {
-		prevState := prevStates[alias]
-		if prevState == nil {
-			prevState = &AliasState{Status: "-"}
-		}
-		if prevState.Enabled() == newState.Enabled() && (!newState.Enabled() || prevState.Target == newState.Target) {
+	for alias, newTargets := range newAliases {
+		prevTgt := prevAliases[alias].Effective(prevStatus)
+		newTgt := newTargets.Effective(newStatus)
+		if prevTgt == newTgt {
 			// nothing to do
 			continue
 		}
-		if prevState.Enabled() {
+		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevState.Target),
+				Target: composeTarget(snapName, prevTgt),
 			})
 		}
-		if newState.Enabled() {
+		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, newState.Target),
+				Target: composeTarget(snapName, newTgt),
 			})
 		}
 	}
