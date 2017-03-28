@@ -16,7 +16,7 @@ data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 data/info /usr/lib/snapd/
 
 # snap-confine stuff
-etc/apparmor.d/usr.lib.snapd.snap-confine
+etc/apparmor.d/usr.lib.snapd.snap-confine.real
 lib/udev/rules.d/80-snappy-assign.rules
 lib/udev/snappy-app-dev
 usr/lib/snapd/snap-confine
