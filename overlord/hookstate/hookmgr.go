@@ -379,8 +379,8 @@ out:
 var errtrackerReport = errtracker.Report
 
 func reportHookFailureOnErrtracker(context *Context, output []byte, err error) {
-	errmsg := fmt.Sprintf("hook %s for snap %s failed with: %s. Output: %q", context.HookName(), context.SnapName(), err, output)
-	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%q", context.SnapName(), context.HookName(), err, output)
+	errmsg := fmt.Sprintf("hook %s for snap %s failed with: %s. Output: %s", context.HookName(), context.SnapName(), err, output)
+	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.SnapName(), context.HookName(), err, output)
 	extra := map[string]string{
 		"HookName": context.HookName(),
 	}

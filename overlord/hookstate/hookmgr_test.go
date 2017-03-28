@@ -633,8 +633,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	errtrackerCalled := false
 	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
 		c.Check(snap, Equals, "test-snap")
-		c.Check(errmsg, Equals, "hook failed at user request")
-		c.Check(dupSig, Equals, "test-snap:configure:hook failed at user request")
+		c.Check(errmsg, Equals, "hook configure for snap test-snap failed with: exit status 1. Output: hook failed at user request\n")
+		c.Check(dupSig, Equals, "hook:test-snap:configure:exit status 1\nhook failed at user request\n")
 
 		errtrackerCalled = true
 		return "some-oopsid", nil
