@@ -26,24 +26,33 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// AliasTargets carries the targets of an alias in the context of snap.
+// AliasesStatus represents the global automatic aliases status for a snap.
+type AliasesStatus string
+
+// Possible global automatic aliases statuses for a snap.
+const (
+	EnabledAliases  AliasesStatus = "enabled"
+	DisabledAliases AliasesStatus = "disabled"
+)
+
+// AliasTarget carries the targets of an alias in the context of snap.
 // If Manual is set it is the target of an enabled manual alias.
 // Auto is set to the target for an automatic alias, enabled or
 // disabled depending on the aliases status of the whole snap.
-type AliasTargets struct {
+type AliasTarget struct {
 	Manual string `json:"manual"`
 	Auto   string `json:"auto"`
 }
 
-// Effective returns the target to use based on the aliasStatus of the whole snap, returns "" if the alias is disabled.
-func (at *AliasTargets) Effective(aliasesStatus string) string {
+// Effective returns the target to use based on the aliasesStatus of the whole snap, returns "" if the alias is disabled.
+func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
 	if at == nil {
 		return ""
 	}
 	if at.Manual != "" {
 		return at.Manual
 	}
-	if aliasesStatus == "enabled" {
+	if aliasesStatus == EnabledAliases {
 		return at.Auto
 	}
 	return ""
@@ -61,7 +70,7 @@ func composeTarget(snapName, targetApp string) string {
 // to go from prevAliases under the snap global prevStatus for
 // automatic aliases to newAliases under newStatus for snapName.
 // It assumes that conflicts have already been checked.
-func applyAliasesChange(st *state.State, snapName string, prevStatus string, prevAliases map[string]*AliasTargets, newStatus string, newAliases map[string]*AliasTargets, be managerBackend) error {
+func applyAliasesChange(st *state.State, snapName string, prevStatus AliasesStatus, prevAliases map[string]*AliasTarget, newStatus AliasesStatus, newAliases map[string]*AliasTarget, be managerBackend) error {
 	var add, remove []*backend.Alias
 	for alias, prevTargets := range prevAliases {
 		if _, ok := newAliases[alias]; ok {

@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 
-func target(at *snapstate.AliasTargets) string {
+func target(at *snapstate.AliasTarget) string {
 	if at.Manual != "" {
 		return at.Manual
 	}
@@ -40,49 +40,53 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	auto1 := &snapstate.AliasTargets{
+	auto1 := &snapstate.AliasTarget{
 		Auto: "cmd1",
 	}
 
-	auto2 := &snapstate.AliasTargets{
+	auto2 := &snapstate.AliasTarget{
 		Auto: "cmd2",
 	}
 
-	manual1 := &snapstate.AliasTargets{
+	manual1 := &snapstate.AliasTarget{
 		Manual: "cmd1",
 	}
 
-	manual2 := &snapstate.AliasTargets{
+	manual2 := &snapstate.AliasTarget{
 		Manual: "manual2",
 		Auto:   "cmd1",
 	}
 
+	const (
+		en  = snapstate.EnabledAliases
+		dis = snapstate.DisabledAliases
+	)
 	scenarios := []struct {
-		status    string
-		newStatus string
-		target    *snapstate.AliasTargets
-		newTarget *snapstate.AliasTargets
+		status    snapstate.AliasesStatus
+		newStatus snapstate.AliasesStatus
+		target    *snapstate.AliasTarget
+		newTarget *snapstate.AliasTarget
 		ops       string
 	}{
-		{"enabled", "enabled", nil, auto1, "add"},
-		{"enabled", "disabled", auto1, auto1, "rm"},
-		{"enabled", "enabled", auto1, auto2, "rm add"},
-		{"enabled", "enabled", auto1, nil, "rm"},
-		{"enabled", "enabled", nil, manual1, "add"},
-		{"disabled", "disabled", nil, manual1, "add"},
-		{"enabled", "disabled", auto1, manual2, "rm add"},
-		{"enabled", "enabled", manual2, nil, "rm"},
-		{"enabled", "enabled", manual2, auto1, "rm add"},
-		{"enabled", "enabled", manual1, auto1, ""},
-		{"disabled", "enabled", manual1, auto1, ""},
+		{en, en, nil, auto1, "add"},
+		{en, dis, auto1, auto1, "rm"},
+		{en, en, auto1, auto2, "rm add"},
+		{en, en, auto1, nil, "rm"},
+		{en, en, nil, manual1, "add"},
+		{dis, dis, nil, manual1, "add"},
+		{en, dis, auto1, manual2, "rm add"},
+		{en, en, manual2, nil, "rm"},
+		{en, en, manual2, auto1, "rm add"},
+		{en, en, manual1, auto1, ""},
+		{dis, en, manual1, auto1, ""},
 	}
 
 	for _, scenario := range scenarios {
-		prevAliases := make(map[string]*snapstate.AliasTargets)
+		prevAliases := make(map[string]*snapstate.AliasTarget)
 		if scenario.target != nil {
 			prevAliases["myalias"] = scenario.target
 		}
-		newAliases := make(map[string]*snapstate.AliasTargets)
+		newAliases := make(map[string]*snapstate.AliasTarget)
 		if scenario.newTarget != nil {
 			newAliases["myalias"] = scenario.newTarget
 		}
@@ -119,14 +123,14 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	prevAliases := map[string]*snapstate.AliasTargets{
+	prevAliases := map[string]*snapstate.AliasTarget{
 		"myalias0": {Auto: "cmd0"},
 	}
-	newAliases := map[string]*snapstate.AliasTargets{
+	newAliases := map[string]*snapstate.AliasTarget{
 		"myalias1": {Auto: "alias-snap1"},
 	}
 
-	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", "enabled", prevAliases, "enabled", newAliases, s.fakeBackend)
+	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", snapstate.EnabledAliases, prevAliases, snapstate.EnabledAliases, newAliases, s.fakeBackend)
 	c.Assert(err, IsNil)
 
 	expected := fakeOps{
