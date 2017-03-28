@@ -399,7 +399,6 @@ snap_discard_ns_snap_discard_ns_LDADD += -lcap
 endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
-
 snap-discard-ns/snap-discard-ns$(EXEEXT): $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_DEPENDENCIES) $(EXTRA_snap_discard_ns_snap_discard_ns_DEPENDENCIES) snap-discard-ns/$(am__dirstamp)
 	@rm -f snap-discard-ns/snap-discard-ns$(EXEEXT)
 	$(AM_V_CCLD)$(snap_discard_ns_snap_discard_ns_LINK) $(snap_discard_ns_snap_discard_ns_OBJECTS) $(snap_discard_ns_snap_discard_ns_LDADD) $(LIBS)
