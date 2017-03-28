@@ -91,14 +91,7 @@ override_dh_auto_build:
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd units out of the available templates
-	cat data/systemd/snapd.service.in | \
-		sed s:@libexecdir@:/usr/lib:g | \
-		sed s:@SNAPD_ENVIRONMENT_FILE@:/etc/environment:g > data/systemd/snapd.service
-	cat data/systemd/snapd.refresh.service.in | \
-		sed s:@bindir@:/usr/bin:g | \
-		sed s:@SNAP_MOUNTDIR@:/snap:g > data/systemd/snapd.refresh.service
-	cat data/systemd/snapd.autoimport.service.in | \
-		sed s:@bindir@:/usr/bin:g > data/systemd/snapd.autoimport.service
+	$(MAKE) -C data/systemd all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
