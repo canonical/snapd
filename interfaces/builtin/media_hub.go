@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const mediaHubPermanentSlotAppArmor = `
@@ -31,7 +32,6 @@ const mediaHubPermanentSlotAppArmor = `
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
-#include <abstractions/dbus-strict>
 
 dbus (send)
     bus=session
@@ -83,60 +83,29 @@ dbus (send)
     bus=session
     path=/core/ubuntu/media/Service/sessions/**
     interface="org.freedesktop.DBus.Properties",
-
-# Allow access to powerd
-dbus (receive, send)
-    bus=system
-    path=/com/canonical/powerd
-    interface=com.canonical.powerd,
 `
 
 const mediaHubConnectedSlotAppArmor = `
-# Allow connected clients to interact with the player
-dbus (receive)
+# Allow clients to query/modify and get notified of service properties
+dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/core/ubuntu/media/Service
+    path=/core/ubuntu/media/Service{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+# Allow client to introspect our DBus api
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (receive)
-    bus=session
-    interface="core.ubuntu.media.Service{,.*}"
     path=/core/ubuntu/media/Service
+    member="Introspect"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to manage Player sessions
 dbus (receive)
     bus=session
+    interface="core.ubuntu.media.Service{,.*}"
     path=/core/ubuntu/media/Service
-    interface=core.ubuntu.media.Service
-    member="{Create,Detach,Reattach,Destroy,CreateFixed,Resume}Session"
-    peer=(label=###PLUG_SECURITY_TAGS###),
-
-# Allow clients to pause all other sessions
-dbus (receive)
-    bus=session
-    path=/core/ubuntu/media/Service
-    interface=core.ubuntu.media.Service
-    member="PauseOtherSessions"
-    peer=(label=###PLUG_SECURITY_TAGS###),
-
-# Allow clients to query/modify service properties
-dbus (receive)
-    bus=session
-    path=/core/ubuntu/media/Service{,/**}
-    peer=(label=###PLUG_SECURITY_TAGS###),
-
-dbus (send)
-    bus=session
-    path=/core/ubuntu/media/Service
-    interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -145,10 +114,35 @@ const mediaHubConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-session-strict>
 
+# Allow clients to query/modify and get notified of service properties
 dbus (receive, send)
     bus=session
+    interface=org.freedesktop.DBus.Properties
     path=/core/ubuntu/media/Service{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow client to introspect our DBus api
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/core/ubuntu/media/Service
+    member="Introspect"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to manage Player sessions
+dbus (send)
+    bus=session
+    interface="core.ubuntu.media.Service{,.*}"
+    path=/core/ubuntu/media/Service
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+`
+
+const mediaHubPermanentSlotSecComp = `
+# Description: Allow operating as the media-hub service. This gives
+# privileged access to the system.
+
+bind
 `
 
 type MediaHubInterface struct{}
@@ -173,6 +167,11 @@ func (iface *MediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specificati
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mediaHubConnectedSlotAppArmor, old, new, -1))
+	return nil
+}
+
+func (iface *MediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(mediaHubPermanentSlotSecComp)
 	return nil
 }
 
