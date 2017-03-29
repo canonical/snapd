@@ -48,6 +48,7 @@ var testedConfinementOpts = []interfaces.ConfinementOptions{
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &dbus.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Prepare a directory for DBus configuration files.
 	// NOTE: Normally this is a part of the OS snap.
@@ -66,8 +67,9 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -81,11 +83,13 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
@@ -100,8 +104,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -115,11 +120,13 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.HookYaml, 0)
@@ -134,8 +141,9 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -150,11 +158,13 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -170,8 +180,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1WithNmbd, 0)
@@ -186,11 +197,13 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
-	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentPlugCallback = func(spec *dbus.Specification, plug *interfaces.Plug) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlWithHook, 0)
@@ -208,8 +221,9 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
 	restore := dbus.MockXMLEnvelope([]byte("<?xml>\n"), []byte("</xml>"))
 	defer restore()
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy>...</policy>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy>...</policy>")
+		return nil
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
@@ -247,8 +261,9 @@ apps:
 
 func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+	s.Iface.DBusPermanentSlotCallback = func(spec *dbus.Specification, slot *interfaces.Slot) error {
+		spec.AddSnippet("<policy/>")
+		return nil
 	}
 	// Install a snap with two apps, only one of which needs a .conf file
 	// because the interface is app-bound.

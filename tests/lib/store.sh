@@ -5,7 +5,8 @@ STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
 _configure_store_backends(){
     systemctl stop snapd.service snapd.socket
-    rm -rf $(dirname $STORE_CONFIG) && mkdir -p $(dirname $STORE_CONFIG)
+    mkdir -p $(dirname $STORE_CONFIG)
+    rm -f $STORE_CONFIG
     cat > $STORE_CONFIG <<EOF
 [Service]
 Environment=SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1

@@ -20,9 +20,13 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const udisks2PermanentSlotAppArmor = `
@@ -337,46 +341,45 @@ func (iface *UDisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *UDisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2ConnectedPlugDBus)
+	return nil
 }
 
-func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(udisks2ConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	case interfaces.SecurityDBus:
-		return []byte(udisks2ConnectedPlugDBus), nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotDBus)
+	return nil
 }
 
-func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(udisks2PermanentSlotAppArmor), nil
-	case interfaces.SecurityDBus:
-		return []byte(udisks2PermanentSlotDBus), nil
-	case interfaces.SecuritySecComp:
-		return []byte(udisks2PermanentSlotSecComp), nil
-	case interfaces.SecurityUDev:
-		return []byte(udisks2PermanentSlotUDev), nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(udisks2ConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(udisks2ConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotAppArmor)
+	return nil
+}
+
+func (iface *UDisks2Interface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotUDev)
+	return nil
+}
+
+func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotSecComp)
+	return nil
 }
 
 func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {

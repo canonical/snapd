@@ -23,7 +23,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -179,21 +181,23 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	expectedSnippet1 := []byte(`KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"
-`)
+	expectedSnippet1 := `KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`
 
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet1)
 }
 
 func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := []byte(`/dev/i2c-1 rw,
-`)
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	expectedSnippet1 := `/dev/i2c-1 rw,`
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
-
 }
 
 func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {

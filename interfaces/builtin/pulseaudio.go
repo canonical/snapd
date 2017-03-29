@@ -20,9 +20,9 @@
 package builtin
 
 import (
-	"bytes"
-
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -117,38 +117,27 @@ func (iface *PulseAudioInterface) Name() string {
 	return "pulseaudio"
 }
 
-func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		if release.OnClassic {
-			b := bytes.NewBuffer([]byte(pulseaudioConnectedPlugAppArmor))
-			b.Write([]byte(pulseaudioConnectedPlugAppArmorDesktop))
-			return b.Bytes(), nil
-		} else {
-			return []byte(pulseaudioConnectedPlugAppArmor), nil
-		}
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioConnectedPlugSecComp), nil
+func (iface *PulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
+	if release.OnClassic {
+		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
 	}
-	return nil, nil
+	return nil
 }
 
-func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(pulseaudioPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(pulseaudioPermanentSlotSecComp), nil
-	}
-	return nil, nil
+func (iface *PulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *PulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
+	return nil
+}
+
+func (iface *PulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {
