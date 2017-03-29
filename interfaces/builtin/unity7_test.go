@@ -48,9 +48,7 @@ apps:
 `
 
 func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
-	s.iface = builtin.NewUnity7Interface()
-	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity7"]}
+	s.iface = &builtin.Unity7Interface{}
 	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
@@ -58,6 +56,8 @@ func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 			Interface: "unity7",
 		},
 	}
+	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity7"]}
 }
 
 func (s *Unity7InterfaceSuite) TestName(c *C) {
