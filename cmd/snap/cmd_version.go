@@ -38,7 +38,7 @@ and operating system.
 type cmdVersion struct{}
 
 func init() {
-	addCommand("version", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
+	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
 }
 
 func (cmd cmdVersion) Execute(args []string) error {

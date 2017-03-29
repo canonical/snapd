@@ -17,6 +17,8 @@
  *
  */
 
+// Package configstate implements the manager and state aspects responsible for
+// the configuration of snaps.
 package configstate
 
 import (

@@ -509,3 +509,23 @@ func (client *Client) Users() ([]*User, error) {
 	}
 	return result, nil
 }
+
+type debugAction struct {
+	Action string      `json:"action"`
+	Params interface{} `json:"params,omitempty"`
+}
+
+// Debug is only useful when writing test code, it will trigger
+// an internal action with the given parameters.
+func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+	body, err := json.Marshal(debugAction{
+		Action: action,
+		Params: params,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
+	return err
+}

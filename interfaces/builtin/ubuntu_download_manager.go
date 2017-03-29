@@ -20,10 +20,11 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
 /* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
@@ -194,41 +195,28 @@ func (iface *UbuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *UbuntuDownloadManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(downloadConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(downloadConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *UbuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(downloadPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *UbuntuDownloadManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(downloadPermanentSlotAppArmor), nil
-	}
-	return nil, nil
-}
-
-func (iface *UbuntuDownloadManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(downloadConnectedSlotAppArmor), old, new, -1)
-		old = []byte("###PLUG_NAME###")
-		new = []byte(plug.Snap.Name())
-		snippet = bytes.Replace(snippet, old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *UbuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
+	old = "###PLUG_NAME###"
+	new = plug.Snap.Name()
+	snippet = strings.Replace(snippet, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *UbuntuDownloadManagerInterface) SanitizePlug(slot *interfaces.Plug) error {

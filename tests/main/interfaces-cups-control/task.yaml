@@ -1,6 +1,6 @@
 summary: Ensure that the cups interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -40,7 +40,6 @@ restore: |
 execute: |
     CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
-    . "$TESTSLIB/names.sh"
 
     echo "Then it is not shown as connected"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -48,7 +47,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-cups-control-consumer:cups-control ${core_name}:cups-control
+    snap connect test-snapd-cups-control-consumer:cups-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to print files"
@@ -59,7 +58,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-cups-control-consumer:cups-control ${core_name}:cups-control
+    snap disconnect test-snapd-cups-control-consumer:cups-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to print files"

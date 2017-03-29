@@ -24,7 +24,7 @@ package apparmor
 // It can be overridden for testing using MockTemplate().
 //
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/templates/ubuntu-core/16.04/default
-var defaultTemplate = []byte(`
+var defaultTemplate = `
 # Description: Allows access to app-specific directories and basic runtime
 # Usage: common
 
@@ -387,9 +387,13 @@ var defaultTemplate = []byte(`
   /sys/class/ r,
   /sys/class/**/ r,
 
+  # Allow all snaps to chroot
+  capability sys_chroot,
+  /{,usr/}sbin/chroot ixr,
+
 ###SNIPPETS###
 }
-`)
+`
 
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
@@ -400,7 +404,7 @@ var defaultTemplate = []byte(`
 // label instead of 'unconfined'.
 //
 // It can be overridden for testing using MockClassicTemplate().
-var classicTemplate = []byte(`
+var classicTemplate = `
 #include <tunables/global>
 
 ###VAR###
@@ -426,16 +430,16 @@ var classicTemplate = []byte(`
 
 ###SNIPPETS###
 }
-`)
+`
 
 // classicJailmodeSnippet contains extra rules that allow snaps using classic
 // confinement, that were put in to jailmode, to execute by at least having
 // access to the core snap (e.g. for the dynamic linker and libc).
 
-var classicJailmodeSnippet = []byte(`
+var classicJailmodeSnippet = `
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
   # Read only access to the core snap to load libc from.
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
-`)
+`
