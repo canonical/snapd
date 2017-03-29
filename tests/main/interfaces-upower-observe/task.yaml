@@ -1,7 +1,7 @@
 summary: Ensure that the upower-observe interface works.
 
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2504
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32, -ubuntu-16.04-ppc64el, -ubuntu-16.10-ppc64el, -ubuntu-17.04-ppc64el]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history
@@ -25,7 +25,6 @@ restore: |
     apt-get autoremove --purge -y
 
 execute: |
-    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN=":upower-observe +test-snapd-upower-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-upower-observe-consumer:upower-observe"
 
@@ -35,7 +34,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to dump info about the upower devices"
@@ -48,7 +47,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
+    snap connect test-snapd-upower-observe-consumer:upower-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to dump info about the upower devices"

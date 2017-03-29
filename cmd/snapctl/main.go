@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
 var clientConfig = client.Config{
@@ -31,6 +32,9 @@ var clientConfig = client.Config{
 	// result in apparmor denials and configure task failures
 	// (LP: #1660941)
 	DisableAuth: true,
+
+	// we need the less privileged snap socket in snapctl
+	Socket: dirs.SnapSocket,
 }
 
 func main() {

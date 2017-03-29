@@ -113,7 +113,10 @@ type testAuthContext struct {
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
-	freshDevice := *ac.device
+	freshDevice := auth.DeviceState{}
+	if ac.device != nil {
+		freshDevice = *ac.device
+	}
 	return &freshDevice, nil
 }
 
@@ -399,6 +402,34 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err := t.store.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, t.user)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
+	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
+		// check auth url is used
+		c.Check(url, Equals, "AUTH-URL")
+
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := repo.Download(context.TODO(), "foo", path, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -834,6 +865,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 var downloadDeltaTests = []struct {
 	info          snap.DownloadInfo
 	authenticated bool
+	deviceSession bool
 	useLocalUser  bool
 	format        string
 	expectedURL   string
@@ -847,6 +879,7 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: false,
+	deviceSession: false,
 	format:        "xdelta3",
 	expectedURL:   "anon-delta-url",
 	expectError:   false,
@@ -855,10 +888,25 @@ var downloadDeltaTests = []struct {
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+			{AnonDownloadURL: "anon-delta-url", DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
 	authenticated: true,
+	deviceSession: false,
+	useLocalUser:  false,
+	format:        "xdelta3",
+	expectedURL:   "auth-delta-url",
+	expectError:   false,
+}, {
+	// A device-authenticated request downloads the authenticated delta url.
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	deviceSession: true,
 	useLocalUser:  false,
 	format:        "xdelta3",
 	expectedURL:   "auth-delta-url",
@@ -872,6 +920,7 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: true,
+	deviceSession: false,
 	useLocalUser:  true,
 	format:        "xdelta3",
 	expectedURL:   "anon-delta-url",
@@ -887,6 +936,7 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: false,
+	deviceSession: false,
 	format:        "xdelta3",
 	expectedURL:   "",
 	expectError:   true,
@@ -900,6 +950,7 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: false,
+	deviceSession: false,
 	format:        "bsdiff",
 	expectedURL:   "",
 	expectError:   true,
@@ -910,8 +961,11 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
+	authContext := &testAuthContext{c: c}
+	repo := New(nil, authContext)
+
 	for _, testCase := range downloadDeltaTests {
-		t.store.deltaFormat = testCase.format
+		repo.deltaFormat = testCase.format
 		download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 			expectedUser := t.user
 			if testCase.useLocalUser {
@@ -930,6 +984,11 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		c.Assert(err, IsNil)
 		defer os.Remove(w.Name())
 
+		authContext.device = nil
+		if testCase.deviceSession {
+			authContext.device = t.device
+		}
+
 		authedUser := t.user
 		if testCase.useLocalUser {
 			authedUser = t.localUser
@@ -938,7 +997,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = t.store.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
+		err = repo.downloadDelta("snapname", &testCase.info, w, nil, authedUser)
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)

@@ -85,6 +85,8 @@ close
 # needed by ls -l
 connect
 
+chroot
+
 creat
 dup
 dup2
