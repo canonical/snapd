@@ -20,7 +20,9 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -518,7 +520,14 @@ func (iface *Unity7Interface) String() string {
 }
 
 func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	spec.AddSnippet(unity7ConnectedPlugAppArmor)
+	var pathBuf bytes.Buffer
+	// Unity7 will take the desktop filename and convert all '-' to '_'.
+	// Since we know that the desktop filename starts with the snap name,
+	// perform this conversion on the snap name.
+	pathBuf.WriteString(strings.Replace(plug.Snap.Name(), "-", "_", -1))
+	old := "###UNITY_SNAP_NAME###"
+	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, pathBuf.String(), -1)
+	spec.AddSnippet(snippet)
 	return nil
 }
 
