@@ -47,8 +47,8 @@ read_cmdline(char* buf, size_t buf_size)
         return -1;
     }
     memset(buf, 0, buf_size);
-    ssize_t num_read;
-    if ((num_read = read(fd, buf, buf_size)) < 0) {
+    ssize_t num_read = read(fd, buf, buf_size);
+    if (num_read < 0 || num_read == buf_size) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot read /proc/self/cmdline";
     }
