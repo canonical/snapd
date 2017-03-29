@@ -24,7 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -41,6 +43,8 @@ import (
 func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
+	testutil.BaseTest
+
 	state       *state.State
 	manager     *hookstate.HookManager
 	context     *hookstate.Context
@@ -62,6 +66,8 @@ hooks:
 var snapContents = ""
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
 	manager, err := hookstate.Manager(s.state)
@@ -102,9 +108,14 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 		s.context = context
 		return s.mockHandler
 	})
+	s.AddCleanup(hookstate.MockErrtrackerReport(func(string, string, string, map[string]string) (string, error) {
+		return "", nil
+	}))
 }
 
 func (s *hookManagerSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	s.manager.Stop()
 	dirs.SetRootDir("")
 }
@@ -212,11 +223,11 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	checkTaskLogContains(c, s.task, ".*failed at user request.*")
 }
 
-func (s *hookManagerSuite) TestHookTaskHandleIgnoreFailWorks(c *C) {
+func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 	s.state.Lock()
 	var hooksup hookstate.HookSetup
 	s.task.Get("hook-setup", &hooksup)
-	hooksup.IgnoreFail = true
+	hooksup.IgnoreError = true
 	s.task.Set("hook-setup", &hooksup)
 	s.state.Unlock()
 
@@ -238,6 +249,130 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreFailWorks(c *C) {
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 	checkTaskLogContains(c, s.task, ".*ignoring failure in hook.*")
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms.*`)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms`)
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcesMaxWaitTime(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	// simulate a process that can not be killed
+	restore := hookstate.MockSyscallKill(func(int, syscall.Signal) error {
+		return nil
+	})
+	defer restore()
+
+	restore = hookstate.MockCmdWaitTimeout(100 * time.Millisecond)
+	defer restore()
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms, but did not stop`)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, `.*exceeded maximum runtime of 200ms, but did not stop`)
+}
+
+func (s *hookManagerSuite) TestHookTaskEnforcedTimeoutWithIgnoreError(c *C) {
+	var hooksup hookstate.HookSetup
+
+	s.state.Lock()
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.Timeout = time.Duration(200 * time.Millisecond)
+	hooksup.IgnoreError = true
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	s.state.Lock()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+	c.Check(s.mockHandler.Err, IsNil)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+	checkTaskLogContains(c, s.task, `.*ignoring failure in hook.*exceeded maximum runtime of 200ms`)
 }
 
 func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
@@ -265,12 +400,12 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, ".*hook \"configure\" aborted.*")
+	c.Check(s.mockHandler.Err, ErrorMatches, ".*hook aborted.*")
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*hook "configure" aborted.*`)
+	checkTaskLogContains(c, s.task, `.*hook aborted.*`)
 }
 
 func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
@@ -485,4 +620,35 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
 
+}
+
+func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
+	s.state.Lock()
+	var hooksup hookstate.HookSetup
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.TrackError = true
+	s.task.Set("hook-setup", &hooksup)
+	s.state.Unlock()
+
+	errtrackerCalled := false
+	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
+		c.Check(snap, Equals, "test-snap")
+		c.Check(errmsg, Equals, "hook configure in snap \"test-snap\" failed: hook failed at user request")
+		c.Check(dupSig, Equals, "hook:test-snap:configure:exit status 1\nhook failed at user request\n")
+
+		errtrackerCalled = true
+		return "some-oopsid", nil
+	})
+
+	// Force the snap command to exit 1, and print something to stderr
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(errtrackerCalled, Equals, true)
 }

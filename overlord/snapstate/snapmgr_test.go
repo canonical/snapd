@@ -887,8 +887,8 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 	_, err := snapstate.Update(s.state, "core", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	// ensure the core snap sets the "ignore-hook-failure" flag
-	c.Check(configureFlags&snapstate.IgnoreHookFailure, Equals, 1)
+	// ensure the core snap sets the "ignore-hook-error" flag
+	c.Check(configureFlags&snapstate.IgnoreHookError, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
