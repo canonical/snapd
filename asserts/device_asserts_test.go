@@ -338,7 +338,6 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 const (
 	deviceSessReqErrPrefix = "assertion device-session-request: "
 	serialErrPrefix        = "assertion serial: "
-	serialProofErrPrefix   = "assertion serial-proof: "
 	serialReqErrPrefix     = "assertion serial-request: "
 )
 

@@ -771,6 +771,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-declaration",
 		"snap-build",
 		"snap-revision",
+		"snap-developer",
 		"model",
 		"serial",
 		"system-user",

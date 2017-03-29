@@ -20,9 +20,11 @@
 package builtin
 
 import (
-	"bytes"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const mirPermanentSlotAppArmor = `
@@ -36,6 +38,9 @@ capability sys_tty_config,
 /{dev,run}/shm/\#* rw,
 /run/mir_socket rw,
 
+# Needed for mode setting via drmSetMaster() and drmDropMaster()
+capability sys_admin,
+
 # NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
 
@@ -43,6 +48,7 @@ capability sys_tty_config,
 network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:input[0-9]* r,
+/run/udev/data/+platform:* r,
 `
 
 const mirPermanentSlotSecComp = `
@@ -75,42 +81,30 @@ func (iface *MirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *MirInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *MirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###SLOT_SECURITY_TAGS###"
+	new := slotAppLabelExpr(slot)
+	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace([]byte(mirConnectedPlugAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *MirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	old := "###PLUG_SECURITY_TAGS###"
+	new := plugAppLabelExpr(plug)
+	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *MirInterface) PermanentSlotSnippet(
-	slot *interfaces.Slot,
-	securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(mirPermanentSlotAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(mirPermanentSlotSecComp), nil
-	}
-	return nil, nil
+func (iface *MirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(mirPermanentSlotAppArmor)
+	return nil
 }
 
-func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		old := []byte("###PLUG_SECURITY_TAGS###")
-		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace([]byte(mirConnectedSlotAppArmor), old, new, -1)
-		return snippet, nil
-	}
-	return nil, nil
+func (iface *MirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(mirPermanentSlotSecComp)
+	return nil
 }
 
 func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {

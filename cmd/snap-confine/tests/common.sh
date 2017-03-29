@@ -67,7 +67,7 @@ export L
 export SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR="$TMP"
 export SNAPPY_LAUNCHER_INSIDE_TESTS="1"
 export SNAP_CONFINE_NO_ROOT=1
-export SNAP_NAME=name.app
+export SNAP_NAME=name
 
 FAIL() {
     printf ": FAIL\n"

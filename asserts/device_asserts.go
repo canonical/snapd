@@ -135,10 +135,6 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
-var (
-	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$") // account ids look like snap-ids or are nice identifier
-)
-
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
 	const name = "system-user-authority"
 	v, ok := headers[name]
