@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 
@@ -173,6 +174,37 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"getuid\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
+	}
+}
+
+func (s *backendSuite) TestRealDefaultHookTemplateIsNormallyUsed(c *C) {
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlWithHook, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.configure")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		"\nbind\n",
+	} {
+		c.Assert(string(data), testutil.Contains, line)
+	}
+}
+
+func (s *backendSuite) TestRealDefaultTemplateDoesNotHaveDefaultHookTemplate(c *C) {
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		"# Needed to workaround LP #1674193; when snapctl is executed inside a",
+	} {
+		match, _ := regexp.MatchString(line, string(data))
+		c.Assert(match, Equals, false)
 	}
 }
 

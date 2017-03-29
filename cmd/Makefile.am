@@ -6,7 +6,7 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-update-ns
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -35,10 +35,9 @@ endif
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests snap-update-ns/unit-tests
+check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
 	$(HAVE_VALGRIND) ./snap-confine/unit-tests
-	$(HAVE_VALGRIND) ./snap-update-ns/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
 else
 check-unit-tests:
@@ -382,39 +381,4 @@ system_shutdown_unit_tests_SOURCES = \
 system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
-endif
-
-##
-## snap-update-ns
-##
-
-libexec_PROGRAMS += snap-update-ns/snap-update-ns
-dist_man_MANS += snap-update-ns/snap-update-ns.5
-CLEANFILES += snap-update-ns/snap-update-ns.5
-EXTRA_DIST += snap-update-ns/snap-update-ns.rst
-
-snap_update_ns_snap_update_ns_LDADD = libsnap-confine-private.a
-
-snap_update_ns_snap_update_ns_SOURCES = \
-	snap-update-ns/snap-update-ns.c \
-	snap-update-ns/mount-entry.h \
-	snap-update-ns/mount-entry.c
-
-snap-update-ns/%.5: snap-update-ns/%.rst
-	mkdir -p snap-update-ns
-	$(HAVE_RST2MAN) $^ > $@
-
-if WITH_UNIT_TESTS
-noinst_PROGRAMS += snap-update-ns/unit-tests
-snap_update_ns_unit_tests_SOURCES = \
-	libsnap-confine-private/unit-tests-main.c \
-	libsnap-confine-private/unit-tests.c \
-	snap-update-ns/mount-entry-test.c \
-	snap-update-ns/test-data.c \
-	snap-update-ns/test-data.h \
-	snap-update-ns/test-utils.c \
-	snap-update-ns/test-utils.h
-snap_update_ns_unit_tests_LDADD = libsnap-confine-private.a
-snap_update_ns_unit_tests_CFLAGS = $(GLIB_CFLAGS)
-snap_update_ns_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif

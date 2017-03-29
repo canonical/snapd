@@ -20,6 +20,8 @@
 package udev
 
 import (
+	"sort"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -30,20 +32,19 @@ type Specification struct {
 }
 
 // AddSnippet adds a new udev snippet.
-func (spec *Specification) AddSnippet(snippet []byte) error {
+func (spec *Specification) AddSnippet(snippet string) {
 	if spec.snippets == nil {
 		spec.snippets = make(map[string]bool)
 	}
-	spec.snippets[string(snippet)] = true
-	return nil
+	spec.snippets[snippet] = true
 }
 
 // Snippets returns a copy of all the snippets added so far.
-func (spec *Specification) Snippets() map[string]bool {
-	result := make(map[string]bool, len(spec.snippets))
-	for k, v := range spec.snippets {
-		result[k] = v
+func (spec *Specification) Snippets() (result []string) {
+	for k := range spec.snippets {
+		result = append(result, k)
 	}
+	sort.Strings(result)
 	return result
 }
 
