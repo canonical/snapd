@@ -34,6 +34,7 @@ cmd/*/*.[1-9]
 data/systemd/snapd.autoimport.service
 data/systemd/snapd.refresh.service
 data/systemd/snapd.service
+data/systemd/snapd.system-shutdown.service
 
 # test-driver
 *.log
