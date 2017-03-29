@@ -39,16 +39,20 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("connected-plug"))
+			spec.AddSnippet("connected-plug")
+			return nil
 		},
 		SecCompConnectedSlotCallback: func(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("connected-slot"))
+			spec.AddSnippet("connected-slot")
+			return nil
 		},
 		SecCompPermanentPlugCallback: func(spec *seccomp.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet([]byte("permanent-plug"))
+			spec.AddSnippet("permanent-plug")
+			return nil
 		},
 		SecCompPermanentSlotCallback: func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("permanent-slot"))
+			spec.AddSnippet("permanent-slot")
+			return nil
 		},
 	},
 	plug: &interfaces.Plug{
@@ -90,8 +94,12 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][][]byte{
-		"snap.snap1.app1": {[]byte("connected-plug"), []byte("permanent-plug")},
-		"snap.snap2.app2": {[]byte("connected-slot"), []byte("permanent-slot")},
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1", "snap.snap2.app2"})
+	c.Assert(s.spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+
+	c.Assert(s.spec.SnippetForTag("non-existing"), Equals, "")
 }

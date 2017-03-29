@@ -80,7 +80,7 @@ func SubstituteEnv(env []string) []string {
 			if s, ok := envMap[k]; ok {
 				return s
 			}
-			return os.ExpandEnv(v)
+			return os.Getenv(k)
 		})
 		out = append(out, fmt.Sprintf("%s=%s", k, v))
 		envMap[k] = v

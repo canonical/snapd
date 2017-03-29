@@ -46,6 +46,25 @@ type Entry struct {
 	CheckPassNumber int
 }
 
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// EqualEntries checks if one entry is equal to another
+func (a *Entry) Equal(b *Entry) bool {
+	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
+		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
+		a.CheckPassNumber == b.CheckPassNumber)
+}
+
 // escape replaces whitespace characters so that getmntent can parse it correctly.
 //
 // According to the manual page, the following characters need to be escaped.

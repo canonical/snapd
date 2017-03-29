@@ -26,8 +26,7 @@ prepare: |
     install_local iio-consumer
 
     echo "And the iio plug is connected"
-    . "$TESTSLIB/names.sh"
-    snap connect iio-consumer:iio ${core_name}:iio0
+    snap connect iio-consumer:iio core:iio0
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

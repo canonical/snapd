@@ -65,12 +65,15 @@ if [ "$SPREAD_BACKEND" = external ]; then
    fi
    # stop and disable autorefresh
    if [ -e /snap/core/current/meta/hooks/configure ]; then
+       systemctl disable --now snapd.refresh.timer
        snap set core refresh.disabled=true
    fi
    exit 0
 fi
 
 if [ "$SPREAD_BACKEND" = qemu ]; then
+   # qemu images may be built with pre-baked proxy settings that can be wrong
+   rm -f /etc/apt/apt.conf.d/90cloud-init-aptproxy
    # treat APT_PROXY as a location of apt-cacher-ng to use
    if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
        printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
