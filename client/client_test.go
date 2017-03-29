@@ -252,7 +252,9 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New(nil)
+	cli := client.New(&client.Config{
+		Socket: dirs.SnapSocket,
+	})
 	options := &client.SnapCtlOptions{
 		ContextID: "foo",
 		Args:      []string{"bar", "--baz"},
