@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,28 @@ type NetlinkAuditInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetlinkAuditInterfaceSuite{
-	iface: builtin.NewNetlinkAuditInterface(),
-	slot: &interfaces.Slot{
+const netlinkAuditMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [netlink-audit]
+`
+
+var _ = Suite(&NetlinkAuditInterfaceSuite{})
+
+func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewNetlinkAuditInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "netlink-audit",
 			Interface: "netlink-audit",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "netlink-audit",
-			Interface: "netlink-audit",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, netlinkAuditMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["netlink-audit"]}
+}
 
 func (s *NetlinkAuditInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "netlink-audit")
@@ -79,8 +86,10 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "netlink-audit"`)
 }
 
-func (s *NetlinkAuditInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+func (s *NetlinkAuditInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
 }

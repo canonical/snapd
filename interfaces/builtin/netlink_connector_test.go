@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,23 +36,28 @@ type NetlinkConnectorInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetlinkConnectorInterfaceSuite{
-	iface: builtin.NewNetlinkConnectorInterface(),
-	slot: &interfaces.Slot{
+const netlinkConnectorMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [netlink-connector]
+`
+
+var _ = Suite(&NetlinkConnectorInterfaceSuite{})
+
+func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewNetlinkConnectorInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "netlink-connector",
 			Interface: "netlink-connector",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "netlink-connector",
-			Interface: "netlink-connector",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, netlinkConnectorMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["netlink-connector"]}
+}
 
 func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "netlink-connector")
@@ -79,8 +86,10 @@ func (s *NetlinkConnectorInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "netlink-connector"`)
 }
 
-func (s *NetlinkConnectorInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+func (s *NetlinkConnectorInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Check(string(snippet), testutil.Contains, "socket AF_NETLINK - NETLINK_CONNECTOR\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_CONNECTOR\n")
 }
