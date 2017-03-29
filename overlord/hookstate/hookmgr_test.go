@@ -281,7 +281,7 @@ func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms`)
+	c.Check(s.mockHandler.Err, ErrorMatches, `.*exceeded maximum runtime of 200ms.*`)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -400,12 +400,12 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	c.Check(s.mockHandler.BeforeCalled, Equals, true)
 	c.Check(s.mockHandler.DoneCalled, Equals, false)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-	c.Check(s.mockHandler.Err, ErrorMatches, ".*hook \"configure\" aborted.*")
+	c.Check(s.mockHandler.Err, ErrorMatches, ".*hook aborted.*")
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, `.*hook "configure" aborted.*`)
+	checkTaskLogContains(c, s.task, `.*hook aborted.*`)
 }
 
 func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
