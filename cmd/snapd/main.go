@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -63,6 +64,12 @@ func run() error {
 	d.Version = cmd.Version
 
 	d.Start()
+
+	if ticker, err := systemd.RunWatchdog(); err != nil {
+		logger.Noticef("cannot run software watchdog: %s", err)
+	} else {
+		defer ticker.Stop()
+	}
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
