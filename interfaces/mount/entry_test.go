@@ -20,6 +20,8 @@
 package mount_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -129,4 +131,31 @@ func (s *entrySuite) TestParseEntry5(c *C) {
 	c.Assert(err, ErrorMatches, "cannot parse dump frequency: .*")
 	_, err = mount.ParseEntry("name dir type options 0 foo")
 	c.Assert(err, ErrorMatches, "cannot parse check pass number: .*")
+}
+
+// Test that empty fstab is parsed without errors
+func (s *entrySuite) TestLoadFSTab1(c *C) {
+	entries, err := mount.LoadFSTab(strings.NewReader(""))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 0)
+}
+
+// Test that '#'-comments are skipped
+func (s *entrySuite) TestLoadFSTab2(c *C) {
+	entries, err := mount.LoadFSTab(strings.NewReader("# comment"))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 0)
+}
+
+// Test that simple profile can be loaded correctly.
+func (s *entrySuite) TestLoadFSTab3(c *C) {
+	entries, err := mount.LoadFSTab(strings.NewReader(`
+	name-1 dir-1 type-1 options-1 1 1 # 1st entry
+	name-2 dir-2 type-2 options-2 2 2 # 2nd entry`))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 2)
+	c.Assert(entries, DeepEquals, []mount.Entry{
+		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
+		{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
+	})
 }

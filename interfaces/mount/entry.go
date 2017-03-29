@@ -20,7 +20,9 @@
 package mount
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -143,4 +145,30 @@ func ParseEntry(s string) (Entry, error) {
 	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
+}
+
+// LoadFSTab reads and parses an fstab-like file.
+//
+// The supported format is described by fstab(5).
+func LoadFSTab(reader io.Reader) ([]Entry, error) {
+	var entries []Entry
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		s := strings.TrimSpace(scanner.Text())
+		if i := strings.Index(s, "#"); i != -1 {
+			s = strings.TrimSpace(s[0:i])
+		}
+		if s == "" {
+			continue
+		}
+		entry, err := ParseEntry(s)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
