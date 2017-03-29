@@ -43,7 +43,8 @@ const (
 
 // control flags for "Configure()"
 const (
-	IgnoreHookFailure = 1 << iota
+	IgnoreHookError = 1 << iota
+	TrackHookError
 )
 
 func needsMaybeCore(typ snap.Type) int {
@@ -235,7 +236,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
 	if snapsup.Name() == "core" {
-		confFlags |= IgnoreHookFailure
+		confFlags |= IgnoreHookError
+		confFlags |= TrackHookError
 	}
 	configSet := Configure(st, snapsup.Name(), defaults, confFlags)
 	configSet.WaitAll(installSet)
