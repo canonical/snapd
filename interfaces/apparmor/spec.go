@@ -75,27 +75,27 @@ func (spec *Specification) SecurityTags() []string {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedPlug(spec, plug, slot)
+		return iface.AppArmorConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
-		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+		AppArmorConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		defer func() { spec.securityTags = nil }()
-		return iface.AppArmorConnectedSlot(spec, plug, slot)
+		return iface.AppArmorConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }

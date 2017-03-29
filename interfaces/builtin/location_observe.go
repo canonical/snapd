@@ -242,7 +242,7 @@ func (iface *LocationObserveInterface) Name() string {
 	return "location-observe"
 }
 
-func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(locationObserveConnectedPlugDBus)
 	return nil
 }
@@ -252,7 +252,7 @@ func (iface *LocationObserveInterface) DBusPermanentSlot(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
@@ -265,7 +265,7 @@ func (iface *LocationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)

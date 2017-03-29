@@ -140,9 +140,9 @@ type Specification interface {
 	// AddPermanentPlug records side-effects of having a plug.
 	AddPermanentPlug(iface Interface, plug *Plug) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, slot *Slot) error
+	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, slot *Slot) error
+	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 }
 
 // SecuritySystem is a name of a security system.

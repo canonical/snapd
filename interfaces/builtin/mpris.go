@@ -144,7 +144,7 @@ func (iface *MprisInterface) Name() string {
 	return "mpris"
 }
 
-func (iface *MprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *MprisInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(mprisConnectedPlugAppArmor, old, new, -1))
@@ -168,7 +168,7 @@ func (iface *MprisInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *MprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *MprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(mprisConnectedSlotAppArmor, old, new, -1))

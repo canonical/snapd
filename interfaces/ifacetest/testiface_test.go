@@ -149,15 +149,15 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.AppArmorConnectedPlug(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}
-	c.Assert(iface.SecCompConnectedPlug(seccompSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.SecCompConnectedPlug(seccompSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	c.Assert(iface.DBusConnectedPlug(dbusSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.DBusConnectedPlug(dbusSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 
@@ -166,15 +166,15 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	iface := s.iface.(*ifacetest.TestInterface)
 
 	apparmorSpec := &apparmor.Specification{}
-	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.AppArmorConnectedSlot(apparmorSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
 	seccompSpec := &seccomp.Specification{}
-	c.Assert(iface.SecCompConnectedSlot(seccompSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.SecCompConnectedSlot(seccompSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 
 	dbusSpec := &dbus.Specification{}
-	c.Assert(iface.DBusConnectedSlot(dbusSpec, s.plug, s.slot), IsNil)
+	c.Assert(iface.DBusConnectedSlot(dbusSpec, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 }
 

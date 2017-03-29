@@ -77,14 +77,14 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *LxdSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
 func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
@@ -92,7 +92,7 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicyAppArmor(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestConnectedPlugPolicySecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.lxd.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.lxd.app"), testutil.Contains, "@unrestricted\n")

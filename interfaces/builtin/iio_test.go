@@ -175,7 +175,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := `KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`
 
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUdev1, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
@@ -190,7 +190,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 /sys/bus/iio/devices/iio:device1/** rwk,
 `
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUdev1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")

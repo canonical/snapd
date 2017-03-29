@@ -91,7 +91,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.*"),`)
@@ -115,7 +115,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) 
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2prod.{app1,app2}"),`)
@@ -137,7 +137,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
@@ -160,7 +160,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2client.*"),`)
@@ -184,7 +184,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) 
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.{app1,app2}"),`)
@@ -206,7 +206,7 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	}
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app1"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.udisks2.app1"), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
@@ -214,14 +214,14 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 2)
 
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
@@ -241,7 +241,7 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestDBusConnectedPlug(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := dbusSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.udisks2.app"})
 	c.Check(dbusSpec.SnippetForTag("snap.udisks2.app"), testutil.Contains, `<policy context="default">`)

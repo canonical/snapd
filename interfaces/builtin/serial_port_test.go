@@ -274,20 +274,20 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	spec := &udev.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
+	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testSlot1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 
 	expectedSnippet1 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUdev1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
 	spec = &udev.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUdev2)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUdev2, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
@@ -299,7 +299,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet := func(plug *interfaces.Plug, slot *interfaces.Slot, expectedSnippet string) {
 		apparmorSpec := &apparmor.Specification{}
-		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
+		err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
 		c.Assert(err, IsNil)
 
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-ports"})

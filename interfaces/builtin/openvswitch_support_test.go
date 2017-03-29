@@ -81,7 +81,7 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) 
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	spec := &kmod.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"openvswitch": true,

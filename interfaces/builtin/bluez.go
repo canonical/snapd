@@ -187,7 +187,7 @@ func (iface *BluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *i
 	return nil
 }
 
-func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
@@ -195,7 +195,7 @@ func (iface *BluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *BluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)

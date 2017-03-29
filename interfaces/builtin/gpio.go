@@ -81,7 +81,7 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
@@ -96,7 +96,7 @@ func (iface *GpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 }
 
-func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *GpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	gpioNum, ok := slot.Attrs["number"].(int64)
 	if !ok {
 		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])

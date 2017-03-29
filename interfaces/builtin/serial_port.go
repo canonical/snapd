@@ -136,7 +136,7 @@ func (iface *SerialPortInterface) UdevPermanentSlot(spec *udev.Specification, sl
 	return nil
 }
 
-func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
@@ -155,7 +155,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *SerialPortInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *SerialPortInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil

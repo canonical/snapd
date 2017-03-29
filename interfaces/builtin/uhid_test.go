@@ -81,7 +81,7 @@ func (s *UhidInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-slot-1"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-slot-1"), testutil.Contains, "/dev/uhid rw,\n")
@@ -90,7 +90,7 @@ func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := `KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"`
 	spec := &udev.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	err := spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]

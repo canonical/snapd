@@ -675,7 +675,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for plug := range r.slotPlugs[slot] {
-			if err := spec.AddConnectedSlot(iface, plug, slot); err != nil {
+			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
 			}
 		}
@@ -687,7 +687,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for slot := range r.plugSlots[plug] {
-			if err := spec.AddConnectedPlug(iface, plug, slot); err != nil {
+			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
 			}
 		}

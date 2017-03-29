@@ -184,7 +184,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	expectedSnippet1 := `KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`
 
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUdev1, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
@@ -193,7 +193,7 @@ func (s *I2cInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 func (s *I2cInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet1 := `/dev/i2c-1 rw,`
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUdev1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")

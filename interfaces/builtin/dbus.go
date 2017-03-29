@@ -265,7 +265,7 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return err
@@ -346,7 +346,7 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
