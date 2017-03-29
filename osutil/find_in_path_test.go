@@ -32,6 +32,7 @@ import (
 
 type findInPathSuite struct {
 	basePath string
+	envPath  string
 }
 
 var _ = Suite(&findInPathSuite{})
@@ -44,6 +45,7 @@ func (s *findInPathSuite) SetUpSuite(c *C) {
 	p, err := ioutil.TempDir("", "find-in-path")
 	c.Assert(err, Equals, nil)
 	s.basePath = p
+	s.envPath = os.Getenv("PATH")
 	os.Setenv("PATH", fmt.Sprintf("%s/bin:%s/usr/bin", s.basePath, s.basePath))
 
 	for _, d := range []string{"/bin", "/usr/bin"} {
@@ -55,6 +57,10 @@ func (s *findInPathSuite) SetUpSuite(c *C) {
 		c.Assert(err, Equals, nil)
 		f.Close()
 	}
+}
+
+func (s *findInPathSuite) TearDownSuite(c *C) {
+	os.Setenv("PATH", s.envPath)
 }
 
 func (s *findInPathSuite) TestGivesCorrectPath(c *C) {
