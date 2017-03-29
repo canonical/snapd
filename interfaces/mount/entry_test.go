@@ -116,10 +116,10 @@ func (s *entrySuite) TestParseEntry3(c *C) {
 // Test that number of fields is checked
 func (s *entrySuite) TestParseEntry4(c *C) {
 	for _, s := range []string{
-		"", "1", "1 2", "1 2 3", "1 2 3 4", "1 2 3 4 5" /* skip 6 */, "1 2 3 4 5 6 7",
+		"", "1", "1 2", "1 2 3" /* skip 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
 	} {
 		_, err := mount.ParseEntry(s)
-		c.Assert(err, ErrorMatches, "expected exactly six fields, found [0-7]")
+		c.Assert(err, ErrorMatches, "expected between 4 and 6 fields, found [01237]")
 	}
 }
 
@@ -129,4 +129,22 @@ func (s *entrySuite) TestParseEntry5(c *C) {
 	c.Assert(err, ErrorMatches, "cannot parse dump frequency: .*")
 	_, err = mount.ParseEntry("name dir type options 0 foo")
 	c.Assert(err, ErrorMatches, "cannot parse check pass number: .*")
+}
+
+// Test that last two integer fields default to zero if not present.
+func (s *entrySuite) TestParseEntry6(c *C) {
+	e, err := mount.ParseEntry("name dir type options")
+	c.Assert(err, IsNil)
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+
+	e, err = mount.ParseEntry("name dir type options 5")
+	c.Assert(err, IsNil)
+	c.Assert(e.DumpFrequency, Equals, 5)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+
+	e, err = mount.ParseEntry("name dir type options 5 7")
+	c.Assert(err, IsNil)
+	c.Assert(e.DumpFrequency, Equals, 5)
+	c.Assert(e.CheckPassNumber, Equals, 7)
 }

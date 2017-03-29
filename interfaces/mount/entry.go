@@ -123,18 +123,26 @@ func (e Entry) String() string {
 // ParseEntry parses a fstab-like entry.
 func ParseEntry(s string) (Entry, error) {
 	var e Entry
+	var err error
+	var df, cpn int
 	fields := strings.Fields(s)
 	// do all error checks before any assignments to `e'
-	if len(fields) != 6 {
-		return e, fmt.Errorf("expected exactly six fields, found %d", len(fields))
+	if len(fields) < 4 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
 	}
-	df, err := strconv.Atoi(fields[4])
-	if err != nil {
-		return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+	// Parse DumpFrequency if we have at least 5 fields
+	if len(fields) >= 5 {
+		df, err = strconv.Atoi(fields[4])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+		}
 	}
-	cpn, err := strconv.Atoi(fields[5])
-	if err != nil {
-		return e, fmt.Errorf("cannot parse check pass number: %s", err)
+	// Parse CheckPassNumber if we have at least 6 fields
+	if len(fields) >= 6 {
+		cpn, err = strconv.Atoi(fields[5])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse check pass number: %s", err)
+		}
 	}
 	e.Name = unescape(fields[0])
 	e.Dir = unescape(fields[1])
