@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,14 +20,17 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugAppArmor = `
-# Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this environment does not prevent
-# eavesdropping or apps interfering with one another.
+# Description: Can access Unity7. Note Unity 7 runs on X and requires access to
+# various DBus services and this environment does not prevent eavesdropping or
+# apps interfering with one another.
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -495,22 +498,57 @@ dbus (send)
 deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
-const unity7ConnectedPlugSecComp = `
-# Description: Can access Unity7. Restricted because Unity 7 runs on X and
-# requires access to various DBus services and this environment does not prevent
-# eavesdropping or apps interfering with one another.
+const unity7ConnectedPlugSeccomp = `
+# Description: Can access Unity7. Note Unity 7 runs on X and requires access to
+# various DBus services and this environment does not prevent eavesdropping or
+# apps interfering with one another.
 
 # X
 shutdown
 `
 
-// NewUnity7Interface returns a new "unity7" interface.
-func NewUnity7Interface() interfaces.Interface {
-	return &commonInterface{
-		name: "unity7",
-		connectedPlugAppArmor: unity7ConnectedPlugAppArmor,
-		connectedPlugSecComp:  unity7ConnectedPlugSecComp,
-		reservedForOS:         true,
+type Unity7Interface struct{}
+
+func (iface *Unity7Interface) Name() string {
+	return "unity7"
+}
+
+func (iface *Unity7Interface) String() string {
+	return iface.Name()
+}
+
+func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity7ConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity7ConnectedPlugSeccomp)
+	return nil
+}
+
+func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
+
+	return nil
+}
+
+func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	// Creation of the slot of this type is allowed only by the os snap
+	if !(slot.Snap.Type == "os") {
+		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
+	}
+
+	return nil
+}
+
+func (iface *Unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }
