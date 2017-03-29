@@ -401,6 +401,41 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
+# unity messaging menu
+# first find the desktop file
+/usr/share/applications/ r,
+/var/lib/snapd/desktop/applications/ r,
+/var/lib/snapd/desktop/applications/mimeinfo.cache r,
+/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
+
+# then allow talking to Unity DBus service
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/com/canonical/indicator/messages/service
+    member=GetAll
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/indicator/messages/service
+    interface=com.canonical.indicator.messages.service
+    member={Register,Unregister}Application
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/com/canonical/indicator/messages/###UNITY_SNAP_NAME###_*_desktop
+    member=GetAll
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=com.canonical.indicator.messages.application
+    path=/com/canonical/indicator/messages/###UNITY_SNAP_NAME###_*_desktop
+    peer=(label=unconfined),
+
 # This rule is meant to be covered by abstractions/dbus-session-strict but
 # the unity launcher code has a typo that uses /org/freedesktop/dbus as the
 # path instead of /org/freedesktop/DBus, so we need to all it here.
