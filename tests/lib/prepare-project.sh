@@ -32,13 +32,16 @@ build_deb(){
     cp ../*.deb $GOPATH
 }
 
-download_from_ppa(){
-    local ppa_version="$1"
+download_from_published(){
+    local published_version="$1"
 
-    for pkg in snapd; do
-        file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
-        curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
-    done
+    curl -s -o pkg_page "https://launchpad.net/ubuntu/+source/snapd/$published_version"
+
+    arch=$(dpkg --print-architecture)
+    build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
+
+    file="snapd_${published_version}_${arch}.deb"
+    curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
 }
 
 # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
@@ -120,10 +123,10 @@ if [ "$(which govendor)" = "" ]; then
 fi
 quiet govendor sync
 
-if [ -z "$SNAPD_PPA_VERSION" ]; then
+if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
     build_deb
 else
-    download_from_ppa "$SNAPD_PPA_VERSION"
+    download_from_published "$SNAPD_PUBLISHED_VERSION"
 fi
 
 # Build snapbuild.
