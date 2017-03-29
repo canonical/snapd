@@ -1,0 +1,40 @@
+summary: Check that the docker snap works
+systems: [ubuntu-16.04-*, ubuntu-core-16-*64, ubuntu-14.04-64]
+
+prepare: |
+    if apt show linux-image-extra-$(uname -r); then
+        apt install -y linux-image-extra-$(uname -r)
+    fi
+    modprobe aufs
+    # we don't distort the download statistics, we run with SNAPPY_TESTING=1
+    # which will add "testing" to the user-agent header and the store does
+    # not count this.
+    snap install docker
+
+restore: |
+    apt remove -y linux-image-extra-$(uname -r)-generic || true
+
+debug: |
+    cat /var/log/syslog
+    dmesg
+
+execute: |
+    echo "Check that docker info and run basically work"
+    docker info
+
+    prefix=""
+    case "$SPREAD_SYSTEM" in
+        "ubuntu-core-16-arm-32")
+            prefix=armhf/
+        ;;
+        "ubuntu-core-16-arm-64")
+            prefix=aarch64/
+        ;;
+        "ubuntu-core-16-32")
+            prefix=i386/
+        ;;
+        "ubuntu-16.04-32")
+            prefix=i386/
+        ;;
+    esac
+    docker run --rm ${prefix}hello-world | MATCH "Hello from Docker"

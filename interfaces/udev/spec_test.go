@@ -39,16 +39,20 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		UdevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("connected-plug"))
+			spec.AddSnippet("connected-plug")
+			return nil
 		},
 		UdevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("connected-slot"))
+			spec.AddSnippet("connected-slot")
+			return nil
 		},
 		UdevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
-			return spec.AddSnippet([]byte("permanent-plug"))
+			spec.AddSnippet("permanent-plug")
+			return nil
 		},
 		UdevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
-			return spec.AddSnippet([]byte("permanent-slot"))
+			spec.AddSnippet("permanent-slot")
+			return nil
 		},
 	},
 	plug: &interfaces.Plug{
@@ -72,9 +76,8 @@ func (s *specSuite) SetUpTest(c *C) {
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {
-	c.Assert(s.spec.AddSnippet([]byte("foo")), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string]bool{
-		"foo": true})
+	s.spec.AddSnippet("foo")
+	c.Assert(s.spec.Snippets(), DeepEquals, []string{"foo"})
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
@@ -84,8 +87,5 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string]bool{
-		"connected-plug": true, "permanent-plug": true,
-		"connected-slot": true, "permanent-slot": true,
-	})
+	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }

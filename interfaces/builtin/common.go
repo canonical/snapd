@@ -24,7 +24,9 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -75,47 +77,11 @@ func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// PermanentPlugSnippet returns the snippet of text for the given security
-// system that is used during the whole lifetime of affected applications,
-// whether the plug is connected or not.
-//
-// Plugs don't get any permanent security snippets.
-func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedPlugSnippet returns the snippet of text for the given security
-// system that is used by affected application, while a specific connection
-// between a plug and a slot exists.
-//
-// Connected plugs get the static seccomp and apparmor blobs defined by the
-// instance variables.  They are not really connection specific in this case.
-func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return []byte(iface.connectedPlugAppArmor), nil
-	case interfaces.SecuritySecComp:
-		return []byte(iface.connectedPlugSecComp), nil
+func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.connectedPlugAppArmor != "" {
+		spec.AddSnippet(iface.connectedPlugAppArmor)
 	}
-	return nil, nil
-}
-
-// PermanentSlotSnippet returns the snippet of text for the given security
-// system that is used during the whole lifetime of affected applications,
-// whether the slot is connected or not.
-//
-// Slots don't get any permanent security snippets.
-func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedSlotSnippet returns the snippet of text for the given security
-// system that is used by affected application, while a specific connection
-// between a plug and a slot exists.
-//
-// Slots don't get any per-connection security snippets.
-func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	return nil
 }
 
 // AutoConnect returns whether plug and slot should be implicitly
@@ -159,6 +125,13 @@ func (iface *commonInterface) KModPermanentSlot(spec *kmod.Specification, slot *
 		if err := spec.AddModule(m); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.connectedPlugSecComp != "" {
+		spec.AddSnippet(iface.connectedPlugSecComp)
 	}
 	return nil
 }
