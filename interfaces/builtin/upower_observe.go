@@ -199,10 +199,6 @@ func (iface *UpowerObserveInterface) Name() string {
 	return "upower-observe"
 }
 
-func (iface *UpowerObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -215,10 +211,6 @@ func (iface *UpowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *UpowerObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *UpowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
 	return nil
@@ -227,10 +219,6 @@ func (iface *UpowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specif
 func (iface *UpowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
 	return nil
-}
-
-func (iface *UpowerObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *UpowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
@@ -244,10 +232,6 @@ func (iface *UpowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	snippet := strings.Replace(upowerObserveConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *UpowerObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *UpowerObserveInterface) SanitizePlug(plug *interfaces.Plug) error {

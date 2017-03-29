@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -226,9 +227,10 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 2)
 
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Check(udevSpec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.slot)
