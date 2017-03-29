@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -246,45 +247,53 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
+	spec := &udev.Specification{}
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
+		err := spec.AddPermanentSlot(s.iface, slot)
 		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
+		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
-	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"
-`)
-	snippet, err := s.iface.PermanentSlotSnippet(s.testUdev1, interfaces.SecurityUDev)
+	expectedSnippet1 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
+	err := spec.AddPermanentSlot(s.iface, s.testUdev1)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet1)
 
-	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"
-`)
-	snippet, err = s.iface.PermanentSlotSnippet(s.testUdev2, interfaces.SecurityUDev)
+	spec = &udev.Specification{}
+	expectedSnippet2 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
+	err = spec.AddPermanentSlot(s.iface, s.testUdev2)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet2)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityUDev)
+	spec := &udev.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 
-	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"
-`)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
+	expectedSnippet1 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet1)
 
-	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"
-`)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityUDev)
+	spec = &udev.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUdev2)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	expectedSnippet2 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"`
+	c.Assert(snippet, Equals, expectedSnippet2)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
