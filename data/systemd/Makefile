@@ -14,6 +14,8 @@ all:
 		sed s:@SNAP_MOUNTDIR@:${SNAP_MOUNTDIR}:g > snapd.refresh.service
 	cat snapd.autoimport.service.in | \
 		sed s:@bindir@:${BINDIR}:g > snapd.autoimport.service
+	cat snapd.system-shutdown.service.in | \
+		sed s:@libexecdir@:${LIBEXECDIR}:g > snapd.system-shutdown.service
 
 install:
 	install -d ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR}
