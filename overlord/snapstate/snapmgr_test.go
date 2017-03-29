@@ -863,6 +863,34 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(snapsup.Channel, Equals, "some-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "os",
+	})
+
+	oldConfigure := snapstate.Configure
+	defer func() { snapstate.Configure = oldConfigure }()
+
+	var configureFlags int
+	snapstate.Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+		configureFlags = flags
+		return state.NewTaskSet()
+	}
+
+	_, err := snapstate.Update(s.state, "core", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// ensure the core snap sets the "ignore-hook-error" flag
+	c.Check(configureFlags&snapstate.IgnoreHookError, Equals, 1)
+}
+
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
