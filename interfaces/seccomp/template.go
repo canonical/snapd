@@ -500,3 +500,16 @@ pwritev
 # of socket(), bind(), connect(), etc individually.
 socketcall
 `)
+
+// defaultHookTemplate contains default seccomp template for hooks.
+// It can be overridden for testing using MockTemplate().
+var defaultHookTemplate = []byte(`
+# Needed to workaround LP #1674193; when snapctl is executed inside a
+# hook it tries to connect to snapd via dirs.SnapSocket and
+# dirs.SnapdSocket. Given how golang performs the connection internally
+# the code will use bind which is denied by the default seccomp policy
+# which will lead to a hang of snapctl in environments where only
+# seccomp confinement is enabled. To workaround this will additionally
+# allow the bind syscall just for hooks.
+bind
+`)
