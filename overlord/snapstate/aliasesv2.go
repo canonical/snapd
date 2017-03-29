@@ -40,8 +40,8 @@ const (
 // Auto is set to the target for an automatic alias, enabled or
 // disabled depending on the aliases status of the whole snap.
 type AliasTarget struct {
-	Manual string `json:"manual"`
-	Auto   string `json:"auto"`
+	Manual string `json:"manual,omitempty"`
+	Auto   string `json:"auto,omitempty"`
 }
 
 // Effective returns the target to use based on the aliasesStatus of the whole snap, returns "" if the alias is disabled.
