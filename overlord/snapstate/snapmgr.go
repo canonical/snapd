@@ -804,7 +804,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
 	st.Lock()
 	if err == nil {
-		logger.Noticef("Reported problem as %s", oopsid)
+		logger.Noticef("Reported install problem for %q as %s", snapsup.SideInfo.RealName, oopsid)
 	} else {
 		logger.Debugf("Cannot report problem: %s", err)
 	}
