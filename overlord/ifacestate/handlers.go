@@ -104,6 +104,9 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		}
 		// if not on classic check there was no rollback
 		if !release.OnClassic {
+			// TODO: double check that we really rebooted
+			// otherwise this could be just a spurious restart
+			// of snapd
 			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
 			if err == snapstate.ErrBootNameAndRevisionAgain {
 				return &state.Retry{After: 5 * time.Second}

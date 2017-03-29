@@ -20,10 +20,13 @@
 package configstate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -39,23 +42,36 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 }
 
 var configureTests = []struct {
-	patch    map[string]interface{}
-	optional bool
+	patch       map[string]interface{}
+	optional    bool
+	ignoreError bool
 }{{
-	patch:    nil,
-	optional: true,
+	patch:       nil,
+	optional:    true,
+	ignoreError: false,
 }, {
-	patch:    map[string]interface{}{},
-	optional: true,
+	patch:       map[string]interface{}{},
+	optional:    true,
+	ignoreError: false,
 }, {
-	patch:    map[string]interface{}{"foo": "bar"},
-	optional: false,
+	patch:       map[string]interface{}{"foo": "bar"},
+	optional:    false,
+	ignoreError: false,
+}, {
+	patch:       nil,
+	optional:    true,
+	ignoreError: true,
 }}
 
 func (s *tasksetsSuite) TestConfigure(c *C) {
 	for _, test := range configureTests {
+		var flags int
+		if test.ignoreError {
+			flags |= snapstate.IgnoreHookError
+		}
+
 		s.state.Lock()
-		taskset := configstate.Configure(s.state, "test-snap", test.patch)
+		taskset := configstate.Configure(s.state, "test-snap", test.patch, flags)
 		s.state.Unlock()
 
 		tasks := taskset.Tasks()
@@ -79,6 +95,8 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		c.Assert(hooksup.Snap, Equals, "test-snap")
 		c.Assert(hooksup.Hook, Equals, "configure")
 		c.Assert(hooksup.Optional, Equals, test.optional)
+		c.Assert(hooksup.IgnoreError, Equals, test.ignoreError)
+		c.Assert(hooksup.Timeout, Equals, 5*time.Minute)
 
 		context, err := hookstate.NewContext(task, &hooksup, nil)
 		c.Check(err, IsNil)

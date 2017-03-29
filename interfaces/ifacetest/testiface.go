@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
@@ -42,14 +43,6 @@ type TestInterface struct {
 	SanitizePlugCallback func(plug *interfaces.Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *interfaces.Slot) error
-	// SlotSnippetCallback is the callback invoked inside ConnectedSlotSnippet()
-	SlotSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
-	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
-	PermanentSlotSnippetCallback func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
-	// PlugSnippetCallback is the callback invoked inside ConnectedPlugSnippet()
-	PlugSnippetCallback func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error)
-	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
-	PermanentPlugSnippetCallback func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error)
 
 	// Support for interacting with the test backend.
 
@@ -80,6 +73,7 @@ type TestInterface struct {
 	AppArmorPermanentSlotCallback func(spec *apparmor.Specification, slot *interfaces.Slot) error
 
 	// Support for interacting with the kmod backend.
+
 	KModConnectedPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	KModConnectedSlotCallback func(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	KModPermanentPlugCallback func(spec *kmod.Specification, plug *interfaces.Plug) error
@@ -98,6 +92,13 @@ type TestInterface struct {
 	DBusConnectedSlotCallback func(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
 	DBusPermanentPlugCallback func(spec *dbus.Specification, plug *interfaces.Plug) error
 	DBusPermanentSlotCallback func(spec *dbus.Specification, slot *interfaces.Slot) error
+
+	// Support for interacting with the systemd backend.
+
+	SystemdConnectedPlugCallback func(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdConnectedSlotCallback func(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
+	SystemdPermanentPlugCallback func(spec *systemd.Specification, plug *interfaces.Plug) error
+	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *interfaces.Slot) error
 }
 
 // String() returns the same value as Name().
@@ -130,42 +131,6 @@ func (t *TestInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		return t.SanitizeSlotCallback(slot)
 	}
 	return nil
-}
-
-// ConnectedPlugSnippet returns the configuration snippet "required" to offer a test plug.
-// Providers don't gain any extra permissions.
-func (t *TestInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if t.PlugSnippetCallback != nil {
-		return t.PlugSnippetCallback(plug, slot, securitySystem)
-	}
-	return nil, nil
-}
-
-// PermanentPlugSnippet returns the configuration snippet "required" to offer a test plug.
-// Providers don't gain any extra permissions.
-func (t *TestInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if t.PermanentPlugSnippetCallback != nil {
-		return t.PermanentPlugSnippetCallback(plug, securitySystem)
-	}
-	return nil, nil
-}
-
-// ConnectedSlotSnippet returns the configuration snippet "required" to use a test plug.
-// Consumers don't gain any extra permissions.
-func (t *TestInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if t.SlotSnippetCallback != nil {
-		return t.SlotSnippetCallback(plug, slot, securitySystem)
-	}
-	return nil, nil
-}
-
-// PermanentSlotSnippet returns the configuration snippet "required" to use a test plug.
-// Consumers don't gain any extra permissions.
-func (t *TestInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	if t.PermanentSlotSnippetCallback != nil {
-		return t.PermanentSlotSnippetCallback(slot, securitySystem)
-	}
-	return nil, nil
 }
 
 // AutoConnect returns whether plug and slot should be implicitly
@@ -385,6 +350,36 @@ func (t *TestInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interf
 func (t *TestInterface) DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error {
 	if t.DBusPermanentPlugCallback != nil {
 		return t.DBusPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+// Support for interacting with the systemd backend.
+
+func (t *TestInterface) SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SystemdConnectedPlugCallback != nil {
+		return t.SystemdConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if t.SystemdConnectedSlotCallback != nil {
+		return t.SystemdConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdPermanentSlot(spec *systemd.Specification, slot *interfaces.Slot) error {
+	if t.SystemdPermanentSlotCallback != nil {
+		return t.SystemdPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *interfaces.Plug) error {
+	if t.SystemdPermanentPlugCallback != nil {
+		return t.SystemdPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }

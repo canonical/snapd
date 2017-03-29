@@ -265,10 +265,6 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *DbusInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
@@ -304,10 +300,6 @@ func (iface *DbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *DbusInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
@@ -352,14 +344,6 @@ func (iface *DbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 		spec.AddSnippet(getAppArmorSnippet(dbusPermanentSlotAppArmorClassic, bus, name))
 	}
 	return nil
-}
-
-func (iface *DbusInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DbusInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *DbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {

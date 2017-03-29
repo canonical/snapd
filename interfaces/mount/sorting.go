@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,11 +17,26 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+package mount
 
-int main(int arch, char **argv)
-{
-	return 1;
+import (
+	"strings"
+)
+
+// byMagicDir allows sorting an array of entries that automagically assumes
+// each entry ends with a trailing slash.
+type byMagicDir []Entry
+
+func (c byMagicDir) Len() int      { return len(c) }
+func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byMagicDir) Less(i, j int) bool {
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
+	}
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
 }
