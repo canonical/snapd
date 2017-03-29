@@ -39,7 +39,7 @@ type Unity7InterfaceSuite struct {
 
 var _ = Suite(&Unity7InterfaceSuite{})
 
-const unity7mockPlugSnapInfoYaml = `name: other
+const unity7mockPlugSnapInfoYaml = `name: other-snap
 version: 1.0
 apps:
  app2:
@@ -81,9 +81,9 @@ func (s *Unity7InterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *Unity7InterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
+	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other-snap"}}) },
 		PanicMatches, `slot is not of interface "unity7"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
+	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other-snap"}}) },
 		PanicMatches, `plug is not of interface "unity7"`)
 }
 
@@ -92,13 +92,14 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `/usr/share/pixmaps`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/usr/share/pixmaps`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_*_desktop`)
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shutdown\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "shutdown\n")
 }
