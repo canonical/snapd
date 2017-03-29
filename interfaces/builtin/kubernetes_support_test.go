@@ -23,9 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,23 +37,28 @@ type KubernetesSupportInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&KubernetesSupportInterfaceSuite{
-	iface: builtin.NewKubernetesSupportInterface(),
-	slot: &interfaces.Slot{
+const k8sMockPlugSnapInfoYaml = `name: other
+version: 1.0
+apps:
+ app2:
+  command: foo
+  plugs: [kubernetes-support]
+`
+
+var _ = Suite(&KubernetesSupportInterfaceSuite{})
+
+func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
+	s.iface = builtin.NewKubernetesSupportInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "kubernetes-support",
 			Interface: "kubernetes-support",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "kubernetes-support",
-			Interface: "kubernetes-support",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, k8sMockPlugSnapInfoYaml, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["kubernetes-support"]}
+}
 
 func (s *KubernetesSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kubernetes-support")
@@ -80,19 +87,18 @@ func (s *KubernetesSupportInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "kubernetes-support"`)
 }
 
-func (s *KubernetesSupportInterfaceSuite) TestConnectedPlugKmod(c *C) {
-	spec := &kmod.Specification{}
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+func (s *KubernetesSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	kmodSpec := &kmod.Specification{}
+	err := kmodSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+	c.Assert(kmodSpec.Modules(), DeepEquals, map[string]bool{
 		"llc": true,
 		"stp": true,
 	})
-}
 
-func (s *KubernetesSupportInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-	c.Check(string(snippet), testutil.Contains, "# Allow reading the state of modules kubernetes needs\n")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "# Allow reading the state of modules kubernetes needs\n")
 }
