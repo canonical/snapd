@@ -107,3 +107,8 @@ var (
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// aliases v2
+var (
+	ApplyAliasesChange = applyAliasesChange
+)
