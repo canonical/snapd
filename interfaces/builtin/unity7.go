@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const unity7ConnectedPlugAppArmor = `
@@ -550,7 +551,7 @@ func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Creation of the slot of this type is allowed only by the os snap
-	if !(slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
 	}
 
