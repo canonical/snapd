@@ -20,6 +20,7 @@
 package mount_test
 
 import (
+	"bytes"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -158,4 +159,23 @@ func (s *entrySuite) TestLoadFSTab3(c *C) {
 		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
 		{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
 	})
+}
+
+// Test that writing an empty fstab file works correctly.
+func (s *entrySuite) TestSaveFSTab1(c *C) {
+	var buf bytes.Buffer
+	mount.SaveFSTab(&buf, nil)
+	c.Assert(buf.String(), Equals, "")
+}
+
+// Test that writing an trivial fstab file works correctly.
+func (s *entrySuite) TestSaveFSTab2(c *C) {
+	var buf bytes.Buffer
+	mount.SaveFSTab(&buf, []mount.Entry{
+		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
+		{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
+	})
+	c.Assert(buf.String(), Equals, ("" +
+		"name-1 dir-1 type-1 options-1 1 1\n" +
+		"name-2 dir-2 type-2 options-2 2 2\n"))
 }
