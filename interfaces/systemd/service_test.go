@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,11 +25,11 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 )
 
-type snippetSuite struct{}
+type serviceSuite struct{}
 
-var _ = Suite(&snippetSuite{})
+var _ = Suite(&serviceSuite{})
 
-func (s *snippetSuite) TestString(c *C) {
+func (s *serviceSuite) TestString(c *C) {
 	service1 := systemd.Service{ExecStart: "/bin/true"}
 	c.Assert(service1.String(), Equals, "[Service]\nExecStart=/bin/true\n\n[Install]\nWantedBy=multi-user.target\n")
 	service2 := systemd.Service{Type: "oneshot"}

@@ -30,70 +30,68 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// AliasState describes the state of an alias in the context of a snap.
-// aliases-v2 top state entry is a snapName -> alias -> AliasState map.
-type AliasState struct {
-	Status        string `json:"status"` // one of: auto,disabled,manual,overridden
-	Target        string `json:"target"`
-	AutoTargetBak string `json:"auto-target,omitempty"`
+// AliasesStatus represents the global aliases status for a snap.
+type AliasesStatus string
+
+// Possible global aliases statuses for a snap.
+const (
+	EnabledAliases  AliasesStatus = "enabled"
+	DisabledAliases AliasesStatus = "disabled"
+)
+
+// AliasTarget carries the targets of an alias in the context of snap.
+// If Manual is set it is the target of an enabled manual alias.
+// Auto is set to the target for an automatic alias, enabled or
+// disabled depending on the aliases status of the whole snap.
+type AliasTarget struct {
+	Manual string `json:"manual,omitempty"`
+	Auto   string `json:"auto,omitempty"`
 }
 
-func (as *AliasState) Enabled() bool {
-	switch as.Status {
-	case "auto", "manual", "overridden":
-		return true
-	}
-	return false
-}
-
-func (as *AliasState) Manual() bool {
-	switch as.Status {
-	case "manual", "overridden":
-		return true
-	}
-	return false
-}
-
-func (as *AliasState) AutoTarget() string {
-	switch as.Status {
-	case "manual":
+// Effective returns the target to use based on the aliasesStatus of the whole snap, returns "" if the alias is disabled.
+func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
+	if at == nil {
 		return ""
-	case "overridden":
-		return as.AutoTargetBak
-	default:
-		return as.Target
 	}
+	if at.Manual != "" {
+		return at.Manual
+	}
+	if aliasesStatus == EnabledAliases {
+		return at.Auto
+	}
+	return ""
 }
 
 /*
+   State for aliases for a snap is tracked in SnapState with:
+
+	type SnapState struct {
+                ...
+		Aliases       map[string]*AliasTarget `json:"aliases,omitempty"`
+		AliasesStatus AliasesStatus           `json:"aliases-status,omitempty"`
+	}
+}
+
    There are two kinds of aliases:
 
    * automatic aliases listed with their target application in the
-     snap-declaration of the snap (states: auto,disabled,overridden)
+     snap-declaration of the snap (using AliasTarget.Auto)
 
-   * manual aliases setup with "snap alias SNAP.APP ALIAS" (states:
-     manual,overridden)
+   * manual aliases setup with "snap alias SNAP.APP ALIAS" (tracked
+     using AliasTarget.Manual)
 
    Further
 
-   * all automatic aliases of a snap are either enabled (state: auto)
-     or disabled together
+   * all automatic aliases of a snap are either enabled
+     or disabled together (tracked with AliasesStatus)
 
    * disabling a manual alias removes it from disk and state (for
      simplicity there is no disabled state for manual aliases)
 
-   * therefore enabled automatic aliases and manual aliases never mix
-     for a snap (no snap with mixed auto and manual/overridden states)
+   * an AliasTarget with both Auto and Manual set is a manual alias
+     that has the same name as an automatic one, the manual target
+     is what wins
 
-   * a snap with manual aliases can only have disabled or overridden
-     automatic aliases, the latter means a manual alias overlaid on
-     top of what is declared by the snap as an automatic alias
-
-   Given that aliases are shared and can conflict between snaps and
-   (because of --prefer/prefer) some operations might need to touch
-   implicitly the aliases of other snaps, the execution of all tasks
-   touching alias states or aliases on disk are serialized, see
-   SnapManager.blockedTask
 */
 
 // TODO: helper from snap
@@ -104,78 +102,57 @@ func composeTarget(snapName, targetApp string) string {
 	return fmt.Sprintf("%s.%s", snapName, targetApp)
 }
 
-// applyAliasChange applies the necessary changes to aliases on disk
-// to go from prevStates to newStates for the aliases of snapName. It
-// assumes that conflicts have already been checked.
-func applyAliasChange(st *state.State, snapName string, prevStates map[string]*AliasState, newStates map[string]*AliasState, be managerBackend) error {
+// applyAliasesChange applies the necessary changes to aliases on disk
+// to go from prevAliases under the snap global prevStatus for
+// automatic aliases to newAliases under newStatus for snapName.
+// It assumes that conflicts have already been checked.
+func applyAliasesChange(st *state.State, snapName string, prevStatus AliasesStatus, prevAliases map[string]*AliasTarget, newStatus AliasesStatus, newAliases map[string]*AliasTarget, be managerBackend) error {
 	var add, remove []*backend.Alias
-	for alias, prevState := range prevStates {
-		_, ok := newStates[alias]
-		if ok {
+	for alias, prevTargets := range prevAliases {
+		if _, ok := newAliases[alias]; ok {
 			continue
 		}
 		// gone
-		if prevState.Enabled() {
+		if effTgt := prevTargets.Effective(prevStatus); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevState.Target),
+				Target: composeTarget(snapName, effTgt),
 			})
 		}
 	}
-	for alias, newState := range newStates {
-		prevState := prevStates[alias]
-		if prevState == nil {
-			prevState = &AliasState{Status: "-"}
-		}
-		if prevState.Enabled() == newState.Enabled() && (!newState.Enabled() || prevState.Target == newState.Target) {
+	for alias, newTargets := range newAliases {
+		prevTgt := prevAliases[alias].Effective(prevStatus)
+		newTgt := newTargets.Effective(newStatus)
+		if prevTgt == newTgt {
 			// nothing to do
 			continue
 		}
-		if prevState.Enabled() {
+		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevState.Target),
+				Target: composeTarget(snapName, prevTgt),
 			})
 		}
-		if newState.Enabled() {
+		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, newState.Target),
+				Target: composeTarget(snapName, newTgt),
 			})
 		}
 	}
-	st.Unlock()
 	err := be.UpdateAliases(add, remove)
-	st.Lock()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func getAliasStates(st *state.State, snapName string) (map[string]*AliasState, error) {
-	var allAliasStates map[string]*json.RawMessage
-	err := st.Get("aliases-v2", &allAliasStates)
-	if err != nil {
-		return nil, err
-	}
-	raw := allAliasStates[snapName]
-	if raw == nil {
-		return nil, state.ErrNoState
-	}
-	var aliasStates map[string]*AliasState
-	err = json.Unmarshal([]byte(*raw), &aliasStates)
-	if err != nil {
-		return nil, fmt.Errorf("cannot unmarshal snap %q alias states: %v", snapName, err)
-	}
-	return aliasStates, nil
-}
-
-// autoAliasStatesDelta compares the alias states with the current snap
+// autoAliasesDeltaV2 compares the automatic aliases with the current snap
 // declaration for the installed snaps with the given names (or all if
-// names is empty) and returns touched and retired auto-aliases by snap
-// name.
-func autoAliasStatesDelta(st *state.State, names []string) (touched map[string][]string, retired map[string][]string, err error) {
+// names is empty) and returns touched and retired auto-aliases by
+// snap name.
+// TODO: temporary name
+func autoAliasesDeltaV2(st *state.State, names []string) (touched map[string][]string, retired map[string][]string, err error) {
 	var snapStates map[string]*SnapState
 	if len(names) == 0 {
 		var err error
@@ -198,13 +175,7 @@ func autoAliasStatesDelta(st *state.State, names []string) (touched map[string][
 	touched = make(map[string][]string)
 	retired = make(map[string][]string)
 	for snapName, snapst := range snapStates {
-		aliasStates, err := getAliasStates(st, snapName)
-		if err != nil && err != state.ErrNoState {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
+		aliases := snapst.Aliases
 		info, err := snapst.CurrentInfo()
 		if err != nil {
 			if firstErr == nil {
@@ -220,13 +191,13 @@ func autoAliasStatesDelta(st *state.State, names []string) (touched map[string][
 			continue
 		}
 		for alias, target := range autoAliases {
-			curState := aliasStates[alias]
-			if curState == nil || curState.AutoTarget() != target {
+			curTarget := aliases[alias]
+			if curTarget == nil || curTarget.Auto != target {
 				touched[snapName] = append(touched[snapName], alias)
 			}
 		}
-		for alias, aliasState := range aliasStates {
-			if aliasState.Status == "auto" && autoAliases[alias] == "" {
+		for alias, target := range aliases {
+			if target.Auto != "" && autoAliases[alias] == "" {
 				retired[snapName] = append(retired[snapName], alias)
 			}
 		}
@@ -234,58 +205,43 @@ func autoAliasStatesDelta(st *state.State, names []string) (touched map[string][
 	return touched, retired, firstErr
 }
 
-// refreshAliasStates applies the current snap-declaration aliases
-// considering which applications exist in info and produces new alias
-// states for the snap. It preserves the overall enabled or disabled
-// state of automatic aliases for the snap.
-func refreshAliasStates(st *state.State, info *snap.Info, curStates map[string]*AliasState) (newStates map[string]*AliasState, err error) {
-	auto := true
-	for _, aliasState := range curStates {
-		if aliasState.Status != "auto" {
-			auto = false
-			break
-		}
-	}
+// refreshAliases applies the current snap-declaration aliases
+// considering which applications exist in info and produces new aliases
+// for the snap.
+func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, err error) {
 	autoAliases, err := AutoAliases(st, info)
 	if err != nil {
 		return nil, err
 	}
 
-	newStates = make(map[string]*AliasState, len(autoAliases))
+	newAliases = make(map[string]*AliasTarget, len(autoAliases))
 	// apply the current auto-aliases
 	for alias, target := range autoAliases {
 		if info.Apps[target] == nil {
 			// not an existing app
 			continue
 		}
-		status := "disabled"
-		if auto {
-			status = "auto"
-		}
-		newStates[alias] = &AliasState{Status: status, Target: target}
+		newAliases[alias] = &AliasTarget{Auto: target}
 	}
-	if auto {
-		// nothing else to do
-		return newStates, nil
-	}
+
 	// carry over the current manual ones
-	for alias, curState := range curStates {
-		if !curState.Manual() {
+	for alias, curTarget := range curAliases {
+		if curTarget.Manual == "" {
 			continue
 		}
-		if info.Apps[curState.Target] == nil {
+		if info.Apps[curTarget.Manual] == nil {
 			// not an existing app
 			continue
 		}
-		newState := newStates[alias]
-		if newState == nil {
-			newStates[alias] = &AliasState{Status: "manual", Target: curState.Target}
+		newTarget := newAliases[alias]
+		if newTarget == nil {
+			newAliases[alias] = &AliasTarget{Manual: curTarget.Manual}
 		} else {
-			// alias is both manually setup but has an overlapping auto-alias
-			newStates[alias] = &AliasState{Status: "overridden", Target: curState.Target, AutoTargetBak: newState.Target}
+			// alias is both manually setup but has an underlying auto-alias
+			newAliases[alias] = &AliasTarget{Manual: curTarget.Manual, Auto: newTarget.Auto}
 		}
 	}
-	return newStates, nil
+	return newAliases, nil
 }
 
 type AliasConflictError struct {
@@ -320,22 +276,18 @@ func (e *AliasConflictError) Error() string {
 	return fmt.Sprintf("cannot enable alias %q for %q, %s", e.Alias, e.Snap, e.Reason)
 }
 
-func checkAgainstEnabledAliasStates(st *state.State, checkedSnap string, checker func(alias, otherSnap string) error) error {
-	var allAliasStates map[string]map[string]*AliasState
-	err := st.Get("aliases-v2", &allAliasStates)
-	if err == state.ErrNoState {
-		return nil
-	}
+func checkAgainstEffectiveAliases(st *state.State, checkedSnap string, checker func(alias, otherSnap string) error) error {
+	snapStates, err := All(st)
 	if err != nil {
 		return err
 	}
-	for otherSnap, aliasStates := range allAliasStates {
+	for otherSnap, snapst := range snapStates {
 		if otherSnap == checkedSnap {
 			// skip
 			continue
 		}
-		for alias, aliasState := range aliasStates {
-			if aliasState.Enabled() {
+		for alias, target := range snapst.Aliases {
+			if target.Effective(snapst.AliasesStatus) != "" {
 				if err := checker(alias, otherSnap); err != nil {
 					return err
 				}
@@ -345,20 +297,22 @@ func checkAgainstEnabledAliasStates(st *state.State, checkedSnap string, checker
 	return nil
 }
 
-// checkAliasStatesConflicts checks candStates for conflicts against
-// other snaps' alias states returning conflicting snaps and aliases
-// for alias conflicts.
-func checkAliasStatesConflicts(st *state.State, snapName string, candStates map[string]*AliasState) (conflicts map[string][]string, err error) {
+// checkAliasesStatConflicts checks candAliases under candStatus for
+// conflicts against other snap aliases returning conflicting
+// snaps and aliases for alias conflicts.
+func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesStatus, candAliases map[string]*AliasTarget) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	enabled := make(map[string]bool, len(candStates))
-	for alias, candState := range candStates {
-		if candState.Enabled() {
+	enabled := make(map[string]bool, len(candAliases))
+	for alias, candTarget := range candAliases {
+		if candTarget.Effective(candStatus) != "" {
 			enabled[alias] = true
+		} else {
+			continue
 		}
 		namespace := alias
 		if i := strings.IndexRune(alias, '.'); i != -1 {
@@ -376,7 +330,7 @@ func checkAliasStatesConflicts(st *state.State, snapName string, candStates map[
 
 	// check against enabled aliases
 	conflicts = make(map[string][]string)
-	err = checkAgainstEnabledAliasStates(st, snapName, func(alias, otherSnap string) error {
+	err = checkAgainstEffectiveAliases(st, snapName, func(alias, otherSnap string) error {
 		if enabled[alias] {
 			conflicts[otherSnap] = append(conflicts[otherSnap], alias)
 		}

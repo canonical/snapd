@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,11 +17,24 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+package osutil
 
-int main(int arch, char **argv)
-{
-	return 1;
+import (
+	"io/ioutil"
+	"os"
+	"strings"
+)
+
+// BootID returns the unique system-generated boot identifier.
+func BootID() (string, error) {
+	file, err := os.Open("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(bytes)), nil
 }

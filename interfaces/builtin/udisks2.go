@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const udisks2PermanentSlotAppArmor = `
@@ -338,10 +339,6 @@ func (iface *UDisks2Interface) Name() string {
 	return "udisks2"
 }
 
-func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *UDisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2ConnectedPlugDBus)
 	return nil
@@ -360,21 +357,14 @@ func (iface *UDisks2Interface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		return []byte(udisks2PermanentSlotUDev), nil
-	}
-	return nil, nil
+func (iface *UDisks2Interface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(udisks2PermanentSlotUDev)
+	return nil
 }
 
 func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -388,10 +378,6 @@ func (iface *UDisks2Interface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 func (iface *UDisks2Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotSecComp)
 	return nil
-}
-
-func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {

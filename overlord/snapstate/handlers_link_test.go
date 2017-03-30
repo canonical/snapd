@@ -44,7 +44,7 @@ type linkSnapSuite struct {
 var _ = Suite(&linkSnapSuite{})
 
 type witnessRestartReqStateBackend struct {
-	restartRequested bool
+	restartRequested state.RestartType
 }
 
 func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
@@ -52,7 +52,7 @@ func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
 }
 
 func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
-	b.restartRequested = true
+	b.restartRequested = t
 }
 
 func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
@@ -108,7 +108,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, Equals, false)
+	c.Check(s.stateBackend.restartRequested, Equals, state.RestartUnset)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -220,7 +220,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	c.Check(typ, Equals, snap.TypeOS)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.stateBackend.restartRequested, Equals, true)
+	c.Check(s.stateBackend.restartRequested, Equals, state.RestartDaemon)
 	c.Check(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart\.`)
 }
@@ -311,4 +311,54 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	c.Check(snapst.Sequence, HasLen, 2)
 	c.Check(snapst.Current, Equals, snap.R(2))
 	c.Check(t.Status(), Equals, state.UndoneStatus)
+}
+
+func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Active:   true,
+		SnapType: "os",
+	})
+	t := s.state.NewTask("unlink-current-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "core", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(1))
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	c.Check(s.stateBackend.restartRequested, Equals, state.RestartDaemon)
 }
