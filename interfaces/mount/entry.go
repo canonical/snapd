@@ -151,10 +151,11 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 	var entries []Entry
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		s := strings.TrimSpace(scanner.Text())
-		if i := strings.Index(s, "#"); i != -1 {
-			s = strings.TrimSpace(s[0:i])
+		s := scanner.Text()
+		if i := strings.IndexByte(s, '#'); i != -1 {
+			s = s[0:i]
 		}
+		s = strings.TrimSpace(s)
 		if s == "" {
 			continue
 		}
