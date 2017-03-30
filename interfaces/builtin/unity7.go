@@ -31,9 +31,9 @@ import (
 )
 
 const unity7ConnectedPlugAppArmor = `
-# Description: Can access Unity7. Note Unity 7 runs on X and requires access to
-# various DBus services and this environment does not prevent eavesdropping or
-# apps interfering with one another.
+# Description: Can access Unity7. Note, Unity 7 runs on X and requires access
+# to various DBus services and this environment does not prevent eavesdropping
+# or apps interfering with one another.
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -502,9 +502,9 @@ deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 const unity7ConnectedPlugSeccomp = `
-# Description: Can access Unity7. Note Unity 7 runs on X and requires access to
-# various DBus services and this environment does not prevent eavesdropping or
-# apps interfering with one another.
+# Description: Can access Unity7. Note, Unity 7 runs on X and requires access
+# to various DBus services and this environment does not prevent eavesdropping
+# or apps interfering with one another.
 
 # X
 shutdown
@@ -522,9 +522,10 @@ func (iface *Unity7Interface) String() string {
 
 func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	var pathBuf bytes.Buffer
-	// Unity7 will take the desktop filename and convert all '-' to '_'.
-	// Since we know that the desktop filename starts with the snap name,
-	// perform this conversion on the snap name.
+	// Unity7 will take the desktop filename and convert all '-' (and '.',
+	// but we don't care about that here because the rule above already
+	// does that) to '_'. Since we know that the desktop filename starts
+	// with the snap name, perform this conversion on the snap name.
 	pathBuf.WriteString(strings.Replace(plug.Snap.Name(), "-", "_", -1))
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, pathBuf.String(), -1)
