@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -42,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 
 	// So it registers Configure.
@@ -4240,6 +4243,32 @@ func makeTestRefreshConfig(st *state.State) {
 	tr := config.NewTransaction(st)
 	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
 	tr.Commit()
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	logbuf := bytes.NewBuffer(nil)
+	l, err := logger.NewConsoleLog(logbuf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
+	defer logger.SetLogger(logger.NullLogger)
+
+	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59/mon@12:00-14:00"))
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	time.Sleep(100 * time.Millisecond)
+	s.state.Lock()
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule: "mon@12:00-14:00" uses weekdays which is currently not supported`)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
