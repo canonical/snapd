@@ -73,9 +73,7 @@ func (a *Entry) Equal(b *Entry) bool {
 //  tab       => (\011)
 //  newline   => (\012)
 //  backslash => (\134)
-func escape(s string) string {
-	return whitespaceEscape.Replace(s)
-}
+var escape = strings.NewReplacer(" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`).Replace
 
 // unescape replaces escape sequences used by setmnt with whitespace characters.
 //
@@ -84,16 +82,7 @@ func escape(s string) string {
 //  tab       <= (\011)
 //  newline   <= (\012)
 //  backslash <= (\134)
-func unescape(s string) string {
-	return whitespaceUnescape.Replace(s)
-}
-
-var (
-	whitespaceEscape = strings.NewReplacer(
-		" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`)
-	whitespaceUnescape = strings.NewReplacer(
-		`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\")
-)
+var unescape = strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\").Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
