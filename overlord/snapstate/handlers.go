@@ -79,8 +79,8 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -99,9 +99,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapsup.SideInfo.Revision = revision
 	}
 
-	st.Lock()
 	t.Set("snap-setup", snapsup)
-	st.Unlock()
 	return nil
 }
 
@@ -189,8 +187,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	meter := &TaskProgressAdapter{task: t}
-
 	st.Lock()
 	theStore := Store(st)
 	user, err := userFromUserID(st, snapsup.UserID)
@@ -199,6 +195,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 	if snapsup.DownloadInfo == nil {
 		var storeInfo *snap.Info
@@ -251,7 +248,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	if err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb); err != nil {
@@ -295,13 +292,12 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -317,10 +313,8 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = false
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(oldInfo, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -332,7 +326,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -347,9 +340,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	st.Unlock()
 	err = m.backend.LinkSnap(oldInfo)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -382,7 +373,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
@@ -404,13 +395,12 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -436,7 +426,6 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -485,19 +474,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// record type
 	snapst.SetType(newInfo.Type)
 
-	st.Unlock()
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	err = m.backend.LinkSnap(newInfo)
 	if err != nil {
-		pb := &TaskProgressAdapter{task: t}
+		pb := NewTaskProgressAdapterLocked(t)
 		err := m.backend.UnlinkSnap(newInfo, pb)
 		if err != nil {
-			st.Lock()
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.Name(), err)
-			st.Unlock()
 		}
 	}
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -528,21 +513,16 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 	if release.OnClassic && info.Type == snap.TypeOS {
 		t.Logf("Requested daemon restart.")
-		st.Unlock()
 		st.RequestRestart(state.RestartDaemon)
-		st.Lock()
 	}
 	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
 		t.Logf("Requested system restart.")
-		st.Unlock()
 		st.RequestRestart(state.RestartSystem)
-		st.Lock()
 	}
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -614,10 +594,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(newInfo, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -654,7 +632,6 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -668,7 +645,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
 	err = m.backend.StartSnapServices(currentInfo, pb)
 	st.Lock()
@@ -677,7 +654,6 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -691,19 +667,16 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterUnlocked(t)
 	st.Unlock()
 	err = m.backend.StopSnapServices(currentInfo, pb)
 	st.Lock()
-
 	return err
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// invoked only if snap has a current active revision
-
 	st := t.State()
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -717,10 +690,8 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	st.Unlock() // pb itself will ask for locking
+	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(info, pb)
-	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -762,10 +733,10 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-
 	st.Lock()
+	defer st.Unlock()
+
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -792,36 +763,29 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	pb := &TaskProgressAdapter{task: t}
+	pb := NewTaskProgressAdapterLocked(t)
 	typ, err := snapst.Type()
 	if err != nil {
 		return err
 	}
 	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
 	if err != nil {
-		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.Name(), err)
-		st.Unlock()
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
 		// Remove configuration associated with this snap.
-		st.Lock()
 		err = config.DeleteSnapConfig(st, snapsup.Name())
-		st.Unlock()
 		if err != nil {
 			return err
 		}
 		err = m.backend.DiscardSnapNamespace(snapsup.Name())
 		if err != nil {
-			st.Lock()
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.Name(), err)
-			st.Unlock()
 			return &state.Retry{After: 3 * time.Minute}
 		}
 	}
-	st.Lock()
+
 	Set(st, snapsup.Name(), snapst)
-	st.Unlock()
 	return nil
 }
