@@ -1,6 +1,6 @@
 summary: Test that snapd reexecs itself into core
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 restore: |
     # extra cleanup in case something in this test went wrong
@@ -74,19 +74,18 @@ execute: |
     umount /snap/core/current/usr/bin/snap
 
     echo "Ensure a core refresh restart snapd"
-    . $TESTSLIB/names.sh
-    prev_core=$(snap list | awk "/^${core_name} / {print(\$3)}")
-    snap install --dangerous /var/lib/snapd/snaps/${core_name}_${prev_core}.snap
+    prev_core=$(snap list | awk "/^core / {print(\$3)}")
+    snap install --dangerous /var/lib/snapd/snaps/core_${prev_core}.snap
     journalctl | MATCH "Requested daemon restart"
 
     echo "Ensure the right snapd (from the new core) is running"
-    now_core=$(snap list | awk "/^${core_name} / {print(\$3)}")
+    now_core=$(snap list | awk "/^core / {print(\$3)}")
     if [ "$now_core" = "$prev_core" ]; then
         echo "Test broken $now_core and $prev_Core are the same"
         exit 1
     fi
     SNAPD_PATH=$(readlink -f /proc/$(pidof snapd)/exe)
-    if [ "$SNAPD_PATH" != "/snap/${core_name}/${now_core}/usr/lib/snapd/snapd" ]; then
+    if [ "$SNAPD_PATH" != "/snap/core/${now_core}/usr/lib/snapd/snapd" ]; then
         echo "unexpected $SNAPD_PATH for $now_core snap (previous $prev_core)"
         exit 1
     fi

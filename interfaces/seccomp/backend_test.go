@@ -212,10 +212,10 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
 		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-			if scenario.snippet == "" {
-				return nil
+			if scenario.snippet != "" {
+				spec.AddSnippet(scenario.snippet)
 			}
-			return spec.AddSnippet(scenario.snippet)
+			return nil
 		}
 
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
@@ -249,10 +249,12 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	s.Repo.AddInterface(iface2)
 
 	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet("zzz")
+		spec.AddSnippet("zzz")
+		return nil
 	}
 	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
-		return spec.AddSnippet("aaa")
+		spec.AddSnippet("aaa")
+		return nil
 	}
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)

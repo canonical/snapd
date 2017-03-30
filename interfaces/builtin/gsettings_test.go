@@ -23,10 +23,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type GsettingsInterfaceSuite struct {
@@ -85,11 +87,22 @@ func (s *GsettingsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 		PanicMatches, `plug is not of interface "gsettings"`)
 }
 
+func (s *GsettingsInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `dconf.Writer`)
+}
+
 func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
+
 	// connected plugs have nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
