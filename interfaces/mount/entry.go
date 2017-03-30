@@ -125,7 +125,7 @@ func ParseEntry(s string) (Entry, error) {
 	var e Entry
 	var err error
 	var df, cpn int
-	fields := strings.Fields(s)
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// do all error checks before any assignments to `e'
 	if len(fields) < 4 || len(fields) > 6 {
 		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
