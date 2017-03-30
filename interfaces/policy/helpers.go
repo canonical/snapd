@@ -124,9 +124,11 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, cstrs *asserts.Slo
 	if err := cstrs.PlugAttributes.Check(connc.plugAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := cstrs.SlotAttributes.Check(connc.slotAttrs(), connc); err != nil {
 		return err
 	}
+
 	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}

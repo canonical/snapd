@@ -297,9 +297,19 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	}
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		if value, ok := attributes[key]; ok {
+		subkeys, err := config.ParseKey(key)
+		if err != nil {
+			return nil, false, err
+		}
+
+		var value interface{}
+		err = config.GetFromChange(context.SnapName(), subkeys, 0, attributes, &value)
+		if err == nil {
 			return value, true, nil
 		}
-		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		if config.IsNoOption(err) {
+			return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		}
+		return nil, false, err
 	})
 }

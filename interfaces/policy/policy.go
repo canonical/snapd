@@ -116,22 +116,23 @@ func (ic *InstallCandidate) Check() error {
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
-	// TODO: later we need to carry dynamic attributes once we have those
 	Plug                *snap.PlugInfo
 	PlugSnapDeclaration *asserts.SnapDeclaration
+	PlugAttrs           map[string]interface{}
 
 	Slot                *snap.SlotInfo
 	SlotSnapDeclaration *asserts.SnapDeclaration
+	SlotAttrs           map[string]interface{}
 
 	BaseDeclaration *asserts.BaseDeclaration
 }
 
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	return connc.Plug.Attrs
+	return connc.PlugAttrs
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	return connc.Slot.Attrs
+	return connc.SlotAttrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
