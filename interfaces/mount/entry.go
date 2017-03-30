@@ -76,9 +76,7 @@ func (a *Entry) Equal(b *Entry) bool {
 //  tab       => (\011)
 //  newline   => (\012)
 //  backslash => (\134)
-func escape(s string) string {
-	return whitespaceEscape.Replace(s)
-}
+var escape = strings.NewReplacer(" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`).Replace
 
 // unescape replaces escape sequences used by setmnt with whitespace characters.
 //
@@ -87,16 +85,7 @@ func escape(s string) string {
 //  tab       <= (\011)
 //  newline   <= (\012)
 //  backslash <= (\134)
-func unescape(s string) string {
-	return whitespaceUnescape.Replace(s)
-}
-
-var (
-	whitespaceEscape = strings.NewReplacer(
-		" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`)
-	whitespaceUnescape = strings.NewReplacer(
-		`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\")
-)
+var unescape = strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\").Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
@@ -126,18 +115,26 @@ func (e Entry) String() string {
 // ParseEntry parses a fstab-like entry.
 func ParseEntry(s string) (Entry, error) {
 	var e Entry
-	fields := strings.Fields(s)
+	var err error
+	var df, cpn int
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// do all error checks before any assignments to `e'
-	if len(fields) != 6 {
-		return e, fmt.Errorf("expected exactly six fields, found %d", len(fields))
+	if len(fields) < 4 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
 	}
-	df, err := strconv.Atoi(fields[4])
-	if err != nil {
-		return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+	// Parse DumpFrequency if we have at least 5 fields
+	if len(fields) >= 5 {
+		df, err = strconv.Atoi(fields[4])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+		}
 	}
-	cpn, err := strconv.Atoi(fields[5])
-	if err != nil {
-		return e, fmt.Errorf("cannot parse check pass number: %s", err)
+	// Parse CheckPassNumber if we have at least 6 fields
+	if len(fields) >= 6 {
+		cpn, err = strconv.Atoi(fields[5])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse check pass number: %s", err)
+		}
 	}
 	e.Name = unescape(fields[0])
 	e.Dir = unescape(fields[1])
