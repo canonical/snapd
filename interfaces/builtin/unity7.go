@@ -408,7 +408,7 @@ dbus (receive)
     peer=(label=unconfined),
 
 # unity messaging menu
-# first find the desktop file
+# first, allow finding the desktop file
 /usr/share/applications/ r,
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
