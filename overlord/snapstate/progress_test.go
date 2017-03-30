@@ -20,9 +20,9 @@
 package snapstate
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type progressAdapterTestSuite struct{}
@@ -32,14 +32,27 @@ var _ = Suite(&progressAdapterTestSuite{})
 func (s *progressAdapterTestSuite) TestProgressAdapterWrite(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	p := TaskProgressAdapter{
-		task: st.NewTask("op", "msg"),
-	}
+	m := NewTaskProgressAdapterUnlocked(st.NewTask("op", "msg"))
 	st.Unlock()
+	p := m.(*taskProgressAdapter)
 
-	p.Start("msg", 161803)
+	m.Start("msg", 161803)
 	c.Check(p.total, Equals, float64(161803))
 
-	p.Write([]byte("some-bytes"))
+	m.Write([]byte("some-bytes"))
+	c.Check(p.current, Equals, float64(len("some-bytes")))
+}
+
+func (s *progressAdapterTestSuite) TestProgressAdapterWriteLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	m := NewTaskProgressAdapterLocked(st.NewTask("op", "msg"))
+	p := m.(*taskProgressAdapter)
+
+	m.Start("msg", 161803)
+	c.Check(p.total, Equals, float64(161803))
+
+	m.Write([]byte("some-bytes"))
 	c.Check(p.current, Equals, float64(len("some-bytes")))
 }
