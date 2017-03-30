@@ -40,7 +40,6 @@ restore: |
     arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
 
 execute: |
-    . "$TESTSLIB/names.sh"
     . "$TESTSLIB/network.sh"
 
     CONNECTED_PATTERN=":network-control +network-control-consumer"
@@ -53,7 +52,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect network-control-consumer:network-control ${core_name}:network-control
+    snap connect network-control-consumer:network-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can query network status information"
@@ -62,7 +61,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control ${core_name}:network-control
+    snap disconnect network-control-consumer:network-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not query network status information"
@@ -74,7 +73,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect network-control-consumer:network-control ${core_name}:network-control
+    snap connect network-control-consumer:network-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can modify the network configuration"
@@ -85,7 +84,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control ${core_name}:network-control
+    snap disconnect network-control-consumer:network-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not modify the network configuration"
