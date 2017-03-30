@@ -43,11 +43,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const (
-	isHook = 1 << iota
-	isApp
-)
-
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
 
@@ -106,20 +101,20 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, isHook, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, isApp, opts, spec.SnippetForTag(securityTag), content)
+		addContent(securityTag, opts, spec.SnippetForTag(securityTag), content)
 	}
 
 	return content, nil
 }
 
-func addContent(securityTag string, flags int, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
 	var buffer bytes.Buffer
 	if opts.Classic && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
@@ -131,9 +126,6 @@ func addContent(securityTag string, flags int, opts interfaces.ConfinementOption
 	}
 
 	buffer.Write(defaultTemplate)
-	if flags&isHook != 0 {
-		buffer.Write(defaultHookTemplate)
-	}
 	buffer.WriteString(snippetForTag)
 
 	content[securityTag] = &osutil.FileState{
