@@ -76,6 +76,41 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	return snapsup, &snapst, nil
 }
 
+/* State Locking
+
+   do* / undo* handlers should usually lock the state just once with:
+
+	st.Lock()
+	defer st.Unlock()
+
+   For tasks doing slow operations (long i/o, networking operations) it's OK
+   to unlock the state temporarily:
+
+        st.Unlock()
+        err := slowIOOp()
+        st.Lock()
+        if err != nil {
+           ...
+        }
+
+    but if a task Get and then Set the SnapState of a snap it must avoid
+    releasing the state lock in between, other tasks might have
+    reasons to update the SnapState independently:
+
+        // DO NOT DO THIS!:
+        snapst := ...
+        snapst.Attr = ...
+        st.Unlock()
+        ...
+        st.Lock()
+        Set(st, snapName, snapst)
+
+    if a task really needs to mix mutating a SnapState and releasing the state
+    lock it should be serialized at the task runner level, see
+    SnapManger.blockedTask and TaskRunner.SetBlocked
+
+*/
+
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
