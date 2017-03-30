@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -228,11 +229,20 @@ func isReexeced() bool {
 }
 
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	if !osutil.FileExists(snapConfine) {
+		if hook != "" {
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			return nil
+		}
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+	}
+
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{filepath.Join(dirs.DistroLibExecDir, "snap-confine")}
+	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
