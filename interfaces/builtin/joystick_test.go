@@ -93,6 +93,7 @@ func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
 /dev/input/js[0-9]* rw,
+/run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
 	// connected plugs have a non-nil security snippet for apparmor

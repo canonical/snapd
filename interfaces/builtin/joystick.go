@@ -24,12 +24,14 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const joystickConnectedPlugAppArmor = `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
 /dev/input/js[0-9]* rw,
+/run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
 // JoystickInterface is the type for joystick interface
@@ -53,7 +55,7 @@ func (iface *JoystickInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// The snap implementing this slot must be an os snap.
-	if !(slot.Snap.Type == "os") {
+	if !(slot.Snap.Type == snap.TypeOS) {
 		return fmt.Errorf("%s slots only allowed on core snap", iface.Name())
 	}
 
@@ -76,6 +78,16 @@ func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	spec.AddSnippet(joystickConnectedPlugAppArmor)
 	return nil
 }
+
+// TODO: This interface needs to use udev tagging, see LP: #1675738.
+// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// 	const udevRule = `KERNEL=="js[0-9]*", TAG+="%s"`
+// 	for appName := range plug.Apps {
+// 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+// 		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
+// 	}
+// 	return nil
+// }
 
 // AutoConnect returns true in order to allow what's in the declarations.
 func (iface *JoystickInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
