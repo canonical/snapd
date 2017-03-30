@@ -35,6 +35,10 @@ type TimeOfDay struct {
 	Minute int
 }
 
+func (t TimeOfDay) String() string {
+	return fmt.Sprintf("%02d:%02d", t.Hour, t.Minute)
+}
+
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
@@ -60,6 +64,13 @@ type Schedule struct {
 	End   TimeOfDay
 
 	Weekday string
+}
+
+func (sched *Schedule) String() string {
+	if sched.Weekday == "" {
+		return fmt.Sprintf("%s:%s", sched.Start, sched.End)
+	}
+	return fmt.Sprintf("%s@%s-%s", sched.Weekday, sched.Start, sched.End)
 }
 
 func (sched *Schedule) Next(last time.Time) (start, end time.Time) {

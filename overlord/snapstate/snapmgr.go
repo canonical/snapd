@@ -370,6 +370,15 @@ func setLastRefresh(st *state.State) {
 	st.Set("last-refresh", time.Now())
 }
 
+func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
+	for _, s := range rs {
+		if s.Weekday != "" {
+			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
+		}
+	}
+	return nil
+}
+
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
@@ -399,6 +408,9 @@ func (m *SnapManager) ensureRefreshes() error {
 		return err
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
+	if err == nil {
+		err = refreshScheduleUsesWeekdays(refreshSchedule)
+	}
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
