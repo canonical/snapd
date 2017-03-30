@@ -21,6 +21,7 @@ package mount
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -171,4 +172,21 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+// SaveFSTab writes a list of entries to a fstab-like file.
+//
+// The supported format is described by fstab(5).
+func SaveFSTab(writer io.Writer, entries []Entry) error {
+	var buf bytes.Buffer
+	for i := range entries {
+		if _, err := buf.WriteString(entries[i].String()); err != nil {
+			return err
+		}
+		if _, err := buf.WriteRune('\n'); err != nil {
+			return err
+		}
+	}
+	_, err := buf.WriteTo(writer)
+	return err
 }
