@@ -457,7 +457,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		updated, tasksets, err := AutoRefresh(m.state)
 		m.state.Unlock()
 		if err != nil {
-			// FIXME: log error?
+			logger.Noticef("AutoRefresh failed with: %s", err)
 			return
 		}
 		m.doAutoRefresh(updated, tasksets)
