@@ -59,12 +59,11 @@ plugs:
 	}
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
-	emptyAttrs := make(map[string]interface{})
 	return &policy.ConnectCandidate{
 		Plug:            plugSnap.Plugs[iface],
 		Slot:            slotSnap.Slots[iface],
-		PlugAttrs:       emptyAttrs,
-		SlotAttrs:       emptyAttrs,
+		PlugAttrs:       plugSnap.Plugs[iface].Attrs,
+		SlotAttrs:       slotSnap.Slots[iface].Attrs,
 		BaseDeclaration: s.baseDecl,
 	}
 }
