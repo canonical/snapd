@@ -410,6 +410,7 @@ dbus (receive)
 # unity messaging menu
 # first, allow finding the desktop file
 /usr/share/applications/ r,
+# this leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 /var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
