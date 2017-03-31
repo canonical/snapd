@@ -26,9 +26,12 @@ cmd/snap-update-ns/snap-update-ns
 cmd/snap-update-ns/unit-tests
 cmd/system-shutdown/system-shutdown
 cmd/system-shutdown/unit-tests
+cmd/snapd-xdg-open
 
 # manual pages
 cmd/*/*.[1-9]
+
+data/dbus/com.canonical.SafeLauncher.service
 
 # test-driver
 *.log

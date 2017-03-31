@@ -109,6 +109,22 @@ AS_IF([test "x$enable_apparmor" = "xyes"], [
 PKG_CHECK_MODULES([LIBUDEV], [libudev])
 PKG_CHECK_MODULES([UDEV], [udev])
 
+AC_ARG_WITH([xdg-open],
+    AC_HELP_STRING([--without-xdg-open], [do not build xdg open helper]),
+    [case "${withval}" in
+        yes) with_xdg_open=yes ;;
+        no)  with_xdg_open=no ;;
+        *)   AC_MSG_ERROR([bad value ${withval} for --without-xdg-open])
+    esac], [with_xdg_open=yes])
+AM_CONDITIONAL([WITH_XDG_OPEN], [test "x$with_xdg_open" = "xyes"])
+
+# Check for glib that we use for unit testing
+AS_IF([test "x$with_unit_tests" = "xyes"], [
+    PKG_CHECK_MODULES([GIO], [gio-2.0])
+    AC_SUBST([GIO_CFLAGS])
+    AC_SUBST([GIO_LIBS])
+])
+
 # Check if libcap is available.
 # PKG_CHECK_MODULES([LIBCAP], [libcap])
 

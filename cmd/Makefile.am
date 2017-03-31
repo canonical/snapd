@@ -382,3 +382,10 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+if WITH_XDG_OPEN
+libexec_PROGRAMS += snapd-xdg-open
+snapd_xdg_open_SOURCES = xdg/snapd-xdg-open.c
+snapd_xdg_open_CFLAGS = $(GIO_CFLAGS)
+snapd_xdg_open_LDADD = $(GIO_LIBS)
+endif
