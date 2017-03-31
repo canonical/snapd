@@ -35,10 +35,63 @@ type AliasesStatus string
 
 // Possible global aliases statuses for a snap.
 const (
-	UnsetAliases    AliasesStatus = ""
-	EnabledAliases  AliasesStatus = "enabled"
-	DisabledAliases AliasesStatus = "disabled"
+	UnsetAliases           AliasesStatus = ""
+	EnabledAliases         AliasesStatus = "enabled"
+	DisabledAliases        AliasesStatus = "disabled"
+	PendingEnabledAliases  AliasesStatus = "pending:enabled"
+	PendingDisabledAliases AliasesStatus = "pending:disabled"
 )
+
+// Enabled returns whether status entails enabled.
+func (status AliasesStatus) Enabled() bool {
+	switch status {
+	case EnabledAliases, PendingEnabledAliases:
+		return true
+	}
+	return false
+}
+
+// Pending returns whether status is a pending status.
+func (status AliasesStatus) Pending() bool {
+	switch status {
+	case PendingEnabledAliases, PendingDisabledAliases:
+		return true
+	}
+	return false
+}
+
+// ToPending returns the corresponding pending status of status.
+func (status AliasesStatus) ToPending() AliasesStatus {
+	switch status {
+	case EnabledAliases:
+		return PendingEnabledAliases
+	case DisabledAliases:
+		return PendingDisabledAliases
+	}
+	return status
+}
+
+// FromPending returns the corresponding non-pending status of status.
+func (status AliasesStatus) FromPending() AliasesStatus {
+	switch status {
+	case PendingEnabledAliases:
+		return EnabledAliases
+	case PendingDisabledAliases:
+		return DisabledAliases
+	}
+	return status
+}
+
+// ToDisabled returns the corresponding disabled status of status.
+func (status AliasesStatus) ToDisabled() AliasesStatus {
+	switch status {
+	case EnabledAliases:
+		return DisabledAliases
+	case PendingEnabledAliases:
+		return PendingDisabledAliases
+	}
+	return status
+}
 
 // AliasTarget carries the targets of an alias in the context of snap.
 // If Manual is set it is the target of an enabled manual alias.
@@ -57,7 +110,7 @@ func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
 	if at.Manual != "" {
 		return at.Manual
 	}
-	if aliasesStatus == EnabledAliases {
+	if aliasesStatus.Enabled() {
 		return at.Auto
 	}
 	return ""
@@ -360,7 +413,7 @@ func disableAliases(curStatus AliasesStatus, curAliases map[string]*AliasTarget)
 			newAliases[alias] = &AliasTarget{Auto: curTarget.Auto}
 		}
 	}
-	return DisabledAliases, newAliases
+	return curStatus.ToDisabled(), newAliases
 }
 
 // retireAutoAliases returns newAliases by retiring the automatic aliases autoAliases from curAliases, used as the task retire-auto-aliases to handle transfers of automatic aliases in a refresh.

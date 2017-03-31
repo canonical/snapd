@@ -477,4 +477,20 @@ func (s *snapmgrTestSuite) TestDisableAliases(c *C) {
 		"alias2": {Auto: "cmd2"},
 		"alias3": {Auto: "cmd3"},
 	})
+
+	status, dis = snapstate.DisableAliases(snapstate.PendingEnabledAliases, aliases)
+	c.Check(status, Equals, snapstate.PendingDisabledAliases)
+	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias3": {Auto: "cmd3"},
+	})
+
+	status, dis = snapstate.DisableAliases(snapstate.PendingDisabledAliases, aliases)
+	c.Check(status, Equals, snapstate.PendingDisabledAliases)
+	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias3": {Auto: "cmd3"},
+	})
 }
