@@ -290,7 +290,24 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 		return nil
 	}
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	var validatePlugCalled bool
+	var validateSlotCalled bool
+	var validatePlugAttrs map[string]interface{}
+	var validateSlotAttrs map[string]interface{}
+	testIface1 := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		ValidatePlugCallback: func(plug *interfaces.Plug, attrs map[string]interface{}) error {
+			validatePlugCalled = true
+			validatePlugAttrs = attrs
+			return nil
+		},
+		ValidateSlotCallback: func(plug *interfaces.Slot, attrs map[string]interface{}) error {
+			validateSlotCalled = true
+			validateSlotAttrs = attrs
+			return nil
+		},
+	}
+	s.mockIface(c, testIface1)
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -336,6 +353,12 @@ func (s *interfaceManagerSuite) TestInterfaceReceivesHookAttributes(c *C) {
 	c.Assert(repoAttrs, NotNil)
 	c.Assert(repoAttrs.PlugAttrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
 	c.Assert(repoAttrs.SlotAttrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
+	c.Assert(validatePlugCalled, Equals, true)
+	c.Assert(validatePlugAttrs, NotNil)
+	c.Assert(validateSlotCalled, Equals, true)
+	c.Assert(validateSlotAttrs, NotNil)
+	c.Assert(validatePlugAttrs, DeepEquals, map[string]interface{}{"attr1": "value1", "attr3": "value3"})
+	c.Assert(validateSlotAttrs, DeepEquals, map[string]interface{}{"attr2": "value2", "attr4": "value4"})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
