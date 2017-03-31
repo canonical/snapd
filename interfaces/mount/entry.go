@@ -175,7 +175,7 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 //
 // The supported format is described by fstab(5).
 // Note that there is no attempt to use atomic file write/rename tricks. The
-// created file will typicaly live in /run/snapd/ns/$SNAP_NAME.fstab and will
+// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
 // be done so, while holidng a flock-based-lock, by the snap-update-ns program.
 func SaveFSTab(writer io.Writer, entries []Entry) error {
 	var buf bytes.Buffer
