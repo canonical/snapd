@@ -67,22 +67,20 @@ func (a *Entry) Equal(b *Entry) bool {
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
-//
-// According to the manual page, the following characters need to be escaped.
-//  space     => (\040)
-//  tab       => (\011)
-//  newline   => (\012)
-//  backslash => (\134)
-var escape = strings.NewReplacer(" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`).Replace
+var escape = strings.NewReplacer(
+	" ", `\040`, //   space     => (\040)
+	"\t", `\011`, //  tab       => (\011)
+	"\n", `\012`, //  newline   => (\012)
+	"\\", `\134`, //  backslash => (\134)
+).Replace
 
 // unescape replaces escape sequences used by setmnt with whitespace characters.
-//
-// According to the manual page, the following characters need to be unescaped.
-//  space     <= (\040)
-//  tab       <= (\011)
-//  newline   <= (\012)
-//  backslash <= (\134)
-var unescape = strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\").Replace
+var unescape = strings.NewReplacer(
+	`\040`, " ", //   space     <= (\040)
+	`\011`, "\t", //  tab       <= (\011)
+	`\012`, "\n", //  newline   <= (\012)
+	`\134`, "\\", //  backslash <= (\134)
+).Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
