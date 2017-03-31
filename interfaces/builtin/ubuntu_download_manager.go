@@ -237,11 +237,3 @@ func (iface *UbuntuDownloadManagerInterface) AutoConnect(*interfaces.Plug, *inte
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *UbuntuDownloadManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *UbuntuDownloadManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

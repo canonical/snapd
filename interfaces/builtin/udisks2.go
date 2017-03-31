@@ -392,11 +392,3 @@ func (iface *UDisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) b
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *UDisks2Interface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *UDisks2Interface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

@@ -427,11 +427,3 @@ func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *NetworkManagerInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *NetworkManagerInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

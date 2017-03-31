@@ -297,11 +297,3 @@ func (iface *OfonoInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) boo
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *OfonoInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *OfonoInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

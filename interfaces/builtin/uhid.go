@@ -82,11 +82,3 @@ func (iface *UhidInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
 	// Allow what is allowed in the declaration
 	return true
 }
-
-func (iface *UhidInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *UhidInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
