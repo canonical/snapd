@@ -118,14 +118,14 @@ func ParseEntry(s string) (Entry, error) {
 		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
 	}
 	// Parse DumpFrequency if we have at least 5 fields
-	if len(fields) >= 5 {
+	if len(fields) > 4 {
 		df, err = strconv.Atoi(fields[4])
 		if err != nil {
 			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
 	// Parse CheckPassNumber if we have at least 6 fields
-	if len(fields) >= 6 {
+	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
 		if err != nil {
 			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
