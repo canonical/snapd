@@ -153,6 +153,15 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
+// SetAliases sets Aliases taking care of when they become empty.
+func (snapst *SnapState) SetAliases(aliases map[string]*AliasTarget) {
+	if len(aliases) == 0 {
+		snapst.AliasesStatus = UnsetAliases
+		aliases = nil
+	}
+	snapst.Aliases = aliases
+}
+
 // HasCurrent returns whether snapst.Current is set.
 func (snapst *SnapState) HasCurrent() bool {
 	if snapst.Current.Unset() {
@@ -342,7 +351,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
 
 	// XXX: WIP: aliases v2: temporary task names to be able to write tess until switching
-	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoSetAutoAliasesV2)
+	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
 	runner.AddHandler("setup-aliases-v2", m.doSetupAliasesV2, m.doRemoveAliasesV2)
 	runner.AddHandler("refresh-aliases-v2", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
 	runner.AddHandler("retire-auto-aliases-v2", m.doRetireAutoAliasesV2, m.undoRefreshAliasesV2)
