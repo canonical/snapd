@@ -55,11 +55,11 @@ type SerialPortInterfaceSuite struct {
 	badInterfaceSlot *interfaces.Slot
 
 	// Gadget Snap
-	testUdev1         *interfaces.Slot
-	testUdev2         *interfaces.Slot
-	testUdevBadValue1 *interfaces.Slot
-	testUdevBadValue2 *interfaces.Slot
-	testUdevBadValue3 *interfaces.Slot
+	testUDev1         *interfaces.Slot
+	testUDev2         *interfaces.Slot
+	testUDevBadValue1 *interfaces.Slot
+	testUDevBadValue2 *interfaces.Slot
+	testUDevBadValue3 *interfaces.Slot
 
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
@@ -175,11 +175,11 @@ slots:
       usb-product: 0x4321
       path: /dev/my-device
 `, nil)
-	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
-	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
-	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
-	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
-	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
+	s.testUDev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
+	s.testUDev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
+	s.testUDevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
+	s.testUDevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
+	s.testUDevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
@@ -228,25 +228,25 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUdev1)
+	err := s.iface.SanitizeSlot(s.testUDev1)
 	c.Assert(err, IsNil)
 
-	err = s.iface.SanitizeSlot(s.testUdev2)
+	err = s.iface.SanitizeSlot(s.testUDev2)
 	c.Assert(err, IsNil)
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
-	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
+	err := s.iface.SanitizeSlot(s.testUDevBadValue1)
 	c.Assert(err, ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
 
-	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
+	err = s.iface.SanitizeSlot(s.testUDevBadValue2)
 	c.Assert(err, ErrorMatches, "serial-port usb-product attribute not valid: 65536")
 
-	err = s.iface.SanitizeSlot(s.testUdevBadValue3)
+	err = s.iface.SanitizeSlot(s.testUDevBadValue3)
 	c.Assert(err, ErrorMatches, "serial-port path attribute specifies invalid symlink location")
 }
 
-func (s *SerialPortInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
+func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
 		err := spec.AddPermanentSlot(s.iface, slot)
@@ -256,7 +256,7 @@ func (s *SerialPortInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
 
 	expectedSnippet1 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
-	err := spec.AddPermanentSlot(s.iface, s.testUdev1)
+	err := spec.AddPermanentSlot(s.iface, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
@@ -265,14 +265,14 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	spec = &udev.Specification{}
 	expectedSnippet2 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
-	err = spec.AddPermanentSlot(s.iface, s.testUdev2)
+	err = spec.AddPermanentSlot(s.iface, s.testUDev2)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 }
 
-func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
@@ -280,14 +280,14 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 
 	expectedSnippet1 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUdev1)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
 	spec = &udev.Specification{}
-	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUdev2)
+	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
@@ -327,8 +327,8 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, expectedSnippet6)
 
 	expectedSnippet7 := `/dev/tty[A-Z]*[0-9] rw,`
-	checkConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, expectedSnippet7)
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet7)
 
 	expectedSnippet8 := `/dev/tty[A-Z]*[0-9] rw,`
-	checkConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, expectedSnippet8)
+	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet8)
 }
