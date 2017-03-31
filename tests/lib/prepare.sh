@@ -226,12 +226,16 @@ EOF
         # download pc-kernel snap for the specified channel
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
+        # download pc snap for the specified channel
+        snap download --channel="$GADGET_CHANNEL" pc
+
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
                                --channel edge \
                                --extra-snaps $IMAGE_HOME/core_*.snap \
                                --extra-snaps $PWD/pc-kernel_*.snap \
+                               --extra-snaps $PWD/pc_*.snap \
                                --output $IMAGE_HOME/$IMAGE
-        rm ./pc-kernel*
+        rm ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
