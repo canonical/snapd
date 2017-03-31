@@ -24,10 +24,17 @@ package main
 // threads apart from the main thread exist.
 
 /*
+
+#include <stdlib.h>
+
+int should_bootstrap = 1;
+
 #include "bootstrap.h"
 
 __attribute__((constructor)) static void enter_ns(void) {
-	bootstrap();
+	if (should_bootstrap) {
+		bootstrap();
+	}
 }
 
 // NOTE: do not add anything before the following `import "C"'
@@ -37,6 +44,7 @@ import "C"
 import (
 	"fmt"
 	"syscall"
+	"unsafe"
 )
 
 // bootstrapError returns error (if any) encountered in pre-main C code.
@@ -49,4 +57,24 @@ func bootstrapError() error {
 		return fmt.Errorf("%s: %s", C.GoString(C.bootstrap_msg), errno)
 	}
 	return fmt.Errorf("%s", C.GoString(C.bootstrap_msg))
+}
+
+// readCmdline is a wrapper around the C function read_cmdline.
+func readCmdline(buf []byte) C.ssize_t {
+	return C.read_cmdline((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(cap(buf)))
+}
+
+// findSnapName parses the argv-like array and finds the 1st argument.
+// Subsequent arguments are spearated by NUL-bytes.
+func findSnapName(buf []byte) *string {
+	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(cap(buf)), C.size_t(len(buf))); ptr != nil {
+		str := C.GoString(ptr)
+		return &str
+	}
+	return nil
+}
+
+func sanitizeSnapName(snapName string) int {
+	cStr := C.CString(snapName)
+	return int(C.sanitize_snap_name(cStr))
 }
