@@ -231,11 +231,3 @@ func (iface *LocationControlInterface) AutoConnect(*interfaces.Plug, *interfaces
 	// allow what declarations allowed
 	return true
 }
-
-func (iface *LocationControlInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *LocationControlInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

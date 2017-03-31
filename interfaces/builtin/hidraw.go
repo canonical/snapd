@@ -180,10 +180,6 @@ func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	return false
 }
 
-func (iface *HidrawInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
 func (iface *HidrawInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
 	return nil
 }

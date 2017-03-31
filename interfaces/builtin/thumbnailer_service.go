@@ -128,11 +128,3 @@ func (iface *ThumbnailerServiceInterface) SanitizeSlot(slot *interfaces.Slot) er
 func (iface *ThumbnailerServiceInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }
-
-func (iface *ThumbnailerServiceInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *ThumbnailerServiceInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}

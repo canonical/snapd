@@ -135,11 +135,3 @@ func (iface *commonInterface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	}
 	return nil
 }
-
-func (iface *commonInterface) ValidatePlug(plug *interfaces.Plug, attrs map[string]interface{}) error {
-	return nil
-}
-
-func (iface *commonInterface) ValidateSlot(slot *interfaces.Slot, attrs map[string]interface{}) error {
-	return nil
-}
