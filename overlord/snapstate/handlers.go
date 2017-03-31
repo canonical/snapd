@@ -918,8 +918,10 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 	status := snapst.AliasesStatus
 	curAliases := snapst.Aliases
-
 	// TODO: implement --prefer/--unaliased logic
+	if status == UnsetAliases {
+		status = EnabledAliases
+	}
 	newAliases, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
@@ -937,6 +939,7 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 	t.Set("old-aliases-v2", curAliases)
 	t.Set("old-aliases-v2-status", snapst.AliasesStatus)
+	snapst.AliasesStatus = status
 	snapst.SetAliases(newAliases)
 	Set(st, snapName, snapst)
 	return nil
