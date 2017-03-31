@@ -69,22 +69,20 @@ func (a *Entry) Equal(b *Entry) bool {
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
-//
-// According to the manual page, the following characters need to be escaped.
-//  space     => (\040)
-//  tab       => (\011)
-//  newline   => (\012)
-//  backslash => (\134)
-var escape = strings.NewReplacer(" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`).Replace
+var escape = strings.NewReplacer(
+	" ", `\040`,
+	"\t", `\011`,
+	"\n", `\012`,
+	"\\", `\134`,
+).Replace
 
 // unescape replaces escape sequences used by setmnt with whitespace characters.
-//
-// According to the manual page, the following characters need to be unescaped.
-//  space     <= (\040)
-//  tab       <= (\011)
-//  newline   <= (\012)
-//  backslash <= (\134)
-var unescape = strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\").Replace
+var unescape = strings.NewReplacer(
+	`\040`, " ",
+	`\011`, "\t",
+	`\012`, "\n",
+	`\134`, "\\",
+).Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
@@ -122,17 +120,17 @@ func ParseEntry(s string) (Entry, error) {
 		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
 	}
 	// Parse DumpFrequency if we have at least 5 fields
-	if len(fields) >= 5 {
+	if len(fields) > 4 {
 		df, err = strconv.Atoi(fields[4])
 		if err != nil {
-			return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
 	// Parse CheckPassNumber if we have at least 6 fields
-	if len(fields) >= 6 {
+	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
 		if err != nil {
-			return e, fmt.Errorf("cannot parse check pass number: %s", err)
+			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
 	e.Name = unescape(fields[0])
