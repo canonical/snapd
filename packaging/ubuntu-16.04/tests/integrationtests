@@ -32,6 +32,11 @@ fi
 
 # and now run spread against localhost
 . /etc/os-release
-export GOPATH=/tmp/go
-go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)
+TMP_SPREAD="$(mktemp -d)"
+trap "rm -rf \"$TMP_SPREAD\"" EXIT
+snap install spread
+cp /snap/spread/current/bin/spread $TMP_SPREAD
+snap remove spread
+export PATH=$TMP_SPREAD:$PATH
+
+spread -v autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)
