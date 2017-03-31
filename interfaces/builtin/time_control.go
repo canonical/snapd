@@ -125,7 +125,7 @@ func (iface *TimeControlInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	return nil
 }
 
-func (iface *TimeControlInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *TimeControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	const udevRule = `KERNEL=="/dev/rtc0", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)

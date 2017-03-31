@@ -55,7 +55,7 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|XRUSB|S|O)[0
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
+var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -81,7 +81,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
-		if !serialUdevSymlinkPattern.MatchString(path) {
+		if !serialUDevSymlinkPattern.MatchString(path) {
 			return fmt.Errorf("serial-port path attribute specifies invalid symlink location")
 		}
 
@@ -119,7 +119,7 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *SerialPortInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *SerialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -155,7 +155,7 @@ func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *SerialPortInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil

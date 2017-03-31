@@ -63,10 +63,10 @@ type TestInterface struct {
 
 	// Support for interacting with the udev backend.
 
-	UdevConnectedPlugCallback func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-	UdevConnectedSlotCallback func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-	UdevPermanentPlugCallback func(spec *udev.Specification, plug *interfaces.Plug) error
-	UdevPermanentSlotCallback func(spec *udev.Specification, slot *interfaces.Slot) error
+	UDevConnectedPlugCallback func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevConnectedSlotCallback func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+	UDevPermanentPlugCallback func(spec *udev.Specification, plug *interfaces.Plug) error
+	UDevPermanentSlotCallback func(spec *udev.Specification, slot *interfaces.Slot) error
 
 	// Support for interacting with the apparmor backend.
 
@@ -222,30 +222,30 @@ func (t *TestInterface) MountPermanentSlot(spec *mount.Specification, slot *inte
 
 // Support for interacting with the udev backend.
 
-func (t *TestInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if t.UdevConnectedPlugCallback != nil {
-		return t.UdevConnectedPlugCallback(spec, plug, plugAttrs, slot, slotAttrs)
+func (t *TestInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	if t.UDevConnectedPlugCallback != nil {
+		return t.UDevConnectedPlugCallback(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }
 
-func (t *TestInterface) UdevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error {
-	if t.UdevPermanentPlugCallback != nil {
-		return t.UdevPermanentPlugCallback(spec, plug)
+func (t *TestInterface) UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error {
+	if t.UDevPermanentPlugCallback != nil {
+		return t.UDevPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }
 
-func (t *TestInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	if t.UdevPermanentSlotCallback != nil {
-		return t.UdevPermanentSlotCallback(spec, slot)
+func (t *TestInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	if t.UDevPermanentSlotCallback != nil {
+		return t.UDevPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }
 
-func (t *TestInterface) UdevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if t.UdevConnectedSlotCallback != nil {
-		return t.UdevConnectedSlotCallback(spec, plug, plugAttrs, slot, slotAttrs)
+func (t *TestInterface) UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	if t.UDevConnectedSlotCallback != nil {
+		return t.UDevConnectedSlotCallback(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
 }

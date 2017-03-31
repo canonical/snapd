@@ -38,19 +38,19 @@ type specSuite struct {
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		UdevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		UdevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		UdevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
+		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		UdevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
+		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},

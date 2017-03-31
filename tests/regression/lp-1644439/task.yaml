@@ -1,4 +1,5 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
+manual: true  # see https://github.com/snapcore/snapd/pull/3076
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
