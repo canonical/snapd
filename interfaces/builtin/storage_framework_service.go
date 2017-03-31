@@ -25,10 +25,17 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const storageFrameworkServicePermanentSlotAppArmor = `
 # Description: Allow use of aa_is_enabled()
+
+# libapparmor query interface needs 'w' to perform the query and 'r' to
+# read the result. This is an information leak because in addition to
+# allowing querying policy for any label (precisely what
+# storage-framework needs), it also allows checking the existence of
+# any label.
 
 /sys/module/apparmor/parameters/enabled r,
 @{PROC}/@{pid}/mounts                   r,
@@ -90,6 +97,10 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
+const storageFrameworkServicePermanentSlotSecComp = `
+bind
+`
+
 type StorageFrameworkServiceInterface struct{}
 
 func (iface *StorageFrameworkServiceInterface) Name() string {
@@ -122,9 +133,14 @@ func (iface *StorageFrameworkServiceInterface) AppArmorPermanentSlot(spec *appar
 func (iface *StorageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := plugAppLabelExpr(plug)
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
+	return nil
+}
+
+func (iface *StorageFrameworkServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	spec.AddSnippet(storageFrameworkServicePermanentSlotSecComp)
 	return nil
 }
 
