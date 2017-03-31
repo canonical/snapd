@@ -197,7 +197,9 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
 	snap-confine/user-support.c \
-	snap-confine/user-support.h
+	snap-confine/user-support.h \
+	snap-confine/xauth.c \
+	snap-confine/xauth.h
 
 snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
