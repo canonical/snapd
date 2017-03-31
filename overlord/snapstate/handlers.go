@@ -347,7 +347,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Make a copy of configuration of given snap revision
-	if err = config.StoreConfigurationSnapshotMaybe(st, snapsup.Name(), snapst.Current); err != nil {
+	if err = config.StoreConfigSnapshotMaybe(st, snapsup.Name(), snapst.Current); err != nil {
 		return err
 	}
 
@@ -528,7 +528,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Restore configuration for the new revision if available
-	if err = config.RestoreConfigurationSnapshotMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
+	if err = config.RestoreConfigSnapshotMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
 		return err
 	}
 
@@ -639,7 +639,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = config.RestoreConfigurationSnapshotMaybe(st, snapsup.Name(), oldCurrent); err != nil {
+	if err = config.RestoreConfigSnapshotMaybe(st, snapsup.Name(), oldCurrent); err != nil {
 		return err
 	}
 	pb := NewTaskProgressAdapterLocked(t)
@@ -833,7 +833,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return &state.Retry{After: 3 * time.Minute}
 		}
 	}
-	if err = config.DeleteConfigurationSnapshotMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
+	if err = config.DeleteConfigSnapshotMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
 		return err
 	}
 	Set(st, snapsup.Name(), snapst)

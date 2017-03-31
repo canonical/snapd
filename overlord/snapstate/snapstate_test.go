@@ -3372,7 +3372,7 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 	tr.Commit()
 
 	// make config snapshot for rev.1
-	config.StoreConfigurationSnapshotMaybe(s.state, "some-snap", snap.R(1))
+	config.StoreConfigSnapshotMaybe(s.state, "some-snap", snap.R(1))
 
 	// modify for rev. 2
 	tr = config.NewTransaction(s.state)

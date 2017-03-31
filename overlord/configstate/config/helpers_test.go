@@ -37,7 +37,7 @@ func (s *configHelpersSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-func (s *configHelpersSuite) TestConfigurationSnapshot(c *C) {
+func (s *configHelpersSuite) TestConfigSnapshot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -47,8 +47,8 @@ func (s *configHelpersSuite) TestConfigurationSnapshot(c *C) {
 	tr.Commit()
 
 	// store current config
-	c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
-	c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap2", snap.R(7)), IsNil)
+	c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
+	c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap2", snap.R(7)), IsNil)
 
 	var cfgsnapshot map[string]map[string]map[string]interface{}
 	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
@@ -73,7 +73,7 @@ func (s *configHelpersSuite) TestConfigurationSnapshot(c *C) {
 	tr.Commit()
 
 	// store current config
-	c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(2)), IsNil)
+	c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap1", snap.R(2)), IsNil)
 
 	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
 	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]interface{}{
@@ -95,19 +95,19 @@ func (s *configHelpersSuite) TestConfigurationSnapshot(c *C) {
 	var value string
 
 	// Restore first revision
-	c.Assert(config.RestoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
+	c.Assert(config.RestoreConfigSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
 	tr = config.NewTransaction(s.state)
 	c.Assert(tr.Get("snap1", "foo", &value), IsNil)
 	c.Check(value, Equals, "a")
 
 	// Restore second revision
-	c.Assert(config.RestoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(2)), IsNil)
+	c.Assert(config.RestoreConfigSnapshotMaybe(s.state, "snap1", snap.R(2)), IsNil)
 	tr = config.NewTransaction(s.state)
 	c.Assert(tr.Get("snap1", "foo", &value), IsNil)
 	c.Check(value, Equals, "b")
 }
 
-func (s *configHelpersSuite) TestDeleteConfigurationSnapshot(c *C) {
+func (s *configHelpersSuite) TestDeleteConfigSnapshot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -116,7 +116,7 @@ func (s *configHelpersSuite) TestDeleteConfigurationSnapshot(c *C) {
 	tr.Commit()
 
 	for i := 1; i <= 3; i++ {
-		c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
+		c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
 	}
 
 	var cfgsnapshot map[string]map[string]interface{}
@@ -125,7 +125,7 @@ func (s *configHelpersSuite) TestDeleteConfigurationSnapshot(c *C) {
 	c.Assert(cfgsnapshot["snap3"], HasLen, 3)
 
 	for i := 1; i <= 2; i++ {
-		c.Assert(config.DeleteConfigurationSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
+		c.Assert(config.DeleteConfigSnapshotMaybe(s.state, "snap3", snap.R(i)), IsNil)
 	}
 	cfgsnapshot = nil
 	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
@@ -134,24 +134,24 @@ func (s *configHelpersSuite) TestDeleteConfigurationSnapshot(c *C) {
 
 	// removing the last revision removes snap completely from the config map
 	cfgsnapshot = nil
-	c.Assert(config.DeleteConfigurationSnapshotMaybe(s.state, "snap3", snap.R(3)), IsNil)
+	c.Assert(config.DeleteConfigSnapshotMaybe(s.state, "snap3", snap.R(3)), IsNil)
 	c.Assert(s.state.Get("config-snapshots", &cfgsnapshot), IsNil)
 	c.Assert(cfgsnapshot["snap3"], IsNil)
 }
 
-func (s *configHelpersSuite) TestConfigurationSnapshotNoConfigs(c *C) {
+func (s *configHelpersSuite) TestConfigSnapshotNoConfigs(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// snap has no config in global state
-	c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
+	c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
 
 	// snap has no config in global state, but config is not nil
 	tr := config.NewTransaction(s.state)
 	c.Assert(tr.Set("snap2", "bar", "q"), IsNil)
 	tr.Commit()
-	c.Assert(config.StoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
+	c.Assert(config.StoreConfigSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
 
 	// no configuration to restore in config-snapshots
-	c.Assert(config.RestoreConfigurationSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
+	c.Assert(config.RestoreConfigSnapshotMaybe(s.state, "snap1", snap.R(1)), IsNil)
 }
