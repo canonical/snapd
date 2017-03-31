@@ -17,8 +17,6 @@
 
 #include "bootstrap.h"
 
-#define _GNU_SOURCE
-
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -37,8 +35,7 @@ const char* bootstrap_msg = NULL;
 
 // read_cmdline reads /proc/self/cmdline into the specified buffer, returning
 // number of bytes read.
-static ssize_t
-read_cmdline(char* buf, size_t buf_size)
+ssize_t read_cmdline(char* buf, size_t buf_size)
 {
     int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
@@ -57,7 +54,7 @@ read_cmdline(char* buf, size_t buf_size)
 }
 
 // find_snap_name scans the command line buffer and looks for the 1st argument.
-static const char*
+const char*
 find_snap_name(char* buf, size_t buf_size, size_t num_read)
 {
     // cmdline is an array of NUL ('\0') separated strings. We can skip over
@@ -105,8 +102,7 @@ setns_into_snap(const char* snap_name)
 
 // sanitize_snap_name performs partial validation of the given name.
 // The goal is to ensure that there are no / or .. in the name.
-static int
-sanitize_snap_name(const char* snap_name)
+int sanitize_snap_name(const char* snap_name)
 {
     // NOTE: neither set bootstrap_{msg,errno} but the return value means that
     // bootstrap does nothing. The name is re-validated by golang.
