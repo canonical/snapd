@@ -403,11 +403,21 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if iface == nil {
 			return fmt.Errorf("internal error: cannot find interface: %s", slot.Interface)
 		}
-		if err := iface.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
-			return err
+		type validatePlug interface {
+			ValidatePlug(plug *interfaces.Plug, plugAttrs map[string]interface{}) error
 		}
-		if err := iface.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
-			return err
+		type validateSlot interface {
+			ValidateSlot(slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		}
+		if validate, ok := iface.(validatePlug); ok {
+			if err := validate.ValidatePlug(plug, attributes.PlugAttrs); err != nil {
+				return err
+			}
+		}
+		if validate, ok := iface.(validateSlot); ok {
+			if err := validate.ValidateSlot(slot, attributes.SlotAttrs); err != nil {
+				return err
+			}
 		}
 	} else {
 		return err
