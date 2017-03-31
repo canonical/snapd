@@ -170,20 +170,13 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	}
 
 	// If this is the first time 'set' is called, store and mark initial attributes as protected.
-	// Note, context cache doesn't make deep copies, so marshall protected attributes into json.
-	protectedAttrsRaw := context.Cached("protected-attrs")
-	if protectedAttrsRaw == nil {
-		marshalled, err := json.Marshal(attributes)
+	protectedAttrs := context.Cached("protected-attrs")
+	if protectedAttrs == nil {
+		protectedAttrs, err = copyAttributes(attributes)
 		if err != nil {
-			panic(fmt.Sprintf("internal error: cannot marshal attributes %q", err))
+			panic(fmt.Sprintf("internal error: cannot copy attributes %q", err))
 		}
-		protectedAttrsRaw = json.RawMessage(marshalled)
-		context.Cache("protected-attrs", protectedAttrsRaw)
-	}
-	var protectedAttrs map[string]interface{}
-	err = json.Unmarshal([]byte(protectedAttrsRaw.(json.RawMessage)), &protectedAttrs)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal attributes %q", err)
+		context.Cache("protected-attrs", protectedAttrs)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -198,7 +191,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		err = setInterfaceAttribute(context, attributes, protectedAttrs, parts[0], value)
+		err = setInterfaceAttribute(context, attributes, protectedAttrs.(map[string]interface{}), parts[0], value)
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
 		}
