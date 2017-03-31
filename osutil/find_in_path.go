@@ -25,6 +25,8 @@ import (
 	"strings"
 )
 
+var Getenv func(key string) string = os.Getenv
+
 // FindInPath searches for a given command name in all directories listed
 // in the environment variable PATH and returns the found path or an
 // empty path.
@@ -36,7 +38,7 @@ func FindInPath(name string) string {
 // listed in the environment variable PATH and returns the found path or the
 // provided default path.
 func FindInPathOrDefault(name string, defaultPath string) string {
-	paths := strings.Split(os.Getenv("PATH"), ":")
+	paths := strings.Split(Getenv("PATH"), ":")
 	for _, p := range paths {
 		candidate := fmt.Sprintf("%s/%s", p, name)
 		_, err := os.Stat(candidate)
