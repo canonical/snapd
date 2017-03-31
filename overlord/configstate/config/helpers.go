@@ -120,10 +120,10 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
 }
 
-// StoreConfigurationSnapshotMaybe makes a copy of config -> snapSnape configuration into the versioned config.
+// StoreConfigSnapshotMaybe makes a copy of config -> snapSnape configuration into the versioned config.
 // It doesn't do anything if there is no configuration for given snap in the state.
 // The caller is responsible for locking the state.
-func StoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func StoreConfigSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
 	var config map[string]interface{}                     // snap => configuration
 	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
 
@@ -134,28 +134,31 @@ func StoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
 	}
-	if snapcfg, ok := config[snapName]; ok {
-		err = st.Get("config-snapshots", &configSnapshots)
-		if err == state.ErrNoState {
-			configSnapshots = make(map[string]map[string]interface{})
-		} else if err != nil {
-			return err
-		}
-		cfgs := configSnapshots[snapName]
-		if cfgs == nil {
-			cfgs = make(map[string]interface{})
-		}
-		cfgs[rev.String()] = snapcfg
-		configSnapshots[snapName] = cfgs
-		st.Set("config-snapshots", configSnapshots)
-	} // else - no config, nothing to do
+	snapcfg, ok := config[snapName]
+	if !ok {
+		return nil
+	}
+
+	err = st.Get("config-snapshots", &configSnapshots)
+	if err == state.ErrNoState {
+		configSnapshots = make(map[string]map[string]interface{})
+	} else if err != nil {
+		return err
+	}
+	cfgs := configSnapshots[snapName]
+	if cfgs == nil {
+		cfgs = make(map[string]interface{})
+	}
+	cfgs[rev.String()] = snapcfg
+	configSnapshots[snapName] = cfgs
+	st.Set("config-snapshots", configSnapshots)
 	return nil
 }
 
-// RestoreConfigurationSnapshotMaybe restores a given revision of snap configuration into config -> snapName.
+// RestoreConfigSnapshotMaybe restores a given revision of snap configuration into config -> snapName.
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
-func RestoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func RestoreConfigSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
 	var config map[string]interface{}                     // snap => configuration
 	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
 
@@ -183,10 +186,10 @@ func RestoreConfigurationSnapshotMaybe(st *state.State, snapName string, rev sna
 	return nil
 }
 
-// DeleteConfigurationSnapshotMaybe removes configuration snapshot of given snap/revision.
+// DeleteConfigSnapshotMaybe removes configuration snapshot of given snap/revision.
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
-func DeleteConfigurationSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func DeleteConfigSnapshotMaybe(st *state.State, snapName string, rev snap.Revision) error {
 	var configSnapshots map[string]map[string]interface{} // snap => revision => configuration
 	err := st.Get("config-snapshots", &configSnapshots)
 	if err == state.ErrNoState {
