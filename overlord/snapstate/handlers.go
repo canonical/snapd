@@ -867,10 +867,6 @@ func (m *SnapManager) doRemoveAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if snapst.AliasesStatus == UnsetAliases {
-		// nothing to do
-		return nil
-	}
 	snapName := snapsup.Name()
 
 	err = m.backend.RemoveSnapAliases(snapName)
