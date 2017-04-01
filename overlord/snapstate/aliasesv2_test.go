@@ -179,15 +179,15 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2(c *C) {
 		},
 	})
 
-	touched, retired, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
 	c.Assert(err, IsNil)
 
-	c.Check(touched, HasLen, 1)
-	which := touched["alias-snap"]
+	c.Check(changed, HasLen, 1)
+	which := changed["alias-snap"]
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias4", "alias5", "alias6"})
 
-	c.Check(retired, DeepEquals, map[string][]string{
+	c.Check(dropped, DeepEquals, map[string][]string{
 		"alias-snap": {"alias3"},
 	})
 }
@@ -225,15 +225,15 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2All(c *C) {
 		Active:  true,
 	})
 
-	touched, retired, err := snapstate.AutoAliasesDeltaV2(s.state, nil)
+	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(touched, HasLen, 1)
-	which := touched["alias-snap"]
+	c.Check(changed, HasLen, 1)
+	which := changed["alias-snap"]
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias1", "alias2", "alias4", "alias5"})
 
-	c.Check(retired, HasLen, 0)
+	c.Check(dropped, HasLen, 0)
 
 	c.Check(seen, DeepEquals, map[string]bool{
 		"alias-snap": true,
@@ -264,15 +264,15 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaV2OverManual(c *C) {
 		},
 	})
 
-	touched, retired, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDeltaV2(s.state, []string{"alias-snap"})
 	c.Assert(err, IsNil)
 
-	c.Check(touched, HasLen, 1)
-	which := touched["alias-snap"]
+	c.Check(changed, HasLen, 1)
+	which := changed["alias-snap"]
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias1", "alias2"})
 
-	c.Check(retired, HasLen, 0)
+	c.Check(dropped, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {

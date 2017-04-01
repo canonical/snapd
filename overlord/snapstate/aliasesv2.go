@@ -149,10 +149,10 @@ func applyAliasesChange(st *state.State, snapName string, prevStatus AliasesStat
 
 // autoAliasesDeltaV2 compares the automatic aliases with the current snap
 // declaration for the installed snaps with the given names (or all if
-// names is empty) and returns touched and retired auto-aliases by
+// names is empty) and returns changed and dropped auto-aliases by
 // snap name.
 // TODO: temporary name
-func autoAliasesDeltaV2(st *state.State, names []string) (touched map[string][]string, retired map[string][]string, err error) {
+func autoAliasesDeltaV2(st *state.State, names []string) (changed map[string][]string, dropped map[string][]string, err error) {
 	var snapStates map[string]*SnapState
 	if len(names) == 0 {
 		var err error
@@ -172,8 +172,8 @@ func autoAliasesDeltaV2(st *state.State, names []string) (touched map[string][]s
 		}
 	}
 	var firstErr error
-	touched = make(map[string][]string)
-	retired = make(map[string][]string)
+	changed = make(map[string][]string)
+	dropped = make(map[string][]string)
 	for snapName, snapst := range snapStates {
 		aliases := snapst.Aliases
 		info, err := snapst.CurrentInfo()
@@ -193,16 +193,16 @@ func autoAliasesDeltaV2(st *state.State, names []string) (touched map[string][]s
 		for alias, target := range autoAliases {
 			curTarget := aliases[alias]
 			if curTarget == nil || curTarget.Auto != target {
-				touched[snapName] = append(touched[snapName], alias)
+				changed[snapName] = append(changed[snapName], alias)
 			}
 		}
 		for alias, target := range aliases {
 			if target.Auto != "" && autoAliases[alias] == "" {
-				retired[snapName] = append(retired[snapName], alias)
+				dropped[snapName] = append(dropped[snapName], alias)
 			}
 		}
 	}
-	return touched, retired, firstErr
+	return changed, dropped, firstErr
 }
 
 // refreshAliases applies the current snap-declaration aliases
@@ -238,7 +238,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 			newAliases[alias] = &AliasTarget{Manual: curTarget.Manual}
 		} else {
 			// alias is both manually setup but has an underlying auto-alias
-			newAliases[alias] = &AliasTarget{Manual: curTarget.Manual, Auto: newTarget.Auto}
+			newAliases[alias].Manual = curTarget.Manual
 		}
 	}
 	return newAliases, nil
@@ -276,22 +276,34 @@ func (e *AliasConflictError) Error() string {
 	return fmt.Sprintf("cannot enable alias %q for %q, %s", e.Alias, e.Snap, e.Reason)
 }
 
-func checkAgainstEffectiveAliases(st *state.State, checkedSnap string, checker func(alias, otherSnap string) error) error {
+func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]bool, aliasConflicts map[string][]string) error {
 	snapStates, err := All(st)
 	if err != nil {
 		return err
 	}
 	for otherSnap, snapst := range snapStates {
-		if otherSnap == checkedSnap {
+		if otherSnap == skipSnap {
 			// skip
 			continue
 		}
-		for alias, target := range snapst.Aliases {
-			if target.Effective(snapst.AliasesStatus) != "" {
-				if err := checker(alias, otherSnap); err != nil {
-					return err
+		status := snapst.AliasesStatus
+		var confls []string
+		if len(snapst.Aliases) < len(testAliases) {
+			for alias, target := range snapst.Aliases {
+				if testAliases[alias] && target.Effective(status) != "" {
+					confls = append(confls, alias)
 				}
 			}
+		} else {
+			for alias := range testAliases {
+				target := snapst.Aliases[alias]
+				if target != nil && target.Effective(status) != "" {
+					confls = append(confls, alias)
+				}
+			}
+		}
+		if len(confls) > 0 {
+			aliasConflicts[otherSnap] = confls
 		}
 	}
 	return nil
@@ -330,13 +342,7 @@ func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesS
 
 	// check against enabled aliases
 	conflicts = make(map[string][]string)
-	err = checkAgainstEffectiveAliases(st, snapName, func(alias, otherSnap string) error {
-		if enabled[alias] {
-			conflicts[otherSnap] = append(conflicts[otherSnap], alias)
-		}
-		return nil
-	})
-	if err != nil {
+	if err := addAliasConflicts(st, snapName, enabled, conflicts); err != nil {
 		return nil, err
 	}
 	if len(conflicts) != 0 {
