@@ -558,7 +558,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
 	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
 }
 
-func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2Auto(c *C) {
+func (s *snapmgrTestSuite) TestDoDropAutoAliasesV2Auto(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -576,7 +576,7 @@ func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2Auto(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("retire-auto-aliases-v2", "test")
+	t := s.state.NewTask("drop-auto-aliases-v2", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -615,7 +615,7 @@ func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2Auto(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2AutoPending(c *C) {
+func (s *snapmgrTestSuite) TestDoDropAutoAliasesV2AutoPending(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -633,7 +633,7 @@ func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2AutoPending(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("retire-auto-aliases-v2", "test")
+	t := s.state.NewTask("drop-auto-aliases-v2", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -662,7 +662,7 @@ func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2AutoPending(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2ManualAndDisabled(c *C) {
+func (s *snapmgrTestSuite) TestDoDropAutoAliasesV2ManualAndDisabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -681,7 +681,7 @@ func (s *snapmgrTestSuite) TestDoRetireAutoAliasesV2ManualAndDisabled(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("retire-auto-aliases-v2", "test")
+	t := s.state.NewTask("drop-auto-aliases-v2", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
