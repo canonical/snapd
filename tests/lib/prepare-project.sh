@@ -35,9 +35,13 @@ build_deb(){
 download_from_ppa(){
     local ppa_version="$1"
 
-    for pkg in snapd; do
+    for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
+    done
+
+    for dep in snap-confine ubuntu-core-launcher; do
+        dpkg -i "${GOPATH}/${dep}_${ppa_version}_$(dpkg --print-architecture).deb"
     done
 }
 
