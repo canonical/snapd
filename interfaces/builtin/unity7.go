@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
@@ -518,14 +517,13 @@ func (iface *Unity7Interface) Name() string {
 }
 
 func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	var pathBuf bytes.Buffer
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	pathBuf.WriteString(strings.Replace(plug.Snap.Name(), "-", "_", -1))
+	new := strings.Replace(plug.Snap.Name(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
-	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, pathBuf.String(), -1)
+	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
