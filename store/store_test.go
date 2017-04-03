@@ -2487,6 +2487,102 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n < 4 {
+			io.WriteString(w, "{")
+			mockServer.CloseClientConnections()
+			return
+		}
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(1),
+			"epoch":       "0",
+			"confinement": "",
+		})
+		c.Assert(resp.Fields, DeepEquals, detailFields)
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "{")
+		mockServer.CloseClientConnections()
+		return
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
+	}, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `^Post http://127.0.0.1:.*?/updates/: EOF$`)
+	c.Assert(n, Equals, 5)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
