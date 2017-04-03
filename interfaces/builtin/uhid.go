@@ -69,7 +69,7 @@ func (iface *UhidInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *UhidInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *UhidInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	const udevRule = `KERNEL=="uhid", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
