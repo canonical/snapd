@@ -121,6 +121,9 @@ int sanitize_snap_name(const char* snap_name)
 // on command line.
 void bootstrap(void)
 {
+// NOTE: This lets use use cgo/go to write tests without running the bulk
+// of the code automatically. In snapd we can just set the required
+// environment variable.
 #define TRIGGER_KEY "SNAPD_INTERNAL"
 #define TRIGGER_VAL "x-switch-namespace=1,"
     const char* snapd_internal = getenv(TRIGGER_KEY);
