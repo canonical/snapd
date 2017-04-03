@@ -35,11 +35,12 @@ type AliasesStatus string
 
 // Possible global aliases statuses for a snap.
 const (
-	UnsetAliases           AliasesStatus = ""
-	EnabledAliases         AliasesStatus = "enabled"
-	DisabledAliases        AliasesStatus = "disabled"
-	PendingEnabledAliases  AliasesStatus = "pending:enabled"
-	PendingDisabledAliases AliasesStatus = "pending:disabled"
+	NoYetAutoAliases        AliasesStatus = ""
+	EnabledAliases          AliasesStatus = "enabled"
+	DisabledAliases         AliasesStatus = "disabled"
+	PendingEnabledAliases   AliasesStatus = "pending:enabled"
+	PendingDisabledAliases  AliasesStatus = "pending:disabled"
+	PendingNoYetAutoAliases AliasesStatus = "pending:noautoyet"
 )
 
 // Enabled returns whether status entails enabled.
@@ -54,7 +55,16 @@ func (status AliasesStatus) Enabled() bool {
 // Pending returns whether status is a pending status.
 func (status AliasesStatus) Pending() bool {
 	switch status {
-	case PendingEnabledAliases, PendingDisabledAliases:
+	case PendingEnabledAliases, PendingDisabledAliases, PendingNoYetAutoAliases:
+		return true
+	}
+	return false
+}
+
+// NoAutoYet return whether the status indicates no automatic aliases were introduced yet for the snap.
+func (status AliasesStatus) NoAutoYet() bool {
+	switch status {
+	case NoYetAutoAliases, PendingNoYetAutoAliases:
 		return true
 	}
 	return false
@@ -67,6 +77,8 @@ func (status AliasesStatus) ToPending() AliasesStatus {
 		return PendingEnabledAliases
 	case DisabledAliases:
 		return PendingDisabledAliases
+	case NoYetAutoAliases:
+		return PendingNoYetAutoAliases
 	}
 	return status
 }
@@ -78,6 +90,8 @@ func (status AliasesStatus) FromPending() AliasesStatus {
 		return EnabledAliases
 	case PendingDisabledAliases:
 		return DisabledAliases
+	case PendingNoYetAutoAliases:
+		return NoYetAutoAliases
 	}
 	return status
 }
@@ -262,10 +276,10 @@ func autoAliasesDeltaV2(st *state.State, names []string) (changed map[string][]s
 // refreshAliases applies the current snap-declaration aliases
 // considering which applications exist in info and produces new aliases
 // for the snap.
-func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, err error) {
+func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, nAuto int, err error) {
 	autoAliases, err := AutoAliases(st, info)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
@@ -277,6 +291,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 		}
 		newAliases[alias] = &AliasTarget{Auto: target}
 	}
+	nAuto = len(newAliases)
 
 	// carry over the current manual ones
 	for alias, curTarget := range curAliases {
@@ -295,7 +310,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 			newAliases[alias].Manual = curTarget.Manual
 		}
 	}
-	return newAliases, nil
+	return newAliases, nAuto, nil
 }
 
 type AliasConflictError struct {

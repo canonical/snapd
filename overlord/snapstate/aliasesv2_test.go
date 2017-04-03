@@ -298,15 +298,16 @@ apps:
     cmd4:
 `, &snap.SideInfo{SnapID: "snap-id"})
 
-	new, err := snapstate.RefreshAliases(s.state, info, nil)
+	new, nAuto, err := snapstate.RefreshAliases(s.state, info, nil)
 	c.Assert(err, IsNil)
+	c.Check(nAuto, Equals, 3)
 	c.Check(new, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
 		"alias4": {Auto: "cmd4"},
 	})
 
-	new, err = snapstate.RefreshAliases(s.state, info, map[string]*snapstate.AliasTarget{
+	new, nAuto, err = snapstate.RefreshAliases(s.state, info, map[string]*snapstate.AliasTarget{
 		"alias1":  {Auto: "cmd1old"},
 		"alias5":  {Auto: "cmd5"},
 		"alias6":  {Auto: "cmd6"},
@@ -315,6 +316,7 @@ apps:
 		"manual7": {Manual: "cmd7"},
 	})
 	c.Assert(err, IsNil)
+	c.Check(nAuto, Equals, 3)
 	c.Check(new, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1":  {Auto: "cmd1"},
 		"alias2":  {Auto: "cmd2"},

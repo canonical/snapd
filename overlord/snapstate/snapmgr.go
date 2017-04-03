@@ -153,15 +153,6 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// SetAliases sets Aliases taking care of when they become empty.
-func (snapst *SnapState) SetAliases(aliases map[string]*AliasTarget) {
-	if len(aliases) == 0 {
-		snapst.AliasesStatus = UnsetAliases
-		aliases = nil
-	}
-	snapst.Aliases = aliases
-}
-
 // HasCurrent returns whether snapst.Current is set.
 func (snapst *SnapState) HasCurrent() bool {
 	if snapst.Current.Unset() {
