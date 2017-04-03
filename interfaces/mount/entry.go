@@ -20,7 +20,10 @@
 package mount
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -59,30 +62,28 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// EqualEntries checks if one entry is equal to another
-func (a *Entry) Equal(b *Entry) bool {
-	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
-		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
-		a.CheckPassNumber == b.CheckPassNumber)
+// Equal checks if one entry is equal to another
+func (e *Entry) Equal(o *Entry) bool {
+	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
+		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
+		e.CheckPassNumber == o.CheckPassNumber)
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
-//
-// According to the manual page, the following characters need to be escaped.
-//  space     => (\040)
-//  tab       => (\011)
-//  newline   => (\012)
-//  backslash => (\134)
-var escape = strings.NewReplacer(" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`).Replace
+var escape = strings.NewReplacer(
+	" ", `\040`,
+	"\t", `\011`,
+	"\n", `\012`,
+	"\\", `\134`,
+).Replace
 
 // unescape replaces escape sequences used by setmnt with whitespace characters.
-//
-// According to the manual page, the following characters need to be unescaped.
-//  space     <= (\040)
-//  tab       <= (\011)
-//  newline   <= (\012)
-//  backslash <= (\134)
-var unescape = strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\").Replace
+var unescape = strings.NewReplacer(
+	`\040`, " ",
+	`\011`, "\t",
+	`\012`, "\n",
+	`\134`, "\\",
+).Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
@@ -120,17 +121,17 @@ func ParseEntry(s string) (Entry, error) {
 		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
 	}
 	// Parse DumpFrequency if we have at least 5 fields
-	if len(fields) >= 5 {
+	if len(fields) > 4 {
 		df, err = strconv.Atoi(fields[4])
 		if err != nil {
-			return e, fmt.Errorf("cannot parse dump frequency: %s", err)
+			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
 	// Parse CheckPassNumber if we have at least 6 fields
-	if len(fields) >= 6 {
+	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
 		if err != nil {
-			return e, fmt.Errorf("cannot parse check pass number: %s", err)
+			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
 	e.Name = unescape(fields[0])
@@ -140,4 +141,52 @@ func ParseEntry(s string) (Entry, error) {
 	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
+}
+
+// LoadFSTab reads and parses an fstab-like file.
+//
+// The supported format is described by fstab(5).
+func LoadFSTab(reader io.Reader) ([]Entry, error) {
+	var entries []Entry
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		s := scanner.Text()
+		if i := strings.IndexByte(s, '#'); i != -1 {
+			s = s[0:i]
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		entry, err := ParseEntry(s)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// SaveFSTab writes a list of entries to a fstab-like file.
+//
+// The supported format is described by fstab(5).
+//
+// Note that there is no support for comments, both the LoadFSTab function and
+// SaveFSTab just ignore them.
+//
+// Note that there is no attempt to use atomic file write/rename tricks. The
+// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
+// be done so, while holidng a flock-based-lock, by the snap-update-ns program.
+func SaveFSTab(writer io.Writer, entries []Entry) error {
+	var buf bytes.Buffer
+	for i := range entries {
+		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
+			return err
+		}
+	}
+	_, err := buf.WriteTo(writer)
+	return err
 }
