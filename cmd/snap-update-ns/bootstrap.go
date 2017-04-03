@@ -26,15 +26,10 @@ package main
 /*
 
 #include <stdlib.h>
-
-int should_bootstrap = 1;
-
 #include "bootstrap.h"
 
-__attribute__((constructor)) static void enter_ns(void) {
-	if (should_bootstrap) {
-		bootstrap();
-	}
+__attribute__((constructor)) static void init(void) {
+	bootstrap();
 }
 
 // NOTE: do not add anything before the following `import "C"'
@@ -47,8 +42,8 @@ import (
 	"unsafe"
 )
 
-// bootstrapError returns error (if any) encountered in pre-main C code.
-func bootstrapError() error {
+// Error returns error (if any) encountered in pre-main C code.
+func BootstrapError() error {
 	if C.bootstrap_msg == nil {
 		return nil
 	}
@@ -74,6 +69,8 @@ func findSnapName(buf []byte) *string {
 	return nil
 }
 
+// sanitizeSnapName checks if snap name is seemingly valid.
+// The real part of the validation happens on the go side.
 func sanitizeSnapName(snapName string) int {
 	cStr := C.CString(snapName)
 	return int(C.sanitize_snap_name(cStr))

@@ -54,7 +54,10 @@ func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
-	if err := bootstrapError(); err != nil {
+	// There is some C code that runs before main() is started.
+	// That code always runs and sets an error condition if it fails.
+	// Here we just check for the error.
+	if err := BootstrapError(); err != nil {
 		return err
 	}
 	// TODO: implement this

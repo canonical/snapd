@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,19 +17,10 @@
  *
  */
 
-#ifndef SNAPD_CMD_SNAP_UPDATE_NS_H
-#define SNAPD_CMD_SNAP_UPDATE_NS_H
+package main
 
-#define _GNU_SOURCE
-
-#include <unistd.h>
-
-extern int bootstrap_errno;
-extern const char* bootstrap_msg;
-
-void bootstrap(void);
-ssize_t read_cmdline(char* buf, size_t buf_size);
-const char* find_snap_name(char* buf, size_t buf_size, size_t num_read);
-int sanitize_snap_name(const char* snap_name);
-
-#endif
+var (
+	ReadCmdline      = readCmdline
+	FindSnapName     = findSnapName
+	SanitizeSnapName = sanitizeSnapName
+)
