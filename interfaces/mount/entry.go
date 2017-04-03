@@ -61,11 +61,11 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// EqualEntries checks if one entry is equal to another
-func (a *Entry) Equal(b *Entry) bool {
-	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
-		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
-		a.CheckPassNumber == b.CheckPassNumber)
+// Equal checks if one entry is equal to another
+func (e *Entry) Equal(o *Entry) bool {
+	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
+		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
+		e.CheckPassNumber == o.CheckPassNumber)
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
