@@ -843,7 +843,7 @@ func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if status == PendingNoYetAutoAliases && nAuto != 0 {
+	if status.NoAutoYet() && nAuto != 0 {
 		status = PendingEnabledAliases
 	}
 	_, err = checkAliasesConflicts(st, snapName, status, newAliases)
