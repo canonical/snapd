@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -35,11 +36,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/x11"
 )
 
 var (
 	syscallExec = syscall.Exec
 	userCurrent = user.Current
+	getEnv = os.Getenv
+	setEnv = os.Setenv
 )
 
 type cmdRun struct {
@@ -227,6 +231,74 @@ func isReexeced() bool {
 	return strings.HasPrefix(exe, dirs.SnapMountDir)
 }
 
+func migrateXauthority(info *snap.Info) error {
+	u, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
+	}
+
+	// If we're running as root then we don't do anything
+	if u.Uid == "0" {
+		return nil
+	}
+
+	xauthPath := getEnv("XAUTHORITY")
+	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
+		// Nothing to do for us. Most likely running outside of any
+		// graphical X11 session.
+		return nil
+	}
+
+	// Copy Xauthority file into a temporary place so we can safely
+	// process it further there.
+	tmpDir, err := ioutil.TempDir("", "xauth")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+	flags := osutil.CopyFlagSync|osutil.CopyFlagPreserveAll|osutil.CopyFlagOverwrite
+	tmpXauthPath := filepath.Join(tmpDir, "Xauthority")
+	err = osutil.CopyFile(xauthPath, tmpXauthPath, flags)
+	if err != nil {
+		return err
+	}
+
+	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
+	targetPath := filepath.Join(baseTargetDir, "Xauthority")
+
+	// Only validate Xauthority file again when both files don't match
+	// ohterwise we can continue using the existing Xauthority file
+	if osutil.FileExists(targetPath) && osutil.FilesAreEqual(targetPath, tmpXauthPath) {
+		setEnv("XAUTHORITY", targetPath)
+		return nil
+	}
+
+	cookies, err := x11.ValidateXauthority(tmpXauthPath)
+	if err != nil {
+		return err
+	} else if cookies == 0 {
+		// Don't return an error when the Xauthority file doesn't have
+		// any cookies. We simply do nothing and leave the XAUTHORITY
+		// environment variable as it is.
+		return nil
+	}
+
+	if !osutil.FileExists(baseTargetDir) {
+		os.MkdirAll(baseTargetDir, 0700)
+	}
+
+	err = osutil.CopyFile(tmpXauthPath, targetPath, flags)
+	if err != nil {
+		return err
+	}
+
+	// If everything is ok, we can now point the snap to the new
+	// location of the Xauthority file.
+	setEnv("XAUTHORITY", targetPath)
+
+	return nil
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	if !osutil.FileExists(snapConfine) {
@@ -239,6 +311,10 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
+	}
+
+	if err := migrateXauthority(info); err != nil {
+		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
 	cmd := []string{snapConfine}
