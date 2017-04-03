@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -134,6 +134,9 @@ type SnapState struct {
 	Current snap.Revision `json:"current"`
 	Channel string        `json:"channel,omitempty"`
 	Flags
+	// aliases, see aliasesv2.go
+	Aliases       map[string]*AliasTarget `json:"aliases,omitempty"`
+	AliasesStatus AliasesStatus           `json:"aliases-status,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
