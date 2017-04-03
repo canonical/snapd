@@ -40,8 +40,14 @@ download_from_published(){
     arch=$(dpkg --print-architecture)
     build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
 
-    file="snapd_${published_version}_${arch}.deb"
-    curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+    for pkg in snapd snap-confine ubuntu-core-launcher; do
+        file="${pkg}_${published_version}_${arch}.deb"
+        curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+    done
+
+    for dep in snap-confine ubuntu-core-launcher; do
+        dpkg -i "${GOPATH}/${dep}_${published_version}_${arch}.deb"
+    done
 }
 
 # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
