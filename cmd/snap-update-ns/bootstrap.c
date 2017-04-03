@@ -118,6 +118,17 @@ int sanitize_snap_name(const char* snap_name)
 // on command line.
 void bootstrap(void)
 {
+#define TRIGGER_KEY "SNAPD_INTERNAL"
+#define TRIGGER_VAL "x-switch-namespace=1,"
+    const char* snapd_internal = getenv(TRIGGER_KEY);
+    if (snapd_internal == NULL || strstr(snapd_internal, TRIGGER_VAL) == NULL) {
+        bootstrap_errno = 0;
+        bootstrap_msg = "bootstrap is not enabled, set " TRIGGER_KEY "=" TRIGGER_VAL;
+        return;
+    }
+#undef TRIGGER_KEY
+#undef TRIGGER_VAL
+
     // We don't have argc/argv so let's imitate that by reading cmdline
     char cmdline[1024];
     memset(cmdline, 0, sizeof cmdline);
