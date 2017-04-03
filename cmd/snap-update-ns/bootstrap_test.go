@@ -36,11 +36,11 @@ func (s *bootstrapSuite) TestReadCmdLine(c *C) {
 	numRead := update.ReadCmdline(buf)
 	c.Assert(numRead, Not(Equals), -1)
 	c.Assert(numRead, Not(Equals), 1)
-	// The trailing byte is a '\0'
-	str := string(buf[0 : numRead-1])
+	// Individual arguments are separated with NUL byte.
+	argv := strings.Split(string(buf[0:numRead]), "\x00")
 	// Smoke test, the actual value looks like
 	// "/tmp/go-build020699516/github.com/snapcore/snapd/cmd/snap-update-ns/_test/snap-update-ns.test"
-	c.Assert(strings.HasSuffix(str, "snap-update-ns.test"), Equals, true, Commentf("str is %q", str))
+	c.Assert(strings.HasSuffix(argv[0], "snap-update-ns.test"), Equals, true, Commentf("argv[0] is %q", argv[0]))
 }
 
 // Check that if there is only one argument we return nil.
