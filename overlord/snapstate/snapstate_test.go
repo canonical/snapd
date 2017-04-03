@@ -6144,6 +6144,158 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 	c.Check(n, Equals, 0)
 }
 
+func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		switch info.Name() {
+		case "alias-snap":
+			return map[string]string{
+				"alias1": "cmd1",
+				"alias2": "cmd2",
+			}, nil
+		}
+		return nil, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "auto",
+		},
+	})
+
+	s.state.Unlock()
+	err := s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	var gone interface{}
+	err = s.state.Get("aliases", &gone)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+	})
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "alias-snap",
+		},
+		{
+			op: "update-aliases",
+			aliases: []*backend.Alias{
+				{"alias1", "alias-snap.cmd1"},
+				{"alias2", "alias-snap.cmd2"},
+			},
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		switch info.Name() {
+		case "alias-snap":
+			return map[string]string{
+				"alias1": "cmd1",
+				"alias2": "cmd2",
+			}, nil
+		}
+		return nil, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "auto",
+		},
+	})
+
+	s.state.Unlock()
+	err := s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	var gone interface{}
+	err = s.state.Get("aliases", &gone)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+	})
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "alias-snap",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "auto",
+		},
+	})
+
+	// pending alias task
+	t := s.state.NewTask("alias", "...")
+	chg := s.state.NewChange("alias chg", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	err := s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})

@@ -336,7 +336,6 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
-	// TODO: consider alias at transition
 	// FIXME: drop the task entirely after a while
 	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 	runner.AddHandler("set-auto-aliases", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
@@ -561,7 +560,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
 	errs := []error{
-		// TODO: ensureAliasesV2
+		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.ensureRefreshes(),
