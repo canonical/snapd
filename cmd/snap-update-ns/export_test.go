@@ -20,7 +20,7 @@
 package main
 
 var (
-	ReadCmdline      = readCmdline
-	FindSnapName     = findSnapName
-	SanitizeSnapName = sanitizeSnapName
+	ReadCmdline               = readCmdline
+	FindSnapName              = findSnapName
+	PartiallyValidateSnapName = partiallyValidateSnapName
 )
