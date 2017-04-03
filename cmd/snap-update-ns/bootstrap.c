@@ -51,6 +51,7 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
     } else if (num_read == buf_size) {
         bootstrap_errno = 0;
         bootstrap_msg = "cannot fit all of /proc/self/cmdline, buffer too small";
+        num_read = -1;
     }
     close(fd);
     return num_read;
