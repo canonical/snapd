@@ -2497,6 +2497,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 			mockServer.CloseClientConnections()
 			return
 		}
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+		err := json.NewDecoder(r.Body).Decode(&resp)
+		c.Assert(err, IsNil)
+		c.Assert(resp.Snaps, HasLen, 1)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
