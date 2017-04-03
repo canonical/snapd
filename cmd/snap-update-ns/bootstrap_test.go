@@ -40,7 +40,7 @@ func (s *bootstrapSuite) TestReadCmdLine(c *C) {
 	str := string(buf[0 : numRead-1])
 	// Smoke test, the actual value looks like
 	// "/tmp/go-build020699516/github.com/snapcore/snapd/cmd/snap-update-ns/_test/snap-update-ns.test"
-	c.Assert(strings.HasSuffix(str, "snap-update-ns.test"), Equals, true)
+	c.Assert(strings.HasSuffix(str, "snap-update-ns.test"), Equals, true, Commentf("str is %q", str))
 }
 
 // Check that if there is only one argument we return nil.
