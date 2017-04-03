@@ -26,8 +26,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func MockKeyLength(n int) (restore func()) {
+func MockKeyLength(n uint64) (restore func()) {
 	oldKeyLength := keyLength
+	if n < 1024 {
+		n = 1024
+	}
 	keyLength = n
 	return func() {
 		keyLength = oldKeyLength
