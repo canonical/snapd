@@ -184,7 +184,7 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 func SaveFSTab(writer io.Writer, entries []Entry) error {
 	var buf bytes.Buffer
 	for i := range entries {
-		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i].String()); err != nil {
+		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
 			return err
 		}
 	}
