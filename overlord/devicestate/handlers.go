@@ -88,9 +88,9 @@ func sshGenerateKey() (*rsa.PrivateKey, error) {
 
 	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.FormatUint(keyLength, 10), "-N", "", "-f", sshKeyFile)
 
-	_, err := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, err
+		return nil, osutil.OutputErr(out, err)
 	}
 
 	d, err := ioutil.ReadFile(sshKeyFile)
@@ -99,8 +99,8 @@ func sshGenerateKey() (*rsa.PrivateKey, error) {
 	}
 
 	blk, _ := pem.Decode(d)
-	if err != nil {
-		return nil, err
+	if blk == nil {
+		return nil, errors.New("Failed to decode PEM block");
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
