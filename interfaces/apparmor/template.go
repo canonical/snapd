@@ -94,6 +94,7 @@ var defaultTemplate = `
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
+  /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
