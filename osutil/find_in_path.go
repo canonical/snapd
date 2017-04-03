@@ -20,12 +20,10 @@
 package osutil
 
 import (
-	"fmt"
-	"os"
-	"strings"
+	"os/exec"
 )
 
-var Getenv func(key string) string = os.Getenv
+var LookPath func(name string) (string, error) = exec.LookPath
 
 // FindInPath searches for a given command name in all directories listed
 // in the environment variable PATH and returns the found path or an
@@ -38,13 +36,9 @@ func FindInPath(name string) string {
 // listed in the environment variable PATH and returns the found path or the
 // provided default path.
 func FindInPathOrDefault(name string, defaultPath string) string {
-	paths := strings.Split(Getenv("PATH"), ":")
-	for _, p := range paths {
-		candidate := fmt.Sprintf("%s/%s", p, name)
-		_, err := os.Stat(candidate)
-		if err == nil {
-			return candidate
-		}
+	p, err := LookPath(name)
+	if err != nil {
+		return defaultPath
 	}
-	return defaultPath
+	return p
 }
