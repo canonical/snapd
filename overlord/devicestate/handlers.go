@@ -21,7 +21,6 @@ package devicestate
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
@@ -33,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -68,13 +68,13 @@ func deviceAPIBaseURL() string {
 }
 
 var (
-	keyLength        = 4096
-	retryInterval    = 60 * time.Second
-	deviceAPIBase    = deviceAPIBaseURL()
-	requestIDURL     = deviceAPIBase + "request-id"
-	serialRequestURL = deviceAPIBase + "devices"
-	sshKeyFile       = "snapd.key.tmp"
-	sshPublicKeyFile = sshKeyFile + ".pub"
+	keyLength        uint64 = 4096
+	retryInterval           = 60 * time.Second
+	deviceAPIBase           = deviceAPIBaseURL()
+	requestIDURL            = deviceAPIBase + "request-id"
+	serialRequestURL        = deviceAPIBase + "devices"
+	sshKeyFile              = "/tmp/snapd.key.tmp"
+	sshPublicKeyFile        = sshKeyFile + ".pub"
 )
 
 func sshGenerateKey() (*rsa.PrivateKey, error) {
@@ -86,9 +86,9 @@ func sshGenerateKey() (*rsa.PrivateKey, error) {
 	os.Remove(sshKeyFile)
 	os.Remove(sshPublicKeyFile)
 
-	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", keyLength, "-N", "", "-f", sshKeyFile)
+	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.FormatUint(keyLength, 10), "-N", "", "-f", sshKeyFile)
 
-	b, err := cmd.CombinedOutput()
+	_, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
 	}
