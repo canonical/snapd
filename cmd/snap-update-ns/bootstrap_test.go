@@ -73,11 +73,11 @@ func (s *bootstrapSuite) TestFindSnapName4(c *C) {
 	c.Assert(*result, Equals, "arg1")
 }
 
-// Check that sanitizeSnapName rejects "/" and "..".
-func (s *bootstrapSuite) TestSanitizeSnapName(c *C) {
-	c.Assert(update.SanitizeSnapName("hello-world"), Equals, 0)
-	c.Assert(update.SanitizeSnapName("hello/world"), Equals, -1)
-	c.Assert(update.SanitizeSnapName("hello..world"), Equals, -1)
+// Check that PartiallyValidateSnapName rejects "/" and "..".
+func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
+	c.Assert(update.PartiallyValidateSnapName("hello-world"), Equals, 0)
+	c.Assert(update.PartiallyValidateSnapName("hello/world"), Equals, -1)
+	c.Assert(update.PartiallyValidateSnapName("hello..world"), Equals, -1)
 }
 
 // Check that pre-go bootstrap code is disabled by default

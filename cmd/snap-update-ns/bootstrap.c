@@ -104,9 +104,9 @@ setns_into_snap(const char* snap_name)
     return err;
 }
 
-// sanitize_snap_name performs partial validation of the given name.
+// partially_validate_snap_name performs partial validation of the given name.
 // The goal is to ensure that there are no / or .. in the name.
-int sanitize_snap_name(const char* snap_name)
+int partially_validate_snap_name(const char* snap_name)
 {
     // NOTE: neither set bootstrap_{msg,errno} but the return value means that
     // bootstrap does nothing. The name is re-validated by golang.
@@ -155,7 +155,7 @@ void bootstrap(void)
     // those are found. The golang code will validate snap name and print a
     // proper error message but this just ensures we don't try to open / setns
     // anything unusual.
-    if (sanitize_snap_name(snap_name) < 0) {
+    if (partially_validate_snap_name(snap_name) < 0) {
         return;
     }
 

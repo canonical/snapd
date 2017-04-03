@@ -69,9 +69,9 @@ func findSnapName(buf []byte) *string {
 	return nil
 }
 
-// sanitizeSnapName checks if snap name is seemingly valid.
+// partiallyValidateSnapName checks if snap name is seemingly valid.
 // The real part of the validation happens on the go side.
-func sanitizeSnapName(snapName string) int {
+func partiallyValidateSnapName(snapName string) int {
 	cStr := C.CString(snapName)
-	return int(C.sanitize_snap_name(cStr))
+	return int(C.partially_validate_snap_name(cStr))
 }
