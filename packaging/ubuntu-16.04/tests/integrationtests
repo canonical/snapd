@@ -33,5 +33,5 @@ fi
 # and now run spread against localhost
 . /etc/os-release
 export GOPATH=/tmp/go
-go get -u github.com/snapcore/spread/cmd/spread
+go get -u github.com/mvo5/spread/cmd/spread
 /tmp/go/bin/spread -v autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)
