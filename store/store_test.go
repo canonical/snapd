@@ -2497,26 +2497,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 			mockServer.CloseClientConnections()
 			return
 		}
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		var resp struct {
-			Snaps  []map[string]interface{} `json:"snaps"`
-			Fields []string                 `json:"fields"`
-		}
-
-		err = json.Unmarshal(jsonReq, &resp)
-		c.Assert(err, IsNil)
-
-		c.Assert(resp.Snaps, HasLen, 1)
-		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
-			"snap_id":     helloWorldSnapID,
-			"channel":     "stable",
-			"revision":    float64(1),
-			"epoch":       "0",
-			"confinement": "",
-		})
-		c.Assert(resp.Fields, DeepEquals, detailFields)
-
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
