@@ -21,9 +21,6 @@ package osutil_test
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
 
@@ -36,41 +33,12 @@ type findInPathSuite struct {
 
 var _ = Suite(&findInPathSuite{})
 
-func (s *findInPathSuite) relocatePath(path string) string {
-	return filepath.Join(s.basePath, path)
-}
-
-func (s *findInPathSuite) SetUpSuite(c *C) {
-	p, err := ioutil.TempDir("", "find-in-path")
-	c.Assert(err, Equals, nil)
-	s.basePath = p
-	osutil.Getenv = func(key string) string {
-		if key != "PATH" {
-			return ""
-		}
-		return fmt.Sprintf("%s/bin:%s/usr/bin", s.basePath, s.basePath)
-	}
-
-	for _, d := range []string{"/bin", "/usr/bin"} {
-		os.MkdirAll(s.relocatePath(d), 0755)
-	}
-
-	for _, fname := range []string{"/bin/true", "/bin/foo", "/usr/bin/false", "/usr/bin/foo"} {
-		f, err := os.Create(s.relocatePath(fname))
-		c.Assert(err, Equals, nil)
-		f.Close()
-	}
-}
-
 func (s *findInPathSuite) TestGivesCorrectPath(c *C) {
-	c.Assert(osutil.FindInPath("true"), Equals, s.relocatePath("/bin/true"))
-	c.Assert(osutil.FindInPath("false"), Equals, s.relocatePath("/usr/bin/false"))
-}
-
-func (s *findInPathSuite) TestRespectsPriorityOrder(c *C) {
-	c.Assert(osutil.FindInPath("foo"), Equals, s.relocatePath("/bin/foo"))
+	osutil.LookPath = func(name string) (string, error) { return "/bin/true", nil }
+	c.Assert(osutil.FindInPath("true"), Equals, "/bin/true")
 }
 
 func (s *findInPathSuite) TestReturnsDefaultWhenNotFound(c *C) {
+	osutil.LookPath = func(name string) (string, error) { return "", fmt.Errorf("Not found") }
 	c.Assert(osutil.FindInPathOrDefault("bar", "/bin/bla"), Equals, "/bin/bla")
 }
