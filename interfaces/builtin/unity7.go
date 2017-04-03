@@ -517,10 +517,6 @@ func (iface *Unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *Unity7Interface) String() string {
-	return iface.Name()
-}
-
 func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	var pathBuf bytes.Buffer
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
@@ -541,7 +537,7 @@ func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 
 func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 
 	return nil
@@ -549,7 +545,7 @@ func (iface *Unity7Interface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *Unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
+		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 
 	// Creation of the slot of this type is allowed only by the os snap
