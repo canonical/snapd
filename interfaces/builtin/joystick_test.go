@@ -92,7 +92,9 @@ func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	expectedSnippet := `
 # Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
-/dev/input/js[0-9]* rw,
+# Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+# only js0-js31 is valid so limit the /dev and udev entries to those devices.
+/dev/input/js{[0-9],[12][0-9],3[01]} rw,
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
