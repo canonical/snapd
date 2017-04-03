@@ -23,11 +23,16 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -68,7 +73,48 @@ var (
 	deviceAPIBase    = deviceAPIBaseURL()
 	requestIDURL     = deviceAPIBase + "request-id"
 	serialRequestURL = deviceAPIBase + "devices"
+	sshKeyFile       = "snapd.key.tmp"
+	sshPublicKeyFile = sshKeyFile + ".pub"
 )
+
+func sshGenerateKey() (*rsa.PrivateKey, error) {
+	defer func() {
+		os.Remove(sshKeyFile)
+		os.Remove(sshPublicKeyFile)
+	}()
+
+	os.Remove(sshKeyFile)
+	os.Remove(sshPublicKeyFile)
+
+	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", keyLength, "-N", "", "-f", sshKeyFile)
+
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := ioutil.ReadFile(sshKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	blk, _ := pem.Decode(d)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	err = key.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	return key, err
+}
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -85,7 +131,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	keyPair, err := rsa.GenerateKey(rand.Reader, keyLength)
+	keyPair, err := sshGenerateKey()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}
