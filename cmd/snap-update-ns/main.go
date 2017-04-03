@@ -43,8 +43,7 @@ func main() {
 
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	_, err := parser.ParseArgs(args)
-	if err != nil {
+	if _, err := parser.ParseArgs(args); err != nil {
 		return err
 	}
 	return snap.ValidateName(opts.Positionals.SnapName)
