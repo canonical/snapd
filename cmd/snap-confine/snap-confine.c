@@ -137,7 +137,15 @@ int main(int argc, char **argv)
 			 * snap-specific namespace, has a predictable PID and is long
 			 * lived.
 			 */
+#if 0
+			// FIXME: this was reverted as requested by jdstrand because the
+			// corresponding fix in the kernel was reverted as well. It should
+			// be re-enabled with an upcoming kernel package that contains all
+			// of the apparmor fixes.
+			//
+			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
 			sc_reassociate_with_pid1_mount_ns();
+#endif
 			const char *group_name = snap_name;
 			if (group_name == NULL) {
 				die("SNAP_NAME is not set");
