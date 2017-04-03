@@ -20,9 +20,11 @@
 package mount
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -40,6 +42,29 @@ const (
 type Change struct {
 	Entry  Entry
 	Action Action
+}
+
+// Perform executes the desired mount or unmount change.
+//
+// Mount and unmount are handled by using the system call directly. Note that
+// some filesystems use a special helper program and such mount operations are
+// not handled. Note that some behaviors of the mount program are actually
+// implemented with multiple calls to the mount system call and are thus not
+// atomic (e.g. --make-shared). Such features are not supported. You get what
+// the kernel gives you.
+func (c *Change) Perform() error {
+	switch c.Action {
+	case Mount:
+		flags, err := OptsToFlags(c.Entry.Options)
+		if err != nil {
+			return err
+		}
+		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+	case Unmount:
+		const UmountNoFollow = 8 // This is UMOUNT_NOFOLLOW
+		return syscall.Unmount(c.Entry.Dir, UmountNoFollow)
+	}
+	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.
