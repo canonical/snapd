@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -82,6 +83,27 @@ func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
 		os.Setenv(key, s)
 		c.Assert(os.Getenv(key), check.Equals, s)
 		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
+	}
+}
+
+func (s *envSuite) TestGetenvInt64(c *check.C) {
+	key := "__XYZZY__"
+	os.Unsetenv(key)
+
+	c.Check(osutil.GetenvInt64(key), check.Equals, int64(0))
+	c.Check(osutil.GetenvInt64(key, -1), check.Equals, int64(-1))
+	c.Check(osutil.GetenvInt64(key, math.MaxInt64), check.Equals, int64(math.MaxInt64))
+	c.Check(osutil.GetenvInt64(key, math.MinInt64), check.Equals, int64(math.MinInt64))
+
+	for _, n := range []int64{
+		0, -1, math.MinInt64, math.MaxInt64,
+	} {
+		for _, tpl := range []string{"%d", "  %d  ", "%#x", "%#X", "%#o"} {
+			v := fmt.Sprintf(tpl, n)
+			os.Setenv(key, v)
+			c.Assert(os.Getenv(key), check.Equals, v)
+			c.Check(osutil.GetenvInt64(key), check.Equals, n, check.Commentf(v))
+		}
 	}
 }
 
