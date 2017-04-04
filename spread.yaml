@@ -299,7 +299,22 @@ suites:
             $TESTSLIB/reset.sh
 
     tests/unit/:
-        summary: Suite to run non-go unit tests and go unit tests for other runtimes
+        summary: Suite to run unit tests (non-go and different go runtimes)
+        systems: [-ubuntu-core-16-*]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            prepare_classic
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            prepare_each_classic
+        restore: |
+            $TESTSLIB/reset.sh --store
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+
+    tests/nightly/:
+        summary: Suite for nightly, expensive, tests
+        manual: true
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -309,14 +324,11 @@ suites:
             fi
         prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
+
         restore: |
-            $TESTSLIB/reset.sh --store
+            $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd
             fi
 
     tests/nested/:

@@ -99,6 +99,24 @@ func (s *aliasesSuite) TestUpdateAliasesRemove(c *C) {
 	c.Check(match, HasLen, 0)
 }
 
+func (s *aliasesSuite) TestUpdateAliasesAddRemoveOverlap(c *C) {
+	before := []*backend.Alias{{"bar", "x.bar"}}
+	after := []*backend.Alias{{"bar", "x.baz"}}
+
+	err := s.be.UpdateAliases(before, nil)
+	c.Assert(err, IsNil)
+
+	err = s.be.UpdateAliases(after, before)
+	c.Assert(err, IsNil)
+
+	match, err := s.be.MatchingAliases(before)
+	c.Assert(err, IsNil)
+	c.Check(match, HasLen, 0)
+	match, err = s.be.MatchingAliases(after)
+	c.Assert(err, IsNil)
+	c.Check(match, HasLen, len(after))
+}
+
 func (s *aliasesSuite) TestRemoveSnapAliases(c *C) {
 	aliases := []*backend.Alias{{"x", "x"}, {"bar", "x.bar"}, {"baz", "y.baz"}, {"y", "y"}}
 

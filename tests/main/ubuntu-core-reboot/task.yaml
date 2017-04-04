@@ -17,7 +17,7 @@ execute: |
     snap list | grep network-bind-consumer
 
     echo "Ensure the service is (still) running."
-    retries=60
+    retries=120
     while ! systemctl is-active snap.network-bind-consumer.network-consumer.service; do
         if [ $retries -eq 0 ]; then
             echo "Service did not activate."

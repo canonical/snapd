@@ -195,7 +195,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	autoSet := make(map[string]bool, len(autoAliases))
-	for _, alias := range autoAliases {
+	for alias := range autoAliases {
 		autoSet[alias] = true
 	}
 
@@ -598,7 +598,7 @@ func checkAliasConflict(st *state.State, snapName, alias string) error {
 }
 
 // AutoAliases allows to hook support for retrieving auto-aliases of a snap.
-var AutoAliases func(st *state.State, info *snap.Info) ([]string, error)
+var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error)
 
 // AutoAliasesDelta compares the alias statuses with the current snap
 // declaration for the installed snaps with the given names (or all if
@@ -650,7 +650,7 @@ func AutoAliasesDelta(st *state.State, names []string) (new map[string][]string,
 			continue
 		}
 		autoSet := make(map[string]bool, len(autoAliases))
-		for _, alias := range autoAliases {
+		for alias := range autoAliases {
 			autoSet[alias] = true
 			if aliasStatuses[alias] == "" { // not auto, or disabled, or enabled
 				new[snapName] = append(new[snapName], alias)
