@@ -53,16 +53,8 @@ func (s *configHelpersSuite) TestConfigSnapshot(c *C) {
 	var cfgsnapshot map[string]map[string]map[string]interface{}
 	c.Assert(s.state.Get("revision-config", &cfgsnapshot), IsNil)
 	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]interface{}{
-		"snap1": {
-			"1": {
-				"foo": "a",
-			},
-		},
-		"snap2": {
-			"7": {
-				"bar": "q",
-			},
-		},
+		"snap1": {"1": {"foo": "a"}},
+		"snap2": {"7": {"bar": "q"}},
 	})
 
 	c.Assert(cfgsnapshot["snap1"], NotNil)
@@ -77,19 +69,8 @@ func (s *configHelpersSuite) TestConfigSnapshot(c *C) {
 
 	c.Assert(s.state.Get("revision-config", &cfgsnapshot), IsNil)
 	c.Assert(cfgsnapshot, DeepEquals, map[string]map[string]map[string]interface{}{
-		"snap1": {
-			"1": {
-				"foo": "a",
-			},
-			"2": {
-				"foo": "b",
-			},
-		},
-		"snap2": {
-			"7": {
-				"bar": "q",
-			},
-		},
+		"snap1": {"1": {"foo": "a"}, "2": {"foo": "b"}},
+		"snap2": {"7": {"bar": "q"}},
 	})
 
 	var value string
