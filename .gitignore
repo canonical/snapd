@@ -31,10 +31,7 @@ cmd/system-shutdown/unit-tests
 cmd/*/*.[1-9]
 
 # auto-generated systemd units
-data/systemd/snapd.autoimport.service
-data/systemd/snapd.refresh.service
-data/systemd/snapd.service
-data/systemd/snapd.system-shutdown.service
+data/systemd/*.service
 
 # test-driver
 *.log
