@@ -112,6 +112,10 @@ int main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
+		// ensure that "/" or "/snap" is mounted with the
+		// "shared" option, see LP:#1668659
+		sc_ensure_shared_snap_mount();
+
 		if (classic_confinement) {
 			/* 'classic confinement' is designed to run without the sandbox
 			 * inside the shared namespace. Specifically:

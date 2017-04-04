@@ -1,0 +1,28 @@
+summary: Ensure that snapd works on systems with a non rshared root
+prepare: |
+    # simulate a system with a non-shared /
+    mount --make-private /
+    mount --make-private $(readlink -f /snap/core/current)
+restore: |
+    mount --make-rshared /
+    mount --make-rshared $(readlink -f /snap/core/current)
+execute: |
+    echo "Install fresh test-snapd-tools"
+    snap install test-snapd-tools
+    test-snapd-tools.echo hello
+
+    echo "Refresh, subsequent runs after refresh will fail if / is not rshared"
+    snap refresh --edge test-snapd-tools
+    test-snapd-tools.echo hello
+
+    echo "Ensure we have a shared mount of /snap"
+    cat /proc/self/mountinfo |MATCH "/snap /snap.*shared:1"
+
+    echo "Run it again for good measure"
+    test-snapd-tools.echo hello
+    echo "... and ensure we do not mount /snap again"
+    n=$(cat /proc/self/mountinfo |grep "/snap /snap.*shared:1"|wc -l)
+    if [ "$n" -ne 1 ]; then
+        echo "Incorrect extra /snap bind mounts created"
+        exit 1
+    fi

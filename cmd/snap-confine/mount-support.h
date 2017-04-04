@@ -33,4 +33,6 @@
  **/
 void sc_populate_mount_ns(const char *snap_name);
 
+/** Ensure that /snap is mounted with the SHARED option */
+void sc_ensure_shared_snap_mount();
 #endif
