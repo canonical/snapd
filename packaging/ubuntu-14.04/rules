@@ -130,12 +130,10 @@ override_dh_install:
 	fi
 	# we install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.mount debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	# and now the normal install rules
 	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp

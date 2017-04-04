@@ -20,7 +20,7 @@ update_core_snap_for_classic_reexec() {
 
     # First of all, unmount the core
     core="$(readlink -f /snap/core/current || readlink -f /snap/ubuntu-core/current)"
-    snap="$(mount | grep " $core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | sort | uniq | awk '{print $1}')"
     umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec/snapctl into it

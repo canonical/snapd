@@ -24,7 +24,7 @@ if [ "$1" = "purge" ]; then
         systemctl_stop "$unit"
     done
 
-    systemctl stop snap.mount.service || true
+    systemctl stop snap.mount || true
 
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit

@@ -121,6 +121,10 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-psnapd \
 		data/systemd/snapd.autoimport.service
+	# mount workaround
+	dh_systemd_enable \
+		-psnapd \
+		data/systemd/snap.mount
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
@@ -158,6 +162,10 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-psnapd \
 		data/systemd/snapd.service
+	# mount workaround
+	dh_systemd_start \
+		-psnapd \
+		data/systemd/snap.mount
 	# start autoimport
 	dh_systemd_start \
 		-psnapd \
@@ -181,12 +189,10 @@ override_dh_install:
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 data/systemd/*.mount debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
