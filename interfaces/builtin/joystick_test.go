@@ -29,78 +29,80 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type FramebufferInterfaceSuite struct {
+type JoystickInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&FramebufferInterfaceSuite{
-	iface: &builtin.FramebufferInterface{},
+var _ = Suite(&JoystickInterfaceSuite{
+	iface: &builtin.JoystickInterface{},
 })
 
-func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
+func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
 type: os
 slots:
-  test-framebuffer:
-    interface: framebuffer
+  test-joystick:
+    interface: joystick
 `, nil)
-	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-framebuffer"]}
+	s.slot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-joystick"]}
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
 apps:
-  app-accessing-framebuffer:
+  app-accessing-joystick:
     command: foo
-    plugs: [framebuffer]
+    plugs: [joystick]
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["framebuffer"]}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["joystick"]}
 }
 
-func (s *FramebufferInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "framebuffer")
+func (s *JoystickInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "joystick")
 }
 
-func (s *FramebufferInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *JoystickInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "framebuffer",
-		Interface: "framebuffer",
+		Name:      "joystick",
+		Interface: "joystick",
 	}})
-	c.Assert(err, ErrorMatches, "framebuffer slots only allowed on core snap")
+	c.Assert(err, ErrorMatches, "joystick slots only allowed on core snap")
 }
 
-func (s *FramebufferInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *FramebufferInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *JoystickInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "framebuffer"`)
+		PanicMatches, `slot is not of interface "joystick"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "framebuffer"`)
+		PanicMatches, `plug is not of interface "joystick"`)
 }
 
-func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := `
-# Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
-# gives privileged access to the console framebuffer.
+func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	expectedSnippet := `
+# Description: Allow reading and writing to joystick devices (/dev/input/js*).
 
-/dev/fb[0-9]* rw,
-/run/udev/data/c29:[0-9]* r,
+# Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+# only js0-js31 is valid so limit the /dev and udev entries to those devices.
+/dev/input/js{[0-9],[12][0-9],3[01]} rw,
+/run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
+
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-framebuffer"})
-	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-framebuffer")
-	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-joystick"})
+	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-joystick")
+	c.Assert(aasnippet, Equals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, aasnippet))
 }
