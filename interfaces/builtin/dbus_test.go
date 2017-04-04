@@ -359,6 +359,9 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 
 	// verify interface in rule
 	c.Check(snippet, testutil.Contains, "interface=\"org.test-system-slot{,.*}\"\n")
+
+	// verify dbus-daemon introspection rule
+	c.Check(snippet, testutil.Contains, "dbus (send)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(name=org.freedesktop.DBus, label=unconfined),\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
