@@ -93,6 +93,10 @@
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
 
+    # LP: #1668659
+    mount options=(rw rbind) /snap/ -> /snap/,
+    mount options=(rw rshared) -> /snap/,
+
     # boostrapping the mount namespace
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
