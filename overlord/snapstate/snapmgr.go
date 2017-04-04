@@ -359,21 +359,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func diskAliasTask(t *state.Task) bool {
-	// TODO: aliases v2!
-	kind := t.Kind()
-	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
-}
-
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
-	// aliases are global, serialize tasks operating on them
-	if diskAliasTask(cand) {
-		for _, t := range running {
-			if diskAliasTask(t) {
-				return true
-			}
-		}
-	}
 	return false
 }
 
