@@ -364,7 +364,7 @@ func (iface *UDisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *UDisks2Interface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *UDisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(udisks2PermanentSlotUDev)
 	return nil
 }
