@@ -374,7 +374,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 
 	markSeeded(o)
 	o.Loop()
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	err = o.Stop()
 	c.Assert(err, IsNil)
 
@@ -412,7 +412,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	o.Loop()
 
 	// ensure the first change is pruned
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
@@ -421,7 +421,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	st.Lock()
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()
