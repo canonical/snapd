@@ -72,9 +72,8 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 		return false
 	}
 	if urlErr, ok := err.(*url.Error); ok {
-		return urlErr.Err == io.ErrUnexpectedEOF || urlErr.Err == io.EOF
-	}
-	if netErr, ok := err.(net.Error); ok {
+		err = urlErr.Err
+	} else if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout()
 	}
 	return err == io.ErrUnexpectedEOF || err == io.EOF
