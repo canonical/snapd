@@ -21,6 +21,7 @@ package mount
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -61,11 +62,11 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// EqualEntries checks if one entry is equal to another
-func (a *Entry) Equal(b *Entry) bool {
-	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
-		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
-		a.CheckPassNumber == b.CheckPassNumber)
+// Equal checks if one entry is equal to another
+func (e *Entry) Equal(o *Entry) bool {
+	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
+		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
+		e.CheckPassNumber == o.CheckPassNumber)
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
@@ -167,4 +168,25 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+// SaveFSTab writes a list of entries to a fstab-like file.
+//
+// The supported format is described by fstab(5).
+//
+// Note that there is no support for comments, both the LoadFSTab function and
+// SaveFSTab just ignore them.
+//
+// Note that there is no attempt to use atomic file write/rename tricks. The
+// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
+// be done so, while holidng a flock-based-lock, by the snap-update-ns program.
+func SaveFSTab(writer io.Writer, entries []Entry) error {
+	var buf bytes.Buffer
+	for i := range entries {
+		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
+			return err
+		}
+	}
+	_, err := buf.WriteTo(writer)
+	return err
 }
