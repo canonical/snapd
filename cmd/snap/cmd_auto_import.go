@@ -85,7 +85,7 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 		// skip all ram disks (unless in tests)
-		if !osutil.GetenvBool("SNAPD_DEBUG") && strings.HasPrefix(mountSrc, "/dev/ram") {
+		if !osutil.GetenvBool("SNAPPY_TESTING") && strings.HasPrefix(mountSrc, "/dev/ram") {
 			continue
 		}
 
