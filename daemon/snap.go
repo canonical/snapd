@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
@@ -178,8 +179,14 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 		status = "active"
 	}
 
+	appNames := make([]string, 0, len(localSnap.Apps))
+	for appName := range localSnap.Apps {
+		appNames = append(appNames, appName)
+	}
+	sort.Strings(appNames)
 	apps := make([]appJSON, 0, len(localSnap.Apps))
-	for _, app := range localSnap.Apps {
+	for _, appName := range appNames {
+		app := localSnap.Apps[appName]
 		var installedDesktopFile string
 		if osutil.FileExists(app.DesktopFile()) {
 			installedDesktopFile = app.DesktopFile()
