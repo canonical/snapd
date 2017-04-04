@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -525,20 +526,13 @@ func (iface *DockerSupportInterface) Name() string {
 	return "docker-support"
 }
 
-func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *DockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	privileged, _ := plug.Attrs["privileged-containers"].(bool)
-	if securitySystem == interfaces.SecurityAppArmor {
-		snippet := []byte(dockerSupportConnectedPlugAppArmor)
-		if privileged {
-			snippet = append(snippet, dockerSupportPrivilegedAppArmor...)
-		}
-		return snippet, nil
+	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
+	if privileged {
+		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
 	}
-	return nil, nil
+	return nil
 }
 
 func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -547,15 +541,8 @@ func (iface *DockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	if privileged {
 		snippet += dockerSupportPrivilegedSecComp
 	}
-	return spec.AddSnippet(snippet)
-}
-
-func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
