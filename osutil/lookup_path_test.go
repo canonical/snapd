@@ -17,28 +17,28 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
-	"os/exec"
+	"fmt"
+
+	"github.com/snapcore/snapd/osutil"
+
+	. "gopkg.in/check.v1"
 )
 
-var LookPath func(name string) (string, error) = exec.LookPath
-
-// FindInPath searches for a given command name in all directories listed
-// in the environment variable PATH and returns the found path or an
-// empty path.
-func FindInPath(name string) string {
-	return FindInPathOrDefault(name, "")
+type lookupPathSuite struct {
+	basePath string
 }
 
-// FindInPathOrDefault searches for a given command name in all directories
-// listed in the environment variable PATH and returns the found path or the
-// provided default path.
-func FindInPathOrDefault(name string, defaultPath string) string {
-	p, err := LookPath(name)
-	if err != nil {
-		return defaultPath
-	}
-	return p
+var _ = Suite(&lookupPathSuite{})
+
+func (s *lookupPathSuite) TestGivesCorrectPath(c *C) {
+	osutil.LookPath = func(name string) (string, error) { return "/bin/true", nil }
+	c.Assert(osutil.LookupPath("true"), Equals, "/bin/true")
+}
+
+func (s *lookupPathSuite) TestReturnsDefaultWhenNotFound(c *C) {
+	osutil.LookPath = func(name string) (string, error) { return "", fmt.Errorf("Not found") }
+	c.Assert(osutil.LookupPathWithDefault("bar", "/bin/bla"), Equals, "/bin/bla")
 }
