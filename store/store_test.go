@@ -1748,6 +1748,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			Channel:     "edge",
 		},
 	})
+	c.Check(result.Tracks, HasLen, 1)
+	c.Check(result.Tracks["latest"], HasLen, 1)
+	c.Check(result.Tracks["latest"]["stable"], DeepEquals, &snap.ChannelSnapInfo{
+		Revision:    snap.R(42),
+		Version:     "6.5",
+		Confinement: snap.StrictConfinement,
+		Channel:     "stable",
+		Size:        12345,
+		Epoch:       "0",
+	})
+
 	c.Check(snap.Validate(result), IsNil)
 }
 

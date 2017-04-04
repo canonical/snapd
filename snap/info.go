@@ -167,7 +167,16 @@ type Info struct {
 	Publisher   string
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*ChannelSnapInfo
+	// deprecated
+	Channels map[string]*ChannelSnapInfo
+
+	// maps from "track" -> "channel" -> ChannelSnapInfo
+	Tracks map[string]map[string]*ChannelSnapInfo
+}
+
+type ChannelInfo struct {
+	Name string
+	Info map[string]*ChannelSnapInfo
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
