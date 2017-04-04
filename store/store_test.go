@@ -2547,7 +2547,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2582,7 +2581,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
