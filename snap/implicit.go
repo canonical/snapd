@@ -30,7 +30,9 @@ import (
 var implicitSlots = []string{
 	"account-control",
 	"alsa",
+	"autopilot-introspection",
 	"bluetooth-control",
+	"browser-support",
 	"camera",
 	"classic-support",
 	"core-support",
@@ -41,6 +43,7 @@ var implicitSlots = []string{
 	"hardware-observe",
 	"home",
 	"io-ports-control",
+	"joystick",
 	"kernel-module-control",
 	"locale-control",
 	"log-observe",
@@ -73,7 +76,6 @@ var implicitSlots = []string{
 
 var implicitClassicSlots = []string{
 	"avahi-observe",
-	"browser-support",
 	"cups-control",
 	"gsettings",
 	"libvirt",

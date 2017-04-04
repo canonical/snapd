@@ -23,31 +23,6 @@
 
 #include "cleanup-funcs.h"
 
-struct sc_mountinfo {
-	struct sc_mountinfo_entry *first;
-};
-
-struct sc_mountinfo_entry {
-	int mount_id;
-	int parent_id;
-	unsigned dev_major, dev_minor;
-	char *root;
-	char *mount_dir;
-	char *mount_opts;
-	char *optional_fields;
-	char *fs_type;
-	char *mount_source;
-	char *super_opts;
-
-	struct sc_mountinfo_entry *next;
-	// Buffer holding all of the text data above.
-	//
-	// The buffer must be the last element of the structure. It is allocated
-	// along with the structure itself and does not need to be freed
-	// separately.
-	char line_buf[0];
-};
-
 /**
  * Parse a single mountinfo entry (line).
  *
@@ -92,61 +67,6 @@ struct sc_mountinfo_entry *sc_next_mountinfo_entry(struct sc_mountinfo_entry
 						   *entry)
 {
 	return entry->next;
-}
-
-int sc_mountinfo_entry_mount_id(struct sc_mountinfo_entry *entry)
-{
-	return entry->mount_id;
-}
-
-int sc_mountinfo_entry_parent_id(struct sc_mountinfo_entry *entry)
-{
-	return entry->parent_id;
-}
-
-unsigned sc_mountinfo_entry_dev_major(struct sc_mountinfo_entry *entry)
-{
-	return entry->dev_major;
-}
-
-unsigned sc_mountinfo_entry_dev_minor(struct sc_mountinfo_entry *entry)
-{
-	return entry->dev_minor;
-}
-
-const char *sc_mountinfo_entry_root(struct sc_mountinfo_entry *entry)
-{
-	return entry->root;
-}
-
-const char *sc_mountinfo_entry_mount_dir(struct sc_mountinfo_entry *entry)
-{
-	return entry->mount_dir;
-}
-
-const char *sc_mountinfo_entry_mount_opts(struct sc_mountinfo_entry *entry)
-{
-	return entry->mount_opts;
-}
-
-const char *sc_mountinfo_entry_optional_fields(struct sc_mountinfo_entry *entry)
-{
-	return entry->optional_fields;
-}
-
-const char *sc_mountinfo_entry_fs_type(struct sc_mountinfo_entry *entry)
-{
-	return entry->fs_type;
-}
-
-const char *sc_mountinfo_entry_mount_source(struct sc_mountinfo_entry *entry)
-{
-	return entry->mount_source;
-}
-
-const char *sc_mountinfo_entry_super_opts(struct sc_mountinfo_entry *entry)
-{
-	return entry->super_opts;
 }
 
 struct sc_mountinfo *sc_parse_mountinfo(const char *fname)
@@ -284,7 +204,6 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	entry->optional_fields = &entry->line_buf[0] + offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
-	char *to = entry->optional_fields;
 	for (int field_num = 0;; ++field_num) {
 		char *opt_field = parse_next_string_field();
 		if (opt_field == NULL)

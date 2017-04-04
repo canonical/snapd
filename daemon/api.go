@@ -85,6 +85,7 @@ var api = []*Command{
 	usersCmd,
 	sectionsCmd,
 	aliasesCmd,
+	debugCmd,
 }
 
 var (
@@ -173,6 +174,11 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
+	}
+
+	debugCmd = &Command{
+		Path: "/v2/debug",
+		POST: postDebug,
 	}
 
 	createUserCmd = &Command{
@@ -664,8 +670,9 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	query := r.URL.Query()
 	var all bool
-	sel := r.URL.Query().Get("select")
+	sel := query.Get("select")
 	switch sel {
 	case "all":
 		all = true
@@ -674,7 +681,19 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all)
+	var wanted map[string]bool
+	if ns := query.Get("snaps"); len(ns) > 0 {
+		nsl := strings.Split(ns, ",")
+		wanted = make(map[string]bool, len(nsl))
+		for _, name := range nsl {
+			name = strings.TrimSpace(name)
+			if len(name) > 0 {
+				wanted[name] = true
+			}
+		}
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
@@ -828,7 +847,7 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	// confinement.
 	flags.JailMode = jailMode
 	flags.Classic = classic
-	flags.DevMode = devMode || devModeOS && !classic
+	flags.DevMode = devMode
 	return flags, nil
 }
 
@@ -1471,7 +1490,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	taskset := configstate.Configure(st, snapName, patchValues)
+	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2115,6 +2134,30 @@ func convertBuyError(err error) Response {
 	default:
 		return InternalError("%v", err)
 	}
+}
+
+type debugAction struct {
+	Action string `json:"action"`
+}
+
+func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
+	var a debugAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into a debug action: %v", err)
+	}
+
+	switch a.Action {
+	case "ensure-state-soon":
+		st := c.d.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+		ensureStateSoon(st)
+	default:
+		return BadRequest("unknown debug action: %v", a.Action)
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {

@@ -31,6 +31,10 @@ environment:
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
+    HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
+    NO_PROXY: "127.0.0.1"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
 
 backends:
     linode:
@@ -144,6 +148,11 @@ backends:
                     TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
+            - ubuntu-core-16-32:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
             - ubuntu-core-16-arm-64:
                 username: test
                 password: ubuntu
@@ -225,7 +234,10 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        snap set core refresh.disabled=false
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl enable --now snapd.refresh.timer
+            snap set core refresh.disabled=false
+        fi
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
@@ -305,6 +317,25 @@ suites:
             $TESTSLIB/reset.sh --store
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd snap-confine ubuntu-core-launcher
+            fi
+
+    tests/nightly/:
+        summary: Suite for nightly, expensive, tests
+        manual: true
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+
+        restore: |
+            $TESTSLIB/reset.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                apt-get purge -y snapd
             fi
 
     tests/nested/:

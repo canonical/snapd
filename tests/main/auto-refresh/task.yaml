@@ -4,13 +4,17 @@ prepare: |
     snap install --devmode jq
 
 restore: |
-    snap set core refresh.disabled=true
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.disabled=true
+    fi
     
 execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+'
-    snap set core refresh.disabled=false
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.disabled=false
+    fi
     
     systemctl stop snapd.{service,socket}
     echo "Modify the snap to track the edge channel"

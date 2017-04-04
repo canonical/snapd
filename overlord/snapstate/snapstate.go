@@ -36,7 +36,25 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.TaskSet, error) {
+// control flags for doInstall
+const (
+	maybeCore = 1 << iota
+)
+
+// control flags for "Configure()"
+const (
+	IgnoreHookError = 1 << iota
+	TrackHookError
+)
+
+func needsMaybeCore(typ snap.Type) int {
+	if typ == snap.TypeOS {
+		return maybeCore
+	}
+	return 0
+}
+
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Flags.Classic && !release.OnClassic {
 		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
 	}
@@ -125,6 +143,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	addTask(linkSnap)
 	prev = linkSnap
 
+	// security: phase 2, no-op unless core
+	if flags&maybeCore != 0 {
+		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
+		setupSecurityPhase2.Set("core-phase-2", true)
+		addTask(setupSecurityPhase2)
+		prev = setupSecurityPhase2
+	}
+
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
 	addTask(setAutoAliases)
@@ -204,14 +230,23 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*state.T
 	}
 
 	installSet := state.NewTaskSet(tasks...)
-	configSet := Configure(st, snapsup.Name(), defaults)
+
+	var confFlags int
+	// This is slightly ugly, ideally we would check the type instead
+	// of hardcoding the name here. Unfortunately we do not have the
+	// type until we actually run the change.
+	if snapsup.Name() == "core" {
+		confFlags |= IgnoreHookError
+		confFlags |= TrackHookError
+	}
+	configSet := Configure(st, snapsup.Name(), defaults, confFlags)
 	configSet.WaitAll(installSet)
 	installSet.AddAll(configSet)
 
 	return installSet, nil
 }
 
-var Configure = func(st *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+var Configure = func(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	panic("internal error: snapstate.Configure is unset")
 }
 
@@ -294,7 +329,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		Flags:    flags.ForSnapSetup(),
 	}
 
-	return doInstall(st, &snapst, snapsup)
+	return doInstall(st, &snapst, snapsup, maybeCore)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -338,7 +373,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		SideInfo:     &info.SideInfo,
 	}
 
-	return doInstall(st, &snapst, snapsup)
+	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
 }
 
 // InstallMany installs everything from the given list of names.
@@ -545,7 +580,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			SideInfo:     &update.SideInfo,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup)
+		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -785,6 +820,25 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 
 	// refresh-to-local
 	return readInfo(name, sideInfo)
+}
+
+// AutoRefreshAssertions allows to hook fetching of important assertions
+// into the Autorefresh function.
+var AutoRefreshAssertions func(st *state.State, userID int) error
+
+// AutoRefresh is the wrapper that will do a refresh of all the installed
+// snaps on the system. In addition to that it will also refresh important
+// assertions.
+func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+	userID := 0
+
+	if AutoRefreshAssertions != nil {
+		if err := AutoRefreshAssertions(st, userID); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return UpdateMany(st, nil, userID)
 }
 
 // Enable sets a snap to the active state
@@ -1140,12 +1194,16 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
+	typ, err := snapst.Type()
+	if err != nil {
+		return nil, err
+	}
 	flags.Revert = true
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
 	}
-	return doInstall(st, &snapst, snapsup)
+	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1185,7 +1243,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		})
+		}, maybeCore)
 		if err != nil {
 			return nil, err
 		}
@@ -1384,25 +1442,6 @@ func GadgetInfo(st *state.State) (*snap.Info, error) {
 // KernelInfo finds the current kernel snap's info.
 func KernelInfo(st *state.State) (*snap.Info, error) {
 	return infoForType(st, snap.TypeKernel)
-}
-
-// AutoRefreshAssertions allows to hook fetching of important assertions
-// into the Autorefresh function.
-var AutoRefreshAssertions func(st *state.State, userID int) error
-
-// AutoRefresh is the wrapper that will do a refresh of all the installed
-// snaps on the system. In addition to that it will also refresh important
-// assertions.
-func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
-	userID := 0
-
-	if AutoRefreshAssertions != nil {
-		if err := AutoRefreshAssertions(st, userID); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return UpdateMany(st, nil, userID)
 }
 
 // CoreInfo finds the current OS snap's info. If both

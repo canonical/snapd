@@ -35,9 +35,18 @@ build_deb(){
 download_from_ppa(){
     local ppa_version="$1"
 
-    for pkg in snapd; do
+    # we need to install snap-confine and ubunntu-core-launcher for versions < 2.23
+    for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
+    done
+}
+
+install_dependencies_from_ppa(){
+    local ppa_version="$1"
+
+    for dep in snap-confine ubuntu-core-launcher; do
+        dpkg -i "${GOPATH}/${dep}_${ppa_version}_$(dpkg --print-architecture).deb"
     done
 }
 
@@ -64,11 +73,16 @@ if [ "$SPREAD_BACKEND" = external ]; then
        snap remove test-snapd-snapbuild
    fi
    # stop and disable autorefresh
-   snap set core refresh.disabled=true
+   if [ -e /snap/core/current/meta/hooks/configure ]; then
+       systemctl disable --now snapd.refresh.timer
+       snap set core refresh.disabled=true
+   fi
    exit 0
 fi
 
 if [ "$SPREAD_BACKEND" = qemu ]; then
+   # qemu images may be built with pre-baked proxy settings that can be wrong
+   rm -f /etc/apt/apt.conf.d/90cloud-init-aptproxy
    # treat APT_PROXY as a location of apt-cacher-ng to use
    if [ -d /etc/apt/apt.conf.d ] && [ -n "${APT_PROXY:-}" ]; then
        printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy
@@ -119,6 +133,8 @@ if [ -z "$SNAPD_PPA_VERSION" ]; then
     build_deb
 else
     download_from_ppa "$SNAPD_PPA_VERSION"
+
+    install_dependencies_from_ppa "$SNAPD_PPA_VERSION"
 fi
 
 # Build snapbuild.

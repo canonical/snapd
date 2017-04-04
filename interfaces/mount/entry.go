@@ -20,8 +20,13 @@
 package mount
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Entry describes an /etc/fstab-like mount entry.
@@ -46,19 +51,40 @@ type Entry struct {
 	CheckPassNumber int
 }
 
-// escape replaces whitespace characters so that getmntent can parse it correctly.
-//
-// According to the manual page, the following characters need to be escaped.
-//  space     => (\040)
-//  tab       => (\011)
-//  newline   => (\012)
-//  backslash => (\134)
-func escape(s string) string {
-	return whitespaceReplacer.Replace(s)
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
-var whitespaceReplacer = strings.NewReplacer(
-	" ", `\040`, "\t", `\011`, "\n", `\012`, "\\", `\134`)
+// Equal checks if one entry is equal to another
+func (e *Entry) Equal(o *Entry) bool {
+	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
+		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
+		e.CheckPassNumber == o.CheckPassNumber)
+}
+
+// escape replaces whitespace characters so that getmntent can parse it correctly.
+var escape = strings.NewReplacer(
+	" ", `\040`,
+	"\t", `\011`,
+	"\n", `\012`,
+	"\\", `\134`,
+).Replace
+
+// unescape replaces escape sequences used by setmnt with whitespace characters.
+var unescape = strings.NewReplacer(
+	`\040`, " ",
+	`\011`, "\t",
+	`\012`, "\n",
+	`\134`, "\\",
+).Replace
 
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
@@ -83,4 +109,142 @@ func (e Entry) String() string {
 	}
 	return fmt.Sprintf("%s %s %s %s %d %d",
 		name, dir, fsType, options, e.DumpFrequency, e.CheckPassNumber)
+}
+
+// ParseEntry parses a fstab-like entry.
+func ParseEntry(s string) (Entry, error) {
+	var e Entry
+	var err error
+	var df, cpn int
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
+	// do all error checks before any assignments to `e'
+	if len(fields) < 4 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
+	}
+	// Parse DumpFrequency if we have at least 5 fields
+	if len(fields) > 4 {
+		df, err = strconv.Atoi(fields[4])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
+		}
+	}
+	// Parse CheckPassNumber if we have at least 6 fields
+	if len(fields) > 5 {
+		cpn, err = strconv.Atoi(fields[5])
+		if err != nil {
+			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
+		}
+	}
+	e.Name = unescape(fields[0])
+	e.Dir = unescape(fields[1])
+	e.Type = unescape(fields[2])
+	e.Options = strings.Split(unescape(fields[3]), ",")
+	e.DumpFrequency = df
+	e.CheckPassNumber = cpn
+	return e, nil
+}
+
+// LoadFSTab reads and parses an fstab-like file.
+//
+// The supported format is described by fstab(5).
+func LoadFSTab(reader io.Reader) ([]Entry, error) {
+	var entries []Entry
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		s := scanner.Text()
+		if i := strings.IndexByte(s, '#'); i != -1 {
+			s = s[0:i]
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		entry, err := ParseEntry(s)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// SaveFSTab writes a list of entries to a fstab-like file.
+//
+// The supported format is described by fstab(5).
+//
+// Note that there is no support for comments, both the LoadFSTab function and
+// SaveFSTab just ignore them.
+//
+// Note that there is no attempt to use atomic file write/rename tricks. The
+// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
+// be done so, while holidng a flock-based-lock, by the snap-update-ns program.
+func SaveFSTab(writer io.Writer, entries []Entry) error {
+	var buf bytes.Buffer
+	for i := range entries {
+		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
+			return err
+		}
+	}
+	_, err := buf.WriteTo(writer)
+	return err
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	for _, opt := range opts {
+		switch opt {
+		case "ro":
+			flags |= syscall.MS_RDONLY
+		case "nosuid":
+			flags |= syscall.MS_NOSUID
+		case "nodev":
+			flags |= syscall.MS_NODEV
+		case "noexec":
+			flags |= syscall.MS_NOEXEC
+		case "sync":
+			flags |= syscall.MS_SYNCHRONOUS
+		case "remount":
+			flags |= syscall.MS_REMOUNT
+		case "mand":
+			flags |= syscall.MS_MANDLOCK
+		case "dirsync":
+			flags |= syscall.MS_DIRSYNC
+		case "noatime":
+			flags |= syscall.MS_NOATIME
+		case "nodiratime":
+			flags |= syscall.MS_NODIRATIME
+		case "bind":
+			flags |= syscall.MS_BIND
+		case "rbind":
+			flags |= syscall.MS_BIND | syscall.MS_REC
+		case "move":
+			flags |= syscall.MS_MOVE
+		case "silent":
+			flags |= syscall.MS_SILENT
+		case "acl":
+			flags |= syscall.MS_POSIXACL
+		case "private":
+			flags |= syscall.MS_PRIVATE
+		case "rprivate":
+			flags |= syscall.MS_PRIVATE | syscall.MS_REC
+		case "slave":
+			flags |= syscall.MS_SLAVE
+		case "rslave":
+			flags |= syscall.MS_SLAVE | syscall.MS_REC
+		case "shared":
+			flags |= syscall.MS_SHARED
+		case "rshared":
+			flags |= syscall.MS_SHARED | syscall.MS_REC
+		case "relatime":
+			flags |= syscall.MS_RELATIME
+		case "strictatime":
+			flags |= syscall.MS_STRICTATIME
+		default:
+			return 0, fmt.Errorf("unsupported mount option: %q", opt)
+		}
+	}
+	return flags, nil
 }

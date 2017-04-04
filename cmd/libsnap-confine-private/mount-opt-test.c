@@ -18,7 +18,9 @@
 #include "mount-opt.h"
 #include "mount-opt.c"
 
+#include <errno.h>
 #include <sys/mount.h>
+
 #include <glib.h>
 
 static void test_sc_mount_opt2str()
@@ -203,9 +205,53 @@ static void test_sc_umount_cmd()
 			"umount --force --lazy --expire --no-follow /mnt/foo");
 }
 
+static void test_sc_do_mount()
+{
+	if (g_test_subprocess()) {
+		bool broken_mount(struct sc_fault_state *state, void *ptr) {
+			errno = EACCES;
+			return true;
+		}
+		sc_break("mount", broken_mount);
+		sc_do_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
+
+		g_test_message("expected sc_do_mount not to return");
+		sc_reset_faults();
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
+}
+
+static void test_sc_do_umount()
+{
+	if (g_test_subprocess()) {
+		bool broken_umount(struct sc_fault_state *state, void *ptr) {
+			errno = EACCES;
+			return true;
+		}
+		sc_break("umount", broken_umount);
+		sc_do_umount("/foo", MNT_DETACH);
+
+		g_test_message("expected sc_do_umount not to return");
+		sc_reset_faults();
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+	g_test_trap_assert_stderr
+	    ("cannot perform operation: umount --lazy /foo: Permission denied\n");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
 	g_test_add_func("/mount/sc_mount_cmd", test_sc_mount_cmd);
 	g_test_add_func("/mount/sc_umount_cmd", test_sc_umount_cmd);
+	g_test_add_func("/mount/sc_do_mount", test_sc_do_mount);
+	g_test_add_func("/mount/sc_do_umount", test_sc_do_umount);
 }

@@ -1,6 +1,6 @@
 summary: Check that the authentication errors are properly reported.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-*]
 
 prepare: |
     mkdir -p /home/test/.snap

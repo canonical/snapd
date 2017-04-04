@@ -142,7 +142,8 @@ func (s *SnapSuite) TestListWithNoMatchingQuery(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
+			c.Check(r.URL.Query().Get("snaps"), check.Equals, "quux")
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -160,7 +161,7 @@ func (s *SnapSuite) TestListWithQuery(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			c.Check(r.URL.Query(), check.HasLen, 0)
+			c.Check(r.URL.Query().Get("snaps"), check.Equals, "foo")
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
