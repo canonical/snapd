@@ -76,12 +76,17 @@ func (iface *FramebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	return nil
 }
 
-func (iface *FramebufferInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
-	const udevRule = `KERNEL=="fb[0-9]*", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
+func (iface *FramebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	// This will fix access denied of opengl interface when it's used with
+	// framebuffer interface in the same snap.
+	// https://bugs.launchpad.net/snapd/+bug/1675738
+	// TODO: we are not doing this due to the bug and we'll be reintroducing
+	// the udev tagging soon.
+	//const udevRule = `KERNEL=="fb[0-9]*", TAG+="%s"`
+	//for appName := range plug.Apps {
+	//	tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+	//	spec.AddSnippet(fmt.Sprintf(udevRule, tag))
+	//}
 	return nil
 }
 
