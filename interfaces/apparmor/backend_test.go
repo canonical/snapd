@@ -85,6 +85,7 @@ fi
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &apparmor.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
 	// Prepare a directory for apparmor profiles.
 	// NOTE: Normally this is a part of the OS snap.
@@ -363,25 +364,26 @@ snippet
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
-	restoreTemplate := apparmor.MockTemplate([]byte("\n" +
+	restoreTemplate := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
-		"}\n"))
+		"}\n")
 	defer restoreTemplate()
-	restoreClassicTemplate := apparmor.MockClassicTemplate([]byte("\n" +
+	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
 		"#classic\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"###SNIPPETS###\n" +
-		"}\n"))
+		"}\n")
 	defer restoreClassicTemplate()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *interfaces.Slot) error {
 			if scenario.snippet == "" {
-				return nil, nil
+				return nil
 			}
-			return []byte(scenario.snippet), nil
+			spec.AddSnippet(scenario.snippet)
+			return nil
 		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
