@@ -54,7 +54,7 @@ func LoadProfile(fname string) (*Profile, error) {
 // The profile is saved with an atomic write+rename+sync operation.
 func (p *Profile) Save(fname string) error {
 	var buf bytes.Buffer
-	if err := p.WriteTo(&buf); err != nil {
+	if _, err := p.WriteTo(&buf); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(fname, buf.Bytes(), 0600, osutil.AtomicWriteFlags(0))
@@ -91,11 +91,15 @@ func ReadProfile(reader io.Reader) (*Profile, error) {
 //
 // The supported format is described by fstab(5).
 // Note that there is no support for comments.
-func (p *Profile) WriteTo(writer io.Writer) error {
+func (p *Profile) WriteTo(writer io.Writer) (int64, error) {
+	var written int64
 	for i := range p.Entries {
-		if _, err := fmt.Fprintf(writer, "%s\n", p.Entries[i]); err != nil {
-			return err
+		var n int
+		var err error
+		if n, err = fmt.Fprintf(writer, "%s\n", p.Entries[i]); err != nil {
+			return written, err
 		}
+		written += int64(n)
 	}
-	return nil
+	return written, nil
 }
