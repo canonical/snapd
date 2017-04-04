@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SNAPD_ENVIRONMENT_FILE := /etc/environment
-SNAP_MOUNTDIR := /snap
+SNAP_MOUNT_DIR := /snap
 BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
@@ -27,18 +27,13 @@ SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} snapd.refresh.timer snapd.socket
 		sed s:@libexecdir@:${LIBEXECDIR}:g | \
 		sed s:@SNAPD_ENVIRONMENT_FILE@:${SNAPD_ENVIRONMENT_FILE}:g | \
 		sed s:@bindir@:${BINDIR}:g | \
-		sed s:@SNAP_MOUNTDIR@:${SNAP_MOUNTDIR}:g  | \
+		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g  | \
 		cat > $@
 
 all: ${SYSTEMD_UNITS}
 
 install: $(SYSTEMD_UNITS)
-	install -d ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR}
-	for u in ${SYSTEMD_UNITS} ; do \
-		install -m 0644 $$u ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR}/ ; \
-	done
+	$(foreach u,$^,install -D -m 0644 ${u} ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR}/${u};)
 
 clean:
-	for u in ${SYSTEMD_UNITS_GENERATED} ; do \
-		rm $$u ; \
-	done
+	rm -f ${SYSTEMD_UNITS_GENERATED}
