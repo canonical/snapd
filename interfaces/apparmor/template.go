@@ -94,6 +94,7 @@ var defaultTemplate = `
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
+  /{,usr/}bin/arch ixr,
   /{,usr/}bin/{,g,m}awk ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
@@ -132,6 +133,8 @@ var defaultTemplate = `
   /{,usr/}bin/infocmp ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
+  /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
