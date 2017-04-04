@@ -175,6 +175,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  autopilot-introspection:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   bluetooth-control:
     allow-installation:
       slot-snap-type:
@@ -259,6 +264,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   fuse-support:
     allow-installation:
       slot-snap-type:
@@ -314,17 +324,17 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
   libvirt:
-    allow-installation:
-      slot-snap-type:
-        - core
-    deny-auto-connection: true
-  framebuffer:
     allow-installation:
       slot-snap-type:
         - core
@@ -359,6 +369,12 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
     deny-auto-connection: true
   mir:
     allow-installation:
@@ -515,7 +531,7 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
-  thumbnailer:
+  thumbnailer-service:
     allow-installation:
       slot-snap-type:
         - app

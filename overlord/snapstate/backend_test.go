@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"golang.org/x/net/context"
 
@@ -121,10 +120,15 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		confinement = snap.ClassicConfinement
 	}
 
+	typ := snap.TypeApp
+	if spec.Name == "some-core" {
+		typ = snap.TypeOS
+	}
+
 	info := &snap.Info{
 		Architectures: []string{"all"},
 		SideInfo: snap.SideInfo{
-			RealName: strings.Split(spec.Name, ".")[0],
+			RealName: spec.Name,
 			Channel:  spec.Channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 			Revision: spec.Revision,
@@ -134,6 +138,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		Confinement: confinement,
+		Type:        typ,
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
@@ -167,9 +172,12 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		}
 
 		var name string
-		if snapID == "some-snap-id" {
+		switch snapID {
+		case "some-snap-id":
 			name = "some-snap"
-		} else {
+		case "core-snap-id":
+			name = "core"
+		default:
 			panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
 		}
 

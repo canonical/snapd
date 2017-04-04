@@ -20,13 +20,14 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 // SerialPortInterface is the type for serial port interfaces.
@@ -54,7 +55,7 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|XRUSB|S|O)[0
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
+var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -80,7 +81,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
-		if !serialUdevSymlinkPattern.MatchString(path) {
+		if !serialUDevSymlinkPattern.MatchString(path) {
 			return fmt.Errorf("serial-port path attribute specifies invalid symlink location")
 		}
 
@@ -118,72 +119,56 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// PermanentSlotSnippet returns snippets granted on install
-func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		path, ok := slot.Attrs["path"].(string)
-		if !ok || path == "" {
-			return nil, nil
-		}
-		return udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
+func (iface *SerialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
 	}
-	return nil, nil
-}
-
-// ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentPlugSnippet no permissions provided to plug permanently
-func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		if iface.hasUsbAttrs(slot) {
-			// This apparmor rule is an approximation of serialDeviceNodePattern
-			// (AARE is different than regex, so we must approximate).
-			// UDev tagging and device cgroups will restrict down to the specific device
-			return []byte("/dev/tty[A-Z]*[0-9] rw,\n"), nil
-		}
-
-		// Path to fixed device node (no udev tagging)
-		path, pathOk := slot.Attrs["path"].(string)
-		if !pathOk {
-			return nil, nil
-		}
-		cleanedPath := filepath.Clean(path)
-		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		var udevSnippet bytes.Buffer
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			udevSnippet.Write(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
-		}
-		return udevSnippet.Bytes(), nil
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
 	}
-	return nil, nil
+	path, ok := slot.Attrs["path"].(string)
+	if !ok || path == "" {
+		return nil
+	}
+	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
+	return nil
+}
+
+func (iface *SerialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	if iface.hasUsbAttrs(slot) {
+		// This apparmor rule is an approximation of serialDeviceNodePattern
+		// (AARE is different than regex, so we must approximate).
+		// UDev tagging and device cgroups will restrict down to the specific device
+		spec.AddSnippet("/dev/tty[A-Z]*[0-9] rw,")
+		return nil
+	}
+
+	// Path to fixed device node (no udev tagging)
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk {
+		return nil
+	}
+	cleanedPath := filepath.Clean(path)
+	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	return nil
+}
+
+func (iface *SerialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
+	}
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
+	}
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
+	}
+	return nil
 }
 
 func (iface *SerialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
