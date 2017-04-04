@@ -174,11 +174,6 @@ type Info struct {
 	Tracks map[string]map[string]*ChannelSnapInfo
 }
 
-type ChannelInfo struct {
-	Name string
-	Info map[string]*ChannelSnapInfo
-}
-
 // ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
 type ChannelSnapInfo struct {

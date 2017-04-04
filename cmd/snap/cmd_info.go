@@ -260,6 +260,18 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
+		if remote != nil && remote.Tracks != nil {
+			// \t\t\t so we get "installed" lined up with "channels"
+			fmt.Fprintf(w, "tracks:\t\t\t\n")
+			for tr := range remote.Tracks {
+				fmt.Fprintf(w, "  - %s:\n", tr)
+				for ch := range remote.Tracks[tr] {
+					m := remote.Tracks[tr][ch]
+					fmt.Fprintf(w, "      %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
+				}
+			}
+		}
+
 		if remote != nil && remote.Channels != nil {
 			// \t\t\t so we get "installed" lined up with "channels"
 			fmt.Fprintf(w, "channels:\t\t\t\n")

@@ -121,17 +121,23 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	}
 
 	// fill in the tracks data
-	info.Tracks = make(map[string]map[string]*snap.ChannelSnapInfo)
-	for _, cm := range d.ChannelMapList {
-		info.Tracks[cm.Track] = make(map[string]*snap.ChannelSnapInfo)
-		for _, ch := range cm.SnapDetails {
-			info.Tracks[cm.Track][ch.Channel] = &snap.ChannelSnapInfo{
-				Revision:    snap.R(ch.Revision),
-				Confinement: snap.ConfinementType(ch.Confinement),
-				Version:     ch.Version,
-				Channel:     ch.Channel,
-				Epoch:       ch.Epoch,
-				Size:        ch.DownloadSize,
+	if len(d.ChannelMapList) > 0 {
+		info.Tracks = make(map[string]map[string]*snap.ChannelSnapInfo)
+		for _, cm := range d.ChannelMapList {
+			info.Tracks[cm.Track] = make(map[string]*snap.ChannelSnapInfo)
+			for _, ch := range cm.SnapDetails {
+				// nothing in this channel
+				if ch.Info == "" {
+					continue
+				}
+				info.Tracks[cm.Track][ch.Channel] = &snap.ChannelSnapInfo{
+					Revision:    snap.R(ch.Revision),
+					Confinement: snap.ConfinementType(ch.Confinement),
+					Version:     ch.Version,
+					Channel:     ch.Channel,
+					Epoch:       ch.Epoch,
+					Size:        ch.DownloadSize,
+				}
 			}
 		}
 	}
