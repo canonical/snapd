@@ -22,6 +22,7 @@ package mount_test
 import (
 	"bytes"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -196,4 +197,16 @@ func (s *entrySuite) TestSaveFSTab2(c *C) {
 	c.Assert(buf.String(), Equals, ("" +
 		"name-1 dir-1 type-1 options-1 1 1\n" +
 		"name-2 dir-2 type-2 options-2 2 2\n"))
+}
+
+// Test (string) options -> (int) flag conversion code.
+func (s *entrySuite) TestOptsToFlags(c *C) {
+	flags, err := mount.OptsToFlags(nil)
+	c.Assert(err, IsNil)
+	c.Assert(flags, Equals, 0)
+	flags, err = mount.OptsToFlags([]string{"ro", "nodev", "nosuid"})
+	c.Assert(err, IsNil)
+	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
+	_, err = mount.OptsToFlags([]string{"bogus"})
+	c.Assert(err, ErrorMatches, `unsupported mount option: "bogus"`)
 }
