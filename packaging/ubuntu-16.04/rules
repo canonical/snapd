@@ -90,6 +90,7 @@ endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/dbus clean || true
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -102,6 +103,9 @@ override_dh_auto_build:
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
+
+	# Generate necessary dbus service files
+	$(MAKE) -C data/dbus all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -187,6 +191,9 @@ override_dh_install:
 	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+
+	$(MAKE) -C data/dbus install DESTDIR=$(CURDIR)/debian/snapd LIBEXECDIR=/usr/lib/snapd
+
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real

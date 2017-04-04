@@ -88,6 +88,7 @@ endif
 	dh_clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	$(MAKE) -C data/dbus clean || true
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -100,6 +101,9 @@ override_dh_auto_build:
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
+
+	# Build necessary dbus service bits
+	$(MAKE) -C data/dbus all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -139,6 +143,9 @@ override_dh_install:
 	# and now the normal install rules
 	install --mode=0644 debian/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+
+	$(MAKE) -C data/dbus install DESTDIR=$(CURDIR)/debian/snapd LIBEXECDIR=/usr/lib/snapd
+
 	dh_install
 
 override_dh_auto_install: snap.8
