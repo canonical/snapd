@@ -4,7 +4,7 @@ TESTS =
 libexec_PROGRAMS =
 dist_man_MANS =
 noinst_PROGRAMS =
-noinst_LIBRARIES =
+noinst_LTLIBRARIES =
 
 subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
@@ -57,12 +57,12 @@ hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
 
 ##
-## libsnap-confine-private.a
+## libsnap-confine-private.la
 ##
 
-noinst_LIBRARIES += libsnap-confine-private.a
+noinst_LTLIBRARIES += libsnap-confine-private.la
 
-libsnap_confine_private_a_SOURCES = \
+libsnap_confine_private_la_SOURCES = \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \
@@ -127,7 +127,7 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
-decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
+decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.la
 # XXX: this makes automake generate decode_mount_opts_decode_mount_opts_LINK
 decode_mount_opts_decode_mount_opts_CFLAGS = -D_fake
 
@@ -201,7 +201,7 @@ snap_confine_snap_confine_SOURCES = \
 
 snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
-snap_confine_snap_confine_LDADD = libsnap-confine-private.a
+snap_confine_snap_confine_LDADD = libsnap-confine-private.la
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
 
@@ -347,7 +347,7 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-discard-ns/snap-discard-ns.c
 snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
-snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
+snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.la
 
 if APPARMOR
 snap_discard_ns_snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
@@ -368,7 +368,7 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.c \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
-system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
+system_shutdown_system_shutdown_LDADD = libsnap-confine-private.la
 system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
@@ -378,7 +378,7 @@ system_shutdown_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests-main.c \
 	libsnap-confine-private/unit-tests.c \
 	system-shutdown/system-shutdown-utils-test.c
-system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
+system_shutdown_unit_tests_LDADD = libsnap-confine-private.la
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
