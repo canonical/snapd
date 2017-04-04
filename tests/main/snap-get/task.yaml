@@ -43,3 +43,10 @@ execute: |
         echo "Expected 'foo' to be '$expected', but it was '$output'"
         exit 1
     fi
+
+    echo "Test that config values are not available once snap is removed"
+    snap remove snapctl-hooks
+    if output=$(snap get snapctl-hooks foo); then
+        echo "Expected snap get to fail, but got '$output'"
+        exit 1
+    fi
