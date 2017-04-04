@@ -26,6 +26,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Entry describes an /etc/fstab-like mount entry.
@@ -189,4 +190,61 @@ func SaveFSTab(writer io.Writer, entries []Entry) error {
 	}
 	_, err := buf.WriteTo(writer)
 	return err
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	for _, opt := range opts {
+		switch opt {
+		case "ro":
+			flags |= syscall.MS_RDONLY
+		case "nosuid":
+			flags |= syscall.MS_NOSUID
+		case "nodev":
+			flags |= syscall.MS_NODEV
+		case "noexec":
+			flags |= syscall.MS_NOEXEC
+		case "sync":
+			flags |= syscall.MS_SYNCHRONOUS
+		case "remount":
+			flags |= syscall.MS_REMOUNT
+		case "mand":
+			flags |= syscall.MS_MANDLOCK
+		case "dirsync":
+			flags |= syscall.MS_DIRSYNC
+		case "noatime":
+			flags |= syscall.MS_NOATIME
+		case "nodiratime":
+			flags |= syscall.MS_NODIRATIME
+		case "bind":
+			flags |= syscall.MS_BIND
+		case "rbind":
+			flags |= syscall.MS_BIND | syscall.MS_REC
+		case "move":
+			flags |= syscall.MS_MOVE
+		case "silent":
+			flags |= syscall.MS_SILENT
+		case "acl":
+			flags |= syscall.MS_POSIXACL
+		case "private":
+			flags |= syscall.MS_PRIVATE
+		case "rprivate":
+			flags |= syscall.MS_PRIVATE | syscall.MS_REC
+		case "slave":
+			flags |= syscall.MS_SLAVE
+		case "rslave":
+			flags |= syscall.MS_SLAVE | syscall.MS_REC
+		case "shared":
+			flags |= syscall.MS_SHARED
+		case "rshared":
+			flags |= syscall.MS_SHARED | syscall.MS_REC
+		case "relatime":
+			flags |= syscall.MS_RELATIME
+		case "strictatime":
+			flags |= syscall.MS_STRICTATIME
+		default:
+			return 0, fmt.Errorf("unsupported mount option: %q", opt)
+		}
+	}
+	return flags, nil
 }
