@@ -432,10 +432,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// This way we can remove the temporary directory we created and "clean up"
 	// after ourselves nicely.
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SC_HOSTFS_DIR, scratch_dir);
-	debug("performing operation: umount %s", dst);
-	if (umount2(dst, 0) < 0) {
-		die("cannot perform operation: umount %s", dst);
-	}
+	sc_do_umount(dst, 0);
 	// Remove the scratch directory. Note that we are using the path that is
 	// based on the old root filesystem as after pivot_root we cannot guarantee
 	// what is present at the same location normally. (It is probably an empty
@@ -452,24 +449,15 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mount table and software inspecting the mount table may become confused
 	// (eg, docker and LP:# 162601).
 	sc_must_snprintf(src, sizeof src, "%s/sys", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 	// Detach the redundant hostfs version of /dev since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/dev", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 	// Detach the redundant hostfs version of /proc since it shows up in the
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
-	debug("performing operation: umount --lazy %s", src);
-	if (umount2(src, UMOUNT_NOFOLLOW | MNT_DETACH) < 0) {
-		die("cannot perform operation: umount --lazy %s", src);
-	}
+	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
 }
 
 /**

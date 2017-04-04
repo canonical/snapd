@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type SystemTraceInterfaceSuite struct {
@@ -33,23 +36,27 @@ type SystemTraceInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SystemTraceInterfaceSuite{
-	iface: builtin.NewSystemTraceInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&SystemTraceInterfaceSuite{})
+
+func (s *SystemTraceInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [system-trace]
+`
+	s.iface = builtin.NewSystemTraceInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "system-trace",
 			Interface: "system-trace",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "system-trace",
-			Interface: "system-trace",
-		},
-	},
-})
+	}
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["system-trace"]}
+}
 
 func (s *SystemTraceInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "system-trace")
@@ -80,7 +87,9 @@ func (s *SystemTraceInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 
 func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/kernel/debug/tracing/ r,")
 }

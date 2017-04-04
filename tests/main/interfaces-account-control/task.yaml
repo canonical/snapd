@@ -10,8 +10,7 @@ prepare: |
     install_local account-control-consumer
 
     echo "And the account-control plug is connected"
-    . "$TESTSLIB/names.sh"
-    snap connect account-control-consumer:account-control ${core_name}
+    snap connect account-control-consumer:account-control
 
 systems: [ubuntu-core-16-64]
 

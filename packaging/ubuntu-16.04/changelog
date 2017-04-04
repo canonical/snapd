@@ -1,3 +1,59 @@
+snapd (2.23.6) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - cmd: use the most appropriate snap/snapctl sockets
+    - tests: fix interfaces-cups-control for zesty
+    - configstate,hookstate: timeout the configure hook after 5 mins,
+      report failures
+    - packaging: rename the file shipping snap-confine AA profile to
+      workaround dpkg bug #858004
+    - many: ignore configure hook failures on core refresh to ensure
+      upgrades are always possible
+    - snapstate: restart as needed if we undid unlinking aka relinked
+      core or kernel snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 Mar 2017 15:30:35 +0200
+
+snapd (2.23.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - allow "sync" in core-support
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Mar 2017 18:13:43 +0100
+
+snapd (2.23.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - fix core-support interface for the new pi-config options
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Mar 2017 16:05:57 +0100
+
+snapd (2.23.3) xenial; urgency=medium
+
+  * FTBFS due to missing files in vendor/
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Mar 2017 19:56:55 +0100
+
+snapd (2.23.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1673568
+    - cmd/snap: handle missing snap-confine (#3041)
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Mar 2017 19:38:24 +0100
+
+snapd (2.23.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1665608
+    - packaging, tests: use "systemctl list-unit-files --full"
+      everywhere
+    - interfaces: fix default content attribute value
+    - tests: do not nuke the entire snapd.conf.d dir when changing
+      store settings
+    - hookstate: run the right "snap" command in the hookmanager 
+    - snapstate: revert PR#2958, run configure hook again everywhere
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Mar 2017 14:29:56 +0100
+
 snapd (2.23) xenial; urgency=medium
 
   * New upstream release, LP: #1665608

@@ -23,8 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type NetworkSetupControlInterfaceSuite struct {
@@ -33,23 +36,26 @@ type NetworkSetupControlInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkSetupControlInterfaceSuite{
-	iface: builtin.NewNetworkSetupControlInterface(),
-	slot: &interfaces.Slot{
+var _ = Suite(&NetworkSetupControlInterfaceSuite{})
+
+func (s *NetworkSetupControlInterfaceSuite) SetUpTest(c *C) {
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: other
+apps:
+ app:
+    command: foo
+    plugs: [network-setup-control]
+`, nil)
+	s.iface = builtin.NewNetworkSetupControlInterface()
+	s.slot = &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "network-setup-control",
 			Interface: "network-setup-control",
 		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "network-setup-control",
-			Interface: "network-setup-control",
-		},
-	},
-})
+	}
+	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["network-setup-control"]}
+}
 
 func (s *NetworkSetupControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-setup-control")
@@ -80,7 +86,9 @@ func (s *NetworkSetupControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C)
 
 func (s *NetworkSetupControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/etc/netplan/{,**} rw,`)
 }

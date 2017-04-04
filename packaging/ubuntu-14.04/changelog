@@ -1,3 +1,30 @@
+snapd (2.23.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1665608
+    - cmd: use the most appropriate snap/snapctl sockets
+    - tests: fix interfaces-cups-control for zesty
+    - configstate,hookstate: timeout the configure hook after 5 mins,
+      report failures
+    - many: ignore configure hook failures on core refresh to ensure
+      upgrades are always possible
+    - snapstate: restart as needed if we undid unlinking aka relinked
+      core or kernel snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 Mar 2017 15:30:32 +0200
+
+snapd (2.23.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1665608
+    - packaging, tests: use "systemctl list-unit-files --full"
+      everywhere
+    - interfaces: fix default content attribute value
+    - tests: do not nuke the entire snapd.conf.d dir when changing
+      store settings
+    - hookstate: run the right "snap" command in the hookmanager 
+    - snapstate: revert PR#2958, run configure hook again everywhere
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Mar 2017 14:29:56 +0100
+
 snapd (2.23~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1665608
@@ -216,6 +243,42 @@ snapd (2.23~14.04) trusty; urgency=medium
     - spread: remove state tar on project restore
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Feb 2017 12:23:17 +0100
+
+snapd (2.22.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1667105
+    - overlord/ifacestate: don't fail if affected snap is gone
+    - revert #2910: osutil: add package for reading Build-ID (#2918)
+    - errtracker: include the build-id of host and core snapd (#2912)
+    - errtracker: include the number of ubuntu-core -> core retries
+      (#2915)
+    - snapstate: retry ubuntu-core -> core transition every 6h (#2914)
+    - osutil: add package for reading Build-ID (#2910)
+    - errtracker: include kernel version in error reports (#2905)
+    - release: return "unknown" if uname fails
+    - many: rebased uname branch for 2.22
+    - errtracker: include snapd version in err reports
+    - overlord/ifacestate: don't unconditionally retry stuff (#2906)
+    - snapstate: fix incorrect cut of the timestamps for the error
+      reports (#2908)
+    - tests: update listing test for latest core snap version update
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Wed, 22 Feb 2017 23:34:23 +0100
+
+snapd (2.22.5~14.04) trusty; urgency=medium
+
+  * Fix FTBFS due to machine-id file
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Tue, 21 Feb 2017 09:43:42 +0100
+
+snapd (2.22.4~14.04) trusty; urgency=medium
+
+  * New bugfix release:
+    - errtracker: add support for error reporting via daisy.ubuntu.com
+    - snapstate: allow for 6 retries for the core transition
+    - httputils: ensure User-Agent works across redirects
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 21 Feb 2017 09:07:10 +0100
 
 snapd (2.22.3~14.04) trusty; urgency=medium
 

@@ -21,9 +21,66 @@ package builtin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
+
+const unity8ConnectedPlugAppArmor = `
+# Description: Can access unity8 desktop services
+
+#include <abstractions/dbus-session-strict>
+
+# Fonts
+#include <abstractions/fonts>
+/var/cache/fontconfig/   r,
+/var/cache/fontconfig/** mr,
+
+# The snapcraft desktop part may look for schema files in various locations, so
+# allow reading system installed schemas.
+/usr/share/glib*/schemas/{,*}              r,
+/usr/share/gnome/glib*/schemas/{,*}        r,
+/usr/share/ubuntu/glib*/schemas/{,*}       r,
+
+# URL dispatcher. All apps can call this since:
+# a) the dispatched application is launched out of process and not
+#    controllable except via the specified URL
+# b) the list of url types is strictly controlled
+# c) the dispatched application will launch in the foreground over the
+#    confined app
+dbus (send)
+     bus=session
+     path=/com/canonical/URLDispatcher
+     interface=com.canonical.URLDispatcher
+     member=DispatchURL
+     peer=(name=com.canonical.URLDispatcher,label=###SLOT_SECURITY_TAGS###),
+
+# Note: content-hub may become its own interface, but for now include it here
+# Pasteboard via Content Hub. Unity8 with mir has safeguards that ensure snaps
+# only may get/set the pasteboard with user-driven actions.
+dbus (send)
+     bus=session
+     interface=com.ubuntu.content.dbus.Service
+     path=/
+     member={CreatePaste,GetAllPasteIds,GetLatestPasteData,GetPasteData,GetPasteSource,PasteFormats,RequestPasteByAppId,SelectPasteForAppId,SelectPasteForAppIdCancelled}
+     peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+     bus=session
+     interface=com.ubuntu.content.dbus.Service
+     path=/
+     member={PasteboardChanged,PasteFormatsChanged,PasteSelected,PasteSelectionCancelled}
+     peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
+
+# Lttng tracing is very noisy and should not be allowed by confined apps.
+# Can safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
+`
+
+const unity8ConnectedPlugSecComp = `
+shutdown
+`
 
 type Unity8Interface struct{}
 
@@ -35,20 +92,17 @@ func (iface *Unity8Interface) String() string {
 	return iface.Name()
 }
 
-func (iface *Unity8Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *Unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	oldTags := "###SLOT_SECURITY_TAGS###"
+	newTags := slotAppLabelExpr(slot)
+	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
-func (iface *Unity8Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *Unity8Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *Unity8Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *Unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	spec.AddSnippet(unity8ConnectedPlugSecComp)
+	return nil
 }
 
 func (iface *Unity8Interface) SanitizePlug(plug *interfaces.Plug) error {
