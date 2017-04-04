@@ -114,9 +114,10 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
 }
 
 // The label uses short form when exactly one app is bound to the maliit slot
@@ -231,12 +232,6 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
 	// verify classic didn't connect
 	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
-}
-
-func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetSecComp(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {

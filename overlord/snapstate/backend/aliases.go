@@ -77,17 +77,17 @@ func (b Backend) MatchingAliases(aliases []*Alias) ([]*Alias, error) {
 
 // UpdateAliases adds and removes the given aliases.
 func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
-	for _, alias := range add {
-		err := os.Symlink(alias.Target, filepath.Join(dirs.SnapBinariesDir, alias.Name))
-		if err != nil {
-			return fmt.Errorf("cannot create alias symlink: %v", err)
-		}
-	}
-
 	for _, alias := range remove {
 		err := os.Remove(filepath.Join(dirs.SnapBinariesDir, alias.Name))
 		if err != nil {
 			return fmt.Errorf("cannot remove alias symlink: %v", err)
+		}
+	}
+
+	for _, alias := range add {
+		err := os.Symlink(alias.Target, filepath.Join(dirs.SnapBinariesDir, alias.Name))
+		if err != nil {
+			return fmt.Errorf("cannot create alias symlink: %v", err)
 		}
 	}
 	return nil
