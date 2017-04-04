@@ -188,10 +188,6 @@ func (iface *LocationControlInterface) Name() string {
 	return "location-control"
 }
 
-func (iface *LocationControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *LocationControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
@@ -205,10 +201,6 @@ func (iface *LocationControlInterface) DBusConnectedPlug(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *LocationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(locationControlPermanentSlotDBus)
 	return nil
@@ -219,20 +211,12 @@ func (iface *LocationControlInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *LocationControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *LocationControlInterface) SanitizePlug(plug *interfaces.Plug) error {

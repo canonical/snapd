@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -15,21 +17,20 @@
  *
  */
 
-#ifndef SNAP_CONFINE_TEST_DATA_H
-#define SNAP_CONFINE_TEST_DATA_H
+package osutil_test
 
-#include "mount-entry.h"
+import (
+	"github.com/snapcore/snapd/osutil"
 
-extern const char *test_entry_str_1;
-extern const char *test_entry_str_2;
+	. "gopkg.in/check.v1"
+)
 
-extern const struct sc_mount_entry test_entry_1;
-extern const struct sc_mount_entry test_entry_2;
+type bootIdSuite struct{}
 
-extern const struct mntent test_mnt_1;
-extern const struct mntent test_mnt_2;
+var _ = Suite(&bootIdSuite{})
 
-void test_looks_like_test_entry_1(const struct sc_mount_entry *entry);
-void test_looks_like_test_entry_2(const struct sc_mount_entry *entry);
-
-#endif
+func (s *bootIdSuite) TestSmoke(c *C) {
+	id, err := osutil.BootID()
+	c.Assert(err, IsNil)
+	c.Assert(id, HasLen, 36)
+}
