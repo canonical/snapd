@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -69,6 +70,9 @@ func shouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
+	}
+	if urlErr, ok := err.(*url.Error); ok {
+		return urlErr.Err == io.ErrUnexpectedEOF || urlErr.Err == io.EOF
 	}
 	if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout()
