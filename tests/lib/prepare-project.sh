@@ -138,7 +138,7 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
     build_deb
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
-    install_dependencies_from_published "$SNAPD_PPA_VERSION"
+    install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
 fi
 
 # Build snapbuild.
