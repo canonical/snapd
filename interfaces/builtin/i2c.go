@@ -95,7 +95,7 @@ func (iface *I2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *I2cInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *I2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
