@@ -272,8 +272,8 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		// XXX: update for aliases v2
-		if (k == "link-snap" || k == "unlink-snap" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
+		// TODO: consider alias/unalias tasks
+		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases") && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -548,7 +548,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 
 	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", func(snapName string, _ *state.TaskSet) {
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, func(snapName string, _ *state.TaskSet) {
 			if nameSet[snapName] {
 				reportUpdated[snapName] = true
 			}
@@ -602,7 +602,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", scheduleUpdate)
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, scheduleUpdate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -617,8 +617,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	return updated, tasksets, nil
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
-	// XXX: check for conflict
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Update aliases for snap %q")
@@ -627,6 +626,15 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for snapName, aliases := range delta {
+		if err := CheckChangeConflict(st, snapName, nil); err != nil {
+			if refreshAll {
+				// doing "refresh all", just skip this snap
+				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
+				continue
+			}
+			return nil, err
+		}
+
 		snapsup := &SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
 		}

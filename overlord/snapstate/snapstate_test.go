@@ -2398,6 +2398,13 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 			}
 		}
 		c.Assert(j, Equals, len(tasks), Commentf("%#v", scenario))
+
+		// conflict checks are triggered
+		chg := s.state.NewChange("update", "...")
+		chg.AddAll(ts)
+		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil)
+		c.Check(err, ErrorMatches, `.* has changes in progress`)
+		chg.SetStatus(state.DoneStatus)
 	}
 }
 
