@@ -82,7 +82,7 @@ func (iface *JoystickInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 }
 
 // TODO: This interface needs to use udev tagging, see LP: #1675738.
-// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+// func (iface *JoystickInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 // 	const udevRule = `KERNEL=="js[0-9]*", TAG+="%s"`
 // 	for appName := range plug.Apps {
 // 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)

@@ -104,5 +104,5 @@ func (s *JoystickInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-joystick"})
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-joystick")
-	c.Assert(aasnippet, Equals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, aasnippet))
+	c.Assert(aasnippet, Equals, expectedSnippet)
 }
