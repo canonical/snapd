@@ -16,10 +16,16 @@ AC_PROG_RANLIB
 AC_LANG([C])
 # Checks for libraries.
 
+# check for large file support
+AC_SYS_LARGEFILE
+
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
-AC_CHECK_HEADERS([xfs/xqm.h],   [], [AC_MSG_ERROR(xfs/xqm.h unavailable)])
+AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)],
+[[#define _FILE_OFFSET_BITS 64
+#include <xfs/xqm.h>
+]])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -177,6 +183,33 @@ AS_IF([test "x$HAVE_SHELLCHECK" = "x"], [AC_MSG_WARN(["cannot find the shellchec
 AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
 AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
 AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
+
+AC_ARG_ENABLE([static-libcap],
+    AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
+    [case "${enableval}" in
+        yes) enable_static_libcap=yes ;;
+        no)  enable_static_libcap=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libcap])
+    esac], [enable_static_libcap=no])
+AM_CONDITIONAL([STATIC_LIBCAP], [test "x$enable_static_libcap" = "xyes"])
+
+AC_ARG_ENABLE([static-libapparmor],
+    AS_HELP_STRING([--enable-static-libapparmor], [Link libapparmor statically]),
+    [case "${enableval}" in
+        yes) enable_static_libapparmor=yes ;;
+        no)  enable_static_libapparmor=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libapparmor])
+    esac], [enable_static_libapparmor=no])
+AM_CONDITIONAL([STATIC_LIBAPPARMOR], [test "x$enable_static_libapparmor" = "xyes"])
+
+AC_ARG_ENABLE([static-libseccomp],
+    AS_HELP_STRING([--enable-static-libseccomp], [Link libseccomp statically]),
+    [case "${enableval}" in
+        yes) enable_static_libseccomp=yes ;;
+        no)  enable_static_libseccomp=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-libseccomp])
+    esac], [enable_static_libseccomp=no])
+AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -86,14 +87,14 @@ func (s *UhidInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-slot-1"), testutil.Contains, "/dev/uhid rw,\n")
 }
 
-func (s *UhidInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
-
-	expectedSnippet1 := []byte(`KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"
-`)
-
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+func (s *UhidInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
+	expectedSnippet1 := `KERNEL=="uhid", TAG+="snap_client-snap_app-accessing-slot-1"`
+	spec := &udev.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet1)
 }
 
 func (s *UhidInterfaceSuite) TestAutoConnect(c *C) {

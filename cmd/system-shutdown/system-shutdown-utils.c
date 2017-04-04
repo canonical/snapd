@@ -100,9 +100,9 @@ bool umount_all()
 		had_writable = false;
 		did_umount = false;
 		while (cur) {
-			const char *dir = sc_mountinfo_entry_mount_dir(cur);
-			const char *src = sc_mountinfo_entry_mount_source(cur);
-			unsigned major = sc_mountinfo_entry_dev_major(cur);
+			const char *dir = cur->mount_dir;
+			const char *src = cur->mount_source;
+			unsigned major = cur->dev_major;
 
 			cur = sc_next_mountinfo_entry(cur);
 

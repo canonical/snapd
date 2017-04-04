@@ -156,9 +156,8 @@ static bool sc_is_ns_group_dir_private()
 	}
 	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(info);
 	while (entry != NULL) {
-		const char *mount_dir = sc_mountinfo_entry_mount_dir(entry);
-		const char *optional_fields =
-		    sc_mountinfo_entry_optional_fields(entry);
+		const char *mount_dir = entry->mount_dir;
+		const char *optional_fields = entry->optional_fields;
 		if (strcmp(mount_dir, sc_ns_dir) == 0
 		    && strcmp(optional_fields, "") == 0) {
 			// If /run/snapd/ns has no optional fields, we know it is mounted
@@ -168,6 +167,54 @@ static bool sc_is_ns_group_dir_private()
 		entry = sc_next_mountinfo_entry(entry);
 	}
 	return false;
+}
+
+void sc_reassociate_with_pid1_mount_ns()
+{
+	int init_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int self_mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+
+	debug("checking if the current process shares mount namespace"
+	      " with the init process");
+
+	init_mnt_fd = open("/proc/1/ns/mnt",
+			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
+	if (init_mnt_fd < 0) {
+		die("cannot open mount namespace of the init process (O_PATH)");
+	}
+	self_mnt_fd = open("/proc/self/ns/mnt",
+			   O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH);
+	if (self_mnt_fd < 0) {
+		die("cannot open mount namespace of the current process (O_PATH)");
+	}
+	char init_buf[128], self_buf[128];
+	memset(init_buf, 0, sizeof init_buf);
+	if (readlinkat(init_mnt_fd, "", init_buf, sizeof init_buf) < 0) {
+		die("cannot perform readlinkat() on the mount namespace file "
+		    "descriptor of the init process");
+	}
+	memset(self_buf, 0, sizeof self_buf);
+	if (readlinkat(self_mnt_fd, "", self_buf, sizeof self_buf) < 0) {
+		die("cannot perform readlinkat() on the mount namespace file "
+		    "descriptor of the current process");
+	}
+	if (memcmp(init_buf, self_buf, sizeof init_buf) != 0) {
+		debug("the current process does not share mount namespace with "
+		      "the init process, re-association required");
+		// NOTE: we cannot use O_NOFOLLOW here because that file will always be a
+		// symbolic link. We actually want to open it this way.
+		int init_mnt_fd_real
+		    __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+		init_mnt_fd_real = open("/proc/1/ns/mnt", O_RDONLY | O_CLOEXEC);
+		if (init_mnt_fd_real < 0) {
+			die("cannot open mount namespace of the init process");
+		}
+		if (setns(init_mnt_fd_real, CLONE_NEWNS) < 0) {
+			die("cannot re-associate the mount namespace with the init process");
+		}
+	} else {
+		debug("re-associating is not required");
+	}
 }
 
 void sc_initialize_ns_groups()
