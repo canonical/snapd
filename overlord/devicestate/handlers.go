@@ -100,7 +100,7 @@ func sshGenerateKey() (*rsa.PrivateKey, error) {
 
 	blk, _ := pem.Decode(d)
 	if blk == nil {
-		return nil, errors.New("Failed to decode PEM block");
+		return nil, errors.New("Failed to decode PEM block")
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
