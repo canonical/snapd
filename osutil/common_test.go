@@ -23,6 +23,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var truePath = osutil.FindInPathOrDefault("true", "/bin/true")
-var falsePath = osutil.FindInPathOrDefault("false", "/bin/false")
-var gccPath = osutil.FindInPathOrDefault("gcc", "/usr/bin/gcc")
+var truePath = osutil.LookupPathWithDefault("true", "/bin/true")
+var falsePath = osutil.LookupPathWithDefault("false", "/bin/false")
+var gccPath = osutil.LookupPathWithDefault("gcc", "/usr/bin/gcc")
