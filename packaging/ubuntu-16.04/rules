@@ -47,7 +47,12 @@ endif
 # security of the system.  Discuss a proper approach to this for downstreams
 # if and when they approach us
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-    VENDOR_ARGS=--enable-nvidia-ubuntu
+    # On Ubuntu 16.04 we need to produce a build that can be used on wide
+    # variety of systems. As such we prefer static linking over dynamic linking
+    # for stability, predicability and easy of deployment. We need to link some
+    # things dynamically though: udev has no stable IPC protocol between
+    # libudev and udevd so we need to link with it dynamically.
+    VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
 else
     VENDOR_ARGS=--disable-apparmor
 endif

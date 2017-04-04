@@ -35,9 +35,18 @@ build_deb(){
 download_from_ppa(){
     local ppa_version="$1"
 
-    for pkg in snapd; do
+    # we need to install snap-confine and ubunntu-core-launcher for versions < 2.23
+    for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${ppa_version}_$(dpkg --print-architecture).deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/~snappy-dev/+archive/ubuntu/snapd-${ppa_version}/+files/$file"
+    done
+}
+
+install_dependencies_from_ppa(){
+    local ppa_version="$1"
+
+    for dep in snap-confine ubuntu-core-launcher; do
+        dpkg -i "${GOPATH}/${dep}_${ppa_version}_$(dpkg --print-architecture).deb"
     done
 }
 
@@ -124,6 +133,8 @@ if [ -z "$SNAPD_PPA_VERSION" ]; then
     build_deb
 else
     download_from_ppa "$SNAPD_PPA_VERSION"
+
+    install_dependencies_from_ppa "$SNAPD_PPA_VERSION"
 fi
 
 # Build snapbuild.
