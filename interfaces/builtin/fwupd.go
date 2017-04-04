@@ -179,11 +179,6 @@ func (iface *FwupdInterface) Name() string {
 	return "fwupd"
 }
 
-// PermanentPlugSnippet - no slot snippets provided
-func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *FwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotDBus)
 	return nil
@@ -197,20 +192,10 @@ func (iface *FwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	return nil
 }
 
-// ConnectedPlugSnippet returns security snippets for plug at connection
-func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *FwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
 	spec.AddSnippet(fwupdPermanentSlotAppArmor)
 	return nil
 
-}
-
-// PermanentSlotSnippet returns security snippets for slot at install
-func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -219,11 +204,6 @@ func (iface *FwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
-}
-
-// ConnectedSlotSnippet returns security snippets for slot at connection
-func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
 }
 
 func (iface *FwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {

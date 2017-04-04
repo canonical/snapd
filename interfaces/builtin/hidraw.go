@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 // HidrawInterface is the type for hidraw interfaces.
@@ -49,7 +49,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 // Pattern that is considered valid for the udev symlink to the hidraw device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var hidrawUdevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
+var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -75,7 +75,7 @@ func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
-		if !hidrawUdevSymlinkPattern.MatchString(path) {
+		if !hidrawUDevSymlinkPattern.MatchString(path) {
 			return fmt.Errorf("hidraw path attribute specifies invalid symlink location")
 		}
 
@@ -113,35 +113,21 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// PermanentSlotSnippet returns snippets granted on install
-func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		path, ok := slot.Attrs["path"].(string)
-		if !ok || path == "" {
-			return nil, nil
-		}
-		return udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
+func (iface *HidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
 	}
-	return nil, nil
-}
-
-// ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// PermanentPlugSnippet no permissions provided to plug permanently
-func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
+	}
+	path, ok := slot.Attrs["path"].(string)
+	if !ok || path == "" {
+		return nil
+	}
+	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	return nil
 }
 
 func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -163,26 +149,20 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-// ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-		if !vOk {
-			return nil, nil
-		}
-		usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-		if !pOk {
-			return nil, nil
-		}
-		var udevSnippet bytes.Buffer
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			udevSnippet.Write(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
-		}
-		return udevSnippet.Bytes(), nil
+func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
+	if !vOk {
+		return nil
 	}
-	return nil, nil
+	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
+	if !pOk {
+		return nil
+	}
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
+	}
+	return nil
 }
 
 func (iface *HidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

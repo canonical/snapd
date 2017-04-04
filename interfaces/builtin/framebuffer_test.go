@@ -96,9 +96,6 @@ func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
 /dev/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
 `
-	expectedSnippet2 := []byte(`KERNEL=="fb[0-9]*", TAG+="snap_client-snap_app-accessing-framebuffer"
-`)
-
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -106,8 +103,4 @@ func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-framebuffer"})
 	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-framebuffer")
 	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
-
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
