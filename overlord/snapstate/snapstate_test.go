@@ -3393,12 +3393,8 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 	var cfgs map[string]interface{}
 	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
 	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
-		"1": map[string]interface{}{
-			"foo": "100",
-		},
-		"2": map[string]interface{}{
-			"foo": "200",
-		},
+		"1": map[string]interface{}{"foo": "100"},
+		"2": map[string]interface{}{"foo": "200"},
 	})
 
 	// current snap configuration has been restored from rev. 1 config snapshot
