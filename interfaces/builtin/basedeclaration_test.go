@@ -414,6 +414,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -429,6 +430,7 @@ var (
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"maliit":                  {"app"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
@@ -437,7 +439,7 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
-		"thumbnailer":             {"app"},
+		"thumbnailer-service":     {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
 		"unity8":                  {"app"},
@@ -570,15 +572,16 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                   true,
-		"content":                 true,
-		"docker":                  true,
-		"fwupd":                   true,
-		"location-control":        true,
-		"location-observe":        true,
-		"lxd":                     true,
-		"mir":                     true,
-		"thumbnailer":             true,
+		"bluez":            true,
+		"content":          true,
+		"docker":           true,
+		"fwupd":            true,
+		"location-control": true,
+		"location-observe": true,
+		"lxd":              true,
+		"maliit":           true,
+		"mir":              true,
+		"thumbnailer-service":     true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,

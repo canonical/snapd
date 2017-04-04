@@ -23,8 +23,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type PppInterfaceSuite struct {
@@ -33,50 +38,66 @@ type PppInterfaceSuite struct {
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&PppInterfaceSuite{
-	iface: &builtin.PppInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ppp"},
-			Name:      "ppp",
-			Interface: "ppp",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "ppp"},
-			Name:      "mmcli",
-			Interface: "ppp",
-		},
-	},
-})
+var _ = Suite(&PppInterfaceSuite{})
+
+func (s *PppInterfaceSuite) SetUpTest(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [ppp]
+`
+
+	const mockSlotSnapInfo = `name: ppp
+version: 1.0
+apps:
+ app:
+  command: foo
+  slots: [ppp]
+`
+
+	s.iface = &builtin.PppInterface{}
+	slotSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.slot = &interfaces.Slot{SlotInfo: slotSnap.Slots["ppp"]}
+
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["ppp"]}
+}
 
 func (s *PppInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "ppp")
 }
 
 func (s *PppInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityKMod}
-	for _, system := range systems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		if system == interfaces.SecurityAppArmor || system == interfaces.SecurityKMod {
-			c.Assert(snippet, Not(IsNil))
-		} else {
-			c.Assert(snippet, IsNil)
-		}
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/usr/sbin/pppd ix,`)
+
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
+
+	dbusSpec := &dbus.Specification{}
+	err = dbusSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+	dbusSpec = &dbus.Specification{}
+	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+
+	udevSpec := &udev.Specification{}
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 0)
+
+	spec := &kmod.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"ppp_generic": true,
+	})
 }

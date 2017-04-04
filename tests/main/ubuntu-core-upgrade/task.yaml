@@ -1,9 +1,6 @@
 summary: Upgrade the core snap and revert a few times
 
-systems:
-    - ubuntu-core-16-64
-    - ubuntu-core-16-arm-64
-    - ubuntu-core-16-arm-32
+systems: [ubuntu-core-16-*]
 
 debug: |
     snap list
@@ -12,14 +9,15 @@ debug: |
     cat /proc/cmdline
 
 restore: |
-    rm -f prevBoot nextBoot
+    if [ -f curChg ] ; then
+        snap abort $(cat curChg) || true
+    fi
+    rm -f prevBoot nextBoot curChg
 
 prepare: |
-    . $TESTSLIB/names.sh
-    snap list | awk "/^${core_name} / {print(\$3)}" > nextBoot
+    snap list | awk "/^core / {print(\$3)}" > nextBoot
 
 execute: |
-    . $TESTSLIB/names.sh
     . $TESTSLIB/boot.sh
 
     # FIXME Why it starting with snap_mode=try the first time?
@@ -32,27 +30,42 @@ execute: |
         done
 
         echo "Ensure the bootloader is correct after reboot"
-        test "$(bootenv snap_core)" = "${core_name}_$(cat nextBoot).snap"
+        test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
         test "$(bootenv snap_try_core)" = ""
         test "$(bootenv snap_mode)" = ""
     fi
 
-    snap list | awk "/^${core_name} / {print(\$3)}" > prevBoot
+    snap list | awk "/^core / {print(\$3)}" > prevBoot
+
+    # wait for ongoing change if there is one
+    if [ -f curChg ] ; then
+       snap watch $(cat curChg)
+       rm -f curChg
+    fi
 
     case $SPREAD_REBOOT in
 
-    0) snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap ;;
-    1) snap revert ${core_name} ;;
-    2) snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat prevBoot).snap ;;
-    3) snap revert ${core_name} ;;
+    0) cmd="snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap" ;;
+    1) cmd="snap revert core" ;;
+    2) cmd="snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap" ;;
+    3) cmd="snap revert core" ;;
     4) exit 0 ;;
 
     esac
 
+    # start the op and get the change id
+    chg_id=$(eval ${cmd} --no-wait)
+
+    # save change id to wait later or abort
+    echo ${chg_id} >curChg
+
+    # wait for the link task to be done
+    while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+
     echo "Ensure the bootloader is correct before reboot"
-    snap list | awk "/^${core_name} / {print(\$3)}" > nextBoot
+    snap list | awk "/^core / {print(\$3)}" > nextBoot
     test "$(cat prevBoot)" != "$(cat nextBoot)"
-    test "$(bootenv snap_try_core)" = "${core_name}_$(cat nextBoot).snap"
+    test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
     test "$(bootenv snap_mode)" = "try"
 
     echo "Ensure the device is scheduled for auto-reboot"

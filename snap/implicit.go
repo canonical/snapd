@@ -30,6 +30,7 @@ import (
 var implicitSlots = []string{
 	"account-control",
 	"alsa",
+	"autopilot-introspection",
 	"bluetooth-control",
 	"browser-support",
 	"camera",
@@ -42,6 +43,7 @@ var implicitSlots = []string{
 	"hardware-observe",
 	"home",
 	"io-ports-control",
+	"joystick",
 	"kernel-module-control",
 	"locale-control",
 	"log-observe",

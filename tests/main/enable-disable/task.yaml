@@ -34,7 +34,7 @@ execute: |
 
     echo "Ensure the important snaps can not be disabled"
     . $TESTSLIB/names.sh
-    for sn in $core_name $kernel_name $gadget_name; do
+    for sn in core $kernel_name $gadget_name; do
         if snap disable $sn; then
             echo "It should not be possible to disable $sn"
             exit 1
