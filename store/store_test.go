@@ -1454,7 +1454,23 @@ const MockDetailsJSON = `{
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
     "title": "hello-world",
-    "version": "6.3"
+    "version": "6.3",
+    "channel_maps_list": [
+      {
+        "track": "latest",
+        "map": [
+          {
+             "info": "released",
+             "version": "6.5",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "strict",
+             "channel": "stable",
+             "revision": 42
+          }
+        ]
+      }
+    ]
 }
 `
 
