@@ -21,10 +21,12 @@ package mount
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Entry describes an /etc/fstab-like mount entry.
@@ -61,11 +63,11 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// EqualEntries checks if one entry is equal to another
-func (a *Entry) Equal(b *Entry) bool {
-	return (a.Name == b.Name && a.Dir == b.Dir && a.Type == b.Type &&
-		equalStrings(a.Options, b.Options) && a.DumpFrequency == b.DumpFrequency &&
-		a.CheckPassNumber == b.CheckPassNumber)
+// Equal checks if one entry is equal to another
+func (e *Entry) Equal(o *Entry) bool {
+	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
+		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
+		e.CheckPassNumber == o.CheckPassNumber)
 }
 
 // escape replaces whitespace characters so that getmntent can parse it correctly.
@@ -167,4 +169,82 @@ func LoadFSTab(reader io.Reader) ([]Entry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+// SaveFSTab writes a list of entries to a fstab-like file.
+//
+// The supported format is described by fstab(5).
+//
+// Note that there is no support for comments, both the LoadFSTab function and
+// SaveFSTab just ignore them.
+//
+// Note that there is no attempt to use atomic file write/rename tricks. The
+// created file will typically live in /run/snapd/ns/$SNAP_NAME.fstab and will
+// be done so, while holidng a flock-based-lock, by the snap-update-ns program.
+func SaveFSTab(writer io.Writer, entries []Entry) error {
+	var buf bytes.Buffer
+	for i := range entries {
+		if _, err := fmt.Fprintf(&buf, "%s\n", entries[i]); err != nil {
+			return err
+		}
+	}
+	_, err := buf.WriteTo(writer)
+	return err
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	for _, opt := range opts {
+		switch opt {
+		case "ro":
+			flags |= syscall.MS_RDONLY
+		case "nosuid":
+			flags |= syscall.MS_NOSUID
+		case "nodev":
+			flags |= syscall.MS_NODEV
+		case "noexec":
+			flags |= syscall.MS_NOEXEC
+		case "sync":
+			flags |= syscall.MS_SYNCHRONOUS
+		case "remount":
+			flags |= syscall.MS_REMOUNT
+		case "mand":
+			flags |= syscall.MS_MANDLOCK
+		case "dirsync":
+			flags |= syscall.MS_DIRSYNC
+		case "noatime":
+			flags |= syscall.MS_NOATIME
+		case "nodiratime":
+			flags |= syscall.MS_NODIRATIME
+		case "bind":
+			flags |= syscall.MS_BIND
+		case "rbind":
+			flags |= syscall.MS_BIND | syscall.MS_REC
+		case "move":
+			flags |= syscall.MS_MOVE
+		case "silent":
+			flags |= syscall.MS_SILENT
+		case "acl":
+			flags |= syscall.MS_POSIXACL
+		case "private":
+			flags |= syscall.MS_PRIVATE
+		case "rprivate":
+			flags |= syscall.MS_PRIVATE | syscall.MS_REC
+		case "slave":
+			flags |= syscall.MS_SLAVE
+		case "rslave":
+			flags |= syscall.MS_SLAVE | syscall.MS_REC
+		case "shared":
+			flags |= syscall.MS_SHARED
+		case "rshared":
+			flags |= syscall.MS_SHARED | syscall.MS_REC
+		case "relatime":
+			flags |= syscall.MS_RELATIME
+		case "strictatime":
+			flags |= syscall.MS_STRICTATIME
+		default:
+			return 0, fmt.Errorf("unsupported mount option: %q", opt)
+		}
+	}
+	return flags, nil
 }
