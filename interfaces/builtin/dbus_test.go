@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -358,21 +359,26 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 
 	// verify interface in rule
 	c.Check(snippet, testutil.Contains, "interface=\"org.test-system-slot{,.*}\"\n")
+
+	// verify dbus-daemon introspection rule
+	c.Check(snippet, testutil.Contains, "dbus (send)\n    bus=system\n    interface=org.freedesktop.DBus.Introspectable\n    member=Introspect\n    peer=(name=org.freedesktop.DBus, label=unconfined),\n")
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.sessionSlot, interfaces.SecurityDBus)
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.sessionSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
-	snippet, err := s.iface.PermanentSlotSnippet(s.systemSlot, interfaces.SecurityDBus)
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.systemSlot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
-
-	c.Check(string(snippet), testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
-	c.Check(string(snippet), testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
+	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")
+	c.Check(snippet, testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
+	c.Check(snippet, testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {

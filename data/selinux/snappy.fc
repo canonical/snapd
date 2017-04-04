@@ -21,6 +21,7 @@ HOME_DIR/snap(/.*)?			gen_context(system_u:object_r:snappy_home_t,s0)
 
 
 /usr/bin/snap			--	gen_context(system_u:object_r:snappy_exec_t,s0)
+/usr/bin/snapctl		--	gen_context(system_u:object_r:snappy_exec_t,s0)
 
 ifdef(`distro_redhat',`
 /usr/libexec/snapd/.*		--	gen_context(system_u:object_r:snappy_exec_t,s0)
