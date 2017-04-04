@@ -47,7 +47,7 @@ func (spec *Specification) MountEntries() []Entry {
 
 // Implementation of methods required by interfaces.Specification
 
-// ConnectedPlug records mount-specific side-effects of having a connected plug.
+// AddConnectedPlug records mount-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
 		MountConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
@@ -58,7 +58,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// ConnectedSlot records mount-specific side-effects of having a connected slot.
+// AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	type definer interface {
 		MountConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
@@ -69,7 +69,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// PermanentPlug records mount-specific side-effects of having a plug.
+// AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
 	type definer interface {
 		MountPermanentPlug(spec *Specification, plug *interfaces.Plug) error
@@ -80,7 +80,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// PermanentSlot records mount-specific side-effects of having a slot.
+// AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
 	type definer interface {
 		MountPermanentSlot(spec *Specification, slot *interfaces.Slot) error
