@@ -103,7 +103,9 @@ func (s *profileSuite) TestReadProfile3(c *C) {
 func (s *profileSuite) TestWriteTo1(c *C) {
 	p := &mount.Profile{}
 	var buf bytes.Buffer
-	p.WriteTo(&buf)
+	n, err := p.WriteTo(&buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, int64(0))
 	c.Assert(buf.String(), Equals, "")
 }
 
@@ -116,7 +118,9 @@ func (s *profileSuite) TestWriteTo2(c *C) {
 		},
 	}
 	var buf bytes.Buffer
-	p.WriteTo(&buf)
+	n, err := p.WriteTo(&buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, int64(68))
 	c.Assert(buf.String(), Equals, ("" +
 		"name-1 dir-1 type-1 options-1 1 1\n" +
 		"name-2 dir-2 type-2 options-2 2 2\n"))
