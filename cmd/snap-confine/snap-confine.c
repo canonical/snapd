@@ -70,6 +70,12 @@ int main(int argc, char **argv)
 	const char *executable = sc_args_executable(args);
 	bool classic_confinement = sc_args_is_classic_confinement(args);
 
+	const char *snap_name = getenv("SNAP_NAME");
+	if (snap_name == NULL) {
+		die("SNAP_NAME is not set");
+	}
+	sc_snap_name_validate(snap_name, NULL);
+
 	debug("security tag: %s", security_tag);
 	debug("executable:   %s", executable);
 	debug("confinement:  %s",
@@ -118,11 +124,30 @@ int main(int argc, char **argv)
 			debug
 			    ("skipping sandbox setup, classic confinement in use");
 		} else {
-			const char *snap_name = getenv("SNAP_NAME");
+			/* snap-confine uses privately-shared /run/snapd/ns to store
+			 * bind-mounted mount namespaces of each snap. In the case that
+			 * snap-confine is invoked from the mount namespace it typically
+			 * constructs, the said directory does not contain mount entries
+			 * for preserved namespaces as those are only visible in the main,
+			 * outer namespace.
+			 *
+			 * In order to operate in such an environment snap-confine must
+			 * first re-associate its own process with another namespace in
+			 * which the /run/snapd/ns directory is visible.  The most obvious
+			 * candidate is pid one, which definitely doesn't run in a
+			 * snap-specific namespace, has a predictable PID and is long
+			 * lived.
+			 */
+#if 0
+			// FIXME: this was reverted as requested by jdstrand because the
+			// corresponding fix in the kernel was reverted as well. It should
+			// be re-enabled with an upcoming kernel package that contains all
+			// of the apparmor fixes.
+			//
+			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
+			sc_reassociate_with_pid1_mount_ns();
+#endif
 			const char *group_name = snap_name;
-			if (group_name == NULL) {
-				die("SNAP_NAME is not set");
-			}
 			sc_initialize_ns_groups();
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(group_name, 0);

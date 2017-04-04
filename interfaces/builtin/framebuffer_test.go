@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -88,22 +89,18 @@ func (s *FramebufferInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 }
 
 func (s *FramebufferInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	expectedSnippet1 := []byte(`
+	expectedSnippet1 := `
 # Description: Allow reading and writing to the universal framebuffer (/dev/fb*) which
 # gives privileged access to the console framebuffer.
 
 /dev/fb[0-9]* rw,
 /run/udev/data/c29:[0-9]* r,
-`)
-	expectedSnippet2 := []byte(`KERNEL=="fb[0-9]*", TAG+="snap_client-snap_app-accessing-framebuffer"
-`)
-
+`
 	// connected plugs have a non-nil security snippet for apparmor
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
-
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-framebuffer"})
+	aasnippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-framebuffer")
+	c.Assert(aasnippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, aasnippet))
 }

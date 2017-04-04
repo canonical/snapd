@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
@@ -250,27 +251,15 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
-
-	if securitySystem == interfaces.SecurityAppArmor {
-		snippet := []byte(browserSupportConnectedPlugAppArmor)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithSandbox...)
-		} else {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithoutSandbox...)
-		}
-		return snippet, nil
+	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
+	if allowSandbox {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+	} else {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
 	}
-	return nil, nil
+	return nil
 }
 
 func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
@@ -279,11 +268,8 @@ func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	if allowSandbox {
 		snippet += browserSupportConnectedPlugSecCompWithSandbox
 	}
-	return spec.AddSnippet(snippet)
-}
-
-func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
