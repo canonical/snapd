@@ -527,9 +527,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// Restore configuration for the new revision if available
-	if err = config.RestoreRevisionConfigMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
-		return err
+	// Restore configuration of the target revision (if available) on revert
+	if snapsup.Revert {
+		if err = config.RestoreRevisionConfigMaybe(st, snapsup.Name(), snapsup.Revision()); err != nil {
+			return err
+		}
 	}
 
 	// save for undoLinkSnap
