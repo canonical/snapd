@@ -345,7 +345,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
 	runner.AddHandler("setup-aliases-v2", m.doSetupAliasesV2, m.doRemoveAliasesV2)
 	runner.AddHandler("refresh-aliases-v2", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("drop-auto-aliases-v2", m.doDropAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("prune-auto-aliases-v2", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
 	runner.AddHandler("remove-aliases-v2", m.doRemoveAliasesV2, m.doSetupAliasesV2)
 
 	// control serialisation

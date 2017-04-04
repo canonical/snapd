@@ -431,8 +431,8 @@ func disableAliases(curStatus AliasesStatus, curAliases map[string]*AliasTarget)
 	return curStatus.ToDisabled(), newAliases
 }
 
-// dropAutoAliases returns newAliases by retiring the automatic aliases autoAliases from curAliases, used as the task drop-auto-aliases to handle transfers of automatic aliases in a refresh.
-func dropAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
+// pruneAutoAliases returns newAliases by dropping the automatic aliases autoAliases from curAliases, used as the task prune-auto-aliases to handle transfers of automatic aliases in a refresh.
+func pruneAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
 		newAliases[alias] = aliasTarget

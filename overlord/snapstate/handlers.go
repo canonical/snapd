@@ -1001,7 +1001,7 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doDropAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1018,7 +1018,7 @@ func (m *SnapManager) doDropAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	status := snapst.AliasesStatus
 	curAliases := snapst.Aliases
 
-	newAliases := dropAutoAliases(st, curAliases, which)
+	newAliases := pruneAutoAliases(st, curAliases, which)
 
 	if !status.Pending() {
 		if err := applyAliasesChange(st, snapName, status, curAliases, status, newAliases, m.backend); err != nil {
