@@ -58,6 +58,10 @@ func (data customData) get(key string, value interface{}) error {
 }
 
 func (data customData) set(key string, value interface{}) {
+	if value == nil {
+		delete(data, key)
+		return
+	}
 	serialized, err := json.Marshal(value)
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
