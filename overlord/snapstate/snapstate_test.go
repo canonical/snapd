@@ -3330,7 +3330,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 
 	var cfgs map[string]interface{}
 	// we don't have config snapshots yet
-	c.Assert(s.state.Get("config-snapshots", &cfgs), Equals, state.ErrNoState)
+	c.Assert(s.state.Get("revision-config", &cfgs), Equals, state.ErrNoState)
 
 	chg := s.state.NewChange("update", "update a snap")
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
@@ -3343,8 +3343,8 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 
 	s.state.Lock()
 	cfgs = nil
-	// config snapshots of rev. 1 has been made
-	c.Assert(s.state.Get("config-snapshots", &cfgs), IsNil)
+	// config copy of rev. 1 has been made
+	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
 	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
 		"1": map[string]interface{}{
 			"foo": "bar",
@@ -3372,7 +3372,7 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 	tr.Commit()
 
 	// make config snapshot for rev.1
-	config.StoreConfigSnapshotMaybe(s.state, "some-snap", snap.R(1))
+	config.SaveRevisionConfigMaybe(s.state, "some-snap", snap.R(1))
 
 	// modify for rev. 2
 	tr = config.NewTransaction(s.state)
@@ -3391,7 +3391,7 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 	s.state.Lock()
 	// config snapshot of rev. 2 has been made by 'revert'
 	var cfgs map[string]interface{}
-	c.Assert(s.state.Get("config-snapshots", &cfgs), IsNil)
+	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
 	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
 		"1": map[string]interface{}{
 			"foo": "100",
