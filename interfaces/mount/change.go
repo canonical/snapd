@@ -29,7 +29,9 @@ import (
 type Action string
 
 const (
-	Mount   Action = "mount"
+	// Mount represents an action that results in mounting something somewhere.
+	Mount Action = "mount"
+	// Unmount represents an action that results in unmounting something from somewhere.
 	Unmount Action = "umount"
 	// Remount when needed
 )
