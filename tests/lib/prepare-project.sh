@@ -40,8 +40,19 @@ download_from_published(){
     arch=$(dpkg --print-architecture)
     build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
 
-    file="snapd_${published_version}_${arch}.deb"
-    curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+    # we need to install snap-confine and ubunntu-core-launcher for versions < 2.23
+    for pkg in snapd snap-confine ubuntu-core-launcher; do
+        file="pkg_${published_version}_${arch}.deb"
+        curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
+    done
+}
+
+install_dependencies_from_published(){
+    local published_version="$1"
+
+    for dep in snap-confine ubuntu-core-launcher; do
+        dpkg -i "${GOPATH}/${dep}_${ppa_version}_$(dpkg --print-architecture).deb"
+    done
 }
 
 # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
@@ -127,6 +138,7 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
     build_deb
 else
     download_from_published "$SNAPD_PUBLISHED_VERSION"
+    install_dependencies_from_published "$SNAPD_PPA_VERSION"
 fi
 
 # Build snapbuild.
