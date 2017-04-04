@@ -124,8 +124,8 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 // It doesn't do anything if there is no configuration for given snap in the state.
 // The caller is responsible for locking the state.
 func SaveRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
-	var config map[string]interface{}                    // snap => configuration
-	var revisionConfig map[string]map[string]interface{} // snap => revision => configuration
+	var config map[string]*json.RawMessage                    // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 
 	// Get current configuration of the snap from state
 	err := st.Get("config", &config)
@@ -141,13 +141,13 @@ func SaveRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision
 
 	err = st.Get("revision-config", &revisionConfig)
 	if err == state.ErrNoState {
-		revisionConfig = make(map[string]map[string]interface{})
+		revisionConfig = make(map[string]map[string]*json.RawMessage)
 	} else if err != nil {
 		return err
 	}
 	cfgs := revisionConfig[snapName]
 	if cfgs == nil {
-		cfgs = make(map[string]interface{})
+		cfgs = make(map[string]*json.RawMessage)
 	}
 	cfgs[rev.String()] = snapcfg
 	revisionConfig[snapName] = cfgs
@@ -159,8 +159,8 @@ func SaveRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
 func RestoreRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
-	var config map[string]interface{}                    // snap => configuration
-	var revisionConfig map[string]map[string]interface{} // snap => revision => configuration
+	var config map[string]*json.RawMessage                    // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 
 	err := st.Get("revision-config", &revisionConfig)
 	if err == state.ErrNoState {
@@ -171,7 +171,7 @@ func RestoreRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revis
 
 	err = st.Get("config", &config)
 	if err == state.ErrNoState {
-		config = make(map[string]interface{})
+		config = make(map[string]*json.RawMessage)
 	} else if err != nil {
 		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
 	}
@@ -190,7 +190,7 @@ func RestoreRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revis
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
 func DiscardRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
-	var revisionConfig map[string]map[string]interface{} // snap => revision => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 	err := st.Get("revision-config", &revisionConfig)
 	if err == state.ErrNoState {
 		return nil
