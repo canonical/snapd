@@ -76,7 +76,7 @@ func (iface *PhysicalMemoryObserveInterface) AppArmorConnectedPlug(spec *apparmo
 	return nil
 }
 
-func (iface *PhysicalMemoryObserveInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *PhysicalMemoryObserveInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	const udevRule = `KERNEL=="mem", TAG+="%s"`
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
