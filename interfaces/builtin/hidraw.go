@@ -49,7 +49,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 // Pattern that is considered valid for the udev symlink to the hidraw device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var hidrawUdevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
+var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -75,7 +75,7 @@ func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
-		if !hidrawUdevSymlinkPattern.MatchString(path) {
+		if !hidrawUDevSymlinkPattern.MatchString(path) {
 			return fmt.Errorf("hidraw path attribute specifies invalid symlink location")
 		}
 
@@ -113,7 +113,7 @@ func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *HidrawInterface) UdevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *HidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
@@ -149,7 +149,7 @@ func (iface *HidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *HidrawInterface) UdevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *HidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
 	if !vOk {
 		return nil
