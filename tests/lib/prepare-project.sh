@@ -40,9 +40,9 @@ download_from_published(){
     arch=$(dpkg --print-architecture)
     build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
 
-    # we need to install snap-confine and ubunntu-core-launcher for versions < 2.23
+    # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
     for pkg in snapd snap-confine ubuntu-core-launcher; do
-        file="pkg_${published_version}_${arch}.deb"
+        file="${pkg}_${published_version}_${arch}.deb"
         curl -L -o "$GOPATH/$file" "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}"
     done
 }
@@ -51,7 +51,7 @@ install_dependencies_from_published(){
     local published_version="$1"
 
     for dep in snap-confine ubuntu-core-launcher; do
-        dpkg -i "${GOPATH}/${dep}_${ppa_version}_$(dpkg --print-architecture).deb"
+        dpkg -i "${GOPATH}/${dep}_${published_version}_$(dpkg --print-architecture).deb"
     done
 }
 
