@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
 )
 
 const iioConnectedPlugAppArmor = `
@@ -92,11 +92,6 @@ func (iface *IioInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-// Returns snippet granted on install
-func (iface *IioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
 func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
@@ -117,35 +112,18 @@ func (iface *IioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-// Getter for the security snippet specific to the plug
-func (iface *IioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *IioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
-		return nil, nil
+		return nil
 	}
-	switch securitySystem {
-	case interfaces.SecurityUDev:
-		var tagSnippet bytes.Buffer
-		const pathPrefix = "/dev/"
-		const udevRule = `KERNEL=="%s", TAG+="%s"`
-		for appName := range plug.Apps {
-			tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-			tagSnippet.WriteString(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
-			tagSnippet.WriteString("\n")
-		}
-		return tagSnippet.Bytes(), nil
+	const pathPrefix = "/dev/"
+	const udevRule = `KERNEL=="%s", TAG+="%s"`
+	for appName := range plug.Apps {
+		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
+		spec.AddSnippet(fmt.Sprintf(udevRule, strings.TrimPrefix(path, pathPrefix), tag))
 	}
-	return nil, nil
-}
-
-// No extra permissions granted on connection
-func (iface *IioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-// No permissions granted to plug permanently
-func (iface *IioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	return nil
 }
 
 func (iface *IioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

@@ -1288,8 +1288,7 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 
 	var removed map[string]interface{}
 	err = change.Tasks()[0].Get("removed", &removed)
-	c.Assert(err, IsNil)
-	c.Check(removed, HasLen, 0)
+	c.Check(err, Equals, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
