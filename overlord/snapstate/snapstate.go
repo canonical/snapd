@@ -27,6 +27,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -58,7 +59,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
-		} else if !release.ReleaseInfo.SupportsClassicConfinement() {
+		} else if !dirs.SupportsClassicConfinement() {
 			return nil, fmt.Errorf("classic confinement is not yet supported on your distribution")
 		}
 	}
