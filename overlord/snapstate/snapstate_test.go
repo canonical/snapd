@@ -251,7 +251,9 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 	reset := release.MockReleaseInfo(&release.OS{
 		ID: "fedora",
 	})
-	defer reset()
+	defer func() { reset(); dirs.SetRootDir("/") }()
+
+	dirs.SetRootDir("/")
 
 	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
 	c.Assert(err, Not(IsNil))

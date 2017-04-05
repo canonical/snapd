@@ -73,6 +73,10 @@ var (
 	XdgRuntimeDirGlob string
 )
 
+const (
+	DefaultSnapMountDir = "/snap"
+)
+
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snapd")
@@ -100,6 +104,12 @@ func StripRootDir(dir string) string {
 	return "/" + result
 }
 
+// SupportsClassicConfinement returns true if the current directory layout
+// supports classic confinement and false otherwise.
+func SupportsClassicConfinement() bool {
+	return SnapMountDir == DefaultSnapMountDir
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -112,7 +122,7 @@ func SetRootDir(rootdir string) {
 	case "fedora", "centos", "rhel":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
-		SnapMountDir = filepath.Join(rootdir, "/snap")
+		SnapMountDir = filepath.Join(rootdir, DefaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
