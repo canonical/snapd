@@ -22,5 +22,5 @@ execute: |
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
-    strace test-snapd-tools.echo foo 2> out.strace
+    strace -s1024 test-snapd-tools.echo foo 2> out.strace
     cat out.strace | MATCH /snap/core/current/usr/lib/snapd/snap-confine
