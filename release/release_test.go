@@ -20,8 +20,10 @@
 package release_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -69,6 +71,7 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	os := release.ReadOSRelease()
 	c.Check(os.ID, Equals, "ubuntu")
 	c.Check(os.VersionID, Equals, "18.09")
+	c.Check(os.SupportsClassicSnaps(), Equals, true)
 }
 
 func (s *ReleaseTestSuite) TestReadWonkyOSRelease(c *C) {
@@ -123,5 +126,41 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 	for _, devmode := range []bool{true, false} {
 		release.MockForcedDevmode(devmode)
 		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
+	}
+}
+
+func (s *ReleaseTestSuite) TestClassicSnapsAreEnabledOrDisabled(c *C) {
+	template := `NAME="###ID###"
+VERSION="0.1"
+ID="###ID###"
+ID_LIKE=###ID###
+PRETTY_NAME="###ID###"
+VERSION_ID="0.1"
+HOME_URL="http://###ID###.org/"
+SUPPORT_URL="http://###ID###.org/support/"
+BUG_REPORT_URL="https://###ID###.org/bugs/"`
+
+	for _, current := range []struct {
+		Name     string
+		Expected bool
+	}{
+		{"fedora", false},
+		{"rhel", false},
+		{"centos", false},
+		{"ubuntu", true},
+		{"debian", true},
+		{"suse", true},
+		{"yocto", true}} {
+		mockOSRelease := filepath.Join(c.MkDir(), fmt.Sprintf("mock-os-release-%s", current.Name))
+		dump := strings.Replace(template, "###ID###", current.Name, -1)
+		err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+		c.Assert(err, IsNil)
+
+		reset := release.MockOSReleasePath(mockOSRelease)
+		defer reset()
+
+		os := release.ReadOSRelease()
+		c.Check(os.ID, Equals, current.Name)
+		c.Assert(os.SupportsClassicSnaps(), Equals, current.Expected)
 	}
 }
