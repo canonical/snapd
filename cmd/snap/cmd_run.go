@@ -261,10 +261,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	// FIXME2: for now "ForceDevMode" will prevent snap-confine to be
-	//         run on distros like fedora/suse etc. which is ok because
-	//         snap-confine is a non-op on these distros anyway.
-	if isReexeced() && !release.ReleaseInfo.ForceDevMode() {
+	// if we re-exec, we must run the snap-confine from the core snap
+	// as well, if they get out of sync, havoc will happen
+	if isReexeced() {
 		// run snap-confine from the core snap. that will work because
 		// snap-confine on the core snap is mostly statically linked
 		// (except libudev and libc)
