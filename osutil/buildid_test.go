@@ -34,6 +34,10 @@ type buildIDSuite struct{}
 
 var _ = Suite(&buildIDSuite{})
 
+var truePath = osutil.LookPathDefault("true", "/bin/true")
+var falsePath = osutil.LookPathDefault("false", "/bin/false")
+var gccPath = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
+
 func buildID(c *C, fname string) string {
 	output, err := exec.Command("file", fname).CombinedOutput()
 	c.Assert(err, IsNil)

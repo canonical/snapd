@@ -49,8 +49,8 @@ type ErrtrackerTestSuite struct {
 
 var _ = Suite(&ErrtrackerTestSuite{})
 
-var truePath = osutil.LookupPathWithDefault("true", "/bin/true")
-var falsePath = osutil.LookupPathWithDefault("false", "/bin/false")
+var truePath = osutil.LookPathDefault("true", "/bin/true")
+var falsePath = osutil.LookPathDefault("false", "/bin/false")
 
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)

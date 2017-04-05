@@ -63,3 +63,16 @@ func ExecutableExists(name string) bool {
 
 	return err == nil
 }
+
+var lookPath func(name string) (string, error) = exec.LookPath
+
+// LookupPathWithDefault searches for a given command name in all directories
+// listed in the environment variable PATH and returns the found path or the
+// provided default path.
+func LookPathDefault(name string, defaultPath string) string {
+	p, err := lookPath(name)
+	if err != nil {
+		return defaultPath
+	}
+	return p
+}
