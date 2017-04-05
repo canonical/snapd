@@ -20,10 +20,8 @@
 package release_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -71,7 +69,6 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	os := release.ReadOSRelease()
 	c.Check(os.ID, Equals, "ubuntu")
 	c.Check(os.VersionID, Equals, "18.09")
-	c.Check(os.SupportsClassicConfinement(), Equals, true)
 }
 
 func (s *ReleaseTestSuite) TestReadWonkyOSRelease(c *C) {
