@@ -137,7 +137,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 			// The issue this is attempting to fix is only
 			// affecting seccomp/apparmor so limit the work just to
 			// this backend.
-			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor || backend.Name() == interfaces.SecurityReexec)
+			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
 			if !shouldRefresh {
 				continue
 			}

@@ -157,8 +157,6 @@ const (
 	SecurityKMod SecuritySystem = "kmod"
 	// SecuritySystemd identifies the systemd services security system
 	SecuritySystemd SecuritySystem = "systemd"
-	// SecurityReexexc identifies the reexec security system
-	SecurityReexec SecuritySystem = "reexec"
 )
 
 // Regular expression describing correct identifiers.
