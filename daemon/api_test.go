@@ -556,10 +556,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
-		"on-classic":         true,
-		"managed":            false,
-		"mount-directory":    dirs.SnapMountDir,
-		"binaries-directory": dirs.SnapBinariesDir,
+		"on-classic":     true,
+		"managed":        false,
+		"snap-mount-dir": dirs.SnapMountDir,
+		"snap-bin-dir":   dirs.SnapBinariesDir,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
