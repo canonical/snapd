@@ -120,10 +120,10 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
 }
 
-// SaveRevisionConfigMaybe makes a copy of config -> snapSnape configuration into the versioned config.
+// SaveRevisionConfig makes a copy of config -> snapSnape configuration into the versioned config.
 // It doesn't do anything if there is no configuration for given snap in the state.
 // The caller is responsible for locking the state.
-func SaveRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
 	var config map[string]*json.RawMessage                    // snap => configuration
 	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 
@@ -155,10 +155,10 @@ func SaveRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision
 	return nil
 }
 
-// RestoreRevisionConfigMaybe restores a given revision of snap configuration into config -> snapName.
+// RestoreRevisionConfig restores a given revision of snap configuration into config -> snapName.
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
-func RestoreRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
 	var config map[string]*json.RawMessage                    // snap => configuration
 	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 
@@ -186,10 +186,10 @@ func RestoreRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revis
 	return nil
 }
 
-// DiscardRevisionConfigMaybe removes configuration snapshot of given snap/revision.
+// DiscardRevisionConfig removes configuration snapshot of given snap/revision.
 // If no configuration exists for given revision it does nothing (no error).
 // The caller is responsible for locking the state.
-func DiscardRevisionConfigMaybe(st *state.State, snapName string, rev snap.Revision) error {
+func DiscardRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
 	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
 	err := st.Get("revision-config", &revisionConfig)
 	if err == state.ErrNoState {
