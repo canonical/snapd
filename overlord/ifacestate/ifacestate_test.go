@@ -673,6 +673,12 @@ version: 1
 type: os
 `
 
+var coreSnapYaml = `
+name: core
+version: 1
+type: os
+`
+
 var sampleSnapYaml = `
 name: snap
 version: 1
@@ -1745,7 +1751,7 @@ version: 1
 type: os
 `
 
-var coreYaml = `name: ubuntu-core
+var coreYaml = `name: core
 version: 1
 type: os
 `
@@ -1840,4 +1846,54 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 			"interface": "network", "auto": true,
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
+	// Add both the old and new core snaps
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	// Initialize the manager. This registers both of the core snaps.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a "network" plug which should be auto-connected.
+	// Normally it would not be auto connected because there are multiple
+	// provides but we have special support for this case so the old
+	// ubuntu-core snap is ignored and we pick the new core snap.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "network" is now saved in the state as auto-connected and
+	// that it is connected to the new core snap rather than the old
+	// ubuntu-core snap.
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	// Ensure that "network" is really connected.
+	repo := mgr.Repository()
+	plug := repo.Plug("snap", "network")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Connections, HasLen, 1)
 }
