@@ -710,6 +710,13 @@ slots:
   attr2: value2
 `
 
+var httpdSnapYaml = `name: httpd
+version: 1
+plugs:
+ network:
+  interface: network
+`
+
 // The setup-profiles task will not auto-connect an plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
@@ -1746,26 +1753,9 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 }
 
-var ubuntuCoreYaml = `name: ubuntu-core
-version: 1
-type: os
-`
-
-var coreYaml = `name: core
-version: 1
-type: os
-`
-
-var httpdSnapYaml = `name: httpd
-version: 1
-plugs:
- network:
-  interface: network
-`
-
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
-	s.mockSnap(c, ubuntuCoreYaml)
-	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
 	mgr := s.manager(c)
@@ -1803,8 +1793,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
-	s.mockSnap(c, ubuntuCoreYaml)
-	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
 	mgr := s.manager(c)
