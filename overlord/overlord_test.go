@@ -370,7 +370,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 	chg1.AddTask(t1)
 	chg2 := st.NewChange("prune", "...")
 	chg2.SetStatus(state.DoneStatus)
-	t0 := chg2.SpawnTime()
+	t0 := chg2.ReadyTime()
 	st.Unlock()
 
 	// observe the loop cycles to detect when prune should have happened
