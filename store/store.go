@@ -913,65 +913,6 @@ func mustBuy(prices map[string]float64, bought bool) bool {
 	return !bought
 }
 
-// fakeChannels is a stopgap method of getting pseudo-channels until
-// the details endpoint provides the real thing for us. The main
-// difference between this pseudo one and the real thing is that a
-// channel can be closed, and we'll be oblivious to it.
-func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*snap.ChannelSnapInfo, error) {
-	snaps := make([]currentSnapJson, 4)
-	for i, channel := range []string{"stable", "candidate", "beta", "edge"} {
-		snaps[i] = currentSnapJson{
-			SnapID:  snapID,
-			Channel: channel,
-			// revision, confinement, epoch purposely left empty
-		}
-	}
-	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  snaps,
-		Fields: channelSnapInfoFields,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	reqOptions := &requestOptions{
-		Method:      "POST",
-		URL:         s.bulkURI,
-		Accept:      halJsonContentType,
-		ContentType: jsonContentType,
-		Data:        jsonData,
-	}
-
-	var results struct {
-		Payload struct {
-			ChannelSnapInfoDetails []*channelSnapInfoDetails `json:"clickindex:package"`
-		} `json:"_embedded"`
-	}
-
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), s.client, reqOptions, user, &results, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for channel information")
-	}
-
-	channelInfos := make(map[string]*snap.ChannelSnapInfo, 4)
-	for _, item := range results.Payload.ChannelSnapInfoDetails {
-		channelInfos[item.Channel] = &snap.ChannelSnapInfo{
-			Revision:    snap.R(item.Revision),
-			Confinement: snap.ConfinementType(item.Confinement),
-			Version:     item.Version,
-			Channel:     item.Channel,
-			Epoch:       item.Epoch,
-			Size:        item.DownloadSize,
-		}
-	}
-
-	return channelInfos, nil
-}
-
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
 	Name     string
@@ -1020,16 +961,6 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	info := infoFromRemote(remote)
-
-	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && info.Channels == nil && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
-		channels, err := s.fakeChannels(info.SnapID, user)
-		if err != nil {
-			logger.Noticef("cannot get channels: %v", err)
-		} else {
-			info.Channels = channels
-		}
-	}
 
 	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
 	if err != nil {

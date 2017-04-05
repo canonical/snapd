@@ -282,20 +282,6 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
-		// FIXME: legacy this can be removed once the store sends
-		//        channel_map_list for every snap
-		if remote != nil && remote.Channels != nil && remote.Tracks == nil {
-			// \t\t\t so we get "installed" lined up with "channels"
-			fmt.Fprintf(w, "channels:\t\t\t\n")
-			for _, ch := range []string{"stable", "candidate", "beta", "edge"} {
-				m := remote.Channels[ch]
-				if m == nil {
-					continue
-				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
-			}
-		}
-
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
 			displayChannels(w, remote)
 		}
