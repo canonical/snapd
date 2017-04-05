@@ -167,11 +167,12 @@ type Info struct {
 	Publisher   string
 
 	Screenshots []ScreenshotInfo
-	// deprecated
+
+	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
 
-	// maps from "track" -> "channel" -> ChannelSnapInfo
-	Tracks map[string]map[string]*ChannelSnapInfo
+	// The ordered list of tracks that contains channels
+	Tracks []string
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly

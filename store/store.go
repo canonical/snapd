@@ -122,15 +122,22 @@ func infoFromRemote(d snapDetails) *snap.Info {
 
 	// fill in the tracks data
 	if len(d.ChannelMapList) > 0 {
-		info.Tracks = make(map[string]map[string]*snap.ChannelSnapInfo)
-		for _, cm := range d.ChannelMapList {
-			info.Tracks[cm.Track] = make(map[string]*snap.ChannelSnapInfo)
+		info.Channels = make(map[string]*snap.ChannelSnapInfo)
+		info.Tracks = make([]string, len(d.ChannelMapList))
+		for i, cm := range d.ChannelMapList {
+			info.Tracks[i] = cm.Track
 			for _, ch := range cm.SnapDetails {
 				// nothing in this channel
 				if ch.Info == "" {
 					continue
 				}
-				info.Tracks[cm.Track][ch.Channel] = &snap.ChannelSnapInfo{
+				var k string
+				if strings.HasPrefix(ch.Channel, cm.Track) {
+					k = ch.Channel
+				} else {
+					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
+				}
+				info.Channels[k] = &snap.ChannelSnapInfo{
 					Revision:    snap.R(ch.Revision),
 					Confinement: snap.ConfinementType(ch.Confinement),
 					Version:     ch.Version,
@@ -1015,7 +1022,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
+	if info.SnapID != "" && info.Channels == nil && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)

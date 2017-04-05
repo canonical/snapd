@@ -190,6 +190,28 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+// displayChannels displays channels and tracks in the right order
+func displayChannels(w io.Writer, remote *client.Snap) {
+	// \t\t\t so we get "installed" lined up with "channels"
+	fmt.Fprintf(w, "channels:\t\t\t\n")
+
+	// order by tracks
+	for _, tr := range remote.Tracks {
+		for chName, ch := range remote.Channels {
+			if !strings.HasPrefix(chName, tr+"/") {
+				continue
+			}
+			// order by risk
+			for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+				if strings.HasSuffix(chName, "/"+risk) {
+					fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", chName, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
+				}
+			}
+			// FIXME: clarify if we need to show custom branches
+		}
+	}
+}
+
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
@@ -260,19 +282,9 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
-		if remote != nil && remote.Tracks != nil {
-			// \t\t\t so we get "installed" lined up with "channels"
-			fmt.Fprintf(w, "tracks:\t\t\t\n")
-			for tr := range remote.Tracks {
-				fmt.Fprintf(w, "  - %s:\n", tr)
-				for ch := range remote.Tracks[tr] {
-					m := remote.Tracks[tr][ch]
-					fmt.Fprintf(w, "      %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
-				}
-			}
-		}
-
-		if remote != nil && remote.Channels != nil {
+		// FIXME: legacy this can be removed once the store sends
+		//        channel_map_list for every snap
+		if remote != nil && remote.Channels != nil && remote.Tracks == nil {
 			// \t\t\t so we get "installed" lined up with "channels"
 			fmt.Fprintf(w, "channels:\t\t\t\n")
 			for _, ch := range []string{"stable", "candidate", "beta", "edge"} {
@@ -283,6 +295,11 @@ func (x *infoCmd) Execute([]string) error {
 				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
 			}
 		}
+
+		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+			displayChannels(w, remote)
+		}
+
 	}
 	w.Flush()
 

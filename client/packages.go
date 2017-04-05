@@ -58,11 +58,11 @@ type Snap struct {
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`
 
-	// deprecated
+	// The flattended channel map with $track/$risk
 	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
 
-	// Maps from "track" -> "channel" -> "ChannelSnapInfo"
-	Tracks map[string]map[string]*snap.ChannelSnapInfo `json:"tracks"`
+	// The ordered list of tracks that contains channels
+	Tracks []string
 }
 
 type AppInfo struct {
