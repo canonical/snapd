@@ -67,6 +67,14 @@ func (o *OS) ForceDevMode() bool {
 	return false
 }
 
+func (o *OS) SupportsClassicSnaps() bool {
+	switch o.ID {
+	case "fedora", "rhel", "centos":
+		return false
+	}
+	return true
+}
+
 var (
 	osReleasePath         = "/etc/os-release"
 	fallbackOsReleasePath = "/usr/lib/os-release"

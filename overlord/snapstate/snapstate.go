@@ -55,8 +55,12 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
-	if snapsup.Flags.Classic && !release.OnClassic {
-		return nil, fmt.Errorf("classic confinement is only supported on classic systems")
+	if snapsup.Flags.Classic {
+		if !release.OnClassic {
+			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
+		} else if !release.ReleaseInfo.SupportsClassicSnaps() {
+			return nil, fmt.Errorf("classic confinement is not supported on your distribution")
+		}
 	}
 	if !snapst.HasCurrent() { // install?
 		// check that the snap command namespace doesn't conflict with an enabled alias
