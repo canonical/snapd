@@ -67,7 +67,9 @@ func (o *OS) ForceDevMode() bool {
 	return false
 }
 
-func (o *OS) SupportsClassicSnaps() bool {
+// SupportsClassicConfinement returns true if the current distribution can run snaps using
+// classic confinement.
+func (o *OS) SupportsClassicConfinement() bool {
 	switch o.ID {
 	case "fedora", "rhel", "centos":
 		return false

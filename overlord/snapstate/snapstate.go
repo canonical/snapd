@@ -58,7 +58,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
-		} else if !release.ReleaseInfo.SupportsClassicSnaps() {
+		} else if !release.ReleaseInfo.SupportsClassicConfinement() {
 			return nil, fmt.Errorf("classic confinement is not yet supported on your distribution")
 		}
 	}
