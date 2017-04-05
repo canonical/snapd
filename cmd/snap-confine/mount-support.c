@@ -219,7 +219,7 @@ static void sc_setup_mount_profiles(const char *snap_name)
 		      m->mnt_opts, m->mnt_freq, m->mnt_passno);
 		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
 		debug("initial flags are: bind,ro,nodev,nosuid");
-		if (strcmp(m->mnt_type, "none") != 0) {
+		if (sc_streq(m->mnt_type, "none")) {
 			die("cannot honor mount profile, only 'none' filesystem type is supported");
 		}
 		if (hasmntopt(m, "bind") == NULL) {
