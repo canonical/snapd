@@ -131,7 +131,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
-		setupHostSnapConfineApparmorForReexec(snapInfo)
+		if err := setupHostSnapConfineApparmorForReexec(snapInfo); err != nil {
+			logger.Noticef("cannot create host snap-confe apparmor configuration: %s", err)
+		}
 	}
 
 	// Get the files that this snap should have
