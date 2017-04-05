@@ -39,14 +39,19 @@ package apparmor
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -56,6 +61,59 @@ type Backend struct{}
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityAppArmor
+}
+
+func setupHostSnapConfineApparmorForReexec(snapInfo *snap.Info) error {
+	// cleanup old
+	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
+
+	glob, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, apparmorProfilePathPattern))
+	if err != nil {
+		return err
+	}
+
+	for _, path := range glob {
+		snapConfineInCore := "/" + strings.Replace(filepath.Base(path), ".", "/", -1)
+		if osutil.FileExists(snapConfineInCore) {
+			continue
+		}
+
+		// not using apparmor.UnloadProfile() because it uses a
+		// different cachedir
+		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
+			logger.Noticef("cannot unload apparmor profile %s: %v", filepath.Base(path), osutil.OutputErr(output, err))
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(filepath.Join(dirs.SystemApparmorCacheDir, filepath.Base(path))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	// add new
+	coreRoot := snapInfo.MountDir()
+	snapConfineInCore := filepath.Join(coreRoot, "usr/lib/snapd/snap-confine")
+	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
+
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+	if err != nil {
+		return err
+	}
+	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
+
+	// /etc/apparmor.d is read/write OnClassic, so write out the
+	// new core's profile there
+	if err := osutil.AtomicWriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644, 0); err != nil {
+		return err
+	}
+
+	// not using apparmor.LoadProfile() because it uses a different cachedir
+	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot replace snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+	}
+
+	return nil
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.
@@ -70,6 +128,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+
+	// core on classic is special
+	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
+		setupHostSnapConfineApparmorForReexec(snapInfo)
+	}
+
 	// Get the files that this snap should have
 	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
 	if err != nil {
