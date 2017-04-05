@@ -74,7 +74,7 @@ var (
 )
 
 const (
-	DefaultSnapMountDir = "/snap"
+	defaultSnapMountDir = "/snap"
 )
 
 var (
@@ -104,10 +104,9 @@ func StripRootDir(dir string) string {
 	return "/" + result
 }
 
-// SupportsClassicConfinement returns true if the current directory layout
-// supports classic confinement and false otherwise.
+// SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
-	return SnapMountDir == DefaultSnapMountDir
+	return SnapMountDir == defaultSnapMountDir
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -122,7 +121,7 @@ func SetRootDir(rootdir string) {
 	case "fedora", "centos", "rhel":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
-		SnapMountDir = filepath.Join(rootdir, DefaultSnapMountDir)
+		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
