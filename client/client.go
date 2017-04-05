@@ -336,7 +336,8 @@ const (
 
 	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
 	ErrorKindSnapNotInstalled       = "snap-not-installed"
-	ErrorKindSnapNeedsMode          = "snap-needs-mode"
+	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
+	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 

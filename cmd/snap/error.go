@@ -20,67 +20,102 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
+	"go/doc"
+	"os"
+	"os/user"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 )
 
-func fill(para string) string {
-	// lazy way of doing it
-	buf := make([]byte, 0, len(para))
-	scanner := bufio.NewScanner(strings.NewReader(para))
-	scanner.Split(bufio.ScanWords)
-	l := len("error: ")
-	for scanner.Scan() {
-		word := scanner.Bytes()
-		l += len(word) + 1
-		if l <= 72 {
-			buf = append(buf, ' ')
-		} else {
-			l = len(word) + 1
-			buf = append(buf, '\n')
-		}
-		buf = append(buf, word...)
+var errorPrefix = i18n.G("error: %v\n")
+
+func termSize() (width, height int) {
+	if f, ok := Stdout.(*os.File); ok {
+		width, height, _ = terminal.GetSize(int(f.Fd()))
 	}
 
-	return string(buf[1:])
+	if width <= 0 {
+		width = int(osutil.GetenvInt64("COLUMNS"))
+	}
+
+	if height <= 0 {
+		height = int(osutil.GetenvInt64("COLUMNS"))
+	}
+
+	if width < 40 {
+		width = 80
+	}
+
+	if height < 15 {
+		height = 25
+	}
+
+	return width, height
+}
+
+func fill(para string) string {
+	width, _ := termSize()
+
+	if width > 100 {
+		width = 100
+	}
+
+	width--
+
+	// 3 is the %v\n, which will be present in any locale
+	indent := len(errorPrefix) - 3
+	var buf bytes.Buffer
+	doc.ToText(&buf, para, strings.Repeat(" ", indent), "", width)
+
+	return strings.TrimSpace(buf.String())
 }
 
 func clientErrorToCmdMessage(snapName string, err *client.Error) (msg string, isError bool) {
+	isError = true
 	switch err.Kind {
 	case client.ErrorKindSnapAlreadyInstalled:
-		return fmt.Sprintf(i18n.G(`snap %q is already installed, see "snap refresh --help"`), snapName), false
-	case client.ErrorKindSnapNeedsMode:
-		switch err.Value {
-		case client.DevModeConfinement:
-			msg = i18n.G(`
-the developer of snap %q has indicated that they do not consider it to
-be of production quality, and is only meant for developers or user
-testing at this point.  Installing this snap from an untrusted developer
-can put your system at risk.  What's more this developer-mode snap once
-installed will need to be manually refreshed.  If all of the above is
-agreeable to you please repeat this command with the --devmode option
-added.
-`)
+		isError = false
+		msg = i18n.G(`snap %q is already installed, see "snap refresh --help"`)
+	case client.ErrorKindSnapNeedsDevMode:
+		msg = i18n.G(`
+The publisher of snap %q has indicated that they do not consider this revision
+to be of production quality and that it is only meant for development or testing
+at this point. As a consequence this snap will not refresh automatically and may
+perform arbitrary system changes outside of the security sandbox snaps are
+generally confined to, which may put your system at risk.
 
-		case client.ClassicConfinement:
-			msg = i18n.G(`
-snap %q is a "classic" snap, which means it runs outside of the sandbox
-more strict snaps run in.  As this could put your system at risk (like
-traditional .deb or .rpm packages could), you must explicitly request
-this on installation, by using this same command with the added
---classic option.  After that the snap will be refreshed automatically.
+If you understand and want to proceed repeat the command including --devmode;
+if instead you want to install the snap forcing it into strict confinement
+repeat the command including --jailmode.`)
+	case client.ErrorKindSnapNeedsClassic:
+		msg = i18n.G(`
+This revision of snap %q was published using classic confinement and thus may
+perform arbitrary system changes outside of the security sandbox that snaps are
+usually confined to, which may put your system at risk.
+
+If you understand and want to proceed repeat the command including --classic.
 `)
-		default:
-			msg = "%q: " + err.Message
+	case client.ErrorKindLoginRequired:
+		u, _ := user.Current()
+		if u != nil && u.Username == "root" {
+			msg = fmt.Sprintf(i18n.G(`%s (see "snap login --help")`), err.Message)
+		} else {
+			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
-		return fill(fmt.Sprintf(msg, snapName)), true
+		return fill(msg), true
 	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
-		return err.Message, false
+		isError = false
+		fallthrough
 	default:
-		return err.Message, true
+		return fill(err.Message), isError
 	}
+
+	return fill(fmt.Sprintf(msg, snapName)), isError
 }
