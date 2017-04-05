@@ -71,7 +71,7 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	os := release.ReadOSRelease()
 	c.Check(os.ID, Equals, "ubuntu")
 	c.Check(os.VersionID, Equals, "18.09")
-	c.Check(os.SupportsClassicSnaps(), Equals, true)
+	c.Check(os.SupportsClassicConfinement(), Equals, true)
 }
 
 func (s *ReleaseTestSuite) TestReadWonkyOSRelease(c *C) {
@@ -161,6 +161,6 @@ BUG_REPORT_URL="https://###ID###.org/bugs/"`
 
 		os := release.ReadOSRelease()
 		c.Check(os.ID, Equals, current.Name)
-		c.Assert(os.SupportsClassicSnaps(), Equals, current.Expected)
+		c.Assert(os.SupportsClassicConfinement(), Equals, current.Expected)
 	}
 }
