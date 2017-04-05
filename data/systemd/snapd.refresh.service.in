@@ -2,10 +2,10 @@
 Description=Automatically refresh installed snaps
 After=network-online.target snapd.socket
 Requires=snapd.socket
-ConditionPathExistsGlob=/snap/*/current
+ConditionPathExistsGlob=@SNAP_MOUNT_DIR@/*/current
 Documentation=man:snap(1)
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snap refresh
+ExecStart=@bindir@/snap refresh
 Environment=SNAP_REFRESH_FROM_EMERGENCY_TIMER=1
