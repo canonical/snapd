@@ -91,14 +91,19 @@ func setupHostSnapConfineApparmorForReexec(snapInfo *snap.Info) error {
 		}
 	}
 
-	// add new
+	// add new confinement file
 	coreRoot := snapInfo.MountDir()
 	snapConfineInCore := filepath.Join(coreRoot, "usr/lib/snapd/snap-confine")
 	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
 
-	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
-	if err != nil {
-		return err
+	// we must test the ".real" suffix first, this is a workaround for
+	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
+	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real"))
+	if os.IsNotExist(err) {
+		apparmorProfile, err = ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
+		if err != nil {
+			return err
+		}
 	}
 	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
 
