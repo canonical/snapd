@@ -39,6 +39,7 @@ var allInterfaces = []interfaces.Interface{
 	&I2cInterface{},
 	&IioInterface{},
 	&IioPortsControlInterface{},
+	&JoystickInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdInterface{},

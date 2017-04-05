@@ -324,6 +324,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   kernel-module-control:
     allow-installation:
       slot-snap-type:
