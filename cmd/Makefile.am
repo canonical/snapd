@@ -96,6 +96,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
 	libsnap-confine-private/privs-test.c \
