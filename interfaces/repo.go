@@ -550,7 +550,17 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 			conns = append(conns, connRef)
 		}
 	}
-	return conns, nil
+	// remove duplicates, this is caused by duplicate plug/slot name on core
+	// and missing validation on plug/snap name when adding core.
+	seen := make(map[ConnRef]bool)
+	var deduped []ConnRef
+	for _, connRef := range conns {
+		if !seen[connRef] {
+			deduped = append(deduped, connRef)
+			seen[connRef] = true
+		}
+	}
+	return deduped, nil
 }
 
 // coreSnapName returns the name of the core snap if one exists

@@ -1208,6 +1208,29 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	})
 }
 
+// Connected de-duplicates results
+func (s *RepositorySuite) TestConnectedDeduplicates(c *C) {
+	coreSnapInfo := &snap.Info{SuggestedName: "core", Type: snap.TypeOS}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{
+		Snap:      coreSnapInfo,
+		Name:      "network-bind",
+		Interface: "network-bind",
+	}}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      coreSnapInfo,
+		Name:      "network-bind",
+		Interface: "network-bind",
+	}}
+	c.Assert(s.testRepo.AddInterface(&ifacetest.TestInterface{InterfaceName: "network-bind"}), IsNil)
+	c.Assert(s.testRepo.AddPlug(plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(slot), IsNil)
+	c.Assert(s.testRepo.Connect(ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}), IsNil)
+
+	conns, err := s.testRepo.Connected("core", "network-bind")
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []ConnRef{{plug.Ref(), slot.Ref()}})
+}
+
 // Tests for Repository.DisconnectAll()
 
 func (s *RepositorySuite) TestDisconnectAll(c *C) {
