@@ -157,6 +157,10 @@ int main(int argc, char **argv)
 				sc_initialize_ns_groups();
 			}
 
+			// Do global initialization:
+			sc_call_while_locked(NULL, global_share_snap_dir,
+					     global_unshare_ns_dir, NULL);
+
 			void snap_init_mount_ns(const char *group_name) {
 				debug("initializing mount namespace: %s",
 				      group_name);
@@ -173,16 +177,10 @@ int main(int argc, char **argv)
 				sc_close_ns_group(group);
 			}
 
-			void global_init_per_snap_things(const char *unused) {
-				debug("initializing per-snap things...");
-				sc_call_while_locked(snap_name,
-						     snap_init_mount_ns, NULL);
-			}
+			// Do per-snap initialization.
+			sc_call_while_locked(snap_name, snap_init_mount_ns,
+					     NULL);
 
-			// Do global initialization:
-			sc_call_while_locked(NULL, global_share_snap_dir,
-					     global_unshare_ns_dir,
-					     global_init_per_snap_things, NULL);
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
 			// sense but we cannot assume it makes sense for the core snap
