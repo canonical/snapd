@@ -196,17 +196,20 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 	fmt.Fprintf(w, "channels:\t\t\t\n")
 
 	// order by tracks
-	for _, tr := range remote.Tracks {
-		fmt.Fprintf(w, "  - %s:\t\t\t\t\n", tr)
+	for i, tr := range remote.Tracks {
+		trackHasOpenChannel := false
 		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
-			shortChname := chName[len(tr)+1:]
 			ch, ok := remote.Channels[chName]
 			if !ok {
-				fmt.Fprintf(w, "      %s:\t^\t\t\t\n", shortChname)
 				continue
 			}
-			fmt.Fprintf(w, "      %s:\t%s\t(%s)\t%s\t%s\n", shortChname, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
+			trackHasOpenChannel = true
+			fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", chName, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
+		}
+		// add seperator between tracks
+		if trackHasOpenChannel && i < len(remote.Tracks)-1 {
+			fmt.Fprintf(w, "  \t\t\t\t\n")
 		}
 		// FIXME: clarify if we need to show custom branches
 	}
