@@ -149,7 +149,7 @@ int main(int argc, char **argv)
 #endif
 
 			// Do global initialization:
-			int global_lock_fd = sc_lock(NULL);
+			int global_lock_fd = sc_lock_global();
 			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
 			// TODO: implement this.

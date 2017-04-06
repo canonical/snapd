@@ -38,6 +38,14 @@
 int sc_lock(const char *scope);
 
 /**
+ * Obtain a flock-based, exclusive globally scoped lock.
+ *
+ * This function is exactly like sc_lock(NULL), that is the acquired lock is
+ * not specific to any snap but global.
+ **/
+int sc_lock_global();
+
+/**
  * Release a flock-based lock.
  *
  * This function simply unlocks the lock and closes the file descriptor.
