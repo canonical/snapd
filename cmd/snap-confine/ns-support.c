@@ -65,12 +65,6 @@
 static const char *sc_ns_dir = SC_NS_DIR;
 
 /**
- * Name of the lock file associated with SC_NS_DIR.
- * and a given group identifier (typically SNAP_NAME).
- **/
-#define SC_NS_LOCK_FILE ".lock"
-
-/**
  * Name of the preserved mount namespace associated with SC_NS_DIR
  * and a given group identifier (typically SNAP_NAME).
  **/
@@ -159,26 +153,6 @@ void sc_initialize_ns_groups()
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create namespace group directory %s", sc_ns_dir);
 	}
-	debug("opening namespace group directory %s", sc_ns_dir);
-	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
-	dir_fd = open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
-	if (dir_fd < 0) {
-		die("cannot open namespace group directory");
-	}
-	debug("opening lock file for group directory");
-	int lock_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
-	lock_fd = openat(dir_fd,
-			 SC_NS_LOCK_FILE,
-			 O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (lock_fd < 0) {
-		die("cannot open lock file for namespace group directory");
-	}
-	debug("locking the namespace group directory");
-	sc_enable_sanity_timeout();
-	if (flock(lock_fd, LOCK_EX) < 0) {
-		die("cannot acquire exclusive lock for namespace group directory");
-	}
-	sc_disable_sanity_timeout();
 	if (!sc_is_ns_group_dir_private()) {
 		debug
 		    ("bind mounting the namespace group directory over itself");
@@ -195,10 +169,6 @@ void sc_initialize_ns_groups()
 		debug
 		    ("namespace group directory does not require intialization");
 	}
-	debug("unlocking the namespace group directory");
-	if (flock(lock_fd, LOCK_UN) < 0) {
-		die("cannot release lock for namespace control directory");
-	}
 }
 
 struct sc_ns_group {
@@ -207,8 +177,6 @@ struct sc_ns_group {
 	// Descriptor to the namespace group control directory.  This descriptor is
 	// opened with O_PATH|O_DIRECTORY so it's only used for openat() calls.
 	int dir_fd;
-	// Descriptor to a namespace-specific lock file (i.e. $SNAP_NAME.lock).
-	int lock_fd;
 	// Descriptor to an eventfd that is used to notify the child that it can
 	// now complete its job and exit.
 	int event_fd;
@@ -226,7 +194,6 @@ static struct sc_ns_group *sc_alloc_ns_group()
 		die("cannot allocate memory for namespace group");
 	}
 	group->dir_fd = -1;
-	group->lock_fd = -1;
 	group->event_fd = -1;
 	// Redundant with calloc but some functions check for the non-zero value so
 	// I'd like to keep this explicit in the code.
@@ -248,16 +215,6 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name,
 		}
 		die("cannot open directory for namespace group %s", group_name);
 	}
-	char lock_fname[PATH_MAX];
-	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
-			 SC_NS_LOCK_FILE);
-	debug("opening lock file for namespace group %s", group_name);
-	group->lock_fd =
-	    openat(group->dir_fd, lock_fname,
-		   O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (group->lock_fd < 0) {
-		die("cannot open lock file for namespace group %s", group_name);
-	}
 	group->name = strdup(group_name);
 	if (group->name == NULL) {
 		die("cannot duplicate namespace group name %s", group_name);
@@ -270,37 +227,9 @@ void sc_close_ns_group(struct sc_ns_group *group)
 	debug("releasing resources associated with namespace group %s",
 	      group->name);
 	sc_cleanup_close(&group->dir_fd);
-	sc_cleanup_close(&group->lock_fd);
 	sc_cleanup_close(&group->event_fd);
 	free(group->name);
 	free(group);
-}
-
-void sc_lock_ns_mutex(struct sc_ns_group *group)
-{
-	if (group->lock_fd < 0) {
-		die("precondition failed: we don't have an open file descriptor for the mutex file");
-	}
-	debug("acquiring exclusive lock for namespace group %s", group->name);
-	sc_enable_sanity_timeout();
-	if (flock(group->lock_fd, LOCK_EX) < 0) {
-		die("cannot acquire exclusive lock for namespace group %s",
-		    group->name);
-	}
-	sc_disable_sanity_timeout();
-	debug("acquired exclusive lock for namespace group %s", group->name);
-}
-
-void sc_unlock_ns_mutex(struct sc_ns_group *group)
-{
-	if (group->lock_fd < 0) {
-		die("precondition failed: we don't have an open file descriptor for the mutex file");
-	}
-	debug("releasing lock for namespace group %s", group->name);
-	if (flock(group->lock_fd, LOCK_UN) < 0) {
-		die("cannot release lock for namespace group %s", group->name);
-	}
-	debug("released lock for namespace group %s", group->name);
 }
 
 void sc_create_or_join_ns_group(struct sc_ns_group *group,
