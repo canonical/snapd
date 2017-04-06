@@ -3,12 +3,14 @@ summary: Test that snap-confine is run from core on re-exec
 systems: [-ubuntu-core-16-*]
 
 prepare: |
-    apt install -y strace
+    echo "Installing test-snapd-tools"
     snap install test-snapd-tools
+    echo "Breaking host snap-confine"
+    chmod 0755 /usr/lib/snapd/snap-confine
 
 restore: |
-    apt remove -y strace
-    rm -f out.strace
+    echo "Restoring host snap-confine"
+    chmod 4755 /usr/lib/snapd/snap-confine
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
@@ -22,5 +24,4 @@ execute: |
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs
-    strace -s1024 test-snapd-tools.echo foo 2> out.strace
-    cat out.strace | MATCH /snap/core/current/usr/lib/snapd/snap-confine
+    test-snapd-tools.echo hello
