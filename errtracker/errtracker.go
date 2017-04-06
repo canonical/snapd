@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
@@ -108,6 +109,15 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 			report[k] = v
 		}
 	}
+
+	// see if we run in testing mode
+	if osutil.GetenvBool("SNAPPY_TESTING") {
+		logger.Noticef("errtracker.Report is *not* send because SNAPPY_TESTING is set")
+		logger.Noticef("report: %v", report)
+		return "oops-not-send", nil
+	}
+
+	// send it for real
 	reportBson, err := bson.Marshal(report)
 	if err != nil {
 		return "", err
