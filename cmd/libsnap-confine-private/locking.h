@@ -38,4 +38,28 @@ typedef void (*sc_locked_fn) (const char *scope);
 __attribute__ ((sentinel))
 void sc_call_while_locked(const char *scope, ...);
 
+/**
+ * Obtain a flock-based, exclusive lock.
+ *
+ * The scope may be the name of a snap or NULL (global lock).  Each subsequent
+ * argument is of type sc_locked_fn and gets called with the scope argument.
+ * The function guarantees that a filesystem lock is reliably acquired and
+ * released on call to sc_unlock() immediately upon process death.
+ *
+ * The actual lock is placed in "/run/snapd/ns" and is either called
+ * "/run/snapd/ns/.lock" if scope is NULL or
+ * "/run/snapd/ns/$scope.lock" otherwise.
+ *
+ * The return value needs to be passed to sc_unlock(), there is no need to
+ * check for errors as the function will die() on any problem.
+ **/
+int sc_lock(const char *scope);
+
+/**
+ * Release a flock-based lock.
+ *
+ * This function simply unlocks the lock and closes the file descriptor.
+ **/
+void sc_unlock(const char *scope, int lock_fd);
+
 #endif				// SNAP_CONFINE_LOCKING_H

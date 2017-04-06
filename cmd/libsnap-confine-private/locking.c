@@ -38,6 +38,22 @@ static const char *sc_lock_dir = SC_LOCK_DIR;
 
 void sc_call_while_locked(const char *scope, ...)
 {
+	int fd = sc_lock(scope);
+
+	// Run all callbacks while holding the lock.
+	sc_locked_fn fn;
+	va_list ap;
+	va_start(ap, scope);
+	while ((fn = va_arg(ap, sc_locked_fn)) != NULL) {
+		fn(scope);
+	}
+	va_end(ap);
+
+	sc_unlock(scope, fd);
+}
+
+int sc_lock(const char *scope)
+{
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
 	if (sc_nonfatal_mkpath(sc_lock_dir, 0755) < 0) {
@@ -57,29 +73,26 @@ void sc_call_while_locked(const char *scope, ...)
 
 	// Open the lock file and acquire an exclusive lock.
 	debug("opening lock file: %s", lock_fname);
-	int lock_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
-	lock_fd = openat(dir_fd, lock_fname,
-			 O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+	int lock_fd = openat(dir_fd, lock_fname,
+			     O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (lock_fd < 0) {
 		die("cannot open lock file: %s", lock_fname);
 	}
 	debug("acquiring exclusive lock (scope %s)", scope ? : "(global)");
 	if (flock(lock_fd, LOCK_EX) < 0) {
+		close(lock_fd);
 		die("cannot acquire exclusive lock (scope %s)",
 		    scope ? : "(global)");
 	}
-	// Run all callbacks while holding the lock. 
-	sc_locked_fn fn;
-	va_list ap;
-	va_start(ap, scope);
-	while ((fn = va_arg(ap, sc_locked_fn)) != NULL) {
-		fn(scope);
-	}
-	va_end(ap);
+	return lock_fd;
+}
 
+void sc_unlock(const char *scope, int lock_fd)
+{
 	// Release the lock and finish.
 	debug("releasing lock (scope: %s)", scope ? : "(global)");
 	if (flock(lock_fd, LOCK_UN) < 0) {
 		die("cannot release lock (scope: %s)", scope ? : "(global)");
 	}
+	close(lock_fd);
 }
