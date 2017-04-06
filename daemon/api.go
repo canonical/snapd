@@ -239,13 +239,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	m := map[string]interface{}{
-		"series":     release.Series,
-		"version":    c.d.Version,
-		"os-release": release.ReleaseInfo,
-		"on-classic": release.OnClassic,
-		"managed":    len(users) > 0,
-
+		"series":         release.Series,
+		"version":        c.d.Version,
+		"os-release":     release.ReleaseInfo,
+		"on-classic":     release.OnClassic,
+		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
 	}
 
 	// TODO: set the store-id here from the model information
