@@ -238,6 +238,15 @@ func (s *apiBaseSuite) mkInstalled(c *check.C, name, developer, version string, 
 	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
 }
 
+func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(df, []byte(content), 0644)
+	c.Assert(err, check.IsNil)
+	return df
+}
+
 func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	snapID := name + "-id"
 	// Collect arguments into a snap.SideInfo structure
@@ -347,7 +356,8 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// we have v0 [r5] installed
 	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), false, "")
 	// and v1 [r10] is current
-	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "description: description\nsummary: summary")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "description: description\nsummary: summary\napps:\n cmd:\n  command: some.cmd\n cmd2:\n  command: other.cmd\n")
+	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -388,9 +398,13 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"jailmode":         false,
 			"confinement":      snap.StrictConfinement,
 			"trymode":          false,
-			"apps":             []appJSON{},
-			"broken":           "",
-			"contact":          "",
+			"apps": []appJSON{
+				{Name: "cmd", DesktopFile: df},
+				// no desktop file
+				{Name: "cmd2"},
+			},
+			"broken":  "",
+			"contact": "",
 		},
 		Meta: meta,
 	}
