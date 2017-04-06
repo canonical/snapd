@@ -111,16 +111,15 @@ int sc_lock(const char *scope)
 		die("cannot open lock file: %s", lock_fname);
 	}
 
-	void sc_enable_sanity_timeout();
-
+	sc_enable_sanity_timeout();
 	debug("acquiring exclusive lock (scope %s)", scope ? : "(global)");
 	if (flock(lock_fd, LOCK_EX) < 0) {
-		void sc_disable_sanity_timeout();
+		sc_disable_sanity_timeout();
 		close(lock_fd);
 		die("cannot acquire exclusive lock (scope %s)",
 		    scope ? : "(global)");
 	} else {
-		void sc_disable_sanity_timeout();
+		sc_disable_sanity_timeout();
 	}
 	return lock_fd;
 }
