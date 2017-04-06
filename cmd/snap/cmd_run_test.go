@@ -437,3 +437,22 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
+
+func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
+	var osReadlinkResult string
+	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
+		return osReadlinkResult, nil
+	})
+	defer restore()
+
+	for _, t := range []struct {
+		readlink string
+		expected bool
+	}{
+		{filepath.Join(dirs.SnapMountDir, "/usr/lib/snapd/snapd"), true},
+		{"/usr/lib/snapd/snapd", false},
+	} {
+		osReadlinkResult = t.readlink
+		c.Check(snaprun.IsReexeced(), check.Equals, t.expected)
+	}
+}
