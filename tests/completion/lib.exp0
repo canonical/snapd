@@ -1,0 +1,69 @@
+# -*- tcl -*-
+
+set send_slow {1 0.1}
+set timeout 5
+
+proc delay {} {
+    sleep 0.5
+}
+
+proc chat {outstr instr {keep false}} {
+    send " $outstr"
+    delay
+    if $keep {
+        expect {
+            timeout {puts "timeout"; exit 1}
+            -notransfer $instr
+        }
+    } else {
+        expect {
+            timeout {puts "timeout"; exit 1}
+            $instr
+        }
+    }
+}
+
+proc rechat {outstr inre {keep false}} {
+    send " $outstr"
+    delay
+    if $keep {
+        expect {
+            timeout {puts "timeout"; exit 1}
+            -notransfer -re $inre
+        }
+    } else {
+        expect {
+            timeout {puts "timeout"; exit 1}
+            -re $inre
+        }
+    }
+}
+
+proc next {} {
+    delay
+    expect {
+        timeout {puts "timeout"; exit 1}
+        {bash-*[$#] $}
+    }
+}
+
+proc cancel {} {
+    send "\r"
+    next
+}
+
+proc brexit {} {
+    send " exit\r"
+    expect {
+        timeout {puts "timeout"; exit 1}
+        eof     {exit 0}
+    }
+}
+
+
+# set up
+spawn bash --norc --noprofile -i
+next
+send { export PS1='\w:\s-\v\$ '}
+send "\n"
+next

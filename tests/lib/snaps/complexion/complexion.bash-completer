@@ -14,11 +14,7 @@ _complete_complexion() {
             return
             ;;
         -b)
-            COMPREPLY=(
-                counterrevolutionary
-                electroencephalogram
-                uncharacteristically
-            )
+            COMPREPLY=( $( compgen -W 'counterrevolutionary electroencephalogram uncharacteristically' -- "$cur" ) )
             return
             ;;
     esac

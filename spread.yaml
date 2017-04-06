@@ -272,6 +272,37 @@ suites:
                 apt-get purge -y snapd
             fi
 
+    tests/completion/:
+        summary: completion tests
+
+        # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            prepare_classic
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            prepare_each_classic
+        restore: |
+            $TESTSLIB/reset.sh --store
+            apt-get purge -y snapd
+
+        environment:
+          _/plain: _
+          _/plain_plusdirs: _
+          _/funky: _
+          _/files: _
+          # dirs fails on indirection because of (mis)handling of trailing
+          # slashes. This might be configuration-dependent.
+          # _/dirs: _
+          _/hosts: _
+          _/hosts_n_dirs: _
+          _/twisted: _
+          _/func: _
+          _/funkyfunc: _
+
     tests/regression/:
         summary: Regression tests for snapd
         prepare: |

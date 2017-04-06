@@ -1,0 +1,22 @@
+summary: indirect completion
+
+prepare: |
+  (
+      cd ../../lib/snaps/complexion
+      snap try
+      mv complexion.bash-completer complexion.bash-completer.orig
+      cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" complexion.bash-completer
+  )
+
+restore: |
+  (
+      cd ../../lib/snaps/complexion
+      mv complexion.bash-completer.orig complexion.bash-completer
+      snap remove complexion
+  )
+
+execute: |
+  d="$PWD"
+  source "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.vars"
+  export _OUT0 _OUT1 _OUT2 _KEY1 _KEY2 _COMP
+  sudo -E -u test expect -d -f "$d"/task.exp

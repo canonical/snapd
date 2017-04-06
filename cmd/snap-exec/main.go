@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -157,9 +158,7 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 	case "complete":
 		fullCmd = "/bin/bash"
 		cmdArgs = []string{
-			// XXX: this should be under /usr/lib/snapd/ or sth (there isn't
-			// /usr/share/snapd/ yet but if there were it would go there)
-			"/snap/complexion/current/bin/etelpmoc.sh",
+			dirs.CompletionHelper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
 	}
