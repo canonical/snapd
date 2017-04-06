@@ -151,7 +151,6 @@ int main(int argc, char **argv)
 			// Do global initialization:
 			int global_lock_fd = sc_lock(NULL);
 			debug("unsharing snap namespace directory");
-			// TODO: simplify that to drop internal locking.
 			sc_initialize_ns_groups();
 			// TODO: implement this.
 			debug("share snap directory here...");
@@ -162,7 +161,6 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
-			// TODO: simplify that to drop internal locking.
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(snap_name);
