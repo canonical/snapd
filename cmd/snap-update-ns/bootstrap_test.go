@@ -73,6 +73,13 @@ func (s *bootstrapSuite) TestFindSnapName4(c *C) {
 	c.Assert(*result, Equals, "arg1")
 }
 
+// Check that if the 2nd argument an empty string we return NULL.
+func (s *bootstrapSuite) TestFindSnapName5(c *C) {
+	buf := []byte("arg0\x00\x00")
+	result := update.FindSnapName(buf)
+	c.Assert(result, Equals, (*string)(nil))
+}
+
 // Check that PartiallyValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
 	c.Assert(update.PartiallyValidateSnapName("hello-world"), Equals, 0)
