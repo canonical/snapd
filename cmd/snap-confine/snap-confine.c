@@ -163,13 +163,11 @@ int main(int argc, char **argv)
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
 			// TODO: simplify that to drop internal locking.
-			sc_lock_ns_mutex(group);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
-			sc_unlock_ns_mutex(group);
 			sc_close_ns_group(group);
 			sc_unlock(snap_name, snap_lock_fd);
 
