@@ -154,7 +154,7 @@ int main(int argc, char **argv)
 			sc_initialize_ns_groups();
 			// TODO: implement this.
 			debug("share snap directory here...");
-			sc_unlock(NULL, global_lock_fd);
+			sc_unlock_global(global_lock_fd);
 
 			// Do per-snap initialization.
 			int snap_lock_fd = sc_lock(snap_name);
