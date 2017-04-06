@@ -219,7 +219,7 @@ static void sc_setup_mount_profiles(const char *snap_name)
 		      m->mnt_opts, m->mnt_freq, m->mnt_passno);
 		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
 		debug("initial flags are: bind,ro,nodev,nosuid");
-		if (sc_streq(m->mnt_type, "none")) {
+		if (strcmp(m->mnt_type, "none") != 0) {
 			die("cannot honor mount profile, only 'none' filesystem type is supported");
 		}
 		if (hasmntopt(m, "bind") == NULL) {
@@ -618,7 +618,7 @@ static bool is_mounted_with_shared_option(const char *dir)
 	struct sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
 	while (entry != NULL) {
 		const char *mount_dir = entry->mount_dir;
-		if (strcmp(mount_dir, dir) == 0) {
+		if (sc_streq(mount_dir, dir)) {
 			const char *optional_fields = entry->optional_fields;
 			if (strstr(optional_fields, "shared:") != NULL) {
 				return true;
