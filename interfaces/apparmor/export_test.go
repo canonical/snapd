@@ -47,3 +47,5 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 	classicTemplate = fakeTemplate
 	return func() { classicTemplate = orig }
 }
+
+var SetupHostSnapConfineApparmorForReexec = setupHostSnapConfineApparmorForReexec
