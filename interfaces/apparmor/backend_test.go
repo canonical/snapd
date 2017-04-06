@@ -464,7 +464,18 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 
 	content, err := ioutil.ReadFile(newAA[0])
 	c.Assert(err, IsNil)
+	// this is the key, rewriting "/usr/lib/snapd/snap-confine
 	c.Check(string(content), testutil.Contains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
+	// no other changes other than that to the input
+	c.Check(string(content), Equals, fmt.Sprintf(`# Author: Jamie Strandboge <jamie@canonical.com>
+#include <tunables/global>
+
+%s/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, dirs.SnapMountDir))
 
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
