@@ -101,9 +101,9 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-// fixDisconnectedCorePlugs will re-connect the network-bind plug to the
-// network-bind slot (on core). This cures the effects of bug
-// https://bugs.launchpad.net/snappy/+bug/1680097
+// fixDisconnectedCorePlugs will re-connect the network-bind-plug and
+// core-support-plug to the corresponding slots on the core snap.
+// This cures the effects of bug https://bugs.launchpad.net/snappy/+bug/1680097
 func (m *InterfaceManager) fixDisconnectedCorePlugs() error {
 	const coreName = "core"
 	for _, slotName := range []string{"network-bind", "core-support"} {
