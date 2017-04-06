@@ -84,22 +84,6 @@ void sc_disable_sanity_timeout()
 
 static const char *sc_lock_dir = SC_LOCK_DIR;
 
-void sc_call_while_locked(const char *scope, ...)
-{
-	int fd = sc_lock(scope);
-
-	// Run all callbacks while holding the lock.
-	sc_locked_fn fn;
-	va_list ap;
-	va_start(ap, scope);
-	while ((fn = va_arg(ap, sc_locked_fn)) != NULL) {
-		fn(scope);
-	}
-	va_end(ap);
-
-	sc_unlock(scope, fd);
-}
-
 int sc_lock(const char *scope)
 {
 	// Create (if required) and open the lock directory.
