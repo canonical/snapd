@@ -427,11 +427,13 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
+}
 `)
 
 	err := os.MkdirAll(dirs.SystemApparmorDir, 0755)
 	c.Assert(err, IsNil)
 
+	// meh, the paths/filenames are all complicated :/
 	coreRoot := filepath.Join(dirs.SnapMountDir, "/core/111")
 	snapConfineApparmorInCore := filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	err = os.MkdirAll(filepath.Dir(snapConfineApparmorInCore), 0755)
@@ -450,5 +452,15 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	newAA, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, "*"))
 	c.Assert(err, IsNil)
 	c.Check(newAA, HasLen, 1)
+
+	c.Check(newAA[0], Matches, `.*/etc/apparmor.d/.*.snap.core.111.usr.lib.snapd.snap-confine`)
+
+	content, err := ioutil.ReadFile(newAA[0])
+	c.Assert(err, IsNil)
+	c.Check(string(content), testutil.Contains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
+
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
+	})
 
 }
