@@ -1,0 +1,4 @@
+# -*- sh -*-
+
+complete -A directory -o dirnames complexion
+

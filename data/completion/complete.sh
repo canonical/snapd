@@ -1,14 +1,21 @@
-# -*- shell-script -*-
-
-# this file should be shipped as /etc/bash_completion.d/snapd
+# -*- bash -*-
 
 _complete_from_snap() {
     {
         read -a opts
+        read bounced
+        read sep
+        if [ "$sep" ]; then
+            # non-blank separator? madness!
+            return 2
+        fi
         local oldIFS="$IFS"
-        local IFS=$'\n'
-        COMPREPLY=( $(cat) )
-        IFS="$oldIFS"
+
+        if [ ! "$bounced" ]; then
+            local IFS=$'\n'
+            COMPREPLY=( $(cat) )
+            IFS="$oldIFS"
+        fi
 
         if [[ ${#opts[@]} -gt 0 ]]; then
             if [[ "${opts[0]}" == "cannot" ]]; then
@@ -17,8 +24,11 @@ _complete_from_snap() {
             fi
             compopt $(printf " -o %s" "${opts[@]}")
         fi
+        if [ "$bounced" ]; then
+            COMPREPLY+=(compgen -A "$bounced" "${COMP_WORDS[$COMP_CWORD]}")
+        fi
     } < <(
-        snap run --command=complete "$1" "$COMP_TYPE" "$COMP_POINT" "$COMP_CWORD" "${COMP_WORDS[@]}" 2>/dev/null || return 1
+        snap run --command=complete "$1" "$COMP_TYPE" "$COMP_KEY" "$COMP_POINT" "$COMP_CWORD" "$COMP_WORDBREAKS" "$COMP_LINE" "${COMP_WORDS[@]}" 2>/dev/null || return 1
     )
 
 }
