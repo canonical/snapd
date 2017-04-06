@@ -71,11 +71,11 @@ func (s *commandFromCoreSuite) TestCommandFromCore(c *C) {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
-	osutil.CopyFile("/bin/true", filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 	cmd, err := osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
 
-	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
+	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
 	c.Assert(err, IsNil)
 	interp := strings.TrimSpace(string(out))
 
@@ -93,7 +93,7 @@ func (s *commandFromCoreSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
 
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
-	osutil.CopyFile("/bin/true", filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 
 	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
 	c.Assert(err, IsNil)
