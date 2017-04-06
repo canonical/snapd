@@ -25,6 +25,7 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
@@ -146,21 +147,42 @@ int main(int argc, char **argv)
 			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
 			sc_reassociate_with_pid1_mount_ns();
 #endif
-			const char *group_name = snap_name;
-			if (group_name == NULL) {
-				die("SNAP_NAME is not set");
+			void global_share_snap_dir(const char *unused) {
+				// TODO: implement this.
+				debug("share snap directory here...");
 			}
-			sc_initialize_ns_groups();
-			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(group_name, 0);
-			sc_lock_ns_mutex(group);
-			sc_create_or_join_ns_group(group, &apparmor);
-			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(snap_name);
-				sc_preserve_populated_ns_group(group);
+			void global_unshare_ns_dir(const char *unused) {
+				debug("unsharing snap namespace directory");
+				// TODO: simplify that to drop internal locking.
+				sc_initialize_ns_groups();
 			}
-			sc_unlock_ns_mutex(group);
-			sc_close_ns_group(group);
+
+			void snap_init_mount_ns(const char *group_name) {
+				debug("initializing mount namespace: %s",
+				      group_name);
+				struct sc_ns_group *group = NULL;
+				group = sc_open_ns_group(group_name, 0);
+				// TODO: simplify that to drop internal locking.
+				sc_lock_ns_mutex(group);
+				sc_create_or_join_ns_group(group, &apparmor);
+				if (sc_should_populate_ns_group(group)) {
+					sc_populate_mount_ns(snap_name);
+					sc_preserve_populated_ns_group(group);
+				}
+				sc_unlock_ns_mutex(group);
+				sc_close_ns_group(group);
+			}
+
+			void global_init_per_snap_things(const char *unused) {
+				debug("initializing per-snap things...");
+				sc_call_while_locked(snap_name,
+						     snap_init_mount_ns, NULL);
+			}
+
+			// Do global initialization:
+			sc_call_while_locked(NULL, global_share_snap_dir,
+					     global_unshare_ns_dir,
+					     global_init_per_snap_things, NULL);
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
 			// sense but we cannot assume it makes sense for the core snap
