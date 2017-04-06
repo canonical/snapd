@@ -50,6 +50,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
+	if err := m.fixDisconnectedCorePlugs(); err != nil {
+		return err
+	}
 	if err := m.regenerateAllSecurityProfiles(); err != nil {
 		return err
 	}
@@ -92,6 +95,24 @@ func (m *InterfaceManager) addSnaps() error {
 	for _, snapInfo := range snaps {
 		snap.AddImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
+			logger.Noticef("%s", err)
+		}
+	}
+	return nil
+}
+
+// fixDisconnectedCorePlugs will re-connect the network-bind plug to the
+// network-bind slot (on core). This cures the effects of bug
+// https://bugs.launchpad.net/snappy/+bug/1680097
+func (m *InterfaceManager) fixDisconnectedCorePlugs() error {
+	// If the core snap has a network-bind plug
+	if m.repo.Plug("core", "network-bind") != nil {
+		// connect it to the slot (connect is a no-op if connected)
+		connRef := interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "network-bind"},
+		}
+		if err := m.repo.Connect(connRef); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
