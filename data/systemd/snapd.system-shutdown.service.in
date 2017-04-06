@@ -5,11 +5,11 @@ DefaultDependencies=false
 # don't run on classic
 ConditionKernelCommandLine=snap_core
 # don't run if system-shutdown isn't there
-ConditionPathExists=/usr/lib/snapd/system-shutdown
+ConditionPathExists=@libexecdir@/snapd/system-shutdown
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -euc 'mount /run -o remount,exec; mkdir -p /run/initramfs; cp /usr/lib/snapd/system-shutdown /run/initramfs/shutdown'
+ExecStart=/bin/sh -euc 'mount /run -o remount,exec; mkdir -p /run/initramfs; cp @libexecdir@/snapd/system-shutdown /run/initramfs/shutdown'
 
 [Install]
 WantedBy=final.target
