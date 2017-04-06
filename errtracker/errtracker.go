@@ -112,7 +112,7 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 
 	// see if we run in testing mode
 	if osutil.GetenvBool("SNAPPY_TESTING") {
-		logger.Noticef("errtracker.Report is *not* send because SNAPPY_TESTING is set")
+		logger.Noticef("errtracker.Report is *not* sent because SNAPPY_TESTING is set")
 		logger.Noticef("report: %v", report)
 		return "oops-not-sent", nil
 	}
