@@ -1893,15 +1893,26 @@ func (s *interfaceManagerSuite) TestManagerFixesNetworkBindConnectionOnInit(c *C
 plugs:
   network-bind-plug:
     interface: network-bind
+  core-support-plug:
+    interface: core-support
 slots:
   network-bind:
+  core-support:
 `)
 	mgr := s.manager(c)
+	// Check that network-bind and core-support are connected to their -plugs
 	connRefs, err := mgr.Repository().Connected("core", "network-bind")
 	c.Assert(err, IsNil)
 	c.Assert(connRefs, HasLen, 1)
 	c.Assert(connRefs, DeepEquals, []interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind-plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network-bind"},
+	}})
+	connRefs, err = mgr.Repository().Connected("core", "core-support")
+	c.Assert(err, IsNil)
+	c.Assert(connRefs, HasLen, 1)
+	c.Assert(connRefs, DeepEquals, []interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "core", Name: "core-support-plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "core-support"},
 	}})
 }
