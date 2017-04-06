@@ -59,12 +59,12 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
 
 // find_snap_name scans the command line buffer and looks for the 1st argument.
 const char*
-find_snap_name(char* buf, size_t buf_size, size_t num_read)
+find_snap_name(char* buf, size_t num_read)
 {
     // cmdline is an array of NUL ('\0') separated strings. We can skip over
     // the first entry (program name) and look at the second entry, in our case
     // it should be the snap name.
-    size_t argv0_len = strnlen(buf, buf_size);
+    size_t argv0_len = strnlen(buf, num_read);
     if (argv0_len + 1 >= num_read) {
         return NULL;
     }
@@ -146,7 +146,7 @@ void bootstrap(void)
 
     // Find the name of the snap by scanning the cmdline.  If there's no snap
     // name given, just bail out. The go parts will scan this too.
-    const char* snap_name = find_snap_name(cmdline, sizeof cmdline, num_read);
+    const char* snap_name = find_snap_name(cmdline, (size_t)num_read);
     if (snap_name == NULL || *snap_name == '\0') {
         return;
     }

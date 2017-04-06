@@ -27,7 +27,7 @@ extern const char* bootstrap_msg;
 
 void bootstrap(void);
 ssize_t read_cmdline(char* buf, size_t buf_size);
-const char* find_snap_name(char* buf, size_t buf_size, size_t num_read);
+const char* find_snap_name(char* buf, size_t num_read);
 int partially_validate_snap_name(const char* snap_name);
 
 #endif
