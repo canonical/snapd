@@ -411,4 +411,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	apparmor.SetupHostSnapConfineApparmorForReexec(&snap.Info{})
 
 	c.Check(osutil.FileExists(canary), Equals, false)
+	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "-R", canaryName},
+	})
 }
