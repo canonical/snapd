@@ -29,6 +29,9 @@
  * "/run/snapd/ns/.lock" if scope is NULL or
  * "/run/snapd/ns/$scope.lock" otherwise.
  *
+ * If the lock cannot be acquired for three seconds (via
+ * sc_enable_sanity_timeout) then the function fails and the process dies.
+ *
  * The return value needs to be passed to sc_unlock(), there is no need to
  * check for errors as the function will die() on any problem.
  **/
