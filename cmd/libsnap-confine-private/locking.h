@@ -62,4 +62,26 @@ int sc_lock(const char *scope);
  **/
 void sc_unlock(const char *scope, int lock_fd);
 
+/**
+ * Enable a sanity-check timeout.
+ *
+ * The timeout is based on good-old alarm(2) and is intended to break a
+ * suspended system call, such as flock, after a few seconds. The built-in
+ * timeout is primed for three seconds. After that any sleeping system calls
+ * are interrupted and a flag is set.
+ *
+ * The call should be paired with sc_disable_sanity_check_timeout() that
+ * disables the alarm and acts on the flag, aborting the process if the timeout
+ * gets exceeded.
+ **/
+void sc_enable_sanity_timeout();
+
+/**
+ * Disable sanity-check timeout and abort the process if it expired.
+ *
+ * This call has to be paired with sc_enable_sanity_timeout(), see the function
+ * description for more details.
+ **/
+void sc_disable_sanity_timeout();
+
 #endif				// SNAP_CONFINE_LOCKING_H
