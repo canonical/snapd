@@ -415,3 +415,40 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 		{"apparmor_parser", "-R", canaryName},
 	})
 }
+
+func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	var mockAA = []byte(`# Author: Jamie Strandboge <jamie@canonical.com>
+#include <tunables/global>
+
+/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+`)
+
+	err := os.MkdirAll(dirs.SystemApparmorDir, 0755)
+	c.Assert(err, IsNil)
+
+	coreRoot := filepath.Join(dirs.SnapMountDir, "/core/111")
+	snapConfineApparmorInCore := filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	err = os.MkdirAll(filepath.Dir(snapConfineApparmorInCore), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapConfineApparmorInCore, mockAA, 0644)
+	c.Assert(err, IsNil)
+
+	err = apparmor.SetupHostSnapConfineApparmorForReexec(&snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "core",
+			Revision: snap.R(111),
+		},
+	})
+	c.Assert(err, IsNil)
+
+	newAA, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(newAA, HasLen, 1)
+
+}
