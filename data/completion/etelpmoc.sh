@@ -129,7 +129,7 @@ if [[ "${_comp[*]}" ]]; then
                 _compfunc="$OPTARG"
                 ;;
             W)
-                readarray -t COMPREPLY < <( compgen -W "$OPTARG" "${COMP_WORDS[$COMP_CWORD]}" )
+                readarray -t COMPREPLY < <( \compgen -W "$OPTARG" -- "${COMP_WORDS[$COMP_CWORD]}" )
                 _compfunc=""
                 ;;
             *)
@@ -151,7 +151,7 @@ esac
 
 if [ ! "$_bounce" ]; then
     if [ "$_compact" ]; then
-        readarray -t COMPREPLY < <( compgen -A "$_compact" "${COMP_WORDS[$COMP_CWORD]}" )
+        readarray -t COMPREPLY < <( \compgen -A "$_compact" -- "${COMP_WORDS[$COMP_CWORD]}" )
     elif [ "$_compfunc" ]; then
         # execute completion function
         "$_compfunc"
