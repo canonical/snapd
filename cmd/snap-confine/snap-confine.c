@@ -147,39 +147,31 @@ int main(int argc, char **argv)
 			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
 			sc_reassociate_with_pid1_mount_ns();
 #endif
-			void global_share_snap_dir(const char *unused) {
-				// TODO: implement this.
-				debug("share snap directory here...");
-			}
-			void global_unshare_ns_dir(const char *unused) {
-				debug("unsharing snap namespace directory");
-				// TODO: simplify that to drop internal locking.
-				sc_initialize_ns_groups();
-			}
 
 			// Do global initialization:
-			sc_call_while_locked(NULL, global_share_snap_dir,
-					     global_unshare_ns_dir, NULL);
-
-			void snap_init_mount_ns(const char *group_name) {
-				debug("initializing mount namespace: %s",
-				      group_name);
-				struct sc_ns_group *group = NULL;
-				group = sc_open_ns_group(group_name, 0);
-				// TODO: simplify that to drop internal locking.
-				sc_lock_ns_mutex(group);
-				sc_create_or_join_ns_group(group, &apparmor);
-				if (sc_should_populate_ns_group(group)) {
-					sc_populate_mount_ns(snap_name);
-					sc_preserve_populated_ns_group(group);
-				}
-				sc_unlock_ns_mutex(group);
-				sc_close_ns_group(group);
-			}
+			int global_lock_fd = sc_lock(NULL);
+			debug("unsharing snap namespace directory");
+			// TODO: simplify that to drop internal locking.
+			sc_initialize_ns_groups();
+			// TODO: implement this.
+			debug("share snap directory here...");
+			sc_unlock(NULL, global_lock_fd);
 
 			// Do per-snap initialization.
-			sc_call_while_locked(snap_name, snap_init_mount_ns,
-					     NULL);
+			int snap_lock_fd = sc_lock(snap_name);
+			debug("initializing mount namespace: %s", snap_name);
+			struct sc_ns_group *group = NULL;
+			group = sc_open_ns_group(snap_name, 0);
+			// TODO: simplify that to drop internal locking.
+			sc_lock_ns_mutex(group);
+			sc_create_or_join_ns_group(group, &apparmor);
+			if (sc_should_populate_ns_group(group)) {
+				sc_populate_mount_ns(snap_name);
+				sc_preserve_populated_ns_group(group);
+			}
+			sc_unlock_ns_mutex(group);
+			sc_close_ns_group(group);
+			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
