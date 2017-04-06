@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -400,7 +400,14 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
+var coreYaml string = `name: core
+version: 1
+`
+
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
+	restorer := release.MockOnClassic(true)
+	defer restorer()
+
 	canaryName := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/2718/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
 	canary := filepath.Join(dirs.SystemApparmorDir, canaryName)
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
@@ -408,7 +415,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	err = ioutil.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
-	apparmor.SetupHostSnapConfineApparmorForReexec(&snap.Info{})
+	// install the new core snap on classic triggers cleanup
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
 
 	c.Check(osutil.FileExists(canary), Equals, false)
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
@@ -417,6 +425,9 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
+	restorer := release.MockOnClassic(true)
+	defer restorer()
+
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 
@@ -441,18 +452,14 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	err = ioutil.WriteFile(snapConfineApparmorInCore, mockAA, 0644)
 	c.Assert(err, IsNil)
 
-	err = apparmor.SetupHostSnapConfineApparmorForReexec(&snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: "core",
-			Revision: snap.R(111),
-		},
-	})
-	c.Assert(err, IsNil)
+	// install the new core snap on classic triggers a new snap-confine
+	// for this snap-confine on core
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
 
 	newAA, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, "*"))
 	c.Assert(err, IsNil)
-	c.Check(newAA, HasLen, 1)
 
+	c.Assert(newAA, HasLen, 1)
 	c.Check(newAA[0], Matches, `.*/etc/apparmor.d/.*.snap.core.111.usr.lib.snapd.snap-confine`)
 
 	content, err := ioutil.ReadFile(newAA[0])
