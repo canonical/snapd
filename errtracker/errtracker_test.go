@@ -162,6 +162,6 @@ func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
 		"Channel": "beta",
 	})
 	c.Check(err, IsNil)
-	c.Check(id, Equals, "oops-not-send")
+	c.Check(id, Equals, "oops-not-sent")
 	c.Check(n, Equals, 0)
 }
