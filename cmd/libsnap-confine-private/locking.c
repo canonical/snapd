@@ -22,6 +22,7 @@
 #include "locking.h"
 
 #include <fcntl.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -31,6 +32,53 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+
+/**
+ * Flag indicating that a sanity timeout has expired.
+ **/
+static volatile sig_atomic_t sanity_timeout_expired = 0;
+
+/**
+ * Signal handler for SIGALRM that sets sanity_timeout_expired flag to 1.
+ **/
+static void sc_SIGALRM_handler(int signum)
+{
+	sanity_timeout_expired = 1;
+}
+
+void sc_enable_sanity_timeout()
+{
+	sanity_timeout_expired = 0;
+	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
+	if (sigemptyset(&act.sa_mask) < 0) {
+		die("cannot initialize POSIX signal set");
+	}
+	// NOTE: we are using sigaction so that we can explicitly control signal
+	// flags and *not* pass the SA_RESTART flag. The intent is so that any
+	// system call we may be sleeping on to gets interrupted.
+	act.sa_flags = 0;
+	if (sigaction(SIGALRM, &act, NULL) < 0) {
+		die("cannot install signal handler for SIGALRM");
+	}
+	alarm(3);
+	debug("sanity timeout initialized and set for three seconds");
+}
+
+void sc_disable_sanity_timeout()
+{
+	if (sanity_timeout_expired) {
+		die("sanity timeout expired");
+	}
+	alarm(0);
+	struct sigaction act = {.sa_handler = SIG_DFL };
+	if (sigemptyset(&act.sa_mask) < 0) {
+		die("cannot initialize POSIX signal set");
+	}
+	if (sigaction(SIGALRM, &act, NULL) < 0) {
+		die("cannot uninstall signal handler for SIGALRM");
+	}
+	debug("sanity timeout reset and disabled");
+}
 
 #define SC_LOCK_DIR "/run/snapd/lock"
 
@@ -78,11 +126,17 @@ int sc_lock(const char *scope)
 	if (lock_fd < 0) {
 		die("cannot open lock file: %s", lock_fname);
 	}
+
+	void sc_enable_sanity_timeout();
+
 	debug("acquiring exclusive lock (scope %s)", scope ? : "(global)");
 	if (flock(lock_fd, LOCK_EX) < 0) {
+		void sc_disable_sanity_timeout();
 		close(lock_fd);
 		die("cannot acquire exclusive lock (scope %s)",
 		    scope ? : "(global)");
+	} else {
+		void sc_disable_sanity_timeout();
 	}
 	return lock_fd;
 }
