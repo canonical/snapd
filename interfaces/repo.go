@@ -537,30 +537,27 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
 		return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
 	}
-	// Collect all the relevant connections
+	// Collect all the relevant connections but be on the lookout for duplicates.
+	seen := make(map[ConnRef]bool)
 	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
 		for _, slotRef := range plug.Connections {
 			connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
-			conns = append(conns, connRef)
+			if !seen[connRef] {
+				conns = append(conns, connRef)
+				seen[connRef] = true
+			}
 		}
 	}
 	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
 		for _, plugRef := range slot.Connections {
 			connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
-			conns = append(conns, connRef)
+			if !seen[connRef] {
+				conns = append(conns, connRef)
+				seen[connRef] = true
+			}
 		}
 	}
-	// remove duplicates, this is caused by duplicate plug/slot name on core
-	// and missing validation on plug/snap name when adding core.
-	seen := make(map[ConnRef]bool)
-	var deduped []ConnRef
-	for _, connRef := range conns {
-		if !seen[connRef] {
-			deduped = append(deduped, connRef)
-			seen[connRef] = true
-		}
-	}
-	return deduped, nil
+	return conns, nil
 }
 
 // coreSnapName returns the name of the core snap if one exists
