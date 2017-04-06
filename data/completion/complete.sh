@@ -25,7 +25,7 @@ _complete_from_snap() {
             compopt $(printf " -o %s" "${opts[@]}")
         fi
         if [ "$bounced" ]; then
-            COMPREPLY+=(compgen -A "$bounced" "${COMP_WORDS[$COMP_CWORD]}")
+            COMPREPLY+=(compgen -A "$bounced" -- "${COMP_WORDS[$COMP_CWORD]}")
         fi
     } < <(
         snap run --command=complete "$1" "$COMP_TYPE" "$COMP_KEY" "$COMP_POINT" "$COMP_CWORD" "$COMP_WORDBREAKS" "$COMP_LINE" "${COMP_WORDS[@]}" 2>/dev/null || return 1

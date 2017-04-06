@@ -1,6 +1,4 @@
 #!/bin/sh
-echo "DENIED." >&2
-exit 1
 if [ "$TRAVIS_BUILD_NUMBER" ]; then
     echo travis_fold:start:env
     printenv | sort
