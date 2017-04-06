@@ -124,11 +124,6 @@ int sc_lock(const char *scope)
 	return lock_fd;
 }
 
-int sc_lock_global()
-{
-	return sc_lock(NULL);
-}
-
 void sc_unlock(const char *scope, int lock_fd)
 {
 	// Release the lock and finish.
@@ -137,4 +132,14 @@ void sc_unlock(const char *scope, int lock_fd)
 		die("cannot release lock (scope: %s)", scope ? : "(global)");
 	}
 	close(lock_fd);
+}
+
+int sc_lock_global()
+{
+	return sc_lock(NULL);
+}
+
+void sc_unlock_global(int lock_fd)
+{
+	return sc_unlock(NULL, lock_fd);
 }
