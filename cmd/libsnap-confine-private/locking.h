@@ -18,27 +18,6 @@
 #define SNAP_CONFINE_LOCKING_H
 
 /**
- * Type of functions called by sc_call_while_locked.
- **/
-typedef void (*sc_locked_fn) (const char *scope);
-
-/**
- * Call a list of functions while holding a scoped lock.
- *
- * The scope may be the name of a snap or NULL (global lock).  Each subsequent
- * argument is of type sc_locked_fn and gets called with the scope argument.
- *
- * The function guarantees that a filesystem lock is reliably acquired and
- * released on return or immediately upon process death.
- *
- * The actual lock is placed in "/run/snapd/ns" and is either called
- * "/run/snapd/ns/.lock" if scope is NULL or
- * "/run/snapd/ns/$scope.lock" otherwise.
- **/
-__attribute__ ((sentinel))
-void sc_call_while_locked(const char *scope, ...);
-
-/**
  * Obtain a flock-based, exclusive lock.
  *
  * The scope may be the name of a snap or NULL (global lock).  Each subsequent
