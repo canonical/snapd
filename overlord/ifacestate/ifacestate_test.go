@@ -1891,7 +1891,8 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 func (s *interfaceManagerSuite) TestManagerFixesNetworkBindConnectionOnInit(c *C) {
 	s.mockSnap(c, coreSnapYaml+`
 plugs:
-  network-bind:
+  network-bind-plug:
+    interface: network-bind
 slots:
   network-bind:
 `)
@@ -1900,7 +1901,7 @@ slots:
 	c.Assert(err, IsNil)
 	c.Assert(connRefs, HasLen, 1)
 	c.Assert(connRefs, DeepEquals, []interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind"},
+		PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind-plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network-bind"},
 	}})
 }

@@ -105,11 +105,11 @@ func (m *InterfaceManager) addSnaps() error {
 // network-bind slot (on core). This cures the effects of bug
 // https://bugs.launchpad.net/snappy/+bug/1680097
 func (m *InterfaceManager) fixDisconnectedCorePlugs() error {
-	// If the core snap has a network-bind plug
-	if m.repo.Plug("core", "network-bind") != nil {
+	// If the core snap has network-bind-plug
+	if m.repo.Plug("core", "network-bind-plug") != nil {
 		// connect it to the slot (connect is a no-op if connected)
 		connRef := interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind"},
+			PlugRef: interfaces.PlugRef{Snap: "core", Name: "network-bind-plug"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "network-bind"},
 		}
 		if err := m.repo.Connect(connRef); err != nil {
