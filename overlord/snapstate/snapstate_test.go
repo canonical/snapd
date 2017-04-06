@@ -244,6 +244,22 @@ func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	reset := release.MockReleaseInfo(&release.OS{
+		ID: "fedora",
+	})
+	defer func() { reset(); dirs.SetRootDir("/") }()
+
+	dirs.SetRootDir("/")
+
+	_, err := snapstate.Install(s.state, "some-snap", "channel-for-classic", snap.R(0), s.user.ID, snapstate.Flags{Classic: true})
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, DeepEquals, fmt.Errorf("classic confinement is not yet supported on your distribution"))
+}
+
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

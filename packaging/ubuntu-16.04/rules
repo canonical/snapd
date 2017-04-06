@@ -103,6 +103,9 @@ override_dh_auto_build:
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
+	# Generate the real systemd units out of the available templates
+	$(MAKE) -C data/systemd all
+
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
@@ -177,16 +180,12 @@ override_dh_install:
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
+
 	# install snapd's systemd units, done here instead of
 	# debian/snapd.install because the ubuntu/14.04 release
 	# branch adds/changes bits here
-	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 data/systemd/snapd.system-shutdown.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
