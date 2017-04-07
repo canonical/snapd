@@ -79,6 +79,23 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return snapInfo
 }
 
+// MockInvalidInfo parses the given snap.yaml text and returns the snap.Info object including the optional SideInfo.
+//
+// The result is just kept in memory, there is nothing kept on disk. If that is
+// desired please use MockSnap instead.
+func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	if sideInfo == nil {
+		sideInfo = &snap.SideInfo{}
+	}
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, check.IsNil)
+	snapInfo.SideInfo = *sideInfo
+	err = snap.Validate(snapInfo)
+	c.Assert(err, check.Not(check.IsNil))
+	return snapInfo
+}
+
 // PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
 func PopulateDir(dir string, files [][]string) {
 	for _, filenameAndContent := range files {
