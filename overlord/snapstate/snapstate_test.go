@@ -4236,6 +4236,20 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	c.Check(time.Now().Year(), Equals, lastRefresh.Year())
 }
 
+func (s *snapmgrTestSuite) waitForLastRefresh(c *C) {
+	var lastRefresh time.Time
+	for i := 0; i < 100; i++ {
+		s.state.Lock()
+		s.state.Get("last-refresh", &lastRefresh)
+		s.state.Unlock()
+		if lastRefresh.Add(1 * time.Hour).After(time.Now()) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	c.Fatalf("waitForLastRefresh failed")
+}
+
 func makeTestRefreshConfig(st *state.State) {
 	now := time.Now()
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
@@ -4264,8 +4278,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	// Ensure() also runs ensureRefreshes()
 	s.state.Unlock()
 	s.snapmgr.Ensure()
-	// give the timer a bit of time
-	time.Sleep(100 * time.Millisecond)
+	s.waitForLastRefresh(c)
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule: "mon@12:00-14:00" uses weekdays which is currently not supported`)
@@ -4282,7 +4295,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	s.state.Unlock()
 	s.snapmgr.Ensure()
 	// give the timer a bit of time
-	time.Sleep(100 * time.Millisecond)
+	s.waitForLastRefresh(c)
 	s.state.Lock()
 
 	// nothing needs to be done, but last-refresh got updated
