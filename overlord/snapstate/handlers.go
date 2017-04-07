@@ -836,24 +836,20 @@ func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	status := snapst.AliasesStatus
 	curAliases := snapst.Aliases
 	// TODO: implement --prefer/--unaliased logic
-	newAliases, nAuto, err := refreshAliases(st, curInfo, curAliases)
+	newAliases, _, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
 	}
-	if status.NoAutoYet() && nAuto != 0 {
-		status = PendingEnabledAliases
-	}
-	_, err = checkAliasesConflicts(st, snapName, status, newAliases)
+	_, err = checkAliasesConflicts(st, snapName, snapst.AutoAliasesDisabled, newAliases)
 	if err != nil {
 		return err
 	}
 
 	t.Set("old-aliases-v2", curAliases)
-	t.Set("old-aliases-v2-status", snapst.AliasesStatus)
-	snapst.AliasesStatus = status
+	// noop, except on first install where we need to set this here
+	snapst.AliasesPending = true
 	snapst.Aliases = newAliases
 	Set(st, snapName, snapst)
 	return nil
@@ -874,7 +870,7 @@ func (m *SnapManager) doRemoveAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapst.AliasesStatus = snapst.AliasesStatus.ToPending()
+	snapst.AliasesPending = true
 	Set(st, snapName, snapst)
 	return nil
 }
@@ -888,15 +884,14 @@ func (m *SnapManager) doSetupAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapName := snapsup.Name()
-	status := snapst.AliasesStatus.FromPending()
 	curAliases := snapst.Aliases
 
-	err = applyAliasesChange(st, snapName, DisabledAliases, nil, status, curAliases, m.backend)
+	err = applyAliasesChange(st, snapName, true, nil, snapst.AutoAliasesDisabled, curAliases, m.backend)
 	if err != nil {
 		return err
 	}
 
-	snapst.AliasesStatus = status
+	snapst.AliasesPending = false
 	Set(st, snapName, snapst)
 	return nil
 }
@@ -916,34 +911,25 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	status := snapst.AliasesStatus
+	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
 	// TODO: implement --prefer/--unaliased logic
-	newAliases, nAuto, err := refreshAliases(st, curInfo, curAliases)
+	newAliases, _, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
 	}
-	if status.NoAutoYet() && nAuto != 0 {
-		if !status.Pending() {
-			status = EnabledAliases
-		} else {
-			status = PendingEnabledAliases
-		}
-	}
-	_, err = checkAliasesConflicts(st, snapName, status, newAliases)
+	_, err = checkAliasesConflicts(st, snapName, autoDisabled, newAliases)
 	if err != nil {
 		return err
 	}
 
-	if !status.Pending() {
-		if err := applyAliasesChange(st, snapName, status, curAliases, status, newAliases, m.backend); err != nil {
+	if !snapst.AliasesPending {
+		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
 
 	t.Set("old-aliases-v2", curAliases)
-	t.Set("old-aliases-v2-status", snapst.AliasesStatus)
-	snapst.AliasesStatus = status
 	snapst.Aliases = newAliases
 	Set(st, snapName, snapst)
 	return nil
@@ -962,40 +948,33 @@ func (m *SnapManager) undoRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var oldStatus AliasesStatus
-	if err := t.Get("old-aliases-v2-status", &oldStatus); err != nil {
-		return err
-	}
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
 	snapName := snapsup.Name()
-	curStatus := snapst.AliasesStatus
-	status := curStatus
-	if oldStatus.NoAutoYet() {
-		// old state represented not having any auto aliases yet at all
-		status = oldStatus
-	}
+	curAutoDisabled := snapst.AutoAliasesDisabled
+	autoDisabled := curAutoDisabled
 
 	// check if the old states creates conflicts now
-	_, err = checkAliasesConflicts(st, snapName, status, oldAliases)
+	_, err = checkAliasesConflicts(st, snapName, autoDisabled, oldAliases)
 	if _, ok := err.(*AliasConflictError); ok {
 		// best we can do is reinstate with all aliases disabled
 		t.Errorf("cannot reinstate alias state because of conflicts, disabling: %v", err)
-		status, oldAliases = disableAliases(status, oldAliases)
+		oldAliases = disableAliases(oldAliases)
+		autoDisabled = true
 	} else if err != nil {
 		return err
 	}
 
-	if t.Kind() != "set-auto-aliases-v2" && !status.Pending() {
+	if !snapst.AliasesPending {
 		curAliases := snapst.Aliases
-		if err := applyAliasesChange(st, snapName, curStatus, curAliases, status, oldAliases, m.backend); err != nil {
+		if err := applyAliasesChange(st, snapName, curAutoDisabled, curAliases, autoDisabled, oldAliases, m.backend); err != nil {
 			return err
 		}
 	}
 
-	snapst.AliasesStatus = status
+	snapst.AutoAliasesDisabled = autoDisabled
 	snapst.Aliases = oldAliases
 	Set(st, snapName, snapst)
 	return nil
@@ -1015,19 +994,18 @@ func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapName := snapsup.Name()
-	status := snapst.AliasesStatus
+	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
 
 	newAliases := pruneAutoAliases(st, curAliases, which)
 
-	if !status.Pending() {
-		if err := applyAliasesChange(st, snapName, status, curAliases, status, newAliases, m.backend); err != nil {
+	if !snapst.AliasesPending {
+		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
 			return err
 		}
 	}
 
 	t.Set("old-aliases-v2", curAliases)
-	t.Set("old-aliases-v2-status", snapst.AliasesStatus)
 	snapst.Aliases = newAliases
 	Set(st, snapName, snapst)
 	return nil

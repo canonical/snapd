@@ -30,101 +30,26 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// AliasesStatus represents the global aliases status for a snap.
-type AliasesStatus string
-
-// Possible global aliases statuses for a snap.
-const (
-	NoYetAutoAliases        AliasesStatus = ""
-	EnabledAliases          AliasesStatus = "enabled"
-	DisabledAliases         AliasesStatus = "disabled"
-	PendingEnabledAliases   AliasesStatus = "pending:enabled"
-	PendingDisabledAliases  AliasesStatus = "pending:disabled"
-	PendingNoYetAutoAliases AliasesStatus = "pending:noautoyet"
-)
-
-// Enabled returns whether status entails enabled.
-func (status AliasesStatus) Enabled() bool {
-	switch status {
-	case EnabledAliases, PendingEnabledAliases:
-		return true
-	}
-	return false
-}
-
-// Pending returns whether status is a pending status.
-func (status AliasesStatus) Pending() bool {
-	switch status {
-	case PendingEnabledAliases, PendingDisabledAliases, PendingNoYetAutoAliases:
-		return true
-	}
-	return false
-}
-
-// NoAutoYet return whether the status indicates no automatic aliases were introduced yet for the snap.
-func (status AliasesStatus) NoAutoYet() bool {
-	switch status {
-	case NoYetAutoAliases, PendingNoYetAutoAliases:
-		return true
-	}
-	return false
-}
-
-// ToPending returns the corresponding pending status of status.
-func (status AliasesStatus) ToPending() AliasesStatus {
-	switch status {
-	case EnabledAliases:
-		return PendingEnabledAliases
-	case DisabledAliases:
-		return PendingDisabledAliases
-	case NoYetAutoAliases:
-		return PendingNoYetAutoAliases
-	}
-	return status
-}
-
-// FromPending returns the corresponding non-pending status of status.
-func (status AliasesStatus) FromPending() AliasesStatus {
-	switch status {
-	case PendingEnabledAliases:
-		return EnabledAliases
-	case PendingDisabledAliases:
-		return DisabledAliases
-	case PendingNoYetAutoAliases:
-		return NoYetAutoAliases
-	}
-	return status
-}
-
-// ToDisabled returns the corresponding disabled status of status.
-func (status AliasesStatus) ToDisabled() AliasesStatus {
-	switch status {
-	case EnabledAliases:
-		return DisabledAliases
-	case PendingEnabledAliases:
-		return PendingDisabledAliases
-	}
-	return status
-}
-
 // AliasTarget carries the targets of an alias in the context of snap.
 // If Manual is set it is the target of an enabled manual alias.
 // Auto is set to the target for an automatic alias, enabled or
-// disabled depending on the aliases status of the whole snap.
+// disabled depending on the automatic aliases flag state.
 type AliasTarget struct {
 	Manual string `json:"manual,omitempty"`
 	Auto   string `json:"auto,omitempty"`
 }
 
-// Effective returns the target to use based on the aliasesStatus of the whole snap, returns "" if the alias is disabled.
-func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
+// Effective returns the target to use considering whether automatic
+// aliases are disabled for the whole snap (autoDisabled), returns ""
+// if the alias is disabled.
+func (at *AliasTarget) Effective(autoDisabled bool) string {
 	if at == nil {
 		return ""
 	}
 	if at.Manual != "" {
 		return at.Manual
 	}
-	if aliasesStatus.Enabled() {
+	if !autoDisabled {
 		return at.Auto
 	}
 	return ""
@@ -135,10 +60,9 @@ func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
 
 	type SnapState struct {
                 ...
-		Aliases       map[string]*AliasTarget `json:"aliases,omitempty"`
-		AliasesStatus AliasesStatus           `json:"aliases-status,omitempty"`
+		Aliases              map[string]*AliasTarget
+		AutoAliasesDisabled  bool
 	}
-}
 
    There are two kinds of aliases:
 
@@ -151,7 +75,7 @@ func (at *AliasTarget) Effective(aliasesStatus AliasesStatus) string {
    Further
 
    * all automatic aliases of a snap are either enabled
-     or disabled together (tracked with AliasesStatus)
+     or disabled together (tracked with AutoAliasesDisabled)
 
    * disabling a manual alias removes it from disk and state (for
      simplicity there is no disabled state for manual aliases)
@@ -171,17 +95,17 @@ func composeTarget(snapName, targetApp string) string {
 }
 
 // applyAliasesChange applies the necessary changes to aliases on disk
-// to go from prevAliases under the snap global prevStatus for
-// automatic aliases to newAliases under newStatus for snapName.
-// It assumes that conflicts have already been checked.
-func applyAliasesChange(st *state.State, snapName string, prevStatus AliasesStatus, prevAliases map[string]*AliasTarget, newStatus AliasesStatus, newAliases map[string]*AliasTarget, be managerBackend) error {
+// to go from prevAliases cosindering the automatic aliases flag
+// (prevAutoDisabled) to newAliases considering newAutoDisabled for
+// snapName. It assumes that conflicts have already been checked.
+func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend) error {
 	var add, remove []*backend.Alias
 	for alias, prevTargets := range prevAliases {
 		if _, ok := newAliases[alias]; ok {
 			continue
 		}
 		// gone
-		if effTgt := prevTargets.Effective(prevStatus); effTgt != "" {
+		if effTgt := prevTargets.Effective(prevAutoDisabled); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
 				Target: composeTarget(snapName, effTgt),
@@ -189,8 +113,8 @@ func applyAliasesChange(st *state.State, snapName string, prevStatus AliasesStat
 		}
 	}
 	for alias, newTargets := range newAliases {
-		prevTgt := prevAliases[alias].Effective(prevStatus)
-		newTgt := newTargets.Effective(newStatus)
+		prevTgt := prevAliases[alias].Effective(prevAutoDisabled)
+		newTgt := newTargets.Effective(newAutoDisabled)
 		if prevTgt == newTgt {
 			// nothing to do
 			continue
@@ -355,18 +279,18 @@ func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]
 			// skip
 			continue
 		}
-		status := snapst.AliasesStatus
+		autoDisabled := snapst.AutoAliasesDisabled
 		var confls []string
 		if len(snapst.Aliases) < len(testAliases) {
 			for alias, target := range snapst.Aliases {
-				if testAliases[alias] && target.Effective(status) != "" {
+				if testAliases[alias] && target.Effective(autoDisabled) != "" {
 					confls = append(confls, alias)
 				}
 			}
 		} else {
 			for alias := range testAliases {
 				target := snapst.Aliases[alias]
-				if target != nil && target.Effective(status) != "" {
+				if target != nil && target.Effective(autoDisabled) != "" {
 					confls = append(confls, alias)
 				}
 			}
@@ -378,10 +302,10 @@ func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]
 	return nil
 }
 
-// checkAliasesStatConflicts checks candAliases under candStatus for
-// conflicts against other snap aliases returning conflicting
-// snaps and aliases for alias conflicts.
-func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesStatus, candAliases map[string]*AliasTarget) (conflicts map[string][]string, err error) {
+// checkAliasesStatConflicts checks candAliases considering
+// candAutoDisabled for conflicts against other snap aliases returning
+// conflicting snaps and aliases for alias conflicts.
+func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bool, candAliases map[string]*AliasTarget) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
 	if err != nil && err != state.ErrNoState {
@@ -390,7 +314,7 @@ func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesS
 
 	enabled := make(map[string]bool, len(candAliases))
 	for alias, candTarget := range candAliases {
-		if candTarget.Effective(candStatus) != "" {
+		if candTarget.Effective(candAutoDisabled) != "" {
 			enabled[alias] = true
 		} else {
 			continue
@@ -420,15 +344,15 @@ func checkAliasesConflicts(st *state.State, snapName string, candStatus AliasesS
 	return nil, nil
 }
 
-// disableAliases returns a newStatus and newAliases corresponding to the disabling of curStatus and curAliases, for manual aliases that means removed.
-func disableAliases(curStatus AliasesStatus, curAliases map[string]*AliasTarget) (newStatus AliasesStatus, newAliases map[string]*AliasTarget) {
+// disableAliases returns newAliases corresponding to the disabling of curAliases, for manual aliases that means removed.
+func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, curTarget := range curAliases {
 		if curTarget.Auto != "" {
 			newAliases[alias] = &AliasTarget{Auto: curTarget.Auto}
 		}
 	}
-	return curStatus.ToDisabled(), newAliases
+	return newAliases
 }
 
 // pruneAutoAliases returns newAliases by dropping the automatic aliases autoAliases from curAliases, used as the task prune-auto-aliases to handle transfers of automatic aliases in a refresh.

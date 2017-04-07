@@ -61,28 +61,24 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 		Auto:   "cmd1",
 	}
 
-	const (
-		en  = snapstate.EnabledAliases
-		dis = snapstate.DisabledAliases
-	)
 	scenarios := []struct {
-		status    snapstate.AliasesStatus
-		newStatus snapstate.AliasesStatus
-		target    *snapstate.AliasTarget
-		newTarget *snapstate.AliasTarget
-		ops       string
+		autoDisabled    bool
+		newAutoDisabled bool
+		target          *snapstate.AliasTarget
+		newTarget       *snapstate.AliasTarget
+		ops             string
 	}{
-		{en, en, nil, auto1, "add"},
-		{en, dis, auto1, auto1, "rm"},
-		{en, en, auto1, auto2, "rm add"},
-		{en, en, auto1, nil, "rm"},
-		{en, en, nil, manual1, "add"},
-		{dis, dis, nil, manual1, "add"},
-		{en, dis, auto1, manual2, "rm add"},
-		{en, en, manual2, nil, "rm"},
-		{en, en, manual2, auto1, "rm add"},
-		{en, en, manual1, auto1, ""},
-		{dis, en, manual1, auto1, ""},
+		{false, false, nil, auto1, "add"},
+		{false, true, auto1, auto1, "rm"},
+		{false, false, auto1, auto2, "rm add"},
+		{false, false, auto1, nil, "rm"},
+		{false, false, nil, manual1, "add"},
+		{true, true, nil, manual1, "add"},
+		{false, true, auto1, manual2, "rm add"},
+		{false, false, manual2, nil, "rm"},
+		{false, false, manual2, auto1, "rm add"},
+		{false, false, manual1, auto1, ""},
+		{true, false, manual1, auto1, ""},
 	}
 
 	for _, scenario := range scenarios {
@@ -95,7 +91,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChange(c *C) {
 			newAliases["myalias"] = scenario.newTarget
 		}
 
-		err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", scenario.status, prevAliases, scenario.newStatus, newAliases, s.fakeBackend)
+		err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", scenario.autoDisabled, prevAliases, scenario.newAutoDisabled, newAliases, s.fakeBackend)
 		c.Assert(err, IsNil)
 
 		var add, rm []*backend.Alias
@@ -134,7 +130,7 @@ func (s *snapmgrTestSuite) TestApplyAliasesChangeMulti(c *C) {
 		"myalias1": {Auto: "alias-snap1"},
 	}
 
-	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", snapstate.EnabledAliases, prevAliases, snapstate.EnabledAliases, newAliases, s.fakeBackend)
+	err := snapstate.ApplyAliasesChange(s.state, "alias-snap1", false, prevAliases, false, newAliases, s.fakeBackend)
 	c.Assert(err, IsNil)
 
 	expected := fakeOps{
@@ -333,9 +329,9 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
 		},
-		Current:       snap.R(2),
-		Active:        true,
-		AliasesStatus: snapstate.DisabledAliases,
+		Current:             snap.R(2),
+		Active:              true,
+		AutoAliasesDisabled: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2"},
@@ -346,9 +342,9 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
 		},
-		Current:       snap.R(2),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:             snap.R(2),
+		Active:              true,
+		AutoAliasesDisabled: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias2": {Auto: "cmd2"},
 			"alias3": {Auto: "cmd3"},
@@ -359,23 +355,23 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(2)},
 		},
-		Current:       snap.R(2),
-		Active:        true,
-		AliasesStatus: snapstate.DisabledAliases,
+		Current:             snap.R(2),
+		Active:              true,
+		AutoAliasesDisabled: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias4": {Manual: "cmd8"},
 			"alias5": {Auto: "cmd5"},
 		},
 	})
 
-	confl, err := snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err := snapstate.CheckAliasesConflicts(s.state, "alias-snap", false, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias5": {Auto: "cmd5"},
 	})
 	c.Check(err, IsNil)
 	c.Check(confl, IsNil)
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", false, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
 		"alias3": {Auto: "cmd3"},
@@ -388,7 +384,7 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 	c.Check(which, DeepEquals, []string{"alias2", "alias3"})
 	c.Check(confl["other-snap3"], DeepEquals, []string{"alias4"})
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.DisabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", true, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
 		"alias3": {Auto: "cmd3"},
@@ -397,7 +393,7 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstAliases(c *C) {
 	c.Check(err, IsNil)
 	c.Check(confl, IsNil)
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "other-snap4", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "other-snap4", false, map[string]*snapstate.AliasTarget{
 		"alias2": {Manual: "cmd12"},
 	})
 	c.Check(err, FitsTypeOf, &snapstate.AliasConflictError{})
@@ -436,27 +432,27 @@ func (s *snapmgrTestSuite) TestCheckAliasesConflictsAgainstSnaps(c *C) {
 		SnapType: "app",
 	})
 
-	confl, err := snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err := snapstate.CheckAliasesConflicts(s.state, "alias-snap", false, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 	})
 	c.Check(err, IsNil)
 	c.Check(confl, IsNil)
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", false, map[string]*snapstate.AliasTarget{
 		"alias1":    {Auto: "cmd1"},
 		"some-snap": {Auto: "cmd1"},
 	})
 	c.Check(err, ErrorMatches, `cannot enable alias "some-snap" for "alias-snap", it conflicts with the command namespace of installed snap "some-snap"`)
 	c.Check(confl, IsNil)
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.DisabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", true, map[string]*snapstate.AliasTarget{
 		"alias1":    {Auto: "cmd1"},
 		"some-snap": {Auto: "cmd1"},
 	})
 	c.Check(err, IsNil)
 	c.Check(confl, IsNil)
 
-	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", snapstate.EnabledAliases, map[string]*snapstate.AliasTarget{
+	confl, err = snapstate.CheckAliasesConflicts(s.state, "alias-snap", false, map[string]*snapstate.AliasTarget{
 		"alias1":        {Auto: "cmd1"},
 		"some-snap.foo": {Auto: "cmd1"},
 	})
@@ -472,24 +468,7 @@ func (s *snapmgrTestSuite) TestDisableAliases(c *C) {
 		"alias4": {Manual: "manual4"},
 	}
 
-	status, dis := snapstate.DisableAliases(snapstate.EnabledAliases, aliases)
-	c.Check(status, Equals, snapstate.DisabledAliases)
-	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
-		"alias1": {Auto: "cmd1"},
-		"alias2": {Auto: "cmd2"},
-		"alias3": {Auto: "cmd3"},
-	})
-
-	status, dis = snapstate.DisableAliases(snapstate.PendingEnabledAliases, aliases)
-	c.Check(status, Equals, snapstate.PendingDisabledAliases)
-	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
-		"alias1": {Auto: "cmd1"},
-		"alias2": {Auto: "cmd2"},
-		"alias3": {Auto: "cmd3"},
-	})
-
-	status, dis = snapstate.DisableAliases(snapstate.PendingDisabledAliases, aliases)
-	c.Check(status, Equals, snapstate.PendingDisabledAliases)
+	dis := snapstate.DisableAliases(aliases)
 	c.Check(dis, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
