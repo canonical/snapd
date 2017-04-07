@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-RSAKeyGenerationResult rsa_generate_key(uint64_t bits, const char *private_key_file, const char *public_key_file) {
+RSAKeyGenerationResult rsa_generate_key(uint64_t bits, char *private_key_file, char *public_key_file) {
   RSAKeyGenerationResult result = RSA_KEY_GENERATION_SUCCESS;
 
     BIGNUM *bne = NULL;
@@ -90,6 +90,9 @@ free_all:
     BIO_free_all(bp_private);
     RSA_free(rsa);
     BN_free(bne);
+
+    free(private_key_file);
+    free(public_key_file);
 
     return result;
 }

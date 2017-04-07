@@ -28,6 +28,6 @@ typedef enum {
     RSA_KEY_GENERATION_IO_FAILURE
 } RSAKeyGenerationResult;
 
-RSAKeyGenerationResult rsa_generate_key(uint64_t bits, const char *private_key_file, const char *public_key_file);
+RSAKeyGenerationResult rsa_generate_key(uint64_t bits, char *private_key_file, char *public_key_file);
 
 #endif  // OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
