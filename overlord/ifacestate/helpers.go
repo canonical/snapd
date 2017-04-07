@@ -90,6 +90,16 @@ func (m *InterfaceManager) addSnaps() error {
 		return err
 	}
 	for _, snapInfo := range snaps {
+		if snapInfo.Name() == "core" {
+			// Some released core snaps had explicitly defined plugs
+			// "network-bind" and "core-support" that clashed with implicit
+			// slots with the same names but this was not validated before.  To
+			// avoid a flag day and any potential issues, transparently rename
+			// the two clashing plugs by appending the "-plug" suffix.
+			for _, plugName := range []string{"network-bind", "core-support"} {
+				snapInfo.RenamePlug(plugName, plugName+"-plug")
+			}
+		}
 		snap.AddImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("%s", err)
