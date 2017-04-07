@@ -238,8 +238,10 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := slot.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(slot.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -254,13 +256,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap.Name()][slot.Name]; ok {
+	if _, ok := r.slots[snapName][slot.Name]; ok {
 		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
 	}
-	if r.slots[slot.Snap.Name()] == nil {
-		r.slots[slot.Snap.Name()] = make(map[string]*Slot)
+	if r.slots[snapName] == nil {
+		r.slots[snapName] = make(map[string]*Slot)
 	}
-	r.slots[slot.Snap.Name()][slot.Name] = slot
+	r.slots[snapName][slot.Name] = slot
 	return nil
 }
 
