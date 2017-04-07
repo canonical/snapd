@@ -562,4 +562,7 @@ hooks:
 	c.Assert(snapInfo.Slots["old"], Not(IsNil))
 	c.Assert(snapInfo.Slots["old"].Name, Equals, "old")
 	c.Assert(snapInfo.Apps["app"].Slots["old"], DeepEquals, snapInfo.Slots["old"])
+
+	// Check that the rename made the snap valid now
+	c.Assert(snap.Validate(snapInfo), IsNil)
 }
