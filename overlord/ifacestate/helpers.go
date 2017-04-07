@@ -47,6 +47,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
+	if err := m.renameCorePlugConnections(); err != nil {
+		return err
+	}
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
@@ -150,6 +153,38 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
+	return nil
+}
+
+// renameCorePlugConnections renames connections from plugs to slots on the
+// core snap if the plug and slot name are the same the plug gets suffixed with
+// "-plug". This matches a similar rename in addSnaps above.
+func (m *InterfaceManager) renameCorePlugConnections() error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for _, plugName := range []string{"network-bind", "core-support"} {
+		// old connection, note that slotRef is the same in both
+		slotRef := interfaces.SlotRef{Snap: "core", Name: plugName}
+		oldPlugRef := interfaces.PlugRef{Snap: "core", Name: plugName}
+		oldConnRef := interfaces.ConnRef{PlugRef: oldPlugRef, SlotRef: slotRef}
+		oldID := oldConnRef.ID()
+		// new connection
+		newPlugRef := interfaces.PlugRef{Snap: "core", Name: plugName + "-plug"}
+		newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
+		newID := newConnRef.ID()
+		// if the old connection is saved, replace it with the new connection
+		if cState, ok := conns[oldID]; ok {
+			delete(conns, oldID)
+			conns[newID] = cState
+			changed = true
+		}
+	}
+	if changed {
+		setConns(m.state, conns)
+	}
 	return nil
 }
 
