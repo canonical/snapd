@@ -4306,7 +4306,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	canAutoRefreshCalled := false
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		return true, nil
+	}
 
 	now := time.Now()
 	fakeLastRefresh := now.Add(-1 * time.Hour)
@@ -4320,7 +4324,12 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Unlock()
 	s.snapmgr.Ensure()
 	// give the timer a bit of time
-	time.Sleep(300 * time.Millisecond)
+	for i := 0; i < 100; i++ {
+		if canAutoRefreshCalled {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	s.state.Lock()
 
 	// nothing needs to be done and no refresh was run
