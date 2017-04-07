@@ -62,13 +62,10 @@ import (
 // and we need to validate the time-spec, ideally internally by
 // intercepting the set call
 
-var (
-	defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
-)
+var defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
-var (
-	errtrackerReport = errtracker.Report
-)
+// overriden in the tests
+var errtrackerReport = errtracker.Report
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -452,7 +449,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		return nil
 	}
 
-	// store attempts in memory so that we can backoff a
+	// store attempts in memory so that we can backoff
 	delta := timeutil.Next(refreshSchedule, lastRefresh)
 	m.nextRefresh = time.AfterFunc(delta, func() {
 		m.state.Lock()
