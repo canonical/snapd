@@ -1,4 +1,4 @@
-napd (2.23.6) xenial; urgency=medium
+snapd (2.23.6) xenial; urgency=medium
 
   * New upstream release, LP: #1673568
     - cmd: use the most appropriate snap/snapctl sockets
