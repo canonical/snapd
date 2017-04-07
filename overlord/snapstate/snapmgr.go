@@ -366,10 +366,6 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func setLastRefresh(st *state.State) {
-	st.Set("last-refresh", time.Now())
-}
-
 func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
 	for _, s := range rs {
 		if s.Weekday != "" {
@@ -464,7 +460,7 @@ func (m *SnapManager) ensureRefreshes() error {
 
 		// Do setLastRefresh() only if the store (in AutoRefresh) gave
 		// us no error.
-		setLastRefresh(m.state)
+		m.state.Set("last-refresh", time.Now())
 
 		var msg string
 		switch len(updated) {
