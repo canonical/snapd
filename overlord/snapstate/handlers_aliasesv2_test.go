@@ -46,9 +46,10 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: false,
+		AliasesPending:      true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -83,7 +84,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FromNoYetAuto(c *C) {
+func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FirstInstall(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -100,9 +101,8 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FromNoYetAuto(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingNoYetAutoAliases,
+		Current: snap.R(11),
+		Active:  true,
 	})
 
 	t := s.state.NewTask("set-auto-aliases-v2", "test")
@@ -125,7 +125,8 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FromNoYetAuto(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
@@ -150,9 +151,9 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -186,6 +187,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
+	c.Check(snapst.AliasesPending, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2x"},
@@ -210,9 +212,9 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -223,9 +225,9 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(3)},
 		},
-		Current:       snap.R(3),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(3),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias4": {Auto: "cmd4"},
 		},
@@ -266,9 +268,9 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -280,9 +282,9 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(3)},
 		},
-		Current:       snap.R(3),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:             snap.R(3),
+		Active:              true,
+		AutoAliasesDisabled: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias5": {Auto: "cmd5"},
 		},
@@ -334,7 +336,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingDisabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, true)
+	c.Check(snapst.AliasesPending, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2x"},
@@ -353,9 +356,10 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingDisabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: true,
+		AliasesPending:      true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"manual1": {Manual: "cmd1"},
 		},
@@ -390,7 +394,8 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.DisabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, true)
+	c.Check(snapst.AliasesPending, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
@@ -401,9 +406,10 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingDisabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: true,
+		AliasesPending:      true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"manual1": {Manual: "cmd1"},
 		},
@@ -448,7 +454,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingDisabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, true)
+	c.Check(snapst.AliasesPending, Equals, true)
 }
 
 // TODO: test and fix idempotence of setup-aliases
@@ -461,9 +468,10 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: false,
+		AliasesPending:      true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 		},
@@ -498,7 +506,8 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.EnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
@@ -509,9 +518,10 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: false,
+		AliasesPending:      true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 		},
@@ -556,7 +566,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
@@ -567,9 +578,8 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingNoYetAutoAliases,
+		Current: snap.R(11),
+		Active:  true,
 	})
 
 	t := s.state.NewTask("setup-aliases-v2", "test")
@@ -602,7 +612,8 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.NoYetAutoAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
@@ -613,9 +624,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingNoYetAutoAliases,
+		Current: snap.R(11),
+		Active:  true,
 	})
 
 	t := s.state.NewTask("setup-aliases-v2", "test")
@@ -656,7 +666,8 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingNoYetAutoAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2Auto(c *C) {
@@ -667,9 +678,9 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2Auto(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2"},
@@ -724,9 +735,9 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2AutoPending(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2"},
@@ -771,9 +782,10 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2ManualAndDisabled(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.DisabledAliases,
+		Current:             snap.R(11),
+		Active:              true,
+		AutoAliasesDisabled: true,
+		AliasesPending:      false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2"},
@@ -836,9 +848,9 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -883,70 +895,8 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.EnabledAliases)
-	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
-		"alias1": {Auto: "cmd1"},
-		"alias2": {Auto: "cmd2"},
-		"alias4": {Auto: "cmd4"},
-	})
-}
-
-func (s *snapmgrTestSuite) TestDoRefreshAliasesV2FromNoYetAuto(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
-		return map[string]string{
-			"alias1": "cmd1",
-			"alias2": "cmd2",
-			"alias4": "cmd4",
-		}, nil
-	}
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
-		Current: snap.R(11),
-		Active:  true,
-	})
-
-	t := s.state.NewTask("refresh-aliases-v2", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
-
-	expected := fakeOps{
-		{
-			op: "update-aliases",
-			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
-			},
-		},
-	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AliasesStatus, Equals, snapstate.EnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
@@ -971,9 +921,9 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -1035,85 +985,13 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.EnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2x"},
 		"alias3": {Auto: "cmd3"},
 	})
-}
-
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2FromNoYetAuto(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
-		return map[string]string{
-			"alias1": "cmd1",
-			"alias2": "cmd2",
-			"alias4": "cmd4",
-		}, nil
-	}
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
-		Current: snap.R(11),
-		Active:  true,
-	})
-
-	t := s.state.NewTask("refresh-aliases-v2", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(t)
-	chg.AddTask(terr)
-
-	s.state.Unlock()
-
-	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
-	}
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
-
-	expected := fakeOps{
-		{
-			op: "update-aliases",
-			aliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
-			},
-		},
-		{
-			op: "update-aliases",
-			rmAliases: []*backend.Alias{
-				{"alias1", "alias-snap.cmd1"},
-				{"alias2", "alias-snap.cmd2"},
-				{"alias4", "alias-snap.cmd4"},
-			},
-		},
-	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AliasesStatus, Equals, snapstate.NoYetAutoAliases)
-	c.Check(snapst.Aliases, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
@@ -1133,9 +1011,9 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -1166,7 +1044,8 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2"},
@@ -1191,9 +1070,9 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Pending(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingEnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -1230,7 +1109,8 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Pending(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2x"},
@@ -1255,9 +1135,8 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current: snap.R(11),
+		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -1268,9 +1147,8 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(3)},
 		},
-		Current:       snap.R(3),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current: snap.R(3),
+		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias4": {Auto: "cmd4"},
 		},
@@ -1311,9 +1189,9 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
 		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.EnabledAliases,
+		Current:        snap.R(11),
+		Active:         true,
+		AliasesPending: false,
 		Aliases: map[string]*snapstate.AliasTarget{
 			"alias1": {Auto: "cmd1"},
 			"alias2": {Auto: "cmd2x"},
@@ -1330,9 +1208,9 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 			Sequence: []*snap.SideInfo{
 				{RealName: "other-snap", Revision: snap.R(3)},
 			},
-			Current:       snap.R(3),
-			Active:        true,
-			AliasesStatus: snapstate.EnabledAliases,
+			Current:        snap.R(3),
+			Active:         true,
+			AliasesPending: false,
 			Aliases: map[string]*snapstate.AliasTarget{
 				"alias3": {Auto: "cmd3x"},
 			},
@@ -1398,7 +1276,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 	err := snapstate.Get(s.state, "alias-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst.AliasesStatus, Equals, snapstate.DisabledAliases)
+	c.Check(snapst.AutoAliasesDisabled, Equals, true)
 	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias1": {Auto: "cmd1"},
 		"alias2": {Auto: "cmd2x"},
@@ -1409,121 +1287,11 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 	err = snapstate.Get(s.state, "other-snap", &snapst2)
 	c.Assert(err, IsNil)
 
-	c.Check(snapst2.AliasesStatus, Equals, snapstate.EnabledAliases)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
 	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
 		"alias3": {Auto: "cmd3x"},
 	})
 
 	c.Check(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.* ERROR cannot reinstate alias state because of conflicts, disabling: cannot enable alias "alias3" for "alias-snap", already enabled for "other-snap".*`)
-}
-
-func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2FromPendingNoYetAuto(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
-		return map[string]string{
-			"alias1": "cmd1",
-			"alias2": "cmd2",
-			"alias4": "cmd4",
-		}, nil
-	}
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingNoYetAutoAliases,
-	})
-
-	t := s.state.NewTask("refresh-aliases-v2", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(t)
-	chg.AddTask(terr)
-
-	s.state.Unlock()
-
-	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
-	}
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
-
-	// pending: nothing to do on disk
-	c.Assert(s.fakeBackend.ops, HasLen, 0)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingNoYetAutoAliases)
-	c.Check(snapst.Aliases, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestDoRefreshAliasesV2FromPendingNoYetAuto(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		c.Check(info.Name(), Equals, "alias-snap")
-		return map[string]string{
-			"alias1": "cmd1",
-			"alias2": "cmd2",
-			"alias4": "cmd4",
-		}, nil
-	}
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
-		Current:       snap.R(11),
-		Active:        true,
-		AliasesStatus: snapstate.PendingNoYetAutoAliases,
-	})
-
-	t := s.state.NewTask("refresh-aliases-v2", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	for i := 0; i < 3; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
-	}
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
-
-	// pending: nothing to do on disk
-	c.Assert(s.fakeBackend.ops, HasLen, 0)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AliasesStatus, Equals, snapstate.PendingEnabledAliases)
-	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
-		"alias1": {Auto: "cmd1"},
-		"alias2": {Auto: "cmd2"},
-		"alias4": {Auto: "cmd4"},
-	})
 }
