@@ -455,53 +455,49 @@ func (m *SnapManager) ensureRefreshes() error {
 	// store attempts in memory so that we can backoff a
 	delta := timeutil.Next(refreshSchedule, lastRefresh)
 	m.nextRefresh = time.AfterFunc(delta, func() {
-		m.lastRefreshAttempt = time.Now()
 		m.state.Lock()
+		defer m.state.Unlock()
+
+		m.lastRefreshAttempt = time.Now()
 		updated, tasksets, err := AutoRefresh(m.state)
-		m.state.Unlock()
 		if err != nil {
 			logger.Noticef("AutoRefresh failed with: %s", err)
 			return
 		}
-		m.doAutoRefresh(updated, tasksets)
+
+		// Do setLastRefresh() only if the store (in AutoRefresh) gave
+		// us no error.
+		setLastRefresh(m.state)
+
+		var msg string
+		switch len(updated) {
+		case 0:
+			logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+			return
+		case 1:
+			msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+		case 2:
+		case 3:
+			quoted := strutil.Quoted(updated)
+			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+			msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+		default:
+			msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+		}
+
+		chg := m.state.NewChange("auto-refresh", msg)
+		for _, ts := range tasksets {
+			chg.AddAll(ts)
+		}
+		chg.Set("snap-names", updated)
+		chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+		m.state.EnsureBefore(0)
+		m.nextRefresh = nil
+		return
 	})
 	logger.Debugf("Next refresh scheduled for %s.", time.Now().Add(delta))
 
-	return nil
-}
-
-func (m *SnapManager) doAutoRefresh(updated []string, tasksets []*state.TaskSet) error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	// Do setLastRefresh() only if the store (in AutoRefresh) gave
-	// us no error.
-	setLastRefresh(m.state)
-
-	var msg string
-	switch len(updated) {
-	case 0:
-		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
-		return nil
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2:
-	case 3:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-	default:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
-	}
-
-	chg := m.state.NewChange("auto-refresh", msg)
-	for _, ts := range tasksets {
-		chg.AddAll(ts)
-	}
-	chg.Set("snap-names", updated)
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
-
-	m.nextRefresh = nil
 	return nil
 }
 
