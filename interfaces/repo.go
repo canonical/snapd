@@ -158,7 +158,10 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", snapName, plug.Name)
+		return fmt.Errorf("cannot add plug %q, snap %q already has a plug with that name", plug.Name, snapName)
+	}
+	if _, ok := r.slots[snapName][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug %q, snap %q already has a slot with that name", plug.Name, snapName)
 	}
 	if r.plugs[snapName] == nil {
 		r.plugs[snapName] = make(map[string]*Plug)
