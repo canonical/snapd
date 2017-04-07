@@ -838,7 +838,7 @@ func (m *SnapManager) doSetAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 
 	curAliases := snapst.Aliases
 	// TODO: implement --prefer/--unaliased logic
-	newAliases, _, err := refreshAliases(st, curInfo, curAliases)
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
 	}
@@ -914,7 +914,7 @@ func (m *SnapManager) doRefreshAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
 	// TODO: implement --prefer/--unaliased logic
-	newAliases, _, err := refreshAliases(st, curInfo, curAliases)
+	newAliases, err := refreshAliases(st, curInfo, curAliases)
 	if err != nil {
 		return err
 	}
