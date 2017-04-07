@@ -92,7 +92,7 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	c.Assert(err, check.IsNil)
 	snapInfo.SideInfo = *sideInfo
 	err = snap.Validate(snapInfo)
-	c.Assert(err, check.Not(check.IsNil))
+	c.Assert(err, check.NotNil)
 	return snapInfo
 }
 
