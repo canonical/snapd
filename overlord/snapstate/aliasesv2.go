@@ -200,10 +200,10 @@ func autoAliasesDeltaV2(st *state.State, names []string) (changed map[string][]s
 // refreshAliases applies the current snap-declaration aliases
 // considering which applications exist in info and produces new aliases
 // for the snap.
-func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, nAuto int, err error) {
+func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget, err error) {
 	autoAliases, err := AutoAliases(st, info)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	newAliases = make(map[string]*AliasTarget, len(autoAliases))
@@ -215,7 +215,6 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 		}
 		newAliases[alias] = &AliasTarget{Auto: target}
 	}
-	nAuto = len(newAliases)
 
 	// carry over the current manual ones
 	for alias, curTarget := range curAliases {
@@ -234,7 +233,7 @@ func refreshAliases(st *state.State, info *snap.Info, curAliases map[string]*Ali
 			newAliases[alias].Manual = curTarget.Manual
 		}
 	}
-	return newAliases, nAuto, nil
+	return newAliases, nil
 }
 
 type AliasConflictError struct {
