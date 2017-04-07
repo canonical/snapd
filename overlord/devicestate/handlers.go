@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2016-2017 Canonical Ltd
  *
@@ -19,6 +18,12 @@
 
 package devicestate
 
+/*
+#cgo pkg-config: openssl
+#include "rsa_generate_key.h"
+*/
+import "C"
+
 import (
 	"bytes"
 	"crypto/rsa"
@@ -31,8 +36,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -77,7 +80,7 @@ var (
 	sshPublicKeyFile        = sshKeyFile + ".pub"
 )
 
-func sshGenerateKey() (*rsa.PrivateKey, error) {
+func rsaGenerateKey() (*rsa.PrivateKey, error) {
 	defer func() {
 		os.Remove(sshKeyFile)
 		os.Remove(sshPublicKeyFile)
@@ -86,11 +89,17 @@ func sshGenerateKey() (*rsa.PrivateKey, error) {
 	os.Remove(sshKeyFile)
 	os.Remove(sshPublicKeyFile)
 
-	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.FormatUint(keyLength, 10), "-N", "", "-f", sshKeyFile)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(out, err)
+	switch C.rsa_generate_key(C.uint64_t(keyLength), C.CString(sshKeyFile), C.CString(sshPublicKeyFile)) {
+	case C.RSA_KEY_GENERATION_SEED_FAILURE:
+		return nil, errors.New("Failed to generate RSA key: RNG not seeded.")
+	case C.RSA_KEY_GENERATION_ALLOCATION_FAILURE:
+		return nil, errors.New("Failed to generate RSA key: Could not allocate memory.")
+	case C.RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
+		return nil, errors.New("Failed to generate RSA key.")
+	case C.RSA_KEY_GENERATION_IO_FAILURE:
+		return nil, errors.New("Failed to generate RSA key: Could not persist keys.")
+	case C.RSA_KEY_GENERATION_SUCCESS:
+		break
 	}
 
 	d, err := ioutil.ReadFile(sshKeyFile)
@@ -131,7 +140,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	keyPair, err := sshGenerateKey()
+	keyPair, err := rsaGenerateKey()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}

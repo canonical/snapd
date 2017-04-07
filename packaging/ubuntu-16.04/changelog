@@ -1,4 +1,4 @@
-snapd (2.23.6ubuntu2) xenial; urgency=medium
+snapd (2.23.6ubuntu3) xenial; urgency=medium
 
   * Bump revision for PPA build.
 
