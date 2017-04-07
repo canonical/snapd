@@ -63,7 +63,12 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityAppArmor
 }
 
-func setupHostSnapConfineApparmorForReexec(snapInfo *snap.Info) error {
+// setupSnapConfineReexec will setup apparmor profiles on a classic
+// system on the hosts /etc/apparmor.d directory. This is needed for
+// running snap-confine from the core snap.
+//
+// Additionally it will cleanup stale apparmor profiles it created.
+func setupSnapConfineReexec(snapInfo *snap.Info) error {
 	// cleanup old
 	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
 
@@ -136,8 +141,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
-		if err := setupHostSnapConfineApparmorForReexec(snapInfo); err != nil {
-			logger.Noticef("cannot create host snap-confe apparmor configuration: %s", err)
+		if err := setupSnapConfineReexec(snapInfo); err != nil {
+			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
