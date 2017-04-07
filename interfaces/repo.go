@@ -752,6 +752,11 @@ func (e *BadInterfacesError) Error() string {
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	err := snap.Validate(snapInfo)
+	if err != nil {
+		return err
+	}
+
 	r.m.Lock()
 	defer r.m.Unlock()
 
