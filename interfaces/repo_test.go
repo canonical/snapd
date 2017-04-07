@@ -497,13 +497,33 @@ func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
+func (s *RepositorySuite) TestAddSlotClashingSlot(c *C) {
 	// Adding the first slot succeeds
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot, snap "producer" already has slot "slot"`)
+	c.Assert(err, ErrorMatches, `cannot add slot "slot", snap "producer" already has a slot with that name`)
+}
+
+func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
+	snapInfo := &snap.Info{SuggestedName: "snap"}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "clashing",
+		Interface: "interface",
+	}}
+	err := s.testRepo.AddPlug(plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(slot)
+	c.Assert(err, ErrorMatches, `cannot add slot "clashing", snap "snap" already has a plug with that name`)
+	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
+	c.Assert(s.testRepo.Plug(plug.Snap.Name(), plug.Name), DeepEquals, plug)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
