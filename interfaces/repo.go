@@ -139,8 +139,10 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := plug.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(plug.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -155,13 +157,13 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap.Name()][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name(), plug.Name)
+	if _, ok := r.plugs[snapName][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", snapName, plug.Name)
 	}
-	if r.plugs[plug.Snap.Name()] == nil {
-		r.plugs[plug.Snap.Name()] = make(map[string]*Plug)
+	if r.plugs[snapName] == nil {
+		r.plugs[snapName] = make(map[string]*Plug)
 	}
-	r.plugs[plug.Snap.Name()][plug.Name] = plug
+	r.plugs[snapName][plug.Name] = plug
 	return nil
 }
 
