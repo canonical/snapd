@@ -524,3 +524,31 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
 }
+
+func (s *infoSuite) TestRenamePlug(c *C) {
+	snapInfo := snaptest.MockInfo(c, `name: core
+plugs:
+  old:
+    interface: iface
+apps:
+  app:
+hooks:
+  configure:
+`, nil)
+	c.Assert(snapInfo.Plugs["old"], Not(IsNil))
+	c.Assert(snapInfo.Plugs["old"].Name, Equals, "old")
+	c.Assert(snapInfo.Apps["app"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
+	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], DeepEquals, snapInfo.Plugs["old"])
+
+	// Rename the plug now.
+	snapInfo.RenamePlug("old", "new")
+
+	// Check that there's no trace of the old name.
+	c.Assert(snapInfo.Plugs["old"], IsNil)
+	c.Assert(snapInfo.Plugs["new"], Not(IsNil))
+	c.Assert(snapInfo.Plugs["new"].Name, Equals, "new")
+	c.Assert(snapInfo.Apps["app"].Plugs["old"], IsNil)
+	c.Assert(snapInfo.Apps["app"].Plugs["new"], DeepEquals, snapInfo.Plugs["new"])
+	c.Assert(snapInfo.Hooks["configure"].Plugs["old"], IsNil)
+	c.Assert(snapInfo.Hooks["configure"].Plugs["new"], DeepEquals, snapInfo.Plugs["new"])
+}

@@ -275,6 +275,27 @@ func (s *Info) NeedsClassic() bool {
 	return s.Confinement == ClassicConfinement
 }
 
+// RenamePlug renames the plug from oldName to newName, if present
+func (s *Info) RenamePlug(oldName, newName string) {
+	if plugInfo, ok := s.Plugs[oldName]; ok {
+		delete(s.Plugs, oldName)
+		s.Plugs[newName] = plugInfo
+		plugInfo.Name = newName
+		for _, appInfo := range s.Apps {
+			if _, ok := appInfo.Plugs[oldName]; ok {
+				delete(appInfo.Plugs, oldName)
+				appInfo.Plugs[newName] = plugInfo
+			}
+		}
+		for _, hookInfo := range s.Hooks {
+			if _, ok := hookInfo.Plugs[oldName]; ok {
+				delete(hookInfo.Plugs, oldName)
+				hookInfo.Plugs[newName] = plugInfo
+			}
+		}
+	}
+}
+
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
