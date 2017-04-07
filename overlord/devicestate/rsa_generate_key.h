@@ -15,19 +15,25 @@
  *
  */
 
-#ifndef OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
-#define OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
+#ifndef SNAPD_OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
+#define SNAPD_OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef enum {
-    RSA_KEY_GENERATION_SUCCESS,
-    RSA_KEY_GENERATION_SEED_FAILURE,
-    RSA_KEY_GENERATION_ALLOCATION_FAILURE,
-    RSA_KEY_GENERATION_KEY_GENERATION_FAILURE,
-    RSA_KEY_GENERATION_IO_FAILURE
-} RSAKeyGenerationResult;
+    SNAPD_RSA_KEY_GENERATION_SUCCESS,
+    SNAPD_RSA_KEY_GENERATION_SEED_FAILURE,
+    SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE,
+    SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE,
+    SNAPD_RSA_KEY_GENERATION_IO_FAILURE
+} SnapdRSAKeyGenerationResult;
 
-RSAKeyGenerationResult rsa_generate_key(uint64_t bits, char *private_key_file, char *public_key_file);
+typedef struct {
+  char *memory;
+  size_t size;
+} SnapdRSAKeyGenerationBuffer;
 
-#endif  // OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_
+SnapdRSAKeyGenerationResult snapd_rsa_generate_key(uint64_t bits, SnapdRSAKeyGenerationBuffer *private_key);
+
+#endif  // SNAPD_OVERLORD_DEVICESTATE_RSA_GENERATE_KEY_H_

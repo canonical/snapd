@@ -32,11 +32,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
+	"unsafe"
 
 	"gopkg.in/tomb.v2"
 
@@ -76,38 +75,26 @@ var (
 	deviceAPIBase           = deviceAPIBaseURL()
 	requestIDURL            = deviceAPIBase + "request-id"
 	serialRequestURL        = deviceAPIBase + "devices"
-	sshKeyFile              = "/tmp/snapd.key.tmp"
-	sshPublicKeyFile        = sshKeyFile + ".pub"
 )
 
 func rsaGenerateKey() (*rsa.PrivateKey, error) {
-	defer func() {
-		os.Remove(sshKeyFile)
-		os.Remove(sshPublicKeyFile)
-	}()
+	var privateKey C.SnapdRSAKeyGenerationBuffer
 
-	os.Remove(sshKeyFile)
-	os.Remove(sshPublicKeyFile)
-
-	switch C.rsa_generate_key(C.uint64_t(keyLength), C.CString(sshKeyFile), C.CString(sshPublicKeyFile)) {
-	case C.RSA_KEY_GENERATION_SEED_FAILURE:
+	switch C.snapd_rsa_generate_key(C.uint64_t(keyLength), &privateKey) {
+	case C.SNAPD_RSA_KEY_GENERATION_SEED_FAILURE:
 		return nil, errors.New("Failed to generate RSA key: RNG not seeded.")
-	case C.RSA_KEY_GENERATION_ALLOCATION_FAILURE:
+	case C.SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE:
 		return nil, errors.New("Failed to generate RSA key: Could not allocate memory.")
-	case C.RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
+	case C.SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
 		return nil, errors.New("Failed to generate RSA key.")
-	case C.RSA_KEY_GENERATION_IO_FAILURE:
+	case C.SNAPD_RSA_KEY_GENERATION_IO_FAILURE:
 		return nil, errors.New("Failed to generate RSA key: Could not persist keys.")
-	case C.RSA_KEY_GENERATION_SUCCESS:
+	case C.SNAPD_RSA_KEY_GENERATION_SUCCESS:
 		break
 	}
 
-	d, err := ioutil.ReadFile(sshKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	blk, _ := pem.Decode(d)
+	defer C.free(unsafe.Pointer(privateKey.memory))
+	blk, _ := pem.Decode(C.GoBytes(unsafe.Pointer(privateKey.memory), C.int(privateKey.size)))
 	if blk == nil {
 		return nil, errors.New("Failed to decode PEM block")
 	}
