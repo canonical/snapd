@@ -187,8 +187,10 @@ override_dh_install:
 	$(MAKE) -C data/systemd install DESTDIR=$(CURDIR)/debian/snapd/ SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+endif
 	dh_install
 
 override_dh_auto_install: snap.8
