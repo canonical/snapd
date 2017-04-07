@@ -1,10 +1,4 @@
-snapd (2.23.6ubuntu3) xenial; urgency=medium
-
-  * Bump revision for PPA build.
-
- -- Thomas Voß <thomas.voss@canonical.com>  Mon, 03 Apr 2017 16:49:34 +0200
-
-snapd (2.23.6) xenial; urgency=medium
+napd (2.23.6) xenial; urgency=medium
 
   * New upstream release, LP: #1673568
     - cmd: use the most appropriate snap/snapctl sockets
