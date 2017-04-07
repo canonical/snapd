@@ -257,7 +257,10 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
+		return fmt.Errorf("cannot add slot %q, snap %q already has a slot with that name", slot.Name, snapName)
+	}
+	if _, ok := r.plugs[snapName][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot %q, snap %q already has a plug with that name", slot.Name, snapName)
 	}
 	if r.slots[snapName] == nil {
 		r.slots[snapName] = make(map[string]*Slot)
