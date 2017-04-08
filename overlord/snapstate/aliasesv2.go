@@ -95,7 +95,7 @@ func composeTarget(snapName, targetApp string) string {
 }
 
 // applyAliasesChange applies the necessary changes to aliases on disk
-// to go from prevAliases cosindering the automatic aliases flag
+// to go from prevAliases consindering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
 // snapName. It assumes that conflicts have already been checked.
 func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend) error {
