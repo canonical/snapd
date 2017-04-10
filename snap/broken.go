@@ -72,7 +72,28 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 func (info *Info) renameClashingCorePlugs() {
 	if info.Name() == "core" && info.Type == TypeOS {
 		for _, plugName := range []string{"network-bind", "core-support"} {
-			info.RenamePlug(plugName, plugName+"-plug")
+			info.renamePlug(plugName, plugName+"-plug")
+		}
+	}
+}
+
+// renamePlug renames the plug from oldName to newName, if present.
+func (info *Info) renamePlug(oldName, newName string) {
+	if plugInfo, ok := info.Plugs[oldName]; ok {
+		delete(info.Plugs, oldName)
+		info.Plugs[newName] = plugInfo
+		plugInfo.Name = newName
+		for _, appInfo := range info.Apps {
+			if _, ok := appInfo.Plugs[oldName]; ok {
+				delete(appInfo.Plugs, oldName)
+				appInfo.Plugs[newName] = plugInfo
+			}
+		}
+		for _, hookInfo := range info.Hooks {
+			if _, ok := hookInfo.Plugs[oldName]; ok {
+				delete(hookInfo.Plugs, oldName)
+				hookInfo.Plugs[newName] = plugInfo
+			}
 		}
 	}
 }
