@@ -93,9 +93,12 @@ free_all:
         BUF_MEM *buf_mem = NULL;
         BIO_get_mem_ptr(bp_private, &buf_mem);
         private_key->memory = malloc(buf_mem->length);
-        private_key->size = buf_mem->length;
-
-        memcpy(private_key->memory, buf_mem->data, buf_mem->length);
+        if (private_key->memory == NULL) {
+            result = SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE;
+        } else {
+            private_key->size = buf_mem->length;
+            memcpy(private_key->memory, buf_mem->data, buf_mem->length);
+        }
     }
 
     BIO_free_all(bp_private);
