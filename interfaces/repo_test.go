@@ -194,7 +194,7 @@ func (s *RepositorySuite) TestAddPlugClashingPlug(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddPlug(s.plug)
-	c.Assert(err, ErrorMatches, `snap "consumer" has plug and slot conflicting on name "plug"`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has plugs conflicting on name "plug"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
 	c.Assert(s.testRepo.Plug(s.plug.Snap.Name(), s.plug.Name), DeepEquals, s.plug)
 }
@@ -503,7 +503,7 @@ func (s *RepositorySuite) TestAddSlotClashingSlot(c *C) {
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `snap "producer" has plug and slot conflicting on name "slot"`)
+	c.Assert(err, ErrorMatches, `snap "producer" has slots conflicting on name "slot"`)
 }
 
 func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {

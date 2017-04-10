@@ -158,7 +158,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
-		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
+		return fmt.Errorf("snap %q has plugs conflicting on name %q", snapName, plug.Name)
 	}
 	if _, ok := r.slots[snapName][plug.Name]; ok {
 		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
@@ -257,7 +257,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
-		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
+		return fmt.Errorf("snap %q has slots conflicting on name %q", snapName, slot.Name)
 	}
 	if _, ok := r.plugs[snapName][slot.Name]; ok {
 		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
