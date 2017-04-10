@@ -194,7 +194,7 @@ func (s *RepositorySuite) TestAddPlugClashingPlug(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddPlug(s.plug)
-	c.Assert(err, ErrorMatches, `cannot add plug "plug", snap "consumer" already has a plug with that name`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has plug and slot conflicting on name "plug"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
 	c.Assert(s.testRepo.Plug(s.plug.Snap.Name(), s.plug.Name), DeepEquals, s.plug)
 }
@@ -214,7 +214,7 @@ func (s *RepositorySuite) TestAddPlugClashingSlot(c *C) {
 	err := s.testRepo.AddSlot(slot)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddPlug(plug)
-	c.Assert(err, ErrorMatches, `cannot add plug "clashing", snap "snap" already has a slot with that name`)
+	c.Assert(err, ErrorMatches, `snap "snap" has plug and slot conflicting on name "clashing"`)
 	c.Assert(s.testRepo.AllSlots(""), HasLen, 1)
 	c.Assert(s.testRepo.Slot(slot.Snap.Name(), slot.Name), DeepEquals, slot)
 }
@@ -503,7 +503,7 @@ func (s *RepositorySuite) TestAddSlotClashingSlot(c *C) {
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot "slot", snap "producer" already has a slot with that name`)
+	c.Assert(err, ErrorMatches, `snap "producer" has plug and slot conflicting on name "slot"`)
 }
 
 func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
@@ -521,7 +521,7 @@ func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
 	err := s.testRepo.AddPlug(plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(slot)
-	c.Assert(err, ErrorMatches, `cannot add slot "clashing", snap "snap" already has a plug with that name`)
+	c.Assert(err, ErrorMatches, `snap "snap" has plug and slot conflicting on name "clashing"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
 	c.Assert(s.testRepo.Plug(plug.Snap.Name(), plug.Name), DeepEquals, plug)
 }

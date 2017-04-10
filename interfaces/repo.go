@@ -158,10 +158,10 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug %q, snap %q already has a plug with that name", plug.Name, snapName)
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
 	}
 	if _, ok := r.slots[snapName][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug %q, snap %q already has a slot with that name", plug.Name, snapName)
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
 	}
 	if r.plugs[snapName] == nil {
 		r.plugs[snapName] = make(map[string]*Plug)
@@ -257,10 +257,10 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot %q, snap %q already has a slot with that name", slot.Name, snapName)
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
 	}
 	if _, ok := r.plugs[snapName][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot %q, snap %q already has a plug with that name", slot.Name, snapName)
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
 	}
 	if r.slots[snapName] == nil {
 		r.slots[snapName] = make(map[string]*Slot)
