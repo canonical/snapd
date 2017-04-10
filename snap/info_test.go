@@ -566,3 +566,37 @@ hooks:
 	// Check that the rename made the snap valid now
 	c.Assert(snap.Validate(snapInfo), IsNil)
 }
+
+const coreSnapYaml = `name: core
+type: os
+plugs:
+  network-bind:
+  core-support:
+`
+
+// reading snap via ReadInfoFromSnapFile renames clashing core plugs
+func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnapYaml, nil)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["network-bind"], IsNil)
+	c.Check(info.Plugs["core-support"], IsNil)
+	c.Check(info.Plugs["network-bind-plug"], NotNil)
+	c.Check(info.Plugs["core-support-plug"], NotNil)
+}
+
+// reading snap via ReadInfo renames clashing core plugs
+func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), RealName: "core"}
+	snaptest.MockSnap(c, coreSnapYaml, sampleContents, si)
+	info, err := snap.ReadInfo("core", si)
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["network-bind"], IsNil)
+	c.Check(info.Plugs["core-support"], IsNil)
+	c.Check(info.Plugs["network-bind-plug"], NotNil)
+	c.Check(info.Plugs["core-support-plug"], NotNil)
+}
