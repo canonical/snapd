@@ -82,7 +82,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	st.Unlock()
 	keyPair, err := generateRSAKey(keyLength)
+	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}
