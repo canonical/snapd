@@ -20,8 +20,6 @@
 package mount_test
 
 import (
-	"bytes"
-	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -151,52 +149,6 @@ func (s *entrySuite) TestParseEntry6(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 7)
-}
-
-// Test that empty fstab is parsed without errors
-func (s *entrySuite) TestLoadFSTab1(c *C) {
-	entries, err := mount.LoadFSTab(strings.NewReader(""))
-	c.Assert(err, IsNil)
-	c.Assert(entries, HasLen, 0)
-}
-
-// Test that '#'-comments are skipped
-func (s *entrySuite) TestLoadFSTab2(c *C) {
-	entries, err := mount.LoadFSTab(strings.NewReader("# comment"))
-	c.Assert(err, IsNil)
-	c.Assert(entries, HasLen, 0)
-}
-
-// Test that simple profile can be loaded correctly.
-func (s *entrySuite) TestLoadFSTab3(c *C) {
-	entries, err := mount.LoadFSTab(strings.NewReader(`
-	name-1 dir-1 type-1 options-1 1 1 # 1st entry
-	name-2 dir-2 type-2 options-2 2 2 # 2nd entry`))
-	c.Assert(err, IsNil)
-	c.Assert(entries, HasLen, 2)
-	c.Assert(entries, DeepEquals, []mount.Entry{
-		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
-		{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
-	})
-}
-
-// Test that writing an empty fstab file works correctly.
-func (s *entrySuite) TestSaveFSTab1(c *C) {
-	var buf bytes.Buffer
-	mount.SaveFSTab(&buf, nil)
-	c.Assert(buf.String(), Equals, "")
-}
-
-// Test that writing an trivial fstab file works correctly.
-func (s *entrySuite) TestSaveFSTab2(c *C) {
-	var buf bytes.Buffer
-	mount.SaveFSTab(&buf, []mount.Entry{
-		{"name-1", "dir-1", "type-1", []string{"options-1"}, 1, 1},
-		{"name-2", "dir-2", "type-2", []string{"options-2"}, 2, 2},
-	})
-	c.Assert(buf.String(), Equals, ("" +
-		"name-1 dir-1 type-1 options-1 1 1\n" +
-		"name-2 dir-2 type-2 options-2 2 2\n"))
 }
 
 // Test (string) options -> (int) flag conversion code.
