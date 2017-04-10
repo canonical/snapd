@@ -572,6 +572,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"on-classic": true,
 		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

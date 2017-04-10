@@ -762,6 +762,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			bad.issues[plugName] = "unknown interface"
 			continue
 		}
+		// Reject plug with invalid name
+		if err := ValidateName(plugName); err != nil {
+			bad.issues[plugName] = err.Error()
+			continue
+		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := iface.SanitizePlug(plug); err != nil {
 			bad.issues[plugName] = err.Error()
@@ -777,6 +782,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
 			bad.issues[slotName] = "unknown interface"
+			continue
+		}
+		// Reject slot with invalid name
+		if err := ValidateName(slotName); err != nil {
+			bad.issues[slotName] = err.Error()
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
