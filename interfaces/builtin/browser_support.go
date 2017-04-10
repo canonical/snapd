@@ -58,7 +58,7 @@ deny dbus (send)
 
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* mrw,
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
