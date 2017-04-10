@@ -59,8 +59,16 @@ func readCmdline(buf []byte) C.ssize_t {
 	return C.read_cmdline((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(cap(buf)))
 }
 
+// findArgv0 parses the argv-like array and finds the 0st argument.
+func findArgv0(buf []byte) *string {
+	if ptr := C.find_argv0((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))); ptr != nil {
+		str := C.GoString(ptr)
+		return &str
+	}
+	return nil
+}
+
 // findSnapName parses the argv-like array and finds the 1st argument.
-// Subsequent arguments are spearated by NUL-bytes.
 func findSnapName(buf []byte) *string {
 	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))); ptr != nil {
 		str := C.GoString(ptr)

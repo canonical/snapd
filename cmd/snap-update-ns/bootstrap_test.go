@@ -80,6 +80,21 @@ func (s *bootstrapSuite) TestFindSnapName5(c *C) {
 	c.Assert(result, Equals, (*string)(nil))
 }
 
+// Check that if argv0 is returned as expected
+func (s *bootstrapSuite) TestFindArgv0(c *C) {
+	buf := []byte("arg0\x00argv1\x00")
+	result := update.FindArgv0(buf)
+	c.Assert(result, NotNil)
+	c.Assert(*result, Equals, "arg0")
+}
+
+// Check that if argv0 is unterminated we return NULL.
+func (s *bootstrapSuite) TestFindArgv0Unterminated(c *C) {
+	buf := []byte("arg0")
+	result := update.FindArgv0(buf)
+	c.Assert(result, Equals, (*string)(nil))
+}
+
 // Check that PartiallyValidateSnapName rejects "/" and "..".
 func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
 	c.Assert(update.PartiallyValidateSnapName("hello-world"), Equals, 0)
@@ -87,7 +102,7 @@ func (s *bootstrapSuite) TestPartiallyValidateSnapName(c *C) {
 	c.Assert(update.PartiallyValidateSnapName("hello..world"), Equals, -1)
 }
 
-// Check that pre-go bootstrap code is disabled by default
+// Check that pre-go bootstrap code is disabled while testing.
 func (s *bootstrapSuite) TestBootstrapDisabled(c *C) {
-	c.Assert(update.BootstrapError(), ErrorMatches, "bootstrap is not enabled, set SNAPD_INTERNAL=.*")
+	c.Assert(update.BootstrapError(), ErrorMatches, "bootstrap is not enabled while testing")
 }
