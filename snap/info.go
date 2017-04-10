@@ -559,8 +559,6 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info.renameClashingCorePlugs()
-
 	return info, nil
 }
 
@@ -586,8 +584,6 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	info.renameClashingCorePlugs()
 
 	err = Validate(info)
 	if err != nil {
