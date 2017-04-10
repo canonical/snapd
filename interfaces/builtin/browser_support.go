@@ -195,7 +195,7 @@ owner @{PROC}/@{pid}/gid_map rw,
 owner /{dev,run}/shm/WK2SharedMemory.* rw,
 
 # Chromium content api on (at least) later versions of Ubuntu just use this
-/dev/shm/shmfd-* rw,
+owner /{dev,run}/shm/shmfd-* rw,
 `
 
 const browserSupportConnectedPlugSecComp = `
