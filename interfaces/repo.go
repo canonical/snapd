@@ -537,17 +537,24 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
 		return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
 	}
-	// Collect all the relevant connections
+	// Collect all the relevant connections but be on the lookout for duplicates.
+	seen := make(map[ConnRef]bool)
 	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
 		for _, slotRef := range plug.Connections {
 			connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
-			conns = append(conns, connRef)
+			if !seen[connRef] {
+				conns = append(conns, connRef)
+				seen[connRef] = true
+			}
 		}
 	}
 	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
 		for _, plugRef := range slot.Connections {
 			connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
-			conns = append(conns, connRef)
+			if !seen[connRef] {
+				conns = append(conns, connRef)
+				seen[connRef] = true
+			}
 		}
 	}
 	return conns, nil
