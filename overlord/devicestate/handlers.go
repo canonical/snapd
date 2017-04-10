@@ -18,24 +18,14 @@
 
 package devicestate
 
-/*
-#cgo pkg-config: openssl
-#include "rsa_generate_key.h"
-*/
-import "C"
-
 import (
 	"bytes"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
-	"unsafe"
 
 	"gopkg.in/tomb.v2"
 
@@ -77,41 +67,6 @@ var (
 	serialRequestURL        = deviceAPIBase + "devices"
 )
 
-func rsaGenerateKey() (*rsa.PrivateKey, error) {
-	var privateKey C.SnapdRSAKeyGenerationBuffer
-
-	switch C.snapd_rsa_generate_key(C.uint64_t(keyLength), &privateKey) {
-	case C.SNAPD_RSA_KEY_GENERATION_SEED_FAILURE:
-		return nil, errors.New("cannot generate RSA key: RNG not seeded")
-	case C.SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE:
-		return nil, errors.New("cannot generate RSA key: could not allocate memory")
-	case C.SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
-		return nil, errors.New("cannot generate RSA key")
-	case C.SNAPD_RSA_KEY_GENERATION_IO_FAILURE:
-		return nil, errors.New("cannot generate RSA key: could not persist keys")
-	case C.SNAPD_RSA_KEY_GENERATION_SUCCESS:
-		break
-	}
-
-	defer C.free(unsafe.Pointer(privateKey.memory))
-	blk, _ := pem.Decode(C.GoBytes(unsafe.Pointer(privateKey.memory), C.int(privateKey.size)))
-	if blk == nil {
-		return nil, errors.New("cannot decode PEM block")
-	}
-
-	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	err = key.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	return key, err
-}
-
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -127,7 +82,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	keyPair, err := rsaGenerateKey()
+	keyPair, err := generateRSAKey(keyLength)
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}
