@@ -109,7 +109,7 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app2")
-	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
 	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
@@ -142,7 +142,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
-	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(snippet, Not(testutil.Contains), `capability sys_admin,`)
 	c.Assert(snippet, testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
@@ -174,7 +174,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
-	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(snippet, testutil.Contains, `# Description: Can access various APIs needed by modern browsers`)
 	c.Assert(snippet, testutil.Contains, `ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 	c.Assert(snippet, Not(testutil.Contains), `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
