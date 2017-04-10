@@ -199,7 +199,7 @@ owner /{dev,run}/shm/shmfd-* rw,
 `
 
 const browserSupportConnectedPlugSecComp = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
