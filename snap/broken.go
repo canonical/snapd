@@ -62,3 +62,17 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 
 	return out
 }
+
+// renameClashingCorePlugs renames plugs that clash with slot names on core snap.
+//
+// Some released core snaps had explicitly defined plugs "network-bind" and
+// "core-support" that clashed with implicit slots with the same names but this
+// was not validated before.  To avoid a flag day and any potential issues,
+// transparently rename the two clashing plugs by appending the "-plug" suffix.
+func (info *Info) renameClashingCorePlugs() {
+	if info.Name() == "core" && info.Type == TypeOS {
+		for _, plugName := range []string{"network-bind", "core-support"} {
+			info.RenamePlug(plugName, plugName+"-plug")
+		}
+	}
+}
