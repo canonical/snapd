@@ -30,8 +30,8 @@ typedef enum {
 } SnapdRSAKeyGenerationResult;
 
 typedef struct {
-  char *memory;
-  size_t size;
+    char *memory;
+    size_t size;
 } SnapdRSAKeyGenerationBuffer;
 
 SnapdRSAKeyGenerationResult snapd_rsa_generate_key(uint64_t bits, SnapdRSAKeyGenerationBuffer *private_key);
