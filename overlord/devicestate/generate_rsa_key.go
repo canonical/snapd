@@ -42,8 +42,8 @@ func generateRSAKey(keyLength uint64) (*rsa.PrivateKey, error) {
 		return nil, errors.New("cannot generate RSA key: could not allocate memory")
 	case C.SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
 		return nil, errors.New("cannot generate RSA key")
-	case C.SNAPD_RSA_KEY_GENERATION_IO_FAILURE:
-		return nil, errors.New("cannot generate RSA key: could not persist keys")
+	case C.SNAPD_RSA_KEY_GENERATION_MARSHAL_FAILURE:
+		return nil, errors.New("cannot generate RSA key: could not marshal key")
 	case C.SNAPD_RSA_KEY_GENERATION_SUCCESS:
 		break
 	}
