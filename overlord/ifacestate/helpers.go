@@ -171,12 +171,13 @@ func (m *InterfaceManager) renameCorePlugConnections() error {
 		oldPlugRef := interfaces.PlugRef{Snap: "core", Name: plugName}
 		oldConnRef := interfaces.ConnRef{PlugRef: oldPlugRef, SlotRef: slotRef}
 		oldID := oldConnRef.ID()
-		// new connection
-		newPlugRef := interfaces.PlugRef{Snap: "core", Name: plugName + "-plug"}
-		newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
-		newID := newConnRef.ID()
 		// if the old connection is saved, replace it with the new connection
 		if cState, ok := conns[oldID]; ok {
+			// new connection
+			newPlugRef := interfaces.PlugRef{Snap: "core", Name: plugName + "-plug"}
+			newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
+			newID := newConnRef.ID()
+
 			delete(conns, oldID)
 			conns[newID] = cState
 			changed = true
