@@ -135,8 +135,8 @@ type SnapState struct {
 	Channel string        `json:"channel,omitempty"`
 	Flags
 	// aliases, see aliasesv2.go
-	Aliases       map[string]*AliasTarget `json:"aliases,omitempty"`
-	AliasesStatus AliasesStatus           `json:"aliases-status,omitempty"`
+	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
+	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
