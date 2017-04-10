@@ -374,6 +374,80 @@ func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
+func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	// our mock download content
+	buf := make([]byte, 50000)
+	for i := range buf {
+		buf[i] = 'x'
+	}
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBuffer(buf))
+
+	// raise an EOF shortly before the end and send the WRONG content next
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		case 1:
+			w.Header().Add("Content-Length", fmt.Sprintf("%d", len(buf)))
+			w.Write(buf[0 : len(buf)-5])
+			mockServer.CloseClientConnections()
+		case 2:
+			io.WriteString(w, "yyyyy")
+		case 3:
+			w.Write(buf)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, buf)
+
+	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "something invalid")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = "invalid-hash"
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+
+	_, ok := err.(HashError)
+	c.Assert(ok, Equals, true)
+	// ensure we only retried once (as these downloads might be big)
+	c.Assert(n, Equals, 2)
+}
+
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	partialContentStr := "partial content "
 
