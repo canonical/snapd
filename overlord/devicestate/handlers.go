@@ -60,11 +60,11 @@ func deviceAPIBaseURL() string {
 }
 
 var (
-	keyLength        uint64 = 4096
-	retryInterval           = 60 * time.Second
-	deviceAPIBase           = deviceAPIBaseURL()
-	requestIDURL            = deviceAPIBase + "request-id"
-	serialRequestURL        = deviceAPIBase + "devices"
+	keyLength        = 4096
+	retryInterval    = 60 * time.Second
+	deviceAPIBase    = deviceAPIBaseURL()
+	requestIDURL     = deviceAPIBase + "request-id"
+	serialRequestURL = deviceAPIBase + "devices"
 )
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {

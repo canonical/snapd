@@ -32,7 +32,7 @@ import (
 	"unsafe"
 )
 
-func generateRSAKey(keyLength uint64) (*rsa.PrivateKey, error) {
+func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 	var privateKey C.SnapdRSAKeyGenerationBuffer
 
 	switch C.snapd_rsa_generate_key(C.uint64_t(keyLength), &privateKey) {
