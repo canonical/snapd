@@ -33,7 +33,7 @@ SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} snapd.refresh.timer snapd.socket
 all: ${SYSTEMD_UNITS}
 
 install: $(SYSTEMD_UNITS)
-	$(foreach u,$^,install -D -m 0644 ${u} ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR}/${u};)
+	install -D -m 0644 -t ${DESTDIR}/${SYSTEMDSYSTEMUNITDIR} $^
 
 clean:
 	rm -f ${SYSTEMD_UNITS_GENERATED}

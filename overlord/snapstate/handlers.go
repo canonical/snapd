@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -148,10 +147,6 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// report this error to an error tracker
-	if osutil.GetenvBool("SNAPPY_TESTING") {
-		return nil
-	}
 	if snapsup.SideInfo == nil || snapsup.SideInfo.RealName == "" {
 		return nil
 	}
