@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,9 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const browserSupportConnectedPlugAppArmor = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
@@ -49,6 +48,9 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
+
+# Chromium content api in gnome-shell reads this
+/etc/opt/chrome/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -191,10 +193,13 @@ owner @{PROC}/@{pid}/gid_map rw,
 
 # Webkit uses a particular SHM names # LP: 1578217
 owner /{dev,run}/shm/WK2SharedMemory.* rw,
+
+# Chromium content api on (at least) later versions of Ubuntu just use this
+owner /{dev,run}/shm/shmfd-* rw,
 `
 
 const browserSupportConnectedPlugSecComp = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
