@@ -77,7 +77,7 @@ SnapdRSAKeyGenerationResult snapd_rsa_generate_key(uint64_t bits, SnapdRSAKeyGen
     BIO_set_mem_buf(bp_private, BUF_MEM_new(), BIO_CLOSE);
 
     if (PEM_write_bio_RSAPrivateKey(bp_private, rsa, empty_cipher, empty_passphrase, empty_passphrase_len, NULL, NULL) != 1) {
-        result = SNAPD_RSA_KEY_GENERATION_IO_FAILURE;
+        result = SNAPD_RSA_KEY_GENERATION_MARSHAL_FAILURE;
         goto free_all;
     }
 
