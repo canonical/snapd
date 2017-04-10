@@ -57,6 +57,19 @@ ssize_t read_cmdline(char* buf, size_t buf_size)
     return num_read;
 }
 
+// find_argv0 scans the command line buffer and looks for the 0st argument.
+const char*
+find_argv0(char* buf, size_t num_read)
+{
+    // cmdline is an array of NUL ('\0') separated strings.
+    size_t argv0_len = strnlen(buf, num_read);
+    if (argv0_len == num_read) {
+        // ensure that the buffer is properly terminated.
+        return NULL;
+    }
+    return buf;
+}
+
 // find_snap_name scans the command line buffer and looks for the 1st argument.
 // if the 1st argument exists but is empty NULL is returned.
 const char*
@@ -127,25 +140,28 @@ int partially_validate_snap_name(const char* snap_name)
 // on command line.
 void bootstrap(void)
 {
-// NOTE: This lets us use cgo/go to write tests without running the bulk
-// of the code automatically. In snapd we can just set the required
-// environment variable.
-#define TRIGGER_KEY "SNAPD_INTERNAL"
-#define TRIGGER_VAL "x-switch-namespace=1,"
-    const char* snapd_internal = getenv(TRIGGER_KEY);
-    if (snapd_internal == NULL || strstr(snapd_internal, TRIGGER_VAL) == NULL) {
-        bootstrap_errno = 0;
-        bootstrap_msg = "bootstrap is not enabled, set " TRIGGER_KEY "=" TRIGGER_VAL;
-        return;
-    }
-#undef TRIGGER_KEY
-#undef TRIGGER_VAL
-
     // We don't have argc/argv so let's imitate that by reading cmdline
     char cmdline[1024];
     memset(cmdline, 0, sizeof cmdline);
     ssize_t num_read;
     if ((num_read = read_cmdline(cmdline, sizeof cmdline)) < 0) {
+        return;
+    }
+
+    // Find the name of the called program. If it is ending with "-test" then do nothing.
+    // NOTE: This lets us use cgo/go to write tests without running the bulk
+    // of the code automatically. In snapd we can just set the required
+    // environment variable.
+    const char* argv0 = find_argv0(cmdline, (size_t)num_read);
+    if (argv0 == NULL) {
+        bootstrap_errno = 0;
+        bootstrap_msg = "argv0 is corrupted";
+        return;
+    }
+    const char* argv0_suffix_maybe = strstr(argv0, ".test");
+    if (argv0_suffix_maybe != NULL && argv0_suffix_maybe[strlen(".test")] == '\0') {
+        bootstrap_errno = 0;
+        bootstrap_msg = "bootstrap is not enabled while testing";
         return;
     }
 
