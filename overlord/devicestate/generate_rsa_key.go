@@ -18,38 +18,45 @@
 
 package devicestate
 
-/*
-#cgo pkg-config: openssl
-#include "rsa_generate_key.h"
-*/
-import "C"
-
 import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"unsafe"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"strconv"
+
+	"github.com/snapcore/snapd/osutil"
+)
+
+var (
+	sshKeyFile       = "snapd.key.tmp"
+	sshPublicKeyFile = sshKeyFile + ".pub"
 )
 
 func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
-	var privateKey C.SnapdRSAKeyGenerationBuffer
+	defer func() {
+		os.Remove(sshKeyFile)
+		os.Remove(sshPublicKeyFile)
+	}()
 
-	switch C.snapd_rsa_generate_key(C.uint64_t(keyLength), &privateKey) {
-	case C.SNAPD_RSA_KEY_GENERATION_SEED_FAILURE:
-		return nil, errors.New("cannot generate RSA key: RNG not seeded")
-	case C.SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE:
-		return nil, errors.New("cannot generate RSA key: could not allocate memory")
-	case C.SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
-		return nil, errors.New("cannot generate RSA key")
-	case C.SNAPD_RSA_KEY_GENERATION_MARSHAL_FAILURE:
-		return nil, errors.New("cannot generate RSA key: could not marshal key")
-	case C.SNAPD_RSA_KEY_GENERATION_SUCCESS:
-		break
+	os.Remove(sshKeyFile)
+	os.Remove(sshPublicKeyFile)
+
+	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.FormatInt(int64(keyLength), 10), "-N", "", "-f", sshKeyFile)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, osutil.OutputErr(out, err)
 	}
 
-	defer C.free(unsafe.Pointer(privateKey.memory))
-	blk, _ := pem.Decode(C.GoBytes(unsafe.Pointer(privateKey.memory), C.int(privateKey.size)))
+	d, err := ioutil.ReadFile(sshKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	blk, _ := pem.Decode(d)
 	if blk == nil {
 		return nil, errors.New("cannot decode PEM block")
 	}
