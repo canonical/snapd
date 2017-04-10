@@ -82,13 +82,13 @@ func rsaGenerateKey() (*rsa.PrivateKey, error) {
 
 	switch C.snapd_rsa_generate_key(C.uint64_t(keyLength), &privateKey) {
 	case C.SNAPD_RSA_KEY_GENERATION_SEED_FAILURE:
-		return nil, errors.New("Failed to generate RSA key: RNG not seeded.")
+		return nil, errors.New("cannot generate RSA key: RNG not seeded")
 	case C.SNAPD_RSA_KEY_GENERATION_ALLOCATION_FAILURE:
-		return nil, errors.New("Failed to generate RSA key: Could not allocate memory.")
+		return nil, errors.New("cannot generate RSA key: could not allocate memory")
 	case C.SNAPD_RSA_KEY_GENERATION_KEY_GENERATION_FAILURE:
-		return nil, errors.New("Failed to generate RSA key.")
+		return nil, errors.New("cannot generate RSA key")
 	case C.SNAPD_RSA_KEY_GENERATION_IO_FAILURE:
-		return nil, errors.New("Failed to generate RSA key: Could not persist keys.")
+		return nil, errors.New("cannot generate RSA key: could not persist keys")
 	case C.SNAPD_RSA_KEY_GENERATION_SUCCESS:
 		break
 	}
@@ -96,7 +96,7 @@ func rsaGenerateKey() (*rsa.PrivateKey, error) {
 	defer C.free(unsafe.Pointer(privateKey.memory))
 	blk, _ := pem.Decode(C.GoBytes(unsafe.Pointer(privateKey.memory), C.int(privateKey.size)))
 	if blk == nil {
-		return nil, errors.New("Failed to decode PEM block")
+		return nil, errors.New("cannot decode PEM block")
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(blk.Bytes)
