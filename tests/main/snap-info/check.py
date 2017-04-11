@@ -69,8 +69,6 @@ check("test-snapd-tools", res[2],
    ("refreshed", exists),
    ("channels", check,
     ("latest/stable", matches, verRevNotesRx("-")),
-    ("latest/candidate", matches, verRevNotesRx("-")),
-    ("latest/beta", matches, verRevNotesRx("-")),
     ("latest/edge", matches, verRevNotesRx("-")),
    ),
 )
