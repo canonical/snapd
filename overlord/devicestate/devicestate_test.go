@@ -72,7 +72,10 @@ type deviceMgrSuite struct {
 	restoreOnClassic func()
 }
 
-var _ = Suite(&deviceMgrSuite{})
+var (
+	_             = Suite(&deviceMgrSuite{})
+	testKeyLength = 1024
+)
 
 type fakeStore struct {
 	state *state.State
@@ -134,7 +137,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	rootPrivKey, _ := assertstest.GenerateKey(testKeyLength)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
 	s.state = state.New(nil)
@@ -291,7 +294,7 @@ func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents str
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
-	r1 := devicestate.MockKeyLength(752)
+	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
 	s.reqID = "REQID-1"
@@ -363,7 +366,7 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
-	privKey, _ := assertstest.GenerateKey(1024)
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
 	s.reqID = "REQID-1"
 	mockServer := s.mockServer(c)
@@ -432,7 +435,7 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
-	privKey, _ := assertstest.GenerateKey(1024)
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
 	s.reqID = "REQID-1"
 	mockServer := s.mockServer(c)
@@ -501,7 +504,7 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
-	r1 := devicestate.MockKeyLength(752)
+	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
 	s.reqID = "REQID-POLL"
@@ -577,7 +580,7 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) {
-	r1 := devicestate.MockKeyLength(752)
+	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
 	s.reqID = "REQID-1"
@@ -679,7 +682,7 @@ hooks:
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
-	r1 := devicestate.MockKeyLength(752)
+	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
 	s.reqID = "REQID-BADREQ"
@@ -884,7 +887,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 
 	// setup state as done by device initialisation
 	s.state.Lock()
-	devKey, _ := assertstest.GenerateKey(1024)
+	devKey, _ := assertstest.GenerateKey(testKeyLength)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Check(err, IsNil)
 	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
