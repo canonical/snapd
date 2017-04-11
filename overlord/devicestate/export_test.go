@@ -27,10 +27,11 @@ import (
 )
 
 func MockKeyLength(n int) (restore func()) {
-	oldKeyLength := keyLength
 	if n < 1024 {
-		n = 1024
+		panic("key length must be >= 1024")
 	}
+
+	oldKeyLength := keyLength
 	keyLength = n
 	return func() {
 		keyLength = oldKeyLength
