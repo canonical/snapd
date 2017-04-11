@@ -1745,7 +1745,7 @@ version: 1
 type: os
 `
 
-var coreYaml = `name: ubuntu-core
+var coreYaml = `name: core
 version: 1
 type: os
 `
@@ -1840,4 +1840,27 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 			"interface": "network", "auto": true,
 		},
 	})
+}
+
+// Test that "network-bind" and "core-support" plugs are renamed to
+// "network-bind-plug" and "core-support-plug" in order not to clash with slots
+// with the same names.
+func (s *interfaceManagerSuite) TestAutomaticCorePlugsRenamed(c *C) {
+	s.mockSnap(c, coreYaml+`
+plugs:
+  network-bind:
+  core-support:
+`)
+	mgr := s.manager(c)
+
+	// old plugs are gone
+	c.Assert(mgr.Repository().Plug("core", "network-bind"), IsNil)
+	c.Assert(mgr.Repository().Plug("core", "core-support"), IsNil)
+	// new plugs are present
+	c.Assert(mgr.Repository().Plug("core", "network-bind-plug"), Not(IsNil))
+	c.Assert(mgr.Repository().Plug("core", "core-support-plug"), Not(IsNil))
+	// slots are present and unchanged
+	c.Assert(mgr.Repository().Slot("core", "network-bind"), Not(IsNil))
+	c.Assert(mgr.Repository().Slot("core", "core-support"), Not(IsNil))
+
 }
