@@ -30,6 +30,7 @@
     /dev/random r,
     /dev/urandom r,
     /dev/pts/[0-9]* rw,
+    /dev/tty rw,
 
     # cgroups
     capability sys_admin,
