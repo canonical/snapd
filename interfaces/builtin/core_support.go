@@ -79,7 +79,9 @@ owner /boot/uboot/config.txt.tmp rwk,
 func NewCoreSupportInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "core-support",
-		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor,
+		// NOTE: cure-support implicitly contains the rules from network-bind.
+		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
+		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

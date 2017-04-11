@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,22 @@
  *
  */
 
-package snap
+package mount
 
-var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
-)
-
-func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
-	old := supportedHooks
-	supportedHooks = hookTypes
-	return func() { supportedHooks = old }
-}
-
-func (info *Info) RenamePlug(oldName, newName string) {
-	info.renamePlug(oldName, newName)
+// InfoEntry contains data from /proc/$PID/mountinfo
+//
+// For details please refer to mountinfo documentation at
+// https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+type InfoEntry struct {
+	MountID      int
+	ParentID     int
+	DevMajor     int
+	DevMinor     int
+	Root         string
+	MountDir     string
+	MountOpts    string
+	OptionalFlds string
+	FsType       string
+	MountSource  string
+	SuperOpts    string
 }
