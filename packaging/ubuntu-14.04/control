@@ -61,6 +61,7 @@ Depends: adduser,
          cgroup-lite,
          gnupg1 | gnupg,
          linux-generic-lts-xenial,
+         openssh-client,
          squashfs-tools,
 # only needed on trusty to pull in the right version.
          sudo (>= 1.8.9p5-1ubuntu1.3),
