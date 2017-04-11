@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,14 @@
  *
  */
 
-package snap
+package mount_test
 
-var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
+import (
+	. "gopkg.in/check.v1"
+
+	_ "github.com/snapcore/snapd/interfaces/mount"
 )
 
-func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
-	old := supportedHooks
-	supportedHooks = hookTypes
-	return func() { supportedHooks = old }
-}
+type mountinfoSuite struct{}
 
-func (info *Info) RenamePlug(oldName, newName string) {
-	info.renamePlug(oldName, newName)
-}
+var _ = Suite(&mountinfoSuite{})

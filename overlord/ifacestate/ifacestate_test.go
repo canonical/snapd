@@ -667,8 +667,14 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	return change
 }
 
-var osSnapYaml = `
+var ubuntuCoreSnapYaml = `
 name: ubuntu-core
+version: 1
+type: os
+`
+
+var coreSnapYaml = `
+name: core
 version: 1
 type: os
 `
@@ -704,13 +710,20 @@ slots:
   attr2: value2
 `
 
+var httpdSnapYaml = `name: httpd
+version: 1
+plugs:
+ network:
+  interface: network
+`
+
 // The setup-profiles task will not auto-connect an plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	c.Skip("feature disabled until redesign/reimpl")
 	// Add an OS snap as well as a sample snap with a "network" plug.
 	// The plug is normally auto-connected.
-	s.mockSnap(c, osSnapYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
 	// Initialize the manager. This registers the two snaps.
@@ -749,7 +762,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 // The setup-profiles task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	// Add an OS snap.
-	s.mockSnap(c, osSnapYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Initialize the manager. This registers the OS snap.
 	mgr := s.manager(c)
@@ -796,7 +809,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Mock the interface that will be used by the test
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// Add an OS snap.
-	s.mockSnap(c, osSnapYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
 	// Add a consumer snap with unconnect plug (interface "test")
 	s.mockSnap(c, consumerYaml)
 
@@ -920,7 +933,7 @@ slots:
 // operates on or auto-connects to and will leave other state intact.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
 	// Add an OS snap in place.
-	s.mockSnap(c, osSnapYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Initialize the manager. This registers the two snaps.
 	mgr := s.manager(c)
@@ -976,7 +989,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	mgr := s.manager(c)
 
 	// Add an OS snap.
-	snapInfo := s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Run the setup-profiles task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
@@ -1096,7 +1109,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 // of the affected set.
 func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// Put the OS and the sample snaps in place.
-	coreSnapInfo := s.mockSnap(c, osSnapYaml)
+	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 	oldSnapInfo := s.mockSnap(c, sampleSnapYaml)
 
 	// Put connection information between the OS snap and the sample snap.
@@ -1151,7 +1164,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 // setup-profiles needs to setup security for connected slots after autoconnection
 func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c *C) {
 	// Add an OS snap.
-	coreSnapInfo := s.mockSnap(c, osSnapYaml)
+	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Initialize the manager. This registers the OS snap.
 	mgr := s.manager(c)
@@ -1646,7 +1659,7 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
-	snapInfo := s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1740,26 +1753,9 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 }
 
-var ubuntuCoreYaml = `name: ubuntu-core
-version: 1
-type: os
-`
-
-var coreYaml = `name: ubuntu-core
-version: 1
-type: os
-`
-
-var httpdSnapYaml = `name: httpd
-version: 1
-plugs:
- network:
-  interface: network
-`
-
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
-	s.mockSnap(c, ubuntuCoreYaml)
-	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
 	mgr := s.manager(c)
@@ -1797,8 +1793,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
-	s.mockSnap(c, ubuntuCoreYaml)
-	s.mockSnap(c, coreYaml)
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, httpdSnapYaml)
 
 	mgr := s.manager(c)
@@ -1840,4 +1836,76 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 			"interface": "network", "auto": true,
 		},
 	})
+}
+
+// Test that "network-bind" and "core-support" plugs are renamed to
+// "network-bind-plug" and "core-support-plug" in order not to clash with slots
+// with the same names.
+func (s *interfaceManagerSuite) TestAutomaticCorePlugsRenamed(c *C) {
+	s.mockSnap(c, coreSnapYaml+`
+plugs:
+  network-bind:
+  core-support:
+`)
+	mgr := s.manager(c)
+
+	// old plugs are gone
+	c.Assert(mgr.Repository().Plug("core", "network-bind"), IsNil)
+	c.Assert(mgr.Repository().Plug("core", "core-support"), IsNil)
+	// new plugs are present
+	c.Assert(mgr.Repository().Plug("core", "network-bind-plug"), Not(IsNil))
+	c.Assert(mgr.Repository().Plug("core", "core-support-plug"), Not(IsNil))
+	// slots are present and unchanged
+	c.Assert(mgr.Repository().Slot("core", "network-bind"), Not(IsNil))
+	c.Assert(mgr.Repository().Slot("core", "core-support"), Not(IsNil))
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
+	// Add both the old and new core snaps
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	s.mockSnap(c, coreSnapYaml)
+
+	// Initialize the manager. This registers both of the core snaps.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a "network" plug which should be auto-connected.
+	// Normally it would not be auto connected because there are multiple
+	// provides but we have special support for this case so the old
+	// ubuntu-core snap is ignored and we pick the new core snap.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "network" is now saved in the state as auto-connected and
+	// that it is connected to the new core snap rather than the old
+	// ubuntu-core snap.
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+
+	// Ensure that "network" is really connected.
+	repo := mgr.Repository()
+	plug := repo.Plug("snap", "network")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Connections, HasLen, 1)
 }

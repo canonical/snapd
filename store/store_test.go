@@ -503,7 +503,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 
 	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `sha3-384 mismatch after patching "foo": got 1234 but expected 5678`)
+	c.Assert(err, ErrorMatches, `sha3-384 mismatch for "foo": got 1234 but expected 5678`)
 	c.Assert(n, Equals, 2)
 }
 

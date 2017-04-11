@@ -23,7 +23,8 @@ AC_SYS_LARGEFILE
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
 AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)],
-[[#define _FILE_OFFSET_BITS 64
+[[#define _GNU_SOURCE
+#define _FILE_OFFSET_BITS 64
 #include <xfs/xqm.h>
 ]])
 

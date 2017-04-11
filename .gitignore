@@ -37,9 +37,9 @@ data/systemd/*.service
 *.log
 *.trs
 
-# Automake
-Makefile
-Makefile.in
+# Automake for the cmd/ parts
+cmd/Makefile
+cmd/Makefile.in
 snap-confine-*.tar.gz
 .deps
 
