@@ -47,6 +47,7 @@ var (
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
+	SnapRunDir                string
 	SnapRunNsDir              string
 
 	SnapSeedDir   string
@@ -134,7 +135,8 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
-	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
+	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
+	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")

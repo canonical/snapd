@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -129,6 +130,7 @@ func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
 
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapRunDir, 0755)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
 
