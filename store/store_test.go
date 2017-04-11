@@ -221,6 +221,10 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
+	oldSnapdDebug := os.Getenv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	t.AddCleanup(func() { os.Setenv("SNAPD_DEBUG", oldSnapdDebug) })
+
 	t.logbuf = bytes.NewBuffer(nil)
 	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
 	c.Assert(err, IsNil)
@@ -324,6 +328,50 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	content, err := ioutil.ReadFile(targetFn)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, partialContentStr+"was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+
+	// our mock download content
+	buf := make([]byte, 50000)
+	for i := range buf {
+		buf[i] = 'x'
+	}
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBuffer(buf))
+
+	// raise an EOF shortly before the end
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n < 2 {
+			w.Header().Add("Content-Length", fmt.Sprintf("%d", len(buf)))
+			w.Write(buf[0 : len(buf)-5])
+			mockServer.CloseClientConnections()
+			return
+		}
+		w.Write(buf[len(buf)-5:])
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(targetFn)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, buf)
+
+	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
