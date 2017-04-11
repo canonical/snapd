@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -300,7 +301,15 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
 		if len(candidates) != 1 {
+			crefs := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				crefs = append(crefs, candidate.Ref().String())
+			}
+			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug.Ref(), strings.Join(crefs, ", "))
 			continue
 		}
 		slot := candidates[0]
@@ -308,6 +317,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
+			task.Logf("cannot auto connect %s to %s: (plug auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
@@ -324,7 +334,15 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
 		if len(candidates) != 1 {
+			crefs := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				crefs = append(crefs, candidate.Ref().String())
+			}
+			task.Logf("cannot auto connect %s (slot auto-connection), candidates found: %q", slot.Ref(), strings.Join(crefs, ", "))
 			continue
 		}
 		plug := candidates[0]
@@ -332,6 +350,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
+			task.Logf("cannot auto connect %s to %s: (slot auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
