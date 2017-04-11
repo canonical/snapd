@@ -344,7 +344,7 @@ var defaultTemplate = `
   # access in /dev/shm for shm_open() and files in subdirectories for open()
   /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
   # Also allow app-specific access for sem_open()
-  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* rwk,
+  /{dev,run}/shm/sem.snap.@{SNAP_NAME}.* mrwk,
 
   # Snap-specific XDG_RUNTIME_DIR that is based on the UID of the user
   owner /run/user/[0-9]*/snap.@{SNAP_NAME}/   rw,
