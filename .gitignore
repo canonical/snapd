@@ -30,13 +30,16 @@ cmd/system-shutdown/unit-tests
 # manual pages
 cmd/*/*.[1-9]
 
+# auto-generated systemd units
+data/systemd/*.service
+
 # test-driver
 *.log
 *.trs
 
-# Automake
-Makefile
-Makefile.in
+# Automake for the cmd/ parts
+cmd/Makefile
+cmd/Makefile.in
 snap-confine-*.tar.gz
 .deps
 

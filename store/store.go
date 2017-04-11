@@ -1226,7 +1226,7 @@ type HashError struct {
 }
 
 func (e HashError) Error() string {
-	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
 // Download downloads the snap addressed by download info and returns its
