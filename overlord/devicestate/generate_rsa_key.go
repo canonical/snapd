@@ -26,17 +26,17 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	sshKeyFile       = "snapd.key.tmp"
-	sshPublicKeyFile = sshKeyFile + ".pub"
-)
-
 func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
+	sshKeyFile       := filepath.Join(dirs.SnapRunDir, "snapd.key.tmp")
+	sshPublicKeyFile := sshKeyFile + ".pub"
+
 	defer func() {
 		os.Remove(sshKeyFile)
 		os.Remove(sshPublicKeyFile)
