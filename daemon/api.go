@@ -1280,7 +1280,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	flags.RemoveSnapPath = true
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1288,6 +1287,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
+	flags.RemoveSnapPath = true
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
