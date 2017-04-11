@@ -78,3 +78,6 @@ execute: |
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     echo "Ensure the webserver is working after a snap restart"
     curl http://localhost | MATCH "XKCD rocks"
+
+    echo "Ensure interfaces are connected"
+    snap interfaces | MATCH ":core-support.*core:core-support-plug"
