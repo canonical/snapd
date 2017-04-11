@@ -43,8 +43,8 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
-owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
+owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
+owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
@@ -192,10 +192,10 @@ owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
 
 # Webkit uses a particular SHM names # LP: 1578217
-owner /{dev,run}/shm/WK2SharedMemory.* rw,
+owner /{dev,run}/shm/WK2SharedMemory.* mrw,
 
 # Chromium content api on (at least) later versions of Ubuntu just use this
-owner /{dev,run}/shm/shmfd-* rw,
+owner /{dev,run}/shm/shmfd-* mrw,
 `
 
 const browserSupportConnectedPlugSecComp = `
