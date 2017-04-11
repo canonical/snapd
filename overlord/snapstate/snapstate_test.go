@@ -5557,7 +5557,6 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
 name: canonical-pc
 type: gadget
 `
-
 	var mockGadgetYaml = []byte(`
 defaults:
   other:
@@ -5592,11 +5591,10 @@ volumes:
 
 	var contextData map[string]interface{}
 	contextData = map[string]interface{}{"patch": gi.Defaults}
-	summary := fmt.Sprintf("Run configure hook of %q snap if present", snapName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Assert(hookstate.HookTask(s.state, summary, hooksup, contextData), NotNil)
+	c.Assert(hookstate.HookTask(s.state, "", hooksup, contextData), NotNil)
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
