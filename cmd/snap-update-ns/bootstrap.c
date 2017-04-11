@@ -83,7 +83,7 @@ find_snap_name(char* buf, size_t num_read)
         return NULL;
     }
     char* snap_name = &buf[argv0_len + 1];
-    if (snap_name != NULL && *snap_name == '\0') {
+    if (*snap_name == '\0') {
         return NULL;
     }
     return snap_name;
