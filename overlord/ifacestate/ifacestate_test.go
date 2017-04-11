@@ -1842,7 +1842,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 // "network-bind-plug" and "core-support-plug" in order not to clash with slots
 // with the same names.
 func (s *interfaceManagerSuite) TestAutomaticCorePlugsRenamed(c *C) {
-	s.mockSnap(c, coreYaml+`
+	s.mockSnap(c, coreSnapYaml+`
 plugs:
   network-bind:
   core-support:
