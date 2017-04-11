@@ -42,6 +42,8 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 		os.Remove(sshPublicKeyFile)
 	}()
 
+	os.MkdirAll(dirs.SnapRunDir, 0755)
+
 	os.Remove(sshKeyFile)
 	os.Remove(sshPublicKeyFile)
 
