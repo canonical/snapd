@@ -95,6 +95,14 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
+	for k, v := range gi.Defaults {
+		dflt, err := normalizeYamlValue(v)
+		if err != nil {
+			return nil, err
+		}
+		gi.Defaults[k] = dflt.(map[string]interface{})
+	}
+
 	if classic && len(gi.Volumes) == 0 {
 		// volumes can be left out on classic
 		// can still specify defaults though
