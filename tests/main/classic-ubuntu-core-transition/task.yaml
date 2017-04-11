@@ -71,7 +71,7 @@ execute: |
         exit 1
     fi
     snap interfaces | MATCH ":network +test-snapd-python-webserver"
-    snap interfaces | MATCH ":network-bind +core:network-bind-plug,test-snapd-python-webserver"
+    snap interfaces | MATCH ":network-bind +test-snapd-python-webserver" 
     echo "Ensure the webserver is still working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
