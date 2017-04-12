@@ -30,22 +30,18 @@ import (
 
 func (s *SnapSuite) TestAliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] alias [alias-OPTIONS] [<snap>] [<alias>...]
+  snap.test [OPTIONS] alias [<snap.app>] [<alias>]
 
-The alias command enables the given application aliases defined by the snap.
+The alias command aliases the given snap application to the given alias.
 
-Once enabled the respective application commands can be invoked just using the
-aliases.
+Once this manual alias is setup the respective application command can be
+invoked just using the alias.
 
 Application Options:
-      --version      Print the version and exit
+      --version         Print the version and exit
 
 Help Options:
-  -h, --help         Show this help message
-
-[alias command options]
-          --reset    Reset the aliases to their default state, enabled for
-                     automatic aliases, disabled otherwise
+  -h, --help            Show this help message
 `
 	rest, err := Parser().ParseArgs([]string{"alias", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -58,9 +54,10 @@ func (s *SnapSuite) TestAlias(c *C) {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
 			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action":  "alias",
-				"snap":    "alias-snap",
-				"aliases": []interface{}{"alias1", "alias2"},
+				"action": "alias",
+				"snap":   "alias-snap",
+				"target": "cmd1",
+				"alias":  "alias1",
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
@@ -70,30 +67,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
-	rest, err := Parser().ParseArgs([]string{"alias", "alias-snap", "alias1", "alias2"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestAliasReset(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/aliases":
-			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action":  "reset",
-				"snap":    "alias-snap",
-				"aliases": []interface{}{"alias1", "alias2"},
-			})
-			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
-		case "/v2/changes/zzz":
-			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	})
-	rest, err := Parser().ParseArgs([]string{"alias", "--reset", "alias-snap", "alias1", "alias2"})
+	rest, err := Parser().ParseArgs([]string{"alias", "alias-snap.cmd1", "alias1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }

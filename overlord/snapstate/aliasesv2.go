@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -430,6 +431,12 @@ func (m *SnapManager) ensureAliasesV2() error {
 	// the start of wait chains
 	for _, t := range m.state.Tasks() {
 		if t.Kind() == "alias" && !t.Status().Ready() {
+			var param interface{}
+			err := t.Get("aliases", &param)
+			if err == state.ErrNoState {
+				// not the old variant, leave alone
+				continue
+			}
 			t.Errorf("internal representation for aliases has changed, please retry")
 			t.SetStatus(state.ErrorStatus)
 		}
@@ -479,4 +486,57 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	m.state.Set("aliases", nil)
 	return nil
+}
+
+// Alias sets up a manual alias from alias to app in snapName.
+func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error) {
+	if err := snap.ValidateAlias(alias); err != nil {
+		return nil, err
+	}
+
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", snapName)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+		return nil, err
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapName},
+	}
+
+	manualAlias := st.NewTask("alias", fmt.Sprintf(i18n.G("Setup manual alias %q => %q for snap %q"), alias, app, snapsup.Name()))
+	manualAlias.Set("alias", alias)
+	manualAlias.Set("target", app)
+	manualAlias.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(manualAlias), nil
+}
+
+// manualAliases returns newAliases with a manual alias to target setup over
+// curAliases.
+func manualAlias(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
+	if info.Apps[target] == nil {
+		return nil, fmt.Errorf("cannot enable alias %q for %q, target application %q does not exist", alias, info.Name(), target)
+	}
+	newAliases = make(map[string]*AliasTarget, len(curAliases))
+	for alias, aliasTarget := range curAliases {
+		newAliases[alias] = aliasTarget
+	}
+
+	newTarget := newAliases[alias]
+	if newTarget == nil {
+		newAliases[alias] = &AliasTarget{Manual: target}
+	} else {
+		manualTarget := *newTarget
+		manualTarget.Manual = target
+		newAliases[alias] = &manualTarget
+	}
+
+	return newAliases, nil
 }
