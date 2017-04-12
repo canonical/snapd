@@ -52,6 +52,16 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+upgrade_snapd_from_proposed(){
+    apt install -y snapd
+    cp /etc/apt/sources.list sources.list.back
+    echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+    apt update
+    apt install -y --only-upgrade snapd
+    mv sources.list.back /etc/apt/sources.list
+    apt update
+}
+
 prepare_each_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
@@ -69,7 +79,11 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
