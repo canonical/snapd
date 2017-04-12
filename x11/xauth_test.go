@@ -20,7 +20,6 @@
 package x11_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -33,44 +32,41 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type XauthTestSuite struct {}
+type xauthTestSuite struct{}
 
-var _ = Suite(&XauthTestSuite{})
+var _ = Suite(&xauthTestSuite{})
 
-func (s *XauthTestSuite) TestXauthFileNotAvailable(c *C) {
-	n, err := x11.ValidateXauthority("/does/not/exist")
-	c.Assert(n, Equals, 0)
-	c.Assert(err, Not(IsNil))
+func (s *xauthTestSuite) TestXauthFileNotAvailable(c *C) {
+	err := x11.ValidateXauthority("/does/not/exist")
+	c.Assert(err, NotNil)
 }
 
-func (s *XauthTestSuite) TestXauthFileExistsButIsEmpty(c *C) {
+func (s *xauthTestSuite) TestXauthFileExistsButIsEmpty(c *C) {
+	xauthPath, err := x11.MockXauthority(0)
+	c.Assert(err, IsNil)
+	defer os.Remove(xauthPath)
+
+	err = x11.ValidateXauthority(xauthPath)
+	c.Assert(err, ErrorMatches, "Xauthority file is invalid")
+}
+
+func (s *xauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
 	f, err := ioutil.TempFile("", "xauth")
 	c.Assert(err, IsNil)
 	defer os.Remove(f.Name())
 
-	n, err := x11.ValidateXauthority(f.Name())
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 0)
-}
-
-func (s *XauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
-	f, err := ioutil.TempFile("", "xauth")
-	c.Assert(err, IsNil)
-	defer os.Remove(f.Name())
-
-	data := []byte{0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99}
+	data := []byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99}
 	n, err := f.Write(data)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, len(data))
 
-	n, err = x11.ValidateXauthority(f.Name())
-	c.Assert(err, DeepEquals, fmt.Errorf("Could not read enough bytes"))
-	c.Assert(n, Equals, 0)
+	err = x11.ValidateXauthority(f.Name())
+	c.Assert(err, ErrorMatches, "Could not read enough bytes")
 }
 
-func (s *XauthTestSuite) TestValidXauthFile(c *C) {
-	path := x11.MockXauthority(1)
-	n, err := x11.ValidateXauthority(path)
+func (s *xauthTestSuite) TestValidXauthFile(c *C) {
+	path, err := x11.MockXauthority(1)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+	err = x11.ValidateXauthority(path)
+	c.Assert(err, IsNil)
 }

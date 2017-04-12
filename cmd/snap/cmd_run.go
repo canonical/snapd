@@ -42,8 +42,8 @@ import (
 var (
 	syscallExec = syscall.Exec
 	userCurrent = user.Current
-	getEnv = os.Getenv
-	setEnv = os.Setenv
+	osGetenv    = os.Getenv
+	osSetenv    = os.Setenv
 )
 
 type cmdRun struct {
@@ -242,7 +242,7 @@ func migrateXauthority(info *snap.Info) error {
 		return nil
 	}
 
-	xauthPath := getEnv("XAUTHORITY")
+	xauthPath := osGetenv("XAUTHORITY")
 	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
 		// Nothing to do for us. Most likely running outside of any
 		// graphical X11 session.
@@ -256,7 +256,7 @@ func migrateXauthority(info *snap.Info) error {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
-	flags := osutil.CopyFlagSync|osutil.CopyFlagPreserveAll|osutil.CopyFlagOverwrite
+	flags := osutil.CopyFlagSync | osutil.CopyFlagPreserveAll | osutil.CopyFlagOverwrite
 	tmpXauthPath := filepath.Join(tmpDir, "Xauthority")
 	err = osutil.CopyFile(xauthPath, tmpXauthPath, flags)
 	if err != nil {
@@ -269,32 +269,30 @@ func migrateXauthority(info *snap.Info) error {
 	// Only validate Xauthority file again when both files don't match
 	// ohterwise we can continue using the existing Xauthority file
 	if osutil.FileExists(targetPath) && osutil.FilesAreEqual(targetPath, tmpXauthPath) {
-		setEnv("XAUTHORITY", targetPath)
+		osSetenv("XAUTHORITY", targetPath)
 		return nil
 	}
 
-	cookies, err := x11.ValidateXauthority(tmpXauthPath)
-	if err != nil {
-		return err
-	} else if cookies == 0 {
-		// Don't return an error when the Xauthority file doesn't have
-		// any cookies. We simply do nothing and leave the XAUTHORITY
-		// environment variable as it is.
+	// Ensure that we have a valid Xauthority. It is invalid when
+	// either the data can't be parsed or there are no cookies in
+	// the file is invalid.
+	if err := x11.ValidateXauthority(tmpXauthPath); err != nil {
 		return nil
 	}
 
 	if !osutil.FileExists(baseTargetDir) {
-		os.MkdirAll(baseTargetDir, 0700)
+		if err := os.MkdirAll(baseTargetDir, 0700); err != nil {
+			return err
+		}
 	}
 
-	err = osutil.CopyFile(tmpXauthPath, targetPath, flags)
-	if err != nil {
+	if err = osutil.CopyFile(tmpXauthPath, targetPath, flags); err != nil {
 		return err
 	}
 
 	// If everything is ok, we can now point the snap to the new
 	// location of the Xauthority file.
-	setEnv("XAUTHORITY", targetPath)
+	osSetenv("XAUTHORITY", targetPath)
 
 	return nil
 }

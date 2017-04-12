@@ -27,6 +27,9 @@ import (
 	"os"
 )
 
+// See https://cgit.freedesktop.org/xorg/lib/libXau/tree/AuRead.c and
+// https://cgit.freedesktop.org/xorg/lib/libXau/tree/include/X11/Xauth.h
+// for details about the actual file format.
 type xauth struct {
 	Family  uint16
 	Address []byte
@@ -36,15 +39,15 @@ type xauth struct {
 }
 
 func readChunk(f *os.File) ([]byte, error) {
-	b := make([]byte, 2)
-	n, err := f.Read(b)
+	b := [2]byte{}
+	n, err := f.Read(b[:])
 	if err != nil {
 		return nil, err
 	} else if n != 2 {
 		return nil, fmt.Errorf("Could not read enough bytes")
 	}
 
-	size := int(binary.BigEndian.Uint16(b))
+	size := int(binary.BigEndian.Uint16(b[:]))
 	chunk := make([]byte, size)
 	n, err = f.Read(chunk)
 	if err != nil {
@@ -56,13 +59,13 @@ func readChunk(f *os.File) ([]byte, error) {
 	return chunk, nil
 }
 
-func (xa *xauth) ReadFromFile(f *os.File) error {
-	b := make([]byte, 2)
-	_, err := f.Read(b)
+func (xa *xauth) readFromFile(f *os.File) error {
+	b := [2]byte{}
+	_, err := f.Read(b[:])
 	if err != nil {
 		return err
 	}
-	xa.Family = binary.BigEndian.Uint16(b)
+	xa.Family = binary.BigEndian.Uint16(b[:])
 
 	xa.Address, err = readChunk(f)
 	if err != nil {
@@ -87,32 +90,44 @@ func (xa *xauth) ReadFromFile(f *os.File) error {
 	return nil
 }
 
-func ValidateXauthority(path string) (int, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0600)
+// ValidateXauthority validates a given Xauthority file. The file is valid
+// if it can be parsed and contains at least one cookie.
+func ValidateXauthority(path string) error {
+	f, err := os.Open(path)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer f.Close()
 
 	cookies := 0
 	for {
 		xa := &xauth{}
-		err = xa.ReadFromFile(f)
+		err = xa.readFromFile(f)
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return 0, err
+			return err
 		}
 		// FIXME we can do further validation of the cookies like
 		// checking for valid families etc.
 		cookies += 1
 	}
 
-	return cookies, nil
+	if cookies <= 0 {
+		return fmt.Errorf("Xauthority file is invalid")
+	}
+
+	return nil
 }
 
-func MockXauthority(cookies int) string {
-	f, _ := ioutil.TempFile("", "xauth")
+// MockXauthority will create a fake xauthority file and place it
+// on a temporary path which is returned as result.
+func MockXauthority(cookies int) (string, error) {
+	f, err := ioutil.TempFile("", "xauth")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
 	for n := 0; n < cookies; n++ {
 		data := []byte{
 			// Family
@@ -126,8 +141,12 @@ func MockXauthority(cookies int) string {
 			// Data
 			0x00, 0x01, 0xff,
 		}
-		f.Write(data)
+		m, err := f.Write(data)
+		if err != nil {
+			return "", err
+		} else if m != len(data) {
+			return "", fmt.Errorf("Could write cookie")
+		}
 	}
-	f.Close()
-	return f.Name()
+	return f.Name(), nil
 }

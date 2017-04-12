@@ -35,7 +35,8 @@ const x11ConnectedPlugAppArmor = `
 /var/cache/fontconfig/** mr,
 
 # Allow access to the user specific copy of the xauth file specified
-# in the XAUTHORITY environment variable snap run creates on startup.
+# in the XAUTHORITY environment variable, that "snap run" creates on
+# startup.
 owner /run/user/[0-9]*/Xauthority r,
 `
 
