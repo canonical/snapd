@@ -35,6 +35,7 @@ environment:
     HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
+    SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
 backends:
     linode:
