@@ -41,9 +41,7 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 
-	defer func() {
-		os.RemoveAll(tempDir)
-	}()
+	defer os.RemoveAll(tempDir)
 
 	rsaKeyFile := filepath.Join(tempDir, "rsa.key")
 
