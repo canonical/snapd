@@ -2583,34 +2583,51 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
-	var mockServer *httptest.Server
-	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Length", "1000")
-	}))
+	mockServerHelper := func(failures int) error {
+		var mockServer *httptest.Server
+		n := 0
+		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			n++
+			if n < failures {
+				w.Header().Add("Content-Length", "1000")
+				return
+			}
+			io.WriteString(w, MockUpdatesJSON)
+		}))
 
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
+		c.Assert(mockServer, NotNil)
+		defer mockServer.Close()
 
-	var err error
-	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
-	c.Assert(err, IsNil)
-	cfg := Config{
-		BulkURI: bulkURI,
+		var err error
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		authContext := &testAuthContext{c: c, device: t.device}
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
+
+		_, err = repo.ListRefresh([]*RefreshCandidate{
+			{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(1),
+				Epoch:    "0",
+			},
+		}, nil)
+		return err
 	}
-	authContext := &testAuthContext{c: c, device: t.device}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(1),
-			Epoch:    "0",
-		},
-	}, nil)
+	// Check that we really recognize unexpected EOF error by failing on all retries
+	err := mockServerHelper(1000000)
 	c.Assert(err, NotNil)
+	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(err, ErrorMatches, "unexpected EOF")
+
+	// Check that we retry on unexpected EOF and eventually succeed
+	err = mockServerHelper(2)
+	c.Assert(err, IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
