@@ -36,11 +36,11 @@ type InfoEntry struct {
 	DevMinor     int
 	Root         string
 	MountDir     string
-	MountOpts    string
+	MountOptions string
 	OptionalFlds string
 	FsType       string
 	MountSource  string
-	SuperOpts    string
+	SuperOptions string
 }
 
 // ParseInfoEntry parses a single line of /proc/$PID/mountinfo file.
@@ -79,10 +79,10 @@ func ParseInfoEntry(s string) (InfoEntry, error) {
 		return e, fmt.Errorf("cannot parse device minor number: %q", subFields[1])
 	}
 	// NOTE: All string fields use the same escape/unescape logic as fstab files.
-	// Parse Root, MountDir and MountOpts fields.
+	// Parse Root, MountDir and MountOptions fields.
 	e.Root = unescape(fields[3])
 	e.MountDir = unescape(fields[4])
-	e.MountOpts = unescape(fields[5])
+	e.MountOptions = unescape(fields[5])
 	// Optional fields are terminated with a "-" value and start
 	// after the mount options field. Skip ahead until we see the "-"
 	// marker.
@@ -100,6 +100,6 @@ func ParseInfoEntry(s string) (InfoEntry, error) {
 	}
 	e.FsType = unescape(tailFields[0])
 	e.MountSource = unescape(tailFields[1])
-	e.SuperOpts = unescape(tailFields[2])
+	e.SuperOptions = unescape(tailFields[2])
 	return e, nil
 }

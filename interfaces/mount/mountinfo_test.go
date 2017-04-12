@@ -40,11 +40,11 @@ func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
 	c.Assert(entry.DevMinor, Equals, 0)
 	c.Assert(entry.Root, Equals, "/mnt1")
 	c.Assert(entry.MountDir, Equals, "/mnt2")
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
+	c.Assert(entry.MountOptions, Equals, "rw,noatime")
 	c.Assert(entry.OptionalFlds, Equals, "master:1")
 	c.Assert(entry.FsType, Equals, "ext3")
 	c.Assert(entry.MountSource, Equals, "/dev/root")
-	c.Assert(entry.SuperOpts, Equals, "rw,errors=continue")
+	c.Assert(entry.SuperOptions, Equals, "rw,errors=continue")
 }
 
 // Check that various combinations of optional fields are parsed correctly.
@@ -53,21 +53,21 @@ func (s *mountinfoSuite) TestParseInfoEntry2(c *C) {
 	entry, err := mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
+	c.Assert(entry.MountOptions, Equals, "rw,noatime")
 	c.Assert(entry.OptionalFlds, Equals, "")
 	c.Assert(entry.FsType, Equals, "ext3")
 	// One optional field.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
+	c.Assert(entry.MountOptions, Equals, "rw,noatime")
 	c.Assert(entry.OptionalFlds, Equals, "master:1")
 	c.Assert(entry.FsType, Equals, "ext3")
 	// Two optional fields.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
-	c.Assert(entry.MountOpts, Equals, "rw,noatime")
+	c.Assert(entry.MountOptions, Equals, "rw,noatime")
 	c.Assert(entry.OptionalFlds, Equals, "master:1 slave:2")
 	c.Assert(entry.FsType, Equals, "ext3")
 }
@@ -83,12 +83,12 @@ func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 	c.Assert(entry.DevMinor, Equals, 0)
 	c.Assert(entry.Root, Equals, "/mnt 1")
 	c.Assert(entry.MountDir, Equals, "/mnt 2")
-	c.Assert(entry.MountOpts, Equals, "rw ,noatime")
+	c.Assert(entry.MountOptions, Equals, "rw ,noatime")
 	// This field is still escaped as it is space-separated and needs further parsing.
 	c.Assert(entry.OptionalFlds, Equals, `mas\040ter:1`)
 	c.Assert(entry.FsType, Equals, "ext 3")
 	c.Assert(entry.MountSource, Equals, "/dev/ro ot")
-	c.Assert(entry.SuperOpts, Equals, "rw ,errors=continue")
+	c.Assert(entry.SuperOptions, Equals, "rw ,errors=continue")
 }
 
 // Check that various malformed entries are detected.
