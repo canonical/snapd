@@ -46,6 +46,12 @@ type cmdChanges struct {
 
 type cmdChange struct {
 	Positional struct {
+		ID changeID `positional-arg-name:"<id>" required:"yes" hidden:"true"`
+	} `positional-args:"yes"`
+}
+
+type cmdTasks struct {
+	Positional struct {
 		ID changeID `positional-arg-name:"<id>" required:"yes"`
 	} `positional-args:"yes"`
 }
@@ -53,6 +59,7 @@ type cmdChange struct {
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
 	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
+	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, nil, nil)
 }
 
 type changesByTime []*client.Change
@@ -113,9 +120,18 @@ func (c *cmdChanges) Execute(args []string) error {
 	return nil
 }
 
+func (c *cmdTasks) Execute([]string) error {
+	cli := Client()
+	return showChange(cli, c.Positional.ID)
+}
+
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(string(c.Positional.ID))
+	return showChange(cli, c.Positional.ID)
+}
+
+func showChange(cli *client.Client, chid changeID) error {
+	chg, err := cli.Change(string(chid))
 	if err != nil {
 		return err
 	}
