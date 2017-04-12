@@ -77,7 +77,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	if allDigits(c.Positional.Snap) {
 		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap task %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
