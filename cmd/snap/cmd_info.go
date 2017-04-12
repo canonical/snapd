@@ -207,7 +207,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 			trackHasOpenChannel = true
 			fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", chName, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
 		}
-		// add seperator between tracks
+		// add separator between tracks
 		if trackHasOpenChannel && i < len(remote.Tracks)-1 {
 			fmt.Fprintf(w, "  \t\t\t\t\n")
 		}
