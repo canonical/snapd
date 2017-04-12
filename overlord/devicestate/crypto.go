@@ -29,31 +29,31 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
 func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
-	sshKeyFile       := filepath.Join(dirs.SnapRunDir, "snapd.key.tmp")
-	sshPublicKeyFile := sshKeyFile + ".pub"
+	// The temporary directory is created with mode
+	// 0700 by ioutil.TempDir, see:
+	//   https://github.com/golang/go/blob/master/src/io/ioutil/tempfile.go#L84
+	tempDir, err := ioutil.TempDir(os.TempDir(), "snapd")
+	if err != nil {
+		return nil, err
+	}
 
 	defer func() {
-		os.Remove(sshKeyFile)
-		os.Remove(sshPublicKeyFile)
+		os.RemoveAll(tempDir)
 	}()
 
-	os.MkdirAll(dirs.SnapRunDir, 0755)
+	rsaKeyFile := filepath.Join(tempDir, "rsa.key")
 
-	os.Remove(sshKeyFile)
-	os.Remove(sshPublicKeyFile)
-
-	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.Itoa(keyLength), "-N", "", "-f", sshKeyFile)
+	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.Itoa(keyLength), "-N", "", "-f", rsaKeyFile)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(out, err)
 	}
 
-	d, err := ioutil.ReadFile(sshKeyFile)
+	d, err := ioutil.ReadFile(rsaKeyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +69,11 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 	}
 
 	err = key.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.RemoveAll(tempDir)
 	if err != nil {
 		return nil, err
 	}
