@@ -2589,7 +2589,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	mockPermanentlyBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		permanentlyBrokenSrvCalls++
 		w.Header().Add("Content-Length", "1000")
-		return
 	}))
 	mockSomewhatBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		somewhatBrokenSrvCalls++
@@ -2598,7 +2597,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 			return
 		}
 		w.Header().Add("Content-Length", "1000")
-		return
 	}))
 
 	queryServer := func(mockServer *httptest.Server) error {
@@ -2615,13 +2613,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 		repo := New(&cfg, authContext)
 		c.Assert(repo, NotNil)
 
-		_, err = repo.ListRefresh([]*RefreshCandidate{
-			{
-				SnapID:   helloWorldSnapID,
-				Channel:  "stable",
-				Revision: snap.R(1),
-				Epoch:    "0",
-			},
+		_, err = repo.ListRefresh([]*RefreshCandidate{{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
 		}, nil)
 		return err
 	}
