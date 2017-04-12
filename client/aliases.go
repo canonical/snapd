@@ -26,9 +26,12 @@ import (
 
 // aliasAction represents an action performed on aliases.
 type aliasAction struct {
-	Action  string   `json:"action"`
-	Snap    string   `json:"snap"`
-	Aliases []string `json:"aliases"`
+	Action string `json:"action"`
+	Snap   string `json:"snap"`
+	Target string `json:"target,omitempty"`
+	Alias  string `json:"alias,omitempty"`
+	// XXX: going away
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 // performAliasAction performs a single action on aliases.
@@ -40,12 +43,13 @@ func (client *Client) performAliasAction(sa *aliasAction) (changeID string, err 
 	return client.doAsync("POST", "/v2/aliases", nil, nil, bytes.NewReader(b))
 }
 
-// Alias enables the provided aliases for the snap with snapName.
-func (client *Client) Alias(snapName string, aliases []string) (changeID string, err error) {
+// Alias sets up a manual alias from alias to app in snapName.
+func (client *Client) Alias(snapName, app, alias string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
-		Action:  "alias",
-		Snap:    snapName,
-		Aliases: aliases,
+		Action: "alias",
+		Snap:   snapName,
+		Target: app,
+		Alias:  alias,
 	})
 }
 
@@ -53,16 +57,6 @@ func (client *Client) Alias(snapName string, aliases []string) (changeID string,
 func (client *Client) Unalias(snapName string, aliases []string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action:  "unalias",
-		Snap:    snapName,
-		Aliases: aliases,
-	})
-}
-
-// ResetAliases resets the provided aliases for the snap with snapName
-// to their default state, enabled for auto-aliases, disabled otherwise.
-func (client *Client) ResetAliases(snapName string, aliases []string) (changeID string, err error) {
-	return client.performAliasAction(&aliasAction{
-		Action:  "reset",
 		Snap:    snapName,
 		Aliases: aliases,
 	})

@@ -2254,8 +2254,11 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 
 // aliasAction is an action performed on aliases
 type aliasAction struct {
-	Action  string   `json:"action"`
-	Snap    string   `json:"snap"`
+	Action string `json:"action"`
+	Snap   string `json:"snap"`
+	Target string `json:"target"`
+	Alias  string `json:"alias"`
+	// old now unsupported api
 	Aliases []string `json:"aliases"`
 }
 
@@ -2268,9 +2271,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	if len(a.Aliases) != 0 {
 		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
-	return BadRequest("cannot yet interpret request")
 
-	/* TODO: rework this
 	var summary string
 	var taskset *state.TaskSet
 	var err error
@@ -2283,14 +2284,10 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		summary = fmt.Sprintf("Enable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.Alias(state, a.Snap, a.Aliases)
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.Target, a.Snap)
+		taskset, err = snapstate.Alias(state, a.Snap, a.Target, a.Alias)
 	case "unalias":
-		summary = fmt.Sprintf("Disable aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.Unalias(state, a.Snap, a.Aliases)
-	case "reset":
-		summary = fmt.Sprintf("Reset aliases %s for snap %q", strutil.Quoted(a.Aliases), a.Snap)
-		taskset, err = snapstate.ResetAliases(state, a.Snap, a.Aliases)
+		return BadRequest("cannot yet interpret request")
 	}
 	if err != nil {
 		return BadRequest("%v", err)
@@ -2303,7 +2300,6 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
-	*/
 }
 
 type aliasStatus struct {
