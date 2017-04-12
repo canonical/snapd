@@ -2582,6 +2582,37 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 	c.Assert(results[0].Name(), Equals, "hello-world")
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Length", "1000")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
+	}, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "unexpected EOF")
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
