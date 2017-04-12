@@ -72,10 +72,8 @@ type deviceMgrSuite struct {
 	restoreOnClassic func()
 }
 
-var (
-	_             = Suite(&deviceMgrSuite{})
-	testKeyLength = 1024
-)
+var _ = Suite(&deviceMgrSuite{})
+var testKeyLength = 1024
 
 type fakeStore struct {
 	state *state.State
