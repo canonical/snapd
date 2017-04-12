@@ -2582,6 +2582,62 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 	c.Assert(results[0].Name(), Equals, "hello-world")
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
+	permanentlyBrokenSrvCalls := 0
+	somewhatBrokenSrvCalls := 0
+
+	mockPermanentlyBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		permanentlyBrokenSrvCalls++
+		w.Header().Add("Content-Length", "1000")
+	}))
+	mockSomewhatBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		somewhatBrokenSrvCalls++
+		if somewhatBrokenSrvCalls > 3 {
+			io.WriteString(w, MockUpdatesJSON)
+			return
+		}
+		w.Header().Add("Content-Length", "1000")
+	}))
+
+	queryServer := func(mockServer *httptest.Server) error {
+		c.Assert(mockServer, NotNil)
+		defer mockServer.Close()
+
+		var err error
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		authContext := &testAuthContext{c: c, device: t.device}
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
+
+		_, err = repo.ListRefresh([]*RefreshCandidate{{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
+		}, nil)
+		return err
+	}
+
+	// Check that we really recognize unexpected EOF error by failing on all retries
+	err := queryServer(mockPermanentlyBrokenServer)
+	c.Assert(err, NotNil)
+	c.Assert(err, Equals, io.ErrUnexpectedEOF)
+	c.Assert(err, ErrorMatches, "unexpected EOF")
+	// check that we exhausted all retries (as defined by mocked retry strategy)
+	c.Assert(permanentlyBrokenSrvCalls, Equals, 5)
+
+	// Check that we retry on unexpected EOF and eventually succeed
+	err = queryServer(mockSomewhatBrokenServer)
+	c.Assert(err, IsNil)
+	// check that we retried 4 times
+	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
