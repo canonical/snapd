@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -88,4 +89,14 @@ func (ts *StatTestSuite) TestExecutableExists(c *C) {
 
 	c.Assert(os.Chmod(fname, 0755), IsNil)
 	c.Check(ExecutableExists("xyzzy"), Equals, true)
+}
+
+func (s *StatTestSuite) TestLookPathDefaultGivesCorrectPath(c *C) {
+	lookPath = func(name string) (string, error) { return "/bin/true", nil }
+	c.Assert(LookPathDefault("true", "/bin/foo"), Equals, "/bin/true")
+}
+
+func (s *StatTestSuite) TestLookPathDefaultReturnsDefaultWhenNotFound(c *C) {
+	lookPath = func(name string) (string, error) { return "", fmt.Errorf("Not found") }
+	c.Assert(LookPathDefault("bar", "/bin/bla"), Equals, "/bin/bla")
 }
