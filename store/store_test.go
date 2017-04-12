@@ -2628,11 +2628,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(err, ErrorMatches, "unexpected EOF")
+	// check that we exhausted all retries (as defined by mocked retry strategy)
 	c.Assert(permanentlyBrokenSrvCalls, Equals, 5)
 
 	// Check that we retry on unexpected EOF and eventually succeed
 	err = queryServer(mockSomewhatBrokenServer)
 	c.Assert(err, IsNil)
+	// check that we retried 4 times
 	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
