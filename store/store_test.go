@@ -2583,18 +2583,25 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
-	mockServerHelper := func(failures int) error {
-		var mockServer *httptest.Server
-		n := 0
-		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			n++
-			if n < failures {
-				w.Header().Add("Content-Length", "1000")
-				return
-			}
-			io.WriteString(w, MockUpdatesJSON)
-		}))
+	permanentlyBrokenSrvCalls := 0
+	somewhatBrokenSrvCalls := 0
 
+	mockPermanentlyBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		permanentlyBrokenSrvCalls++
+		w.Header().Add("Content-Length", "1000")
+		return
+	}))
+	mockSomewhatBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		somewhatBrokenSrvCalls++
+		if somewhatBrokenSrvCalls > 3 {
+			io.WriteString(w, MockUpdatesJSON)
+			return
+		}
+		w.Header().Add("Content-Length", "1000")
+		return
+	}))
+
+	queryServer := func(mockServer *httptest.Server) error {
 		c.Assert(mockServer, NotNil)
 		defer mockServer.Close()
 
@@ -2620,14 +2627,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	}
 
 	// Check that we really recognize unexpected EOF error by failing on all retries
-	err := mockServerHelper(1000000)
+	err := queryServer(mockPermanentlyBrokenServer)
 	c.Assert(err, NotNil)
 	c.Assert(err, Equals, io.ErrUnexpectedEOF)
 	c.Assert(err, ErrorMatches, "unexpected EOF")
+	c.Assert(permanentlyBrokenSrvCalls, Equals, 5)
 
 	// Check that we retry on unexpected EOF and eventually succeed
-	err = mockServerHelper(2)
+	err = queryServer(mockSomewhatBrokenServer)
 	c.Assert(err, IsNil)
+	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
