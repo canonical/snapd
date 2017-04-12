@@ -149,8 +149,10 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := plug.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(plug.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -165,13 +167,16 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap.Name()][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name(), plug.Name)
+	if _, ok := r.plugs[snapName][plug.Name]; ok {
+		return fmt.Errorf("snap %q has plugs conflicting on name %q", snapName, plug.Name)
 	}
-	if r.plugs[plug.Snap.Name()] == nil {
-		r.plugs[plug.Snap.Name()] = make(map[string]*Plug)
+	if _, ok := r.slots[snapName][plug.Name]; ok {
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
 	}
-	r.plugs[plug.Snap.Name()][plug.Name] = plug
+	if r.plugs[snapName] == nil {
+		r.plugs[snapName] = make(map[string]*Plug)
+	}
+	r.plugs[snapName][plug.Name] = plug
 	return nil
 }
 
@@ -243,8 +248,10 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	snapName := slot.Snap.Name()
+
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(slot.Snap.Name()); err != nil {
+	if err := snap.ValidateName(snapName); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -259,13 +266,16 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap.Name()][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
+	if _, ok := r.slots[snapName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has slots conflicting on name %q", snapName, slot.Name)
 	}
-	if r.slots[slot.Snap.Name()] == nil {
-		r.slots[slot.Snap.Name()] = make(map[string]*Slot)
+	if _, ok := r.plugs[snapName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
 	}
-	r.slots[slot.Snap.Name()][slot.Name] = slot
+	if r.slots[snapName] == nil {
+		r.slots[snapName] = make(map[string]*Slot)
+	}
+	r.slots[snapName][slot.Name] = slot
 	return nil
 }
 
@@ -787,6 +797,11 @@ func (e *BadInterfacesError) Error() string {
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	err := snap.Validate(snapInfo)
+	if err != nil {
+		return err
+	}
+
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -807,6 +822,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			bad.issues[plugName] = "unknown interface"
 			continue
 		}
+		// Reject plug with invalid name
+		if err := ValidateName(plugName); err != nil {
+			bad.issues[plugName] = err.Error()
+			continue
+		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := iface.SanitizePlug(plug); err != nil {
 			bad.issues[plugName] = err.Error()
@@ -822,6 +842,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
 			bad.issues[slotName] = "unknown interface"
+			continue
+		}
+		// Reject slot with invalid name
+		if err := ValidateName(slotName); err != nil {
+			bad.issues[slotName] = err.Error()
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
