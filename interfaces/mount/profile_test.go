@@ -95,7 +95,7 @@ func (s *profileSuite) TestReadProfile3(c *C) {
 	c.Assert(p.Entries, HasLen, 2)
 	c.Assert(p.Entries, DeepEquals, []mount.Entry{
 		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
-		{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"option-2"}, DumpFrequency: 2, CheckPassNumber: 2},
+		{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 	})
 }
 
@@ -114,7 +114,7 @@ func (s *profileSuite) TestWriteTo2(c *C) {
 	p := &mount.Profile{
 		Entries: []mount.Entry{
 			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
-			{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"option-2"}, DumpFrequency: 2, CheckPassNumber: 2},
+			{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 		},
 	}
 	var buf bytes.Buffer
