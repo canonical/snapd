@@ -1370,3 +1370,77 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 	c.Check(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.* ERROR cannot reinstate alias state because of conflicts, disabling: cannot enable alias "alias3" for "alias-snap", already enabled for "other-snap".*`)
 }
+
+func (s *snapmgrTestSuite) TestDoUndoUnaliasSnapRun(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Manual: "cmd5", Auto: "cmd1"},
+			"alias2": {Auto: "cmd2"},
+			"alias3": {Manual: "cmd3"},
+		},
+	})
+
+	t := s.state.NewTask("unalias", "test")
+	t.Set("alias", "")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+
+	expected := fakeOps{
+		{
+			op: "update-aliases",
+			rmAliases: []*backend.Alias{
+				{"alias1", "alias-snap.cmd5"},
+				{"alias2", "alias-snap.cmd2"},
+				{"alias3", "alias-snap.cmd3"},
+			},
+		},
+		{
+			op: "update-aliases",
+			aliases: []*backend.Alias{
+				{"alias1", "alias-snap.cmd5"},
+				{"alias2", "alias-snap.cmd2"},
+				{"alias3", "alias-snap.cmd3"},
+			},
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Manual: "cmd5", Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+		"alias3": {Manual: "cmd3"},
+	})
+}

@@ -540,3 +540,74 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 
 	return newAliases, nil
 }
+
+// Unalias tears down a manual alias or disables all aliases of a snap (removing all manual ones).
+func Unalias(st *state.State, aliasOrSnap string) (*state.TaskSet, error) {
+	var snapName, alias string
+	var summary string
+	var snapst SnapState
+	err := Get(st, aliasOrSnap, &snapst)
+	if err == nil {
+		snapName = aliasOrSnap
+		summary = fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapName)
+	} else {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		snapName, err = findSnapOfManualAlias(st, aliasOrSnap)
+		if err != nil {
+			return nil, err
+		}
+		alias = aliasOrSnap
+		summary = fmt.Sprintf(i18n.G("Tear down manual alias %q for snap %q"), alias, snapName)
+	}
+
+	if err := CheckChangeConflict(st, snapName, nil); err != nil {
+		return nil, err
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: snapName},
+	}
+
+	unalias := st.NewTask("unalias", summary)
+	unalias.Set("alias", alias)
+	unalias.Set("snap-setup", &snapsup)
+
+	return state.NewTaskSet(unalias), nil
+}
+
+func findSnapOfManualAlias(st *state.State, alias string) (snapName string, err error) {
+	snapStates, err := All(st)
+	if err != nil {
+		return "", err
+	}
+	for snapName, snapst := range snapStates {
+		target := snapst.Aliases[alias]
+		if target != nil && target.Manual != "" {
+			return snapName, nil
+		}
+	}
+	return "", fmt.Errorf("cannot find manual alias %q in any snap", alias)
+}
+
+// manualUnalias returns newAliases with the manual alias removed from
+// curAliases.
+func manualUnalias(curAliases map[string]*AliasTarget, alias string) (newAliases map[string]*AliasTarget, err error) {
+	newTarget := curAliases[alias]
+	if newTarget == nil {
+		return nil, fmt.Errorf("no alias %q", alias)
+	}
+	newAliases = make(map[string]*AliasTarget, len(curAliases))
+	for alias, aliasTarget := range curAliases {
+		newAliases[alias] = aliasTarget
+	}
+
+	if newTarget.Auto == "" {
+		delete(newAliases, alias)
+	} else {
+		newAliases[alias] = &AliasTarget{Auto: newTarget.Auto}
+	}
+
+	return newAliases, nil
+}
