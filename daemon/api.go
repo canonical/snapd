@@ -2304,6 +2304,8 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		} else {
 			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
 		}
+	case "prefer":
+		taskset, err = snapstate.Prefer(st, a.Snap)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
@@ -2319,6 +2321,8 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		} else {
 			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
 		}
+	case "prefer":
+		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
 	}
 
 	change := st.NewChange(a.Action, summary)
