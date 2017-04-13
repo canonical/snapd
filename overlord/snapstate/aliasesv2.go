@@ -542,28 +542,27 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 }
 
 // Unalias tears down a manual alias or disables all aliases of a snap (removing all manual ones).
-func Unalias(st *state.State, aliasOrSnap string) (*state.TaskSet, error) {
-	var snapName, alias string
+func Unalias(st *state.State, aliasOrSnap string) (ts *state.TaskSet, snapName string, err error) {
+	var alias string
 	var summary string
 	var snapst SnapState
-	err := Get(st, aliasOrSnap, &snapst)
-	if err == nil {
+	if err = Get(st, aliasOrSnap, &snapst); err == nil {
 		snapName = aliasOrSnap
 		summary = fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapName)
 	} else {
 		if err != state.ErrNoState {
-			return nil, err
+			return nil, "", err
 		}
 		snapName, err = findSnapOfManualAlias(st, aliasOrSnap)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		alias = aliasOrSnap
 		summary = fmt.Sprintf(i18n.G("Tear down manual alias %q for snap %q"), alias, snapName)
 	}
 
 	if err := CheckChangeConflict(st, snapName, nil); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	snapsup := &SnapSetup{
@@ -574,7 +573,7 @@ func Unalias(st *state.State, aliasOrSnap string) (*state.TaskSet, error) {
 	unalias.Set("alias", alias)
 	unalias.Set("snap-setup", &snapsup)
 
-	return state.NewTaskSet(unalias), nil
+	return state.NewTaskSet(unalias), snapName, nil
 }
 
 func findSnapOfManualAlias(st *state.State, alias string) (snapName string, err error) {

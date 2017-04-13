@@ -4937,6 +4937,59 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 	}
 }
 
+func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	d := s.daemon(c)
+
+	s.mockSnap(c, aliasYaml)
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &aliasAction{
+		Action: "unalias",
+		Snap:   "alias-snap",
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/aliases", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	defer st.Unlock()
+	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
+	// sanity check
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "alias-snap", &snapst)
+	c.Assert(err, check.IsNil)
+	c.Check(snapst.AutoAliasesDisabled, check.Equals, true)
+}
+
 func (s *apiSuite) TestAliases(c *check.C) {
 	d := s.daemon(c)
 

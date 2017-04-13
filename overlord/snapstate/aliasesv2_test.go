@@ -711,8 +711,9 @@ func (s *snapmgrTestSuite) TestUnaliasSnapTasks(c *C) {
 		Active:  true,
 	})
 
-	ts, err := snapstate.Unalias(s.state, "some-snap")
+	ts, snapName, err := snapstate.Unalias(s.state, "some-snap")
 	c.Assert(err, IsNil)
+	c.Check(snapName, Equals, "some-snap")
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
@@ -743,7 +744,7 @@ func (s *snapmgrTestSuite) TestUnaliasSnapRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("unalias", "unalias")
-	ts, err := snapstate.Unalias(s.state, "alias-snap")
+	ts, _, err := snapstate.Unalias(s.state, "alias-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -794,8 +795,9 @@ func (s *snapmgrTestSuite) TestUnaliasManualTasks(c *C) {
 		},
 	})
 
-	ts, err := snapstate.Unalias(s.state, "alias1")
+	ts, snapName, err := snapstate.Unalias(s.state, "alias1")
 	c.Assert(err, IsNil)
+	c.Check(snapName, Equals, "alias-snap")
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
@@ -824,7 +826,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("alias", "manual alias")
-	ts, err := snapstate.Unalias(s.state, "alias1")
+	ts, _, err := snapstate.Unalias(s.state, "alias1")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -869,7 +871,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualOverAutoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("alias", "manual alias")
-	ts, err := snapstate.Unalias(s.state, "alias1")
+	ts, _, err := snapstate.Unalias(s.state, "alias1")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -905,7 +907,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualNoAlias(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Unalias(s.state, "alias1")
+	_, _, err := snapstate.Unalias(s.state, "alias1")
 	c.Assert(err, ErrorMatches, `cannot find manual alias "alias1" in any snap`)
 }
 
@@ -929,11 +931,11 @@ func (s *snapmgrTestSuite) TestUpdateUnaliasChangeConflict(c *C) {
 	s.state.NewChange("update", "...").AddAll(ts)
 
 	// by snap
-	_, err = snapstate.Unalias(s.state, "some-snap")
+	_, _, err = snapstate.Unalias(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 
 	// by alias
-	_, err = snapstate.Unalias(s.state, "alias1")
+	_, _, err = snapstate.Unalias(s.state, "alias1")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -948,7 +950,7 @@ func (s *snapmgrTestSuite) TestUnaliasUpdateChangeConflict(c *C) {
 		SnapType: "app",
 	})
 
-	ts, err := snapstate.Unalias(s.state, "some-snap")
+	ts, _, err := snapstate.Unalias(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("alias", "...").AddAll(ts)
