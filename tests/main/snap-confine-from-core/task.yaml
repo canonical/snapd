@@ -1,0 +1,27 @@
+summary: Test that snap-confine is run from core on re-exec
+
+systems: [-ubuntu-core-16-*]
+
+prepare: |
+    echo "Installing test-snapd-tools"
+    snap install test-snapd-tools
+    echo "Breaking host snap-confine"
+    chmod 0755 /usr/lib/snapd/snap-confine
+
+restore: |
+    echo "Restoring host snap-confine"
+    chmod 4755 /usr/lib/snapd/snap-confine
+
+execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
+    echo "Ensure we re-exec by default"
+    snap list
+    journalctl | MATCH "DEBUG: restarting into"
+
+    echo "Ensure snap-confine from the core snap is run"
+    # do not use "strace -f" for unknown reasons that hangs
+    test-snapd-tools.echo hello

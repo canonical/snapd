@@ -127,4 +127,5 @@ var (
 	AutoAliasesDeltaV2    = autoAliasesDeltaV2
 	RefreshAliases        = refreshAliases
 	CheckAliasesConflicts = checkAliasesConflicts
+	DisableAliases        = disableAliases
 )
