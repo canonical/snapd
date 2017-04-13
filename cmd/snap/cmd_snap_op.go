@@ -705,6 +705,20 @@ type cmdTry struct {
 	} `positional-args:"yes"`
 }
 
+func hasSnapcraftYaml() bool {
+	for _, loc := range []string{
+		"snap/snapcraft.yaml",
+		"snapcraft.yaml",
+		".snapcraft.yaml",
+	} {
+		if osutil.FileExists(loc) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (x *cmdTry) Execute([]string) error {
 	if err := x.validateMode(); err != nil {
 		return err
@@ -715,7 +729,7 @@ func (x *cmdTry) Execute([]string) error {
 	x.setModes(opts)
 
 	if name == "" {
-		if osutil.FileExists("snapcraft.yaml") && osutil.IsDirectory("prime") {
+		if hasSnapcraftYaml() && osutil.IsDirectory("prime") {
 			name = "prime"
 		} else {
 			if osutil.FileExists("meta/snap.yaml") {
