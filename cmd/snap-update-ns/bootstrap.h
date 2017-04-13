@@ -1,7 +1,5 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +15,20 @@
  *
  */
 
-package snap
+#ifndef SNAPD_CMD_SNAP_UPDATE_NS_H
+#define SNAPD_CMD_SNAP_UPDATE_NS_H
 
-var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
-)
+#define _GNU_SOURCE
 
-func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
-	old := supportedHooks
-	supportedHooks = hookTypes
-	return func() { supportedHooks = old }
-}
+#include <unistd.h>
 
-func (info *Info) RenamePlug(oldName, newName string) {
-	info.renamePlug(oldName, newName)
-}
+extern int bootstrap_errno;
+extern const char* bootstrap_msg;
+
+void bootstrap(void);
+ssize_t read_cmdline(char* buf, size_t buf_size);
+const char* find_argv0(char* buf, size_t num_read);
+const char* find_snap_name(char* buf, size_t num_read);
+int partially_validate_snap_name(const char* snap_name);
+
+#endif
