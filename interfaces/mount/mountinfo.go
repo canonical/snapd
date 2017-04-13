@@ -36,11 +36,11 @@ type InfoEntry struct {
 	DevMinor       int
 	Root           string
 	MountDir       string
-	MountOptions   string
+	MountOptions   map[string]string
 	OptionalFields []string
 	FsType         string
 	MountSource    string
-	SuperOptions   string
+	SuperOptions   map[string]string
 }
 
 // ParseInfoEntry parses a single line of /proc/$PID/mountinfo file.
@@ -82,7 +82,7 @@ func ParseInfoEntry(s string) (*InfoEntry, error) {
 	// Parse Root, MountDir and MountOptions fields.
 	e.Root = unescape(fields[3])
 	e.MountDir = unescape(fields[4])
-	e.MountOptions = unescape(fields[5])
+	e.MountOptions = parseMountOpts(unescape(fields[5]))
 	// Optional fields are terminated with a "-" value and start
 	// after the mount options field. Skip ahead until we see the "-"
 	// marker.
@@ -103,6 +103,21 @@ func ParseInfoEntry(s string) (*InfoEntry, error) {
 	}
 	e.FsType = unescape(tailFields[0])
 	e.MountSource = unescape(tailFields[1])
-	e.SuperOptions = unescape(tailFields[2])
+	e.SuperOptions = parseMountOpts(unescape(tailFields[2]))
 	return &e, nil
+}
+
+func parseMountOpts(opts string) map[string]string {
+	result := make(map[string]string)
+	for _, opt := range strings.Split(opts, ",") {
+		keyValue := strings.SplitN(opt, "=", 2)
+		key := keyValue[0]
+		if len(keyValue) == 2 {
+			value := keyValue[1]
+			result[key] = value
+		} else {
+			result[key] = ""
+		}
+	}
+	return result
 }
