@@ -516,7 +516,7 @@ func (iface *Unity7Interface) Name() string {
 	return "unity7"
 }
 
-func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
@@ -528,7 +528,7 @@ func (iface *Unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *Unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
 }
