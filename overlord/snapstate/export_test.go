@@ -113,6 +113,8 @@ var (
 	CanDisable           = canDisable
 	CachedStore          = cachedStore
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+
+	ResetAliases = resetAliases
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
