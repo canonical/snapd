@@ -987,7 +987,7 @@ func (s *RepositorySuite) TestResolveDisconnectMatrixTypical(c *C) {
 	c.Assert(s.testRepo.AddSnap(s.coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
-	connRef := ConnRef{s.plug.Ref(), s.slot.Ref()}
+	connRef := ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}
 	c.Assert(s.testRepo.Connect(connRef, nil, nil), IsNil)
 
 	scenarios := []struct {
@@ -1260,13 +1260,13 @@ func (s *RepositorySuite) TestConnectedFindsConnections(c *C) {
 	conns, err := s.testRepo.Connected(s.plug.Snap.Name(), s.plug.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), s.slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()},
 	})
 
 	conns, err = s.testRepo.Connected(s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), s.slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()},
 	})
 }
 
@@ -1286,7 +1286,7 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	conns, err := s.testRepo.Connected("", s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []ConnRef{
-		{s.plug.Ref(), slot.Ref()},
+		{PlugRef: s.plug.Ref(), SlotRef: slot.Ref()},
 	})
 }
 
@@ -1297,7 +1297,7 @@ func (s *RepositorySuite) TestDisconnectAll(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	c.Assert(s.testRepo.Connect(ConnRef{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}, nil, nil), IsNil)
 
-	conns := []ConnRef{{s.plug.Ref(), s.slot.Ref()}}
+	conns := []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: s.slot.Ref()}}
 	s.testRepo.DisconnectAll(conns)
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
 		Plugs: []*Plug{{PlugInfo: s.plug.PlugInfo}},

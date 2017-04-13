@@ -365,6 +365,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionKubernetesSupportOverride(c *C) {
+	cand := s.connectCand(c, "kubernetes-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kubernetes-support\"")
+
+	plugsSlots := `
+plugs:
+  kubernetes-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -429,6 +447,7 @@ var (
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
 		"iio":                     {"core", "gadget"},
+		"kubernetes-support":      {"core"},
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
@@ -533,6 +552,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
 		"unity8":                true,
@@ -655,6 +675,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"core-support":          true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
 		"unity8":                true,
