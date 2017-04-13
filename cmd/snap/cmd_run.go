@@ -237,11 +237,6 @@ func migrateXauthority(info *snap.Info) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
-	// If we're running as root then we don't do anything
-	if u.Uid == "0" {
-		return nil
-	}
-
 	xauthPath := osGetenv("XAUTHORITY")
 	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
 		// Nothing to do for us. Most likely running outside of any
@@ -277,6 +272,7 @@ func migrateXauthority(info *snap.Info) error {
 	// either the data can't be parsed or there are no cookies in
 	// the file is invalid.
 	if err := x11.ValidateXauthority(tmpXauthPath); err != nil {
+		logger.Noticef("WARNING: invalid Xauthority file: %s", err)
 		return nil
 	}
 
