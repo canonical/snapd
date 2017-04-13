@@ -79,10 +79,10 @@ func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore
 }
 
 func MockGetEnv(f func(name string) string) (restore func()) {
-	getEnvOrig := getEnv
-	getEnv = f
+	osGetenvOrig := osGetenv
+	osGetenv = f
 	return func() {
-		getEnv = getEnvOrig
+		osGetenv = osGetenvOrig
 	}
 }
 

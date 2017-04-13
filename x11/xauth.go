@@ -61,9 +61,11 @@ func readChunk(f *os.File) ([]byte, error) {
 
 func (xa *xauth) readFromFile(f *os.File) error {
 	b := [2]byte{}
-	_, err := f.Read(b[:])
+	n, err := f.Read(b[:])
 	if err != nil {
 		return err
+	} else if n != 2 {
+		return fmt.Errorf("Could not read enough bytes")
 	}
 	xa.Family = binary.BigEndian.Uint16(b[:])
 
