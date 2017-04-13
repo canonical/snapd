@@ -78,6 +78,7 @@ var allInterfaces = []interfaces.Interface{
 	NewHardwareObserveInterface(),
 	NewHomeInterface(),
 	NewKernelModuleControlInterface(),
+	NewKubernetesSupportInterface(),
 	NewLibvirtInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),

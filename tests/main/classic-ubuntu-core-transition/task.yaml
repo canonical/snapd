@@ -83,3 +83,11 @@ execute: |
 
     echo "Ensure interfaces are connected"
     snap interfaces | MATCH ":core-support.*core:core-support-plug"
+
+    echo "Ensure snap set core works"
+    snap set core system.power-key-action=ignore
+    if [ "$(snap get core system.power-key-action)" != "ignore" ]; then
+        echo "snap get did not return the expected result: "
+        snap get core system.power-key-action
+        exit 1
+    fi

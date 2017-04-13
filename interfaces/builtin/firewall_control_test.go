@@ -106,6 +106,8 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"arp_tables":      true,
+		"br_netfilter":    true,
 		"ip6table_filter": true,
 		"iptable_filter":  true,
 	})
