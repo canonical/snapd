@@ -47,6 +47,7 @@ var (
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
+	SnapRunDir                string
 	SnapRunNsDir              string
 
 	SnapSeedDir   string
@@ -62,6 +63,9 @@ var (
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
+
+	SystemApparmorDir      string
+	SystemApparmorCacheDir string
 
 	CloudMetaDataFile string
 
@@ -134,7 +138,8 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
-	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
+	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
+	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -151,6 +156,9 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+
+	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
+	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 
