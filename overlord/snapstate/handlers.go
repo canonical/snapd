@@ -997,7 +997,7 @@ func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
 
-	newAliases := pruneAutoAliases(st, curAliases, which)
+	newAliases := pruneAutoAliases(curAliases, which)
 
 	if !snapst.AliasesPending {
 		if err := applyAliasesChange(st, snapName, autoDisabled, curAliases, autoDisabled, newAliases, m.backend); err != nil {
@@ -1037,7 +1037,7 @@ func (m *SnapManager) doAliasV2(t *state.Task, _ *tomb.Tomb) error {
 
 	autoDisabled := snapst.AutoAliasesDisabled
 	curAliases := snapst.Aliases
-	newAliases, err := manualAlias(st, curInfo, curAliases, target, alias)
+	newAliases, err := manualAlias(curInfo, curAliases, target, alias)
 	if err != nil {
 		return err
 	}
