@@ -2272,7 +2272,6 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
 
-	var summary string
 	var taskset *state.TaskSet
 	var err error
 
@@ -2284,13 +2283,27 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		return BadRequest("unsupported alias action: %q", a.Action)
 	case "alias":
-		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.Target, a.Snap)
 		taskset, err = snapstate.Alias(state, a.Snap, a.Target, a.Alias)
 	case "unalias":
-		return BadRequest("cannot yet interpret request")
+		if a.Alias == "" {
+			a.Alias = a.Snap
+		}
+		taskset, a.Snap, err = snapstate.Unalias(state, a.Alias)
 	}
 	if err != nil {
 		return BadRequest("%v", err)
+	}
+
+	var summary string
+	switch a.Action {
+	case "alias":
+		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.Target, a.Snap)
+	case "unalias":
+		if a.Alias == a.Snap {
+			summary = fmt.Sprintf(i18n.G("Unalias snap %q"), a.Snap)
+		} else {
+			summary = fmt.Sprintf(i18n.G("Tear down alias %q for snap %q"), a.Alias, a.Snap)
+		}
 	}
 
 	change := state.NewChange(a.Action, summary)

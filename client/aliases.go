@@ -27,11 +27,9 @@ import (
 // aliasAction represents an action performed on aliases.
 type aliasAction struct {
 	Action string `json:"action"`
-	Snap   string `json:"snap"`
+	Snap   string `json:"snap,omitempty"`
 	Target string `json:"target,omitempty"`
 	Alias  string `json:"alias,omitempty"`
-	// XXX: going away
-	Aliases []string `json:"aliases,omitempty"`
 }
 
 // performAliasAction performs a single action on aliases.
@@ -53,12 +51,11 @@ func (client *Client) Alias(snapName, app, alias string) (changeID string, err e
 	})
 }
 
-// Unalias disables explicitly the provided aliases for the snap with snapName.
-func (client *Client) Unalias(snapName string, aliases []string) (changeID string, err error) {
+// Unalias tears down a manual alias or disables all aliases of a snap (removing all manual ones)
+func (client *Client) Unalias(aliasOrSnap string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
-		Action:  "unalias",
-		Snap:    snapName,
-		Aliases: aliases,
+		Action: "unalias",
+		Alias:  aliasOrSnap,
 	})
 }
 
