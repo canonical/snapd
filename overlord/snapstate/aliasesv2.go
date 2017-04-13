@@ -139,6 +139,9 @@ func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool,
 	return nil
 }
 
+// AutoAliases allows to hook support for retrieving the automatic aliases of a snap.
+var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error)
+
 // autoAliasesDeltaV2 compares the automatic aliases with the current snap
 // declaration for the installed snaps with the given names (or all if
 // names is empty) and returns changed and dropped auto-aliases by
@@ -341,6 +344,27 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 		return conflicts, &AliasConflictError{Snap: snapName, Conflicts: conflicts}
 	}
 	return nil, nil
+}
+
+// checkSnapAliasConflict checks whether snapName and its command
+// namepsace conflicts against installed snap aliases.
+func checkSnapAliasConflict(st *state.State, snapName string) error {
+	prefix := fmt.Sprintf("%s.", snapName)
+	snapStates, err := All(st)
+	if err != nil {
+		return err
+	}
+	for otherSnap, snapst := range snapStates {
+		autoDisabled := snapst.AutoAliasesDisabled
+		for alias, target := range snapst.Aliases {
+			if alias == snapName || strings.HasPrefix(alias, prefix) {
+				if target.Effective(autoDisabled) != "" {
+					return fmt.Errorf("snap %q command namespace conflicts with alias %q for %q", snapName, alias, otherSnap)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // disableAliases returns newAliases corresponding to the disabling of
