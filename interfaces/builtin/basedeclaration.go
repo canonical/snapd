@@ -151,6 +151,9 @@ plugs:
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
   lxd-support:
     allow-installation: false
     deny-auto-connection: true
@@ -330,6 +333,11 @@ slots:
         - core
     deny-auto-connection: true
   kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  kubernetes-support:
     allow-installation:
       slot-snap-type:
         - core
