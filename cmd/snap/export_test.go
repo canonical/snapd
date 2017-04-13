@@ -35,6 +35,7 @@ var (
 	SnapRunHook        = snapRunHook
 	Wait               = wait
 	ResolveApp         = resolveApp
+	IsReexeced         = isReexeced
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -82,6 +83,14 @@ func MockMountInfoPath(newMountInfoPath string) (restore func()) {
 	mountInfoPath = newMountInfoPath
 	return func() {
 		mountInfoPath = mountInfoPathOrig
+	}
+}
+
+func MockOsReadlink(f func(string) (string, error)) (restore func()) {
+	osReadlinkOrig := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = osReadlinkOrig
 	}
 }
 

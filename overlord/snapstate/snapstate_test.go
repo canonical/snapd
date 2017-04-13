@@ -1739,10 +1739,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
-			op: "matching-aliases",
-		},
-		{
-			op: "update-aliases",
+			op:   "remove-snap-aliases",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -3780,10 +3778,8 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/1",
 		},
 		{
-			op: "matching-aliases",
-		},
-		{
-			op: "update-aliases",
+			op:   "remove-snap-aliases",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",

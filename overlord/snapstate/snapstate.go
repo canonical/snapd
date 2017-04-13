@@ -619,7 +619,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	for snapName, aliases := range delta {
-		ts, err := ResetAliases(st, snapName, aliases)
+		ts, err := resetAliases(st, snapName, aliases)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
