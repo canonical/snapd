@@ -127,15 +127,6 @@ static void setup_private_mount(const char *snap_name)
 	if (chdir(pwd) != 0)
 		die("cannot change current working directory to the original directory");
 	free(pwd);
-
-	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
-	int i;
-	for (i = 0; tmpd[i] != NULL; i++) {
-		if (setenv(tmpd[i], "/tmp", 1) != 0) {
-			die("cannot set environment variable '%s'", tmpd[i]);
-		}
-	}
 }
 
 // TODO: fold this into bootstrap
