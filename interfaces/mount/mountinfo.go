@@ -30,17 +30,17 @@ import (
 // For details please refer to mountinfo documentation at
 // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
 type InfoEntry struct {
-	MountID      int
-	ParentID     int
-	DevMajor     int
-	DevMinor     int
-	Root         string
-	MountDir     string
-	MountOptions string
-	OptionalFlds string
-	FsType       string
-	MountSource  string
-	SuperOptions string
+	MountID        int
+	ParentID       int
+	DevMajor       int
+	DevMinor       int
+	Root           string
+	MountDir       string
+	MountOptions   string
+	OptionalFields []string
+	FsType         string
+	MountSource    string
+	SuperOptions   string
 }
 
 // ParseInfoEntry parses a single line of /proc/$PID/mountinfo file.
@@ -92,7 +92,10 @@ func ParseInfoEntry(s string) (*InfoEntry, error) {
 	if i == len(fields) {
 		return nil, fmt.Errorf("list of optional fields is not terminated properly")
 	}
-	e.OptionalFlds = strings.Join(fields[6:i], " ")
+	e.OptionalFields = fields[6:i]
+	for j := range e.OptionalFields {
+		e.OptionalFields[j] = unescape(e.OptionalFields[j])
+	}
 	// Parse the last three fixed fields.
 	tailFields := fields[i+1:]
 	if len(tailFields) != 3 {

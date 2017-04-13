@@ -41,7 +41,7 @@ func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
 	c.Assert(entry.Root, Equals, "/mnt1")
 	c.Assert(entry.MountDir, Equals, "/mnt2")
 	c.Assert(entry.MountOptions, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1")
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	c.Assert(entry.MountSource, Equals, "/dev/root")
 	c.Assert(entry.SuperOptions, Equals, "rw,errors=continue")
@@ -54,25 +54,25 @@ func (s *mountinfoSuite) TestParseInfoEntry2(c *C) {
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "")
+	c.Assert(entry.OptionalFields, HasLen, 0)
 	c.Assert(entry.FsType, Equals, "ext3")
 	// One optional field.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1")
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	// Two optional fields.
 	entry, err = mount.ParseInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, Equals, "rw,noatime")
-	c.Assert(entry.OptionalFlds, Equals, "master:1 slave:2")
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1", "slave:2"})
 	c.Assert(entry.FsType, Equals, "ext3")
 }
 
-// Check that white-space is unescaped correctly, except for OptionalFlds which are space-separated.
+// Check that white-space is unescaped correctly.
 func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 	entry, err := mount.ParseInfoEntry(
 		`36 35 98:0 /mnt\0401 /mnt\0402 rw\040,noatime mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`)
@@ -85,7 +85,7 @@ func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 	c.Assert(entry.MountDir, Equals, "/mnt 2")
 	c.Assert(entry.MountOptions, Equals, "rw ,noatime")
 	// This field is still escaped as it is space-separated and needs further parsing.
-	c.Assert(entry.OptionalFlds, Equals, `mas\040ter:1`)
+	c.Assert(entry.OptionalFields, DeepEquals, []string{"mas ter:1"})
 	c.Assert(entry.FsType, Equals, "ext 3")
 	c.Assert(entry.MountSource, Equals, "/dev/ro ot")
 	c.Assert(entry.SuperOptions, Equals, "rw ,errors=continue")
