@@ -2249,7 +2249,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2272,7 +2271,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2297,7 +2295,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2321,7 +2318,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2351,7 +2347,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2396,7 +2391,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
@@ -2507,7 +2501,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2558,7 +2551,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2568,18 +2560,71 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	results, err := repo.ListRefresh([]*RefreshCandidate{
-		{
+	results, err := repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(1),
+		Epoch:    "0",
+	}}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
+	permanentlyBrokenSrvCalls := 0
+	somewhatBrokenSrvCalls := 0
+
+	mockPermanentlyBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		permanentlyBrokenSrvCalls++
+		w.Header().Add("Content-Length", "1000")
+	}))
+	mockSomewhatBrokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		somewhatBrokenSrvCalls++
+		if somewhatBrokenSrvCalls > 3 {
+			io.WriteString(w, MockUpdatesJSON)
+			return
+		}
+		w.Header().Add("Content-Length", "1000")
+	}))
+
+	queryServer := func(mockServer *httptest.Server) error {
+		c.Assert(mockServer, NotNil)
+		defer mockServer.Close()
+
+		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+		c.Assert(err, IsNil)
+		cfg := Config{
+			BulkURI: bulkURI,
+		}
+		authContext := &testAuthContext{c: c, device: t.device}
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
+
+		_, err = repo.ListRefresh([]*RefreshCandidate{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: snap.R(1),
 			Epoch:    "0",
 		},
-	}, nil)
+		}, nil)
+		return err
+	}
+
+	// Check that we really recognize unexpected EOF error by failing on all retries
+	err := queryServer(mockPermanentlyBrokenServer)
+	c.Assert(err, NotNil)
+	c.Assert(err, Equals, io.ErrUnexpectedEOF)
+	c.Assert(err, ErrorMatches, "unexpected EOF")
+	// check that we exhausted all retries (as defined by mocked retry strategy)
+	c.Assert(permanentlyBrokenSrvCalls, Equals, 5)
+
+	// Check that we retry on unexpected EOF and eventually succeed
+	err = queryServer(mockSomewhatBrokenServer)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 4)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
+	// check that we retried 4 times
+	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
@@ -2604,14 +2649,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshEOF(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(1),
-			Epoch:    "0",
-		},
-	}, nil)
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(1),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `^Post http://127.0.0.1:.*?/updates/: EOF$`)
 	c.Assert(n, Equals, 5)
@@ -2639,14 +2682,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshUnauthorised(c
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(24),
-			Epoch:    "0",
-		},
-	}, nil)
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(n, Equals, 1)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/updates/"`)
 }
@@ -2659,7 +2700,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2669,14 +2709,12 @@ func (t *remoteRepoTestSuite) TestListRefresh500(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(24),
-			Epoch:    "0",
-		},
-	}, nil)
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
 	c.Assert(n, Equals, 5)
 }
@@ -2691,7 +2729,6 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2701,14 +2738,12 @@ func (t *remoteRepoTestSuite) TestListRefresh500DurationExceeded(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(24),
-			Epoch:    "0",
-		},
-	}, nil)
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/updates/"`)
 	c.Assert(n, Equals, 1)
 }
@@ -2739,7 +2774,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2748,14 +2782,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	results, err := repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(26),
-			Epoch:    "0",
-		},
-	}, nil)
+	results, err := repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(26),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -2787,7 +2819,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2796,15 +2827,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	results, err := repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(25),
-			Epoch:    "0",
-			Block:    []snap.Revision{snap.R(26)},
-		},
-	}, nil)
+	results, err := repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(25),
+		Epoch:    "0",
+		Block:    []snap.Revision{snap.R(26)},
+	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -2895,7 +2924,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOn
 		}))
 		defer mockServer.Close()
 
-		var err error
 		bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 		c.Assert(err, IsNil)
 		cfg := Config{
@@ -2904,14 +2932,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOn
 		repo := New(&cfg, nil)
 		c.Assert(repo, NotNil)
 
-		repo.ListRefresh([]*RefreshCandidate{
-			{
-				SnapID:   helloWorldSnapID,
-				Channel:  "stable",
-				Revision: snap.R(24),
-				Epoch:    "0",
-			},
-		}, nil)
+		repo.ListRefresh([]*RefreshCandidate{{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+		}}, nil)
 	}
 }
 
@@ -2948,7 +2974,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -2957,14 +2982,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	results, err := repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(24),
-			Epoch:    "0",
-		},
-	}, nil)
+	results, err := repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Deltas, HasLen, 2)
@@ -3022,7 +3045,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3031,14 +3053,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	results, err := repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(24),
-			Epoch:    "0",
-		},
-	}, nil)
+	results, err := repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(24),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Deltas, HasLen, 0)
@@ -3069,7 +3089,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3078,14 +3097,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
 
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(-2),
-			Epoch:    "0",
-		},
-	}, nil)
+	_, err = repo.ListRefresh([]*RefreshCandidate{{
+		SnapID:   helloWorldSnapID,
+		Channel:  "stable",
+		Revision: snap.R(-2),
+		Epoch:    "0",
+	}}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -3202,7 +3219,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
 	c.Assert(err, IsNil)
 
@@ -3230,7 +3246,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3257,7 +3272,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
 	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3327,7 +3341,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 	c.Assert(err, IsNil)
 
@@ -3376,7 +3389,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3494,7 +3506,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 	c.Assert(err, IsNil)
 
@@ -3544,7 +3555,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 	c.Assert(err, IsNil)
 
@@ -3579,7 +3589,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
 	c.Assert(err, IsNil)
 
