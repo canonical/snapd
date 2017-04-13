@@ -1,3 +1,177 @@
+snapd (2.24) xenial; urgency=medium
+
+  * New upstream release, LP: #1681799:
+    - interfaces/mount: add InfoEntry type
+    - many: fix plug auto-connect during core transition
+    - interfaces: fold network bind into core support with tests
+    - .travis.yml: add option to make raw log less noisy
+    - interfaces: adjust shm accesses to use 'm' for updated mmap kernel
+      mediation
+    - many: rename two core plugs that clash with slot names
+    - snap-confine,browser-support: /dev/tty for snap-confine, misc
+      browser-support for gnome-shell
+    - store: add download test with EOF in the middle
+    - tests: adjust to look for network-bind-plug
+    - store: make hash error message more accurate
+    - overlord/snapstate: simplify AliasesStatus down to just an
+      AutoAliasesDisabled bool flag (aliases v2)
+    - errtracker: never send errtracker reports when running under
+      SNAPPY_TESTING
+    - interfaces/repo: validate slot/plug names
+    - daemon: Give the snap directories via GET /v2/system-info
+    - interfaces/unity7: support unity messaging menu
+    - interfaces/mount: add high-level Profile functions
+    - git: ignore only the cmd/Makefile{,.in}
+    - cmd: explicitly set _GNU_SOURCE and _FILE_OFFSET_BITS for xfs
+      support
+    - daemon: add desktop file location for app to the API
+    - overlord,release: disable classic snap support when not possible
+    - overlord: fix TestEnsureLoopPrune not to be so racy
+    - many: abstract path to /bin/{true,false}
+    - data/systemd: tweak data/systemd/Makefile to be slightly simpler
+    - store: handle EOF via url.Error check
+    - packaging: use templates for relevant systemd units
+    - tests: run gccgo only on ubuntu-16.04-64
+    - .travis.yml: remove travis matrix and do a single sequential run
+    - overlord/state: make sure that setting to nil a state key is
+      equivalent to deleting it
+    - tests: fix incorrect shell expression
+    - interfaces/mount: add OptsToFlags for converting arguments to
+      syscall…
+    - interfaces: add a joystick interface
+    - tests: enable docker test for more ubuntu-core systems
+    - tests: download and install additional dependencies when using
+      prepackaged snapd
+    - many: add support for partially static builds
+    - interfaces: allow slot to introspect dbus-daemon in dbus
+      interface, allow /usr/bin/arch by default
+    - interfaces/mount: fix golint issues
+    - interfaces/mount: add function for saving fstab-like file
+    - osutil: introducing GetenvInt64, like GetenvBool but Int64er.
+    - interfaces: drop udev tagging from framebuffer interface
+    - snapstate: more helpers to work with aliases state (aliases
+      v2)
+    - interfaces/mount: add function for parsing fstab-like file
+    - cmd: disable the re-associate fix as requested by jdstrand
+    - overlord/snapstate: unlock/relock the state less, especially not
+      across mutating the SnapState of a snap
+    - interfaces: allow executing ld.so (needed with new AppArmor base
+      abstraction)
+    - interfaces/mount: add function for parsing mount entries
+    - cmd: rework header check for xfs/xqm.h
+    - cmd: add poky to the list of distros which don't support reexec
+    - overlord: finish reorg, revert "be more conservative until we have
+      cut 2.23.x"
+    - cmd: select what socket to use in cmd/snap{,ctl}
+    - overlord: remove snap config values when snap is removed
+    - snapstate: introduce helper to apply to disk a alias states change
+      for a snap (aliases v2)
+    - configstate,hookstate: timeout the configure hook after 5 mins,
+      report failures to the errtracker
+    - interfaces/seccomp: add bind as part of the default seccomp policy
+      for hooks
+    - cmd: discard the C implementation of snap-update-ns
+    - tests: remove stale apt proxy leftover from cloud-init
+    - tests: move unity test to nightly suite
+    - interfaces: add support for location-observe for
+      dbus::ObjectManager session paths
+    - boot: log error in KernelOrOsRebootRequired
+    - interfaces: remove old API
+    - interfaces: use udev spec
+    - interfaces: convert systemd backend to new APIs
+    - osutil: add BootID
+    - tests: move docker test to new nightly suite
+    - interfaces/mount: compute mount changes required to transition
+      mount profiles
+    - data/selinux: add context definition for snapctl
+    - overlord: clean up organization under state packages
+    - overlord: make sure all managers packages have *state.go with the
+      main state manipulation/query APIs
+    - interfaces: use spec in the dbus backend
+    - store: download from authenticated URL if there is a device
+      session set
+    - tests: remove core_name variable
+    - interfaces: rename thumbnailer to thumbnailer-service
+    - interfaces: add chroot to base templates
+    - asserts: remove some unused things
+    - systemd: mount the squashfs with nodev
+    - overlord: when shutting down assume errors might be due to
+      cancellation so retry
+    - cmd: rename all unit tests to $command/unit-test
+    - cmd/snap: fix help string for version command
+    - asserts: don't allow revocations with other items for the same
+      developer
+    - tests: skip lp-1644439 test on older kernels
+    - interfaces: allow "sync" to be used by core support
+    - assertstate,snapstate: have assertstate.AutoAliases use the
+      "aliases" header
+    - interfaces: allow writing config.txt.tmp  in the core-support
+      interface
+    - tests: adjust network-bind test
+    - interfaces: dbus backend spec
+    - asserts: introduce a snap-declaration "aliases" header to list
+      auto aliases with explicit targets
+    - cmd: enable large file support
+    - cmd/snap: handle missing snap-confine
+    - cmd/snap-confine: re-associate with pid-1 mount namespace if
+      required
+    - cmd/libsnap: make mountinfo structures public
+    - tests: fix interfaces-cups-control for zesty
+    - misc: revert "Log if the system goes into ForceDevMode"
+    - interfaces: seccomp tests cleanup
+    - cmd: validate SNAP_NAME
+    - interfaces: log if the system goes into ForceDevMode
+    - tests: fix classic-ubuntu-core-transition race
+    - interfaces: use apparmor spec in the apparmor backend
+    - interfaces: alphabetize framebuffer in base decl and add it to
+      all_test.go
+    - tests: add ubuntu-core-16-32 system to the external backend and
+      fix docker test
+    - cmd/libsnap: simplify sc_string_quote default case
+    - osutil: fix double expand in environment map code and add test
+    - interfaces: extend location-control out-of-process provider
+      support
+    - cmd/snap-update-ns: use bidirectional lists for mount entries
+    - tests: prevent automatic transition before setting the initial
+      state of the test
+    - release: detect if we are in ForcedDevMode by inspecting the
+      kernel
+    - tests: add core-snap-refresh test
+    - interfaces: add maliit input method interface
+    - interfaces: seccomp spec API tweaks for better tests
+    - interfaces: updates for mir-kiosk in browser-support, mir, opengl,
+      unity7
+    - testutils: address review feedback from PR#2997
+    - tests: specify the core version to be unsquashfs'ed in the
+      failover tests
+    - interfaces: use MockInfo in tests
+    - cmd/libsnap: add sc_quote_string
+    - cmd/snap-confine: use sc_do_umount everywhere
+    - interfaces: add unity8 plug permissions
+    - timeutil: a few helpers for the recurring events
+    - asserts: implement snap-developer type
+    - partition: deal with grub{,2}-editenv in tests
+    - many: add new (hidden) `snap debug ensure-state-soon` command and
+      use in tests
+    - interfaces/builtin: small refactor of dbus tests
+    - packaging, tests: use "systemctl list-unit-files --full"
+      everywhere
+    - many: some opensuse patches that are ready to go into master
+    - packaging: add opensuse permissions files
+    - client, daemon: move "snap list" name filtering into snapd.
+    - interfaces: use seccomp specs
+    - overlord/snapstate: small cleanup of
+      ensureForceDevmodeDropsDevmodeFromState
+    - interfaces/builtin/alsa: add read access to alsa state dir
+    - interfaces: use spec in kmod backend, updated firewall_control,
+      openvswitch_support, ppp
+    - cmd/snap-confine: use sc_do_mount everywhere
+    - tests: remove workaround for docker again, snap-declaration is
+      fixed now
+    - interfaces: interface to allow autopilot introspection
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 11 Apr 2017 13:31:46 +0200
+
 snapd (2.23.6) xenial; urgency=medium
 
   * New upstream release, LP: #1673568

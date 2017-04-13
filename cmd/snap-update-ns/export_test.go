@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,11 @@
  *
  */
 
-package snap
+package main
 
 var (
-	ImplicitSlotsForTests        = implicitSlots
-	ImplicitClassicSlotsForTests = implicitClassicSlots
-	NewHookType                  = newHookType
+	ReadCmdline               = readCmdline
+	FindArgv0                 = findArgv0
+	FindSnapName              = findSnapName
+	PartiallyValidateSnapName = partiallyValidateSnapName
 )
-
-func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
-	old := supportedHooks
-	supportedHooks = hookTypes
-	return func() { supportedHooks = old }
-}
-
-func (info *Info) RenamePlug(oldName, newName string) {
-	info.renamePlug(oldName, newName)
-}
