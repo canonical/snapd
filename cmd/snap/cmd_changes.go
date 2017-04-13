@@ -46,7 +46,7 @@ type cmdChanges struct {
 
 type cmdChange struct {
 	Positional struct {
-		ID changeID `positional-arg-name:"<id>" required:"yes" hidden:"true"`
+		ID changeID `positional-arg-name:"<id>" required:"yes"`
 	} `positional-args:"yes"`
 }
 
@@ -58,7 +58,7 @@ type cmdTasks struct {
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
 	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, nil, nil)
 }
 
