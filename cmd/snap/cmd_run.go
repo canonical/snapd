@@ -234,7 +234,7 @@ func isReexeced() bool {
 func migrateXauthority(info *snap.Info) error {
 	u, err := userCurrent()
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
+		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
 	}
 
 	xauthPath := osGetenv("XAUTHORITY")
