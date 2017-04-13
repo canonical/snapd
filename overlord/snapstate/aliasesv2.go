@@ -385,7 +385,7 @@ func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*
 // aliases autoAliases from curAliases, used as the task
 // prune-auto-aliases to handle transfers of automatic aliases in a
 // refresh.
-func pruneAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
+func pruneAutoAliases(curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
 		newAliases[alias] = aliasTarget
@@ -520,7 +520,7 @@ func Alias(st *state.State, snapName, app, alias string) (*state.TaskSet, error)
 
 // manualAliases returns newAliases with a manual alias to target setup over
 // curAliases.
-func manualAlias(st *state.State, info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
+func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, alias string) (newAliases map[string]*AliasTarget, err error) {
 	if info.Apps[target] == nil {
 		return nil, fmt.Errorf("cannot enable alias %q for %q, target application %q does not exist", alias, info.Name(), target)
 	}
