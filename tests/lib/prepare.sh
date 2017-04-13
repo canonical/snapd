@@ -27,10 +27,10 @@ update_core_snap_for_classic_reexec() {
     unsquashfs "$snap"
     cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     cp -a /usr/bin/snapctl squashfs-root/usr/bin/
-    cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/
     # also inject new version of snap-confine and snap-scard-ns
     cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
     cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine* squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
