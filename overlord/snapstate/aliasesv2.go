@@ -343,7 +343,8 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 	return nil, nil
 }
 
-// disableAliases returns newAliases corresponding to the disabling of curAliases, for manual aliases that means removed.
+// disableAliases returns newAliases corresponding to the disabling of
+// curAliases, for manual aliases that means removed.
 func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, curTarget := range curAliases {
@@ -354,7 +355,10 @@ func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*
 	return newAliases
 }
 
-// pruneAutoAliases returns newAliases by dropping the automatic aliases autoAliases from curAliases, used as the task prune-auto-aliases to handle transfers of automatic aliases in a refresh.
+// pruneAutoAliases returns newAliases by dropping the automatic
+// aliases autoAliases from curAliases, used as the task
+// prune-auto-aliases to handle transfers of automatic aliases in a
+// refresh.
 func pruneAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoAliases []string) (newAliases map[string]*AliasTarget) {
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {
