@@ -1838,6 +1838,40 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 	})
 }
 
+// Test "core-support" connections that loop back to core is
+// renamed to match the rename of the plug.
+func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
+	// Put state with old connection data.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"core:core-support core:core-support": map[string]interface{}{
+			"interface": "core-support", "auto": true,
+		},
+		"snap:unrelated core:unrelated": map[string]interface{}{
+			"interface": "unrelated", "auto": true,
+		},
+	})
+	s.state.Unlock()
+
+	// Start the manager, this is where renames happen.
+	s.manager(c)
+
+	// Check that "core-support" connection got renamed.
+	s.state.Lock()
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"core:core-support-plug core:core-support": map[string]interface{}{
+			"interface": "core-support", "auto": true,
+		},
+		"snap:unrelated core:unrelated": map[string]interface{}{
+			"interface": "unrelated", "auto": true,
+		},
+	})
+}
+
 // Test that "network-bind" and "core-support" plugs are renamed to
 // "network-bind-plug" and "core-support-plug" in order not to clash with slots
 // with the same names.
