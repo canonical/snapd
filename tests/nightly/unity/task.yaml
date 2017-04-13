@@ -6,11 +6,18 @@ environment:
 systems: [ubuntu-16.04-64]
 
 prepare: |
+    # the file /etc/init/tty1.conf is present in the default images, upstart
+    # (which is installed as a dependency of the required packages) ships it
+    # and doesn't install cleanly if that file is in place
+    mv /etc/init/tty1.conf /etc/init/tty1.conf.back
+
     apt install -y --no-install-recommends x11-utils xvfb unity
 
 disabled_restore: |
     systemctl stop unity-app
     apt autoremove -y --purge x11-utils xvfb unity
+
+    mv /etc/init/tty1.conf.back /etc/init/tty1.conf
 
 execute: |
     echo "Given a unity snap is installed"
