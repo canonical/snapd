@@ -1,0 +1,28 @@
+summary: smoke test for snap-update-ns
+details: |
+    Snapd is growing a new executable, snap-update-ns, to modify an existing
+    mount namespace.  This is further documented on the forum here
+    https://forum.snapcraft.io/t/fixing-live-propagation-of-mount-changes/23
+
+    While the implementation matures this test checks that we call setns
+    correctly (and it doesn't fail) enough that we reach the "not implemented"
+    message that is currently in snap-updates-ns
+environment:
+    # This is needed to enable the C part of snap-update-ns to work.
+    SNAPD_INTERNAL: x-switch-namespace=1,
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+execute: |
+    # Ensure there is no (stale) mount namespace
+    rm -f /run/snapd/ns/test-snapd-tools.mnt
+    # Run snap-update-ns to see that we try to open the namespace file but fail (because it is not there yet).
+    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: cannot open mount namespace file: no such file or directory"
+    # Run a trivial command to build and preserve a mount namespace.
+    test-snapd-tools.cmd true
+    # Run snap-update-ns to see that setns part worked and we got to the 'not implemented' code.
+    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: not implemented"
+    # Run snap-discard-ns to discard the namespace we were working with.
+    /usr/lib/snapd/snap-discard-ns test-snapd-tools
+    # Run snap-update-ns to see that setns part fails because what we open is no longer a namespace.
+    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: cannot switch mount namespace: invalid argument"

@@ -239,13 +239,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	m := map[string]interface{}{
-		"series":     release.Series,
-		"version":    c.d.Version,
-		"os-release": release.ReleaseInfo,
-		"on-classic": release.OnClassic,
-		"managed":    len(users) > 0,
-
+		"series":         release.Series,
+		"version":        c.d.Version,
+		"os-release":     release.ReleaseInfo,
+		"on-classic":     release.OnClassic,
+		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
 	}
 
 	// TODO: set the store-id here from the model information
@@ -2262,10 +2265,12 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&a); err != nil {
 		return BadRequest("cannot decode request body into an alias action: %v", err)
 	}
-	if len(a.Aliases) == 0 {
-		return BadRequest("at least one alias name is required")
+	if len(a.Aliases) != 0 {
+		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
+	return BadRequest("cannot yet interpret request")
 
+	/* TODO: rework this
 	var summary string
 	var taskset *state.TaskSet
 	var err error
@@ -2298,6 +2303,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+	*/
 }
 
 type aliasStatus struct {
