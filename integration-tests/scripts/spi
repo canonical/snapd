@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# Copyright (C) 2015 Canonical Ltd
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3 as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Script to run the integration tests in the Snappy Product Integration.
+
+set -x
+
+export GOPATH="$(mktemp -d)"
+trap "rm -rf $GOPATH" EXIT
+export PATH="$GOPATH/bin:$PATH"
+pwd="$(pwd)"
+
+go get -d -v github.com/ubuntu-core/snappy...
+cd "$GOPATH"/src/github.com/ubuntu-core/snappy
+
+go get launchpad.net/godeps
+godeps -u dependencies.tsv
+
+go run ./integration-tests/main.go -ip "$1"-arch "$2" -output-dir "$pwd"/results > "$pwd"/output.txt 2>&1
+exit_status=$?
+
+cd "$pwd"
+output_paste="$(pastebinit output.txt 2>&1)"
+log_paste="$(pastebinit results/output/log 2>&1)"
+summary="$(cat results/output/summary 2>&1)"
+subunit2pyunit results/output/artifacts/results.subunit > results/output/artifacts/results.pyunit 2>&1
+results_paste="$(pastebinit results/output/artifacts/results.pyunit 2>&1)"
+cat <<EOF > spi_test_result.json
+{
+  "output": "${output_paste}",
+  "log": "${log_paste}",
+  "summary": "${summary}",
+  "results": "${results_paste}"
+}
+EOF
+exit $exit_status
