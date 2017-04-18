@@ -118,6 +118,9 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Bind unbound slots to all apps
 	bindUnboundSlots(globalSlotNames, snap)
 
+	// Rename specific plugs on the core snap.
+	snap.renameClashingCorePlugs()
+
 	// FIXME: validation of the fields
 	return snap, nil
 }

@@ -133,6 +133,8 @@ func (s *CoreSuite) TestPlugRef(c *C) {
 func (s *CoreSuite) TestPlugRefString(c *C) {
 	ref := PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(ref.String(), Equals, "snap:plug")
+	refPtr := &PlugRef{Snap: "snap", Name: "plug"}
+	c.Check(refPtr.String(), Equals, "snap:plug")
 }
 
 // Slot.Ref works as expected
@@ -147,6 +149,8 @@ func (s *CoreSuite) TestSlotRef(c *C) {
 func (s *CoreSuite) TestSlotRefString(c *C) {
 	ref := SlotRef{Snap: "snap", Name: "slot"}
 	c.Check(ref.String(), Equals, "snap:slot")
+	refPtr := &SlotRef{Snap: "snap", Name: "slot"}
+	c.Check(refPtr.String(), Equals, "snap:slot")
 }
 
 // ConnRef.ID works as expected

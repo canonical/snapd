@@ -50,9 +50,16 @@ type cmdChange struct {
 	} `positional-args:"yes"`
 }
 
+type cmdTasks struct {
+	Positional struct {
+		ID changeID `positional-arg-name:"<id>" required:"yes"`
+	} `positional-args:"yes"`
+}
+
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil).hidden = true
+	addCommand("tasks", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdTasks{} }, nil, nil)
 }
 
 type changesByTime []*client.Change
@@ -70,7 +77,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	if allDigits(c.Positional.Snap) {
 		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap tasks %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
@@ -113,9 +120,18 @@ func (c *cmdChanges) Execute(args []string) error {
 	return nil
 }
 
+func (c *cmdTasks) Execute([]string) error {
+	cli := Client()
+	return showChange(cli, c.Positional.ID)
+}
+
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(string(c.Positional.ID))
+	return showChange(cli, c.Positional.ID)
+}
+
+func showChange(cli *client.Client, chid changeID) error {
+	chg, err := cli.Change(string(chid))
 	if err != nil {
 		return err
 	}
