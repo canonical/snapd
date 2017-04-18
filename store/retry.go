@@ -76,8 +76,14 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	}
 	if netErr, ok := err.(net.Error); ok {
 		if netErr.Timeout() {
+			logger.Debugf("Retrying because of: %s", netErr)
 			return true
 		}
 	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
+	if err == io.ErrUnexpectedEOF || err == io.EOF {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
+	return false
 }
