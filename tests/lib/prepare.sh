@@ -31,16 +31,17 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
     # also inject new version of snap-confine and snap-scard-ns
-    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine* squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
     # also add snap/snapd because we re-exec by default and want to test
     # this version
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -56,6 +57,16 @@ update_core_snap_for_classic_reexec() {
             exit 1
         fi
     done
+}
+
+upgrade_snapd_from_proposed(){
+    apt install -y snapd
+    cp /etc/apt/sources.list sources.list.back
+    echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+    apt update
+    apt install -y --only-upgrade snapd
+    mv sources.list.back /etc/apt/sources.list
+    apt update
 }
 
 prepare_each_classic() {
@@ -75,7 +86,11 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version

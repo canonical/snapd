@@ -402,6 +402,10 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
 }
 
+func (app *AppInfo) DesktopFile() string {
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
+}
+
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
 	var binName string
