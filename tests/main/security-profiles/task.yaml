@@ -1,5 +1,7 @@
 summary: Check security profile generation for apps and hooks.
 
+systems: [-debian-*]
+
 prepare: |
     snapbuild $TESTSLIB/snaps/basic-hooks .
 restore: |

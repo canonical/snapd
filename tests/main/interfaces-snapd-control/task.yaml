@@ -1,5 +1,7 @@
 summary: Ensure that the snapd-control interface works.
 
+systems: [-debian-*]
+
 details: |
     The snapd-control interface allows a snap to access the locale configuration.
 

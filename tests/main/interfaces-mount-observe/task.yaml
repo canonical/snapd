@@ -1,5 +1,7 @@
 summary: Ensures that the mount-observe interface works
 
+systems: [-debian-*]
+
 details: |
     A snap declaring the mount-observe plug is defined, its command
     just read the /proc/<pid>/mounts file.
