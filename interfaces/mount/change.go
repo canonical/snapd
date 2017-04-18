@@ -20,6 +20,7 @@
 package mount
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -40,6 +41,11 @@ const (
 type Change struct {
 	Entry  Entry
 	Action Action
+}
+
+// String formats mount change to a human-readable line.
+func (c Change) String() string {
+	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
 // Needed returns true if the change needs to be performed in the context of mount table.
