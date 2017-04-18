@@ -2027,8 +2027,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", nil)
-	c.Assert(err, check.IsNil)
+	var err error
 
 	// mock a try dir
 	tryDir := c.MkDir()
@@ -2037,6 +2036,42 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = ioutil.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
 	c.Assert(err, check.IsNil)
+
+	reqForFlags := func(f snapstate.Flags) *http.Request {
+		b := "" +
+			"--hello\r\n" +
+			"Content-Disposition: form-data; name=\"action\"\r\n" +
+			"\r\n" +
+			"try\r\n" +
+			"--hello\r\n" +
+			"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+			"\r\n" +
+			tryDir + "\r\n" +
+			"--hello"
+
+		snip := "\r\n" +
+			"Content-Disposition: form-data; name=%q\r\n" +
+			"\r\n" +
+			"true\r\n" +
+			"--hello"
+
+		if f.DevMode {
+			b += fmt.Sprintf(snip, "devmode")
+		}
+		if f.JailMode {
+			b += fmt.Sprintf(snip, "jailmode")
+		}
+		if f.Classic {
+			b += fmt.Sprintf(snip, "classic")
+		}
+		b += "--\r\n"
+
+		req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(b))
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "multipart/thing; boundary=hello")
+
+		return req
+	}
 
 	for _, t := range []struct {
 		coreInfoErr error
@@ -2085,7 +2120,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 		}
 
 		// try the snap (without an installed core)
-		rsp := trySnap(snapsCmd, req, nil, tryDir, t.flags).(*resp)
+		rsp := postSnaps(snapsCmd, reqForFlags(t.flags), nil).(*resp)
 		c.Assert(rsp.Type, check.Equals, ResponseTypeAsync, check.Commentf(t.desc))
 		c.Assert(tryWasCalled, check.Equals, true, check.Commentf(t.desc))
 
@@ -4865,6 +4900,7 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
+	// TODO: the details of this will change
 	action := &aliasAction{
 		Action:  "alias",
 		Snap:    "alias-snap",
@@ -4877,10 +4913,15 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(rec.Code, check.Equals, 400)
+	var rsp resp
+	err = json.Unmarshal(rec.Body.Bytes(), &rsp)
 	c.Check(err, check.IsNil)
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
+		"message": "cannot interpret request, snaps can no longer be expected to declare their aliases",
+	})
+
+	/* TODO: test the happy case again
 	id := body["change"].(string)
 
 	st := d.overlord.State()
@@ -4898,6 +4939,7 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 
 	// sanity check
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, true)
+	*/
 }
 
 func (s *apiSuite) TestAliasErrors(c *check.C) {
@@ -4907,10 +4949,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 		mangle func(*aliasAction)
 		err    string
 	}{
-		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
-		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
-		{func(a *aliasAction) { a.Aliases = nil }, `at least one alias name is required`},
-		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+		{func(a *aliasAction) { a.Aliases = nil }, `cannot yet interpret request`},
 	}
 
 	for _, scen := range errScenarios {
@@ -4932,124 +4971,6 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 		c.Check(rsp.Result.(*errorResult).Message, check.Matches, scen.err)
 	}
-}
-
-func (s *apiSuite) TestUnaliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
-	c.Assert(err, check.IsNil)
-	d := s.daemon(c)
-
-	s.mockSnap(c, aliasYaml)
-
-	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
-		return nil, nil
-	}
-	defer func() { snapstate.AutoAliases = oldAutoAliases }()
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	action := &aliasAction{
-		Action:  "unalias",
-		Snap:    "alias-snap",
-		Aliases: []string{"alias1"},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	defer st.Unlock()
-	err = chg.Err()
-	c.Assert(err, check.IsNil)
-
-	var allAliases map[string]map[string]string
-	err = st.Get("aliases", &allAliases)
-	c.Assert(err, check.IsNil)
-	c.Check(allAliases, check.DeepEquals, map[string]map[string]string{
-		"alias-snap": {"alias1": "disabled"},
-	})
-
-}
-
-func (s *apiSuite) TestResetAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
-	c.Assert(err, check.IsNil)
-	d := s.daemon(c)
-
-	s.mockSnap(c, aliasYaml)
-
-	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
-		return nil, nil
-	}
-	defer func() { snapstate.AutoAliases = oldAutoAliases }()
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Set("aliases", map[string]map[string]string{
-		"alias-snap": {
-			"alias1": "disabled",
-		},
-	})
-
-	action := &aliasAction{
-		Action:  "reset",
-		Snap:    "alias-snap",
-		Aliases: []string{"alias1"},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/aliases", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	st.Unlock()
-	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	st.Lock()
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	chg := st.Change(id)
-	c.Assert(chg, check.NotNil)
-
-	st.Unlock()
-	<-chg.Ready()
-	st.Lock()
-
-	err = chg.Err()
-	c.Assert(err, check.IsNil)
-
-	var allAliases map[string]map[string]string
-	err = st.Get("aliases", &allAliases)
-	c.Assert(err, check.IsNil)
-	c.Check(allAliases, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestAliases(c *check.C) {

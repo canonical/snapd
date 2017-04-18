@@ -437,3 +437,65 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
+
+func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
+	var osReadlinkResult string
+	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
+		return osReadlinkResult, nil
+	})
+	defer restore()
+
+	for _, t := range []struct {
+		readlink string
+		expected bool
+	}{
+		{filepath.Join(dirs.SnapMountDir, "/usr/lib/snapd/snapd"), true},
+		{"/usr/lib/snapd/snapd", false},
+	} {
+		osReadlinkResult = t.readlink
+		c.Check(snaprun.IsReexeced(), check.Equals, t.expected)
+	}
+}
+
+func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+	defer mockSnapConfine()()
+
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// pretend to be running from core
+	restorer := snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "/core/111//usr/bin/snap"), nil
+	})
+	defer restorer()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/current", dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/current", dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+}
