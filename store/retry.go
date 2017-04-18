@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"syscall"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -76,6 +77,13 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	}
 	if netErr, ok := err.(net.Error); ok {
 		if netErr.Timeout() {
+			return true
+		}
+	}
+	// The CDN sometimes resets the connection (LP:#1617765), also
+	// retry in this case
+	if opErr, ok := err.(*net.OpError); ok {
+		if opErr.Err == syscall.ECONNRESET {
 			return true
 		}
 	}
