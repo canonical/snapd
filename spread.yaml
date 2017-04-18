@@ -56,6 +56,9 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
                 workers: 2
+            - debian-unstable-64:
+                kernel: GRUB 2
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
