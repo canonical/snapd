@@ -20,6 +20,10 @@
 package mount_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -116,4 +120,42 @@ func (s *mountinfoSuite) TestParseInfoEntry4(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse device minor number: "bot"`)
 	_, err = mount.ParseInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse device major:minor number pair: "corrupt"`)
+}
+
+// Test that empty mountinfo is parsed without errors.
+func (s *profileSuite) TestReadMountInfo1(c *C) {
+	entries, err := mount.ReadMountInfo(strings.NewReader(""))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 0)
+}
+
+const mountInfoSample = "" +
+	"19 25 0:18 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw\n" +
+	"20 25 0:4 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw\n" +
+	"21 25 0:6 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=1937696k,nr_inodes=484424,mode=755\n"
+
+// Test that mountinfo is parsed without errors.
+func (s *profileSuite) TestReadMountInfo2(c *C) {
+	entries, err := mount.ReadMountInfo(strings.NewReader(mountInfoSample))
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a file works as expected.
+func (s *profileSuite) TestLoadMountInfo1(c *C) {
+	dir := c.MkDir()
+	fname := filepath.Join(dir, "mountinfo")
+	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
+	c.Assert(err, IsNil)
+	entries, err := mount.LoadMountInfo(fname)
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a missing file reports an error.
+func (s *profileSuite) TestLoadMountInfo2(c *C) {
+	dir := c.MkDir()
+	fname := filepath.Join(dir, "mountinfo")
+	_, err := mount.LoadMountInfo(fname)
+	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }
