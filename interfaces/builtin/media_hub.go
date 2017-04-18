@@ -71,18 +71,19 @@ dbus (receive, send)
     path=/core/ubuntu/media/Service{,/**}
     peer=(label=unconfined),
 
-# Allow sending mpris signals for session path
-# TODO: We send and receive TrackListReset, research why
+# Allow sending/receiving mpris signals for session path
 dbus (receive, send)
     bus=session
     path=/core/ubuntu/media/Service/sessions/**
-    interface="org.mpris.MediaPlayer2{,.Player,.TrackList}",
+    interface="org.mpris.MediaPlayer2{,.Player,.TrackList}"
+    peer=(label=unconfined),
 
 # Allow sending properties signals for session path
 dbus (send)
     bus=session
     path=/core/ubuntu/media/Service/sessions/**
-    interface="org.freedesktop.DBus.Properties",
+    interface="org.freedesktop.DBus.Properties"
+    peer=(label=unconfined),
 `
 
 const mediaHubConnectedSlotAppArmor = `
@@ -135,12 +136,10 @@ dbus (send)
     interface="core.ubuntu.media.Service{,.*}"
     path=/core/ubuntu/media/Service
     peer=(label=###SLOT_SECURITY_TAGS###),
-
 `
 
 const mediaHubPermanentSlotSecComp = `
-# Description: Allow operating as the media-hub service. This gives
-# privileged access to the system.
+# Description: Allow operating as the media-hub service.
 
 bind
 `
