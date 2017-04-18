@@ -7,6 +7,15 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
+    echo "Ensure the snap-confine profiles on core are not loaded"
+    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+        apparmor_parser -R "$p"
+    done
+restore: |
+    echo "Ensure the snap-confine profiles are restored"
+    for p in /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine; do
+        apparmor_parser -r $p
+    done
 execute: |
     # NOTE: This has to run as the test user because the protection is only
     # active if user gains elevated permissions as a result of using setuid
