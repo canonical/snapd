@@ -1,4 +1,7 @@
 summary: Check that snap-confine refuses to run unconfined
+
+systems: [-debian-*]
+
 details: |
     snap-confine is setuid root but is only confined with an apparmor profile
     when invoked as a system-installed package or when running in the core from

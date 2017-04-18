@@ -1,5 +1,7 @@
 summary: Checks for snap sideload install
 
+systems: [-debian-*]
+
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do

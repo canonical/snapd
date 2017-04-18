@@ -1,5 +1,7 @@
 summary: Ensure that the hardware-observe interface works.
 
+systems: [-debian-*]
+
 summary: |
     The hardware-observe interface allows a snap to access hardware information.
 

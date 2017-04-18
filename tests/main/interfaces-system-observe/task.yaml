@@ -1,5 +1,7 @@
 summary: Ensures that the system-observe interface works.
 
+systems: [-debian-*]
+
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
