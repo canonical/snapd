@@ -1,5 +1,4 @@
 summary: Run the test suite for C code
-systems: [-ubuntu-core-16-*]
 environment:
     EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils udev
 prepare: |
