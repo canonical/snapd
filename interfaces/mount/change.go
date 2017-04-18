@@ -48,6 +48,21 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
+// Needed returns true if the change needs to be performed in the context of mount table.
+func (c Change) Needed(mounted []*InfoEntry) bool {
+	// Look through what is mounted and see if we shold perform the change. If
+	// the entry is already mounted then we don't need to mount it, if the
+	// entry is already unmounted then we don't need to unmount it.
+
+	// TODO: implement this
+	return true
+}
+
+func (c Change) Perform() error {
+	// TODO merge https://github.com/snapcore/snapd/pull/3138
+	return nil
+}
+
 // NeededChanges computes the changes required to change current to desired mount entries.
 //
 // The current and desired profiles is a fstab like list of mount entries. The
