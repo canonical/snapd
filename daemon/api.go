@@ -1280,7 +1280,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	flags.RemoveSnapPath = true
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1288,6 +1287,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
+	flags.RemoveSnapPath = true
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -2265,10 +2265,12 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&a); err != nil {
 		return BadRequest("cannot decode request body into an alias action: %v", err)
 	}
-	if len(a.Aliases) == 0 {
-		return BadRequest("at least one alias name is required")
+	if len(a.Aliases) != 0 {
+		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
 	}
+	return BadRequest("cannot yet interpret request")
 
+	/* TODO: rework this
 	var summary string
 	var taskset *state.TaskSet
 	var err error
@@ -2301,6 +2303,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
+	*/
 }
 
 type aliasStatus struct {
