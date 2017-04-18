@@ -1,7 +1,10 @@
-summary: Checks for cli errors of the change command.
+summary: Checks for cli errors of the tasks / change command.
 
 execute: |
-    echo "When an invalid ID is given to the change command it shows an error"
+    echo "When an invalid ID is given to the tasks command it shows an error"
+    if snap tasks 10000000; then
+        echo "Expected error when trying change on invalid ID" && exit 1
+    fi
     if snap change 10000000; then
         echo "Expected error when trying change on invalid ID" && exit 1
     fi
