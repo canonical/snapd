@@ -35,7 +35,7 @@ const mirPermanentSlotAppArmor = `
 capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
-/{dev,run}/shm/\#* rw,
+/{dev,run}/shm/\#* mrw,
 /run/mir_socket rw,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
