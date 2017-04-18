@@ -112,7 +112,7 @@ func ValidateXauthority(path string) error {
 		}
 		// FIXME we can do further validation of the cookies like
 		// checking for valid families etc.
-		cookies += 1
+		cookies++
 	}
 
 	if cookies <= 0 {
