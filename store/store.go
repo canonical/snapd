@@ -1390,14 +1390,12 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		}
 		if finalErr != nil {
 			if shouldRetryError(attempt, finalErr) {
-				logger.Debugf("Retrying because of: %s", finalErr)
 				continue
 			}
 			break
 		}
 
 		if shouldRetryHttpResponse(attempt, resp) {
-			logger.Debugf("Retrying because of: %s", resp)
 			resp.Body.Close()
 			continue
 		}
@@ -1422,7 +1420,6 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		pbar.Finished()
 		if finalErr != nil {
 			if shouldRetryError(attempt, finalErr) {
-				logger.Debugf("Retrying because of: %s", finalErr)
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
