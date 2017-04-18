@@ -175,6 +175,17 @@ int main(int argc, char **argv)
 			       "/usr/bin:"
 			       "/sbin:"
 			       "/bin:" "/usr/games:" "/usr/local/games", 1);
+			// Ensure we set the various TMPDIRs to /tmp.
+			// One of the parts of setting up the mount namespace is to create a private /tmp
+			// directory (this is done in sc_populate_mount_ns() above). The host environment
+			// may point to a directory not accessible by snaps so we need to reset it here.
+			const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
+			int i;
+			for (i = 0; tmpd[i] != NULL; i++) {
+				if (setenv(tmpd[i], "/tmp", 1) != 0) {
+					die("cannot set environment variable '%s'", tmpd[i]);
+				}
+			}
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);
