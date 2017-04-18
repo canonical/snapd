@@ -19,7 +19,7 @@ extra_opts=
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-arch"
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-arch --enable-merged-usr"
 		;;
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
