@@ -503,7 +503,8 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 }
 
 func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
-	// mock installed snap
+	// mock installed snap; happily this also gives us a directory
+	// below /tmp which the Xauthority migration expects.
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
 	defer mockSnapConfine()()
@@ -530,6 +531,8 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		return &user.User{Uid: "1000"}, nil
 	})()
 
+	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, "1000"), 0700)
+
 	xauthPath, err := x11.MockXauthority(2)
 	c.Assert(err, check.IsNil)
 	defer os.Remove(xauthPath)
@@ -552,7 +555,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app"})
 
-	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, "1000", "Xauthority")
+	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, "1000", ".Xauthority")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("XAUTHORITY=%s", expectedXauthPath))
 
 	info, err := os.Stat(expectedXauthPath)

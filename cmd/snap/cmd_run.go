@@ -21,7 +21,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -237,6 +237,13 @@ func migrateXauthority(info *snap.Info) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
 	}
 
+	// If our target directory (XDG_RUNTIME_DIR) doesn't exist we
+	// don't attempt to create it.
+	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
+	if !osutil.FileExists(baseTargetDir) {
+		return fmt.Errorf("Target directory %s does not exist", baseTargetDir)
+	}
+
 	xauthPath := osGetenv("XAUTHORITY")
 	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
 		// Nothing to do for us. Most likely running outside of any
@@ -244,46 +251,96 @@ func migrateXauthority(info *snap.Info) error {
 		return nil
 	}
 
-	// Copy Xauthority file into a temporary place so we can safely
-	// process it further there.
-	tmpDir, err := ioutil.TempDir("", "xauth")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-	flags := osutil.CopyFlagSync | osutil.CopyFlagPreserveAll | osutil.CopyFlagOverwrite
-	tmpXauthPath := filepath.Join(tmpDir, "Xauthority")
-	err = osutil.CopyFile(xauthPath, tmpXauthPath, flags)
+	fin, err := os.Open(xauthPath)
 	if err != nil {
 		return err
 	}
 
-	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
-	targetPath := filepath.Join(baseTargetDir, "Xauthority")
-
-	// Only validate Xauthority file again when both files don't match
-	// ohterwise we can continue using the existing Xauthority file
-	if osutil.FileExists(targetPath) && osutil.FilesAreEqual(targetPath, tmpXauthPath) {
-		osSetenv("XAUTHORITY", targetPath)
+	// Abs() also calls Clean(); see https://golang.org/pkg/path/filepath/#Abs
+	xauthPathAbs, err := filepath.Abs(fin.Name())
+	if err != nil {
 		return nil
 	}
 
-	// Ensure that we have a valid Xauthority. It is invalid when
-	// either the data can't be parsed or there are no cookies in
-	// the file is invalid.
-	if err := x11.ValidateXauthority(tmpXauthPath); err != nil {
+	// Remove all symlinks from path
+	xauthPathCan, err := filepath.EvalSymlinks(xauthPathAbs)
+	if err != nil {
+		return nil
+	}
+
+	// Verify XAUTHORITY matches the cleaned path
+	if fin.Name() != xauthPathCan {
+		logger.Noticef("WARNING: %s != %s\n", xauthPath, xauthPathCan)
+		return nil
+	}
+
+	// Only do the migration from /tmp since /tmp is what is in a different
+	// mount namespace. There is a TOCTOU between this and the
+	// copy below, but this is just a quick check before validating the file
+	if !strings.HasPrefix(fin.Name(), "/tmp") {
+		return nil
+	}
+
+	// Ensure that the file is owned by the current user
+	fi, err := fin.Stat()
+	if err != nil {
+		return err
+	} else {
+		sys := fi.Sys()
+		if sys == nil {
+			return fmt.Errorf("Can't validate file owner")
+		}
+		// cheap comparison but better to convert uid to a string than
+		// a string into a number.
+		if fmt.Sprintf("%d", sys.(*syscall.Stat_t).Uid) != u.Uid {
+			return fmt.Errorf("Xauthority file isn't owned by the current user")
+		}
+	}
+
+	targetPath := filepath.Join(baseTargetDir, ".Xauthority")
+
+	// Only validate Xauthority file again when both files don't match
+	// otherwise we can continue using the existing Xauthority file.
+	// This is ok to do here because we aren't trying to protect against
+	// the user changing the Xauthority file in XDG_RUNTIME_DIR outside
+	// of snapd.
+	var fout *os.File
+	if osutil.FileExists(targetPath) {
+		if fout, err = os.Open(targetPath); err != nil {
+			return err
+		}
+		if osutil.FileStreamsEqual(fin, fout) {
+			osSetenv("XAUTHORITY", targetPath)
+			return nil
+		}
+	}
+
+	// To guard against setting XAUTHORITY to non-xauth files, check
+	// that we have a valid Xauthority. Specifically, the file must be
+	// parseable as an Xauthority file and not be empty.
+	if err := x11.ValidateXauthority(fin.Name()); err != nil {
 		logger.Noticef("WARNING: invalid Xauthority file: %s", err)
 		return nil
 	}
 
-	if !osutil.FileExists(baseTargetDir) {
-		if err := os.MkdirAll(baseTargetDir, 0700); err != nil {
-			return err
-		}
+	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
 	}
 
-	if err = osutil.CopyFile(tmpXauthPath, targetPath, flags); err != nil {
-		return err
+	// Read and write validated Xauthority file to its right location
+	buf := make([]byte, 1024)
+	for {
+		r, err := io.ReadAtLeast(fin, buf, len(buf))
+		if err == io.EOF {
+			break
+		}
+		_, err = fout.Write(buf[:r])
+		if err != nil {
+			fout.Close()
+			os.Remove(targetPath)
+			return fmt.Errorf("Failed to write new Xauthority file at %s", targetPath)
+		}
 	}
 
 	// If everything is ok, we can now point the snap to the new
