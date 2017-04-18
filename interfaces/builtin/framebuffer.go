@@ -76,7 +76,7 @@ func (iface *FramebufferInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	return nil
 }
 
-func (iface *FramebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+func (iface *FramebufferInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// This will fix access denied of opengl interface when it's used with
 	// framebuffer interface in the same snap.
 	// https://bugs.launchpad.net/snapd/+bug/1675738
