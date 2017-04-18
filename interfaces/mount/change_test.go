@@ -29,6 +29,14 @@ type changeSuite struct{}
 
 var _ = Suite(&changeSuite{})
 
+func (s *changeSuite) TestString(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/a/b", Name: "/dev/sda1"},
+		Action: mount.Mount,
+	}
+	c.Assert(change.String(), Equals, "mount (/dev/sda1 /a/b none defaults 0 0)")
+}
+
 // When there are no profiles we don't do anything.
 func (s *changeSuite) TestNeededChangesNoProfiles(c *C) {
 	current := &mount.Profile{}
