@@ -24,6 +24,8 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 var opts struct {
@@ -41,14 +43,22 @@ func main() {
 
 func parseArgs(args []string) error {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	_, err := parser.ParseArgs(args)
-	return err
+	if _, err := parser.ParseArgs(args); err != nil {
+		return err
+	}
+	return snap.ValidateName(opts.Positionals.SnapName)
 }
 
 func run() error {
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
 	}
-
+	// There is some C code that runs before main() is started.
+	// That code always runs and sets an error condition if it fails.
+	// Here we just check for the error.
+	if err := BootstrapError(); err != nil {
+		return err
+	}
+	// TODO: implement this
 	return fmt.Errorf("not implemented")
 }

@@ -45,6 +45,7 @@ var implicitSlots = []string{
 	"io-ports-control",
 	"joystick",
 	"kernel-module-control",
+	"kubernetes-support",
 	"locale-control",
 	"log-observe",
 	"lxd-support",
