@@ -154,7 +154,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
 	// Reject plug that don't pass interface-specific sanitization
-	if err := i.SanitizePlug(plug); err != nil {
+	if err := SanitizePlug(i, plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
 	if _, ok := r.plugs[snapName][plug.Name]; ok {
@@ -253,7 +253,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if i == nil {
 		return fmt.Errorf("cannot add slot, interface %q is not known", slot.Interface)
 	}
-	if err := i.SanitizeSlot(slot); err != nil {
+	if err := SanitizeSlot(i, slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[snapName][slot.Name]; ok {
@@ -783,7 +783,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
-		if err := iface.SanitizePlug(plug); err != nil {
+		if err := SanitizePlug(iface, plug); err != nil {
 			bad.issues[plugName] = err.Error()
 			continue
 		}
@@ -805,7 +805,7 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
-		if err := iface.SanitizeSlot(slot); err != nil {
+		if err := SanitizeSlot(iface, slot); err != nil {
 			bad.issues[slotName] = err.Error()
 			continue
 		}
