@@ -1,0 +1,77 @@
+summary: Check file XAUTHORITY env variable points to is migrated into the snap environment
+description: |
+    The XAUTHORITY environment variable points to a file which is located
+    in HOME, /run or /tmp depending on the distribution and desktop being
+    used. If the file ends up in /tmp then it wont be visible inside the
+    snap environment as each snap gets its private /tmp. To ensure the
+    file XAUTHORITY points to is always available no matter where it is
+    stored on the host system we migrate the file and copy it into
+    /run/$USER/.Xauthority and set the XAUTHORITY environment variable
+    accordingly.
+
+    This test verified the correct behaviour of the implemented logic
+    inside `snap run`.
+
+execute: |
+    snap install hello-world
+
+    ensure_xauth_path() {
+        export XAUTHORITY=$1
+        # Get rid of things to ensure a clean test bed
+        rm -f /var/snap/hello-world/common/xauth-content /run/user/0/.Xauthority
+        snap run --shell hello-world <<'EOF'
+    echo $XAUTHORITY > /var/snap/hello-world/common/xauth-content
+    exit
+    EOF
+        test "$(cat /var/snap/hello-world/common/xauth-content)" = "$2" || exit 1
+    }
+
+    mock_xauthority() {
+        # Generate valid Xauthority file which `snap run` will accept
+        rm -f $1; touch $1
+        for ((c=0; c<=$2; c++))
+        do
+            # Family
+            echo -n -e \\x01\\x00 >> $1
+            # Address
+            echo -n -e \\x00\\x04\\x73\\x6e\\x61\\x70 >> $1
+            # Number
+            echo -n -e \\x00\\x01\\xff >> $1
+            # Name
+            echo -n -e \\x00\\x05\\x73\\x6e\\x61\\x70\\x64 >> $1
+            # Data
+            echo -n -e \\x00\\x01\\xff >> $1
+        done
+    }
+
+    # An invalid Xauthority file should cause the XAUTHORITY
+    # environment variable to stay untouched.
+    echo "foo bar" > /tmp/invalid-xauthority
+    ensure_xauth_path /tmp/invalid-xauthority /tmp/invalid-xauthority
+    test ! -e /run/user/0/.Xauthority
+
+    echo > /tmp/invalid-xauthority
+    ensure_xauth_path /tmp/invalid-xauthority /tmp/invalid-xauthority
+    test ! -e /run/user/0/.Xauthority
+
+    # Generate valid Xauthority file which `snap run` will accept
+    mock_xauthority /tmp/valid-xauthority 4
+    chmod 600 /tmp/valid-xauthority
+
+    # Xauthority should be correctly migrated
+    ensure_xauth_path /tmp/valid-xauthority /run/user/0/.Xauthority
+    test -e /run/user/0/.Xauthority
+
+    # When we switch the owner the input xauth file shouldn't be moved.
+    chown 1000:1000 /tmp/valid-xauthority
+    ensure_xauth_path /tmp/valid-xauthority /tmp/valid-xauthority
+    test ! -e /run/user/0/.Xauthority
+
+    # We should not be able to get things like /etc/shadow migrated
+    # into the snap environment. When `snap run` does the migration
+    # it will change the content of the XAUTHORITY env variable
+    # inside the snap environment and otherwise leave the variable
+    # untouched. This is why the expected content of the XAUTHORITY
+    # env variable in this case is /etc/shadow
+    ensure_xauth_path /etc/shadow /etc/shadow
+    test ! -e /run/user/0/.Xauthority
