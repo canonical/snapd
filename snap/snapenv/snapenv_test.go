@@ -136,3 +136,19 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 		})
 	}
 }
+
+func (s *HTestSuite) TestExtraEnvForExecEnv(c *C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	env := ExecEnv(info, map[string]string{"FOO": "BAR"})
+	found := false
+	for _, item := range env {
+		if item == "FOO=BAR" {
+			found = true
+			break
+		}
+	}
+	c.Assert(found, Equals, true)
+}

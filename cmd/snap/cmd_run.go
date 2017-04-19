@@ -43,7 +43,6 @@ var (
 	syscallExec = syscall.Exec
 	userCurrent = user.Current
 	osGetenv    = os.Getenv
-	osSetenv    = os.Setenv
 )
 
 type cmdRun struct {
@@ -231,70 +230,79 @@ func isReexeced() bool {
 	return strings.HasPrefix(exe, dirs.SnapMountDir)
 }
 
-func migrateXauthority(info *snap.Info) error {
+func migrateXauthority(info *snap.Info) (string, error) {
 	u, err := userCurrent()
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+		return "", fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
 	}
 
 	// If our target directory (XDG_RUNTIME_DIR) doesn't exist we
 	// don't attempt to create it.
 	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
 	if !osutil.FileExists(baseTargetDir) {
-		return fmt.Errorf("Target directory %s does not exist", baseTargetDir)
+		return "", nil
 	}
 
 	xauthPath := osGetenv("XAUTHORITY")
 	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
 		// Nothing to do for us. Most likely running outside of any
 		// graphical X11 session.
-		return nil
+		return "", nil
 	}
 
 	fin, err := os.Open(xauthPath)
 	if err != nil {
-		return err
+		return "", err
 	}
+	defer fin.Close()
 
 	// Abs() also calls Clean(); see https://golang.org/pkg/path/filepath/#Abs
 	xauthPathAbs, err := filepath.Abs(fin.Name())
 	if err != nil {
-		return nil
+		return "", nil
 	}
 
 	// Remove all symlinks from path
 	xauthPathCan, err := filepath.EvalSymlinks(xauthPathAbs)
 	if err != nil {
-		return nil
+		return "", nil
 	}
 
 	// Verify XAUTHORITY matches the cleaned path
 	if fin.Name() != xauthPathCan {
-		logger.Noticef("WARNING: %s != %s\n", xauthPath, xauthPathCan)
-		return nil
+		logger.Noticef("WARNING: %s != %s\n", fin.Name(), xauthPathCan)
+		return "", nil
 	}
 
 	// Only do the migration from /tmp since /tmp is what is in a different
-	// mount namespace. There is a TOCTOU between this and the
-	// copy below, but this is just a quick check before validating the file
-	if !strings.HasPrefix(fin.Name(), "/tmp") {
-		return nil
+	// mount namespace.
+	if !strings.HasPrefix(fin.Name(), "/tmp/") {
+		return "", nil
 	}
 
-	// Ensure that the file is owned by the current user
+	// We are performing a Stat() here to make sure that the user can't
+	// steal another user's Xauthority file. Note that while Stat() uses
+	// fstat() on the file descriptor created during Open(), the file might
+	// have changed ownership between the Open() and the Stat(). That's ok
+	// because we aren't trying to block access that the user already has:
+	// if the user has the privileges to chown another user's Xauthority
+	// file, we won't block that since the user can just steal it without
+	// having to use snap run. This code is just to ensure that a user who
+	// doesn't have those privileges can't steal the file via snap run
+	// (also note that the (potentially untrusted) snap isn't running yet).
 	fi, err := fin.Stat()
 	if err != nil {
-		return err
-	} else {
-		sys := fi.Sys()
-		if sys == nil {
-			return fmt.Errorf("Can't validate file owner")
-		}
-		// cheap comparison but better to convert uid to a string than
-		// a string into a number.
-		if fmt.Sprintf("%d", sys.(*syscall.Stat_t).Uid) != u.Uid {
-			return fmt.Errorf("Xauthority file isn't owned by the current user")
-		}
+		return "", err
+	}
+	sys := fi.Sys()
+	if sys == nil {
+		return "", fmt.Errorf(i18n.G("Can't validate file owner"))
+	}
+	// cheap comparison as the current uid is only available as a string
+	// but it is better to convert the uid from the stat result to a
+	// string than a string into a number.
+	if fmt.Sprintf("%d", sys.(*syscall.Stat_t).Uid) != u.Uid {
+		return "", fmt.Errorf(i18n.G("Xauthority file isn't owned by the current user %s"), u.Uid)
 	}
 
 	targetPath := filepath.Join(baseTargetDir, ".Xauthority")
@@ -307,25 +315,36 @@ func migrateXauthority(info *snap.Info) error {
 	var fout *os.File
 	if osutil.FileExists(targetPath) {
 		if fout, err = os.Open(targetPath); err != nil {
-			return err
+			return "", err
 		}
+		defer fout.Close()
 		if osutil.FileStreamsEqual(fin, fout) {
-			osSetenv("XAUTHORITY", targetPath)
-			return nil
+			return targetPath, nil
 		}
+	}
+
+	// Ensure we're validating the Xauthority file from the beginning
+	if _, err := fin.Seek(int64(os.SEEK_SET), 0); err != nil {
+		return "", err
 	}
 
 	// To guard against setting XAUTHORITY to non-xauth files, check
 	// that we have a valid Xauthority. Specifically, the file must be
 	// parseable as an Xauthority file and not be empty.
-	if err := x11.ValidateXauthority(fin.Name()); err != nil {
+	if err := x11.ValidateXauthorityFromFile(fin); err != nil {
 		logger.Noticef("WARNING: invalid Xauthority file: %s", err)
-		return nil
+		return "", nil
 	}
 
-	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE, 0600)
+	os.Remove(targetPath)
+	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	// Read data from the beginning of the file
+	if _, err = fin.Seek(int64(os.SEEK_SET), 0); err != nil {
+		return "", err
 	}
 
 	// Read and write validated Xauthority file to its right location
@@ -335,19 +354,19 @@ func migrateXauthority(info *snap.Info) error {
 		if err == io.EOF {
 			break
 		}
-		_, err = fout.Write(buf[:r])
-		if err != nil {
-			fout.Close()
-			os.Remove(targetPath)
-			return fmt.Errorf("Failed to write new Xauthority file at %s", targetPath)
+		left := r
+		for left > 0 {
+			n, err := fout.Write(buf[r-left : left])
+			if err != nil {
+				fout.Close()
+				os.Remove(targetPath)
+				return "", fmt.Errorf(i18n.G("Failed to write new Xauthority file at %s"), targetPath)
+			}
+			left -= n
 		}
 	}
 
-	// If everything is ok, we can now point the snap to the new
-	// location of the Xauthority file.
-	osSetenv("XAUTHORITY", targetPath)
-
-	return nil
+	return targetPath, nil
 }
 
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
@@ -364,7 +383,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	if err := migrateXauthority(info); err != nil {
+	xauthPath, err := migrateXauthority(info)
+	if err != nil {
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
@@ -396,5 +416,11 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
 	}
 
-	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
+	extraEnv := make(map[string]string)
+	if len(xauthPath) > 0 {
+		extraEnv["XAUTHORITY"] = xauthPath
+	}
+	env := snapenv.ExecEnv(info, extraEnv)
+
+	return syscallExec(cmd[0], cmd, env)
 }
