@@ -1,4 +1,5 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1599891
+systems: [-debian-*]
 execute: |
     snap_confine=/usr/lib/snapd/snap-confine
     echo "Seeing that snap-confine is in $snap_confine"

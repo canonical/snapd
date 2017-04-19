@@ -3,7 +3,7 @@ details: |
     This task checks the behavior of snap-confine when it is started from
     a directory that doesn't exist in the execution environment (chroot).
 # This test only applies to classic systems
-systems: [-ubuntu-core-16-*]
+systems: [-ubuntu-core-16-*, -debian-*]
 prepare: |
     echo "Having installed the test snap"
     . $TESTSLIB/snaps.sh
