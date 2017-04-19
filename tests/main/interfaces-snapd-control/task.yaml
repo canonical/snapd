@@ -1,6 +1,8 @@
 summary: Ensure that the snapd-control interface works.
 
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The snapd-control interface allows a snap to access the locale configuration.

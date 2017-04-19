@@ -1,6 +1,8 @@
 summary: Ensures that the mount-observe interface works
 
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     A snap declaring the mount-observe plug is defined, its command

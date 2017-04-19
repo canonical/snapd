@@ -1,6 +1,9 @@
 summary: Ensure that the cups interface works.
 
-systems: [-ubuntu-core-16-*,-debian-*]
+systems:
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.

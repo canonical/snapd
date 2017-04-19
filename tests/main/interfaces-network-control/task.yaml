@@ -1,6 +1,8 @@
 summary: Ensure that the network-control interface works.
 
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The network-control interface allows a snap to configure networking.

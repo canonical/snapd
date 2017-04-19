@@ -2,8 +2,11 @@ summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/15954
 details: |
     This task checks the behavior of snap-confine when it is started from
     a directory that doesn't exist in the execution environment (chroot).
-# This test only applies to classic systems
-systems: [-ubuntu-core-16-*, -debian-*]
+systems:
+    # This test only applies to classic systems
+    - -ubuntu-core-16-*
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 prepare: |
     echo "Having installed the test snap"
     . $TESTSLIB/snaps.sh

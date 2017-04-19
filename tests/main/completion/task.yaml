@@ -1,7 +1,9 @@
 summary: Check different completions
 
-# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -debian-*]
+systems:
+    - -ubuntu-core-16-*
+    # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2502
+    - -ubuntu-*-ppc64el
 
 prepare: |
     mkdir -p testdir
