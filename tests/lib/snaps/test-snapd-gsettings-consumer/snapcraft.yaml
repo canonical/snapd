@@ -1,0 +1,18 @@
+name: test-snapd-gsettings-consumer
+version: 1.0
+summary: Basic gsettings consumer snap
+description: A basic snap declaring a plug on gsettings
+
+apps:
+    get:
+        command: bin/get
+        plugs: [gsettings]
+    set:
+        command: bin/set
+        plugs: [gsettings]
+
+parts:
+    gsettings:
+        plugin: make
+        source: .
+        stage-packages: [libglib2.0-bin]

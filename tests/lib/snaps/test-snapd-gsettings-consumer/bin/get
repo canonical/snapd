@@ -1,0 +1,6 @@
+#!/bin/sh
+
+schema="$1"
+key="$2"
+
+gsettings get "$schema" "$key"

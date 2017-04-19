@@ -1,0 +1,69 @@
+summary: Ensure that the gsettings interface works.
+
+summary: |
+    The gsettings interface allows a snap to access the locale configuration.
+
+    A snap which defines the gsettings plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to act as a gsettings client.
+
+environment:
+    GSETTINGS_SCHEMA: com.canonical.UserMetrics
+    GSETTINGS_KEY: theme
+
+prepare: |
+    echo "Given a snap declaring a plug on the gsettings interface is installed"
+    snap install test-snapd-gsettings-consumer
+
+    echo "And a package with a gsettings backend is installed"
+    apt install -y usermetricsservice
+
+    echo "And a gsettings value is kept back"
+    echo $(test-snapd-gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY) > gsettings-key.back
+
+restore: |
+    cat gsettings-key.back | xargs test-snapd-gsettings-consumer.set $GSETTINGS_KEY
+    rm -f gsettings*.error gsettings-key.back
+    apt remove -y usermetricsservice
+    apt autoremove -y
+
+execute: |
+    CONNECTED_PATTERN=":gsettings +test-snapd-gsettings-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-gsettings-consumer:gsettings"
+
+    echo "Then it is connected by default"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect test-snapd-gsettings-consumer:gsettings ubuntu-core:gsettings
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to write the gsettings keys"
+    su -l -c "test-snapd-gsettings-consumer.set $GSETTINGS_SCHEMA $GSETTINGS_KEY value" test
+
+    echo "And the snap is able to read the gsettings keys"
+    [ "$(su -l -c 'test-snapd--gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY' test)" = "value" ]
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-gsettings-consumer:gsettings ubuntu-core:gsettings
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to write the gsettings keys"
+    if su -l -c "test-snapd-gsettings-consumer.set $GSETTINGS_SCHEMA $GSETTINGS_KEY value 2>${PWD}/gsettings-write.error" test; then
+        echo "Expected permission error writing gsettings key with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-write.error
+
+    echo "And the snap is not able to read gsettings keys"
+    if su -l -c "test-snapd.gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY 2>${PWD}/gsettings-read.error" test; then
+        echo "Expected permission error reading gsettings key with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-read.error
