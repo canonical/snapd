@@ -64,7 +64,7 @@ import (
 
 const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
-// overriden in the tests
+// overridden in the tests
 var errtrackerReport = errtracker.Report
 
 // SnapManager is responsible for the installation and removal of snaps.
