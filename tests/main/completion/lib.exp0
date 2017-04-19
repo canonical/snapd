@@ -59,8 +59,10 @@ proc brexit {} {
 }
 
 
-# set up
-spawn bash --norc -i
+# Set up and ensure we have an empty environment as on some systems
+# (debian) PS1 leaks into the newly spawned shell which causes our
+# tests to fail.
+spawn env -i bash --norc -i
 next
 send ". /etc/bash_completion; . ../../../data/completion/snap\n"
 next
