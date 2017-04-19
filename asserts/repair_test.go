@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	_ = Suite(&emergencySuite{})
+	_ = Suite(&repairSuite{})
 )
 
-type emergencySuite struct {
+type repairSuite struct {
 	until     time.Time
 	untilLine string
 	since     time.Time
@@ -40,12 +40,12 @@ type emergencySuite struct {
 
 	modelsLine string
 
-	emergencyStr string
+	repairStr string
 }
 
-const emergencyExample = "type: emergency\n" +
+const repairExample = "type: repair\n" +
 	"authority-id: canonical\n" +
-	"emergency-id: incident-123\n" +
+	"repair-id: REPAIR-42\n" +
 	"series:\n" +
 	"  - 16\n" +
 	"MODELSLINE\n" +
@@ -57,26 +57,26 @@ const emergencyExample = "type: emergency\n" +
 	"\n\n" +
 	"AXNpZw=="
 
-func (em *emergencySuite) SetUpTest(c *C) {
+func (em *repairSuite) SetUpTest(c *C) {
 	em.since = time.Now().Truncate(time.Second)
 	em.sinceLine = fmt.Sprintf("since: %s\n", em.since.Format(time.RFC3339))
 	em.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
 	em.untilLine = fmt.Sprintf("until: %s\n", em.until.Format(time.RFC3339))
 	em.modelsLine = "models:\n  - frobinator\n"
-	em.emergencyStr = strings.Replace(emergencyExample, "UNTILLINE\n", em.untilLine, 1)
-	em.emergencyStr = strings.Replace(em.emergencyStr, "SINCELINE\n", em.sinceLine, 1)
-	em.emergencyStr = strings.Replace(em.emergencyStr, "MODELSLINE\n", em.modelsLine, 1)
+	em.repairStr = strings.Replace(repairExample, "UNTILLINE\n", em.untilLine, 1)
+	em.repairStr = strings.Replace(em.repairStr, "SINCELINE\n", em.sinceLine, 1)
+	em.repairStr = strings.Replace(em.repairStr, "MODELSLINE\n", em.modelsLine, 1)
 }
 
-func (em *emergencySuite) TestDecodeOK(c *C) {
-	a, err := asserts.Decode([]byte(em.emergencyStr))
+func (em *repairSuite) TestDecodeOK(c *C) {
+	a, err := asserts.Decode([]byte(em.repairStr))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.EmergencyType)
-	emergency := a.(*asserts.Emergency)
-	c.Check(emergency.EmergencyID(), Equals, "incident-123")
-	c.Check(emergency.Series(), DeepEquals, []string{"16"})
-	c.Check(emergency.Models(), DeepEquals, []string{"frobinator"})
-	c.Check(emergency.Cmd(), Equals, "sed 's/broked/fixed/s' /etc/systemd/system/snapd.service")
-	c.Check(emergency.Since().Equal(em.since), Equals, true)
-	c.Check(emergency.Until().Equal(em.until), Equals, true)
+	c.Check(a.Type(), Equals, asserts.RepairType)
+	repair := a.(*asserts.Repair)
+	c.Check(repair.RepairID(), Equals, "REPAIR-42")
+	c.Check(repair.Series(), DeepEquals, []string{"16"})
+	c.Check(repair.Models(), DeepEquals, []string{"frobinator"})
+	c.Check(repair.Cmd(), Equals, "sed 's/broked/fixed/s' /etc/systemd/system/snapd.service")
+	c.Check(repair.Since().Equal(em.since), Equals, true)
+	c.Check(repair.Until().Equal(em.until), Equals, true)
 }
