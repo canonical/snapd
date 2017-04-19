@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"syscall"
 	"time"
 
@@ -83,8 +84,11 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	// The CDN sometimes resets the connection (LP:#1617765), also
 	// retry in this case
 	if opErr, ok := err.(*net.OpError); ok {
-		if opErr.Err == syscall.ECONNRESET {
-			return true
+		// peeling the onion
+		if syscallErr, ok := opErr.Err.(*os.SyscallError); ok {
+			if syscallErr.Err == syscall.ECONNRESET {
+				return true
+			}
 		}
 	}
 	return err == io.ErrUnexpectedEOF || err == io.EOF
