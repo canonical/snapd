@@ -3397,7 +3397,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(plug.Connections, check.HasLen, 0)
 }
 
-func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
+func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
 	d := s.daemon(c)
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -3416,8 +3416,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: plugSnap, Name: plugName}},
+		Slots:  []slotJSON{{Snap: slotSnap, Name: slotName}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -3449,6 +3449,18 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, check.HasLen, 0)
 	c.Assert(slot.Connections, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
+	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccessWithEmptyPlug(c *check.C) {
+	s.testDisconnect(c, "", "", "producer", "slot")
+}
+
+func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
+	s.testDisconnect(c, "consumer", "plug", "", "")
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
