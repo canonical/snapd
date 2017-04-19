@@ -1,0 +1,93 @@
+summary: Ensure that the serial-port interface works.
+
+summary: |
+    The serial-port interface allows a snap to access a serial device.
+
+    This tests is different from the rest of interface tests in the sense that
+    the serial-port interface is not provided by default by the os snap, it must
+    be provided by a snap declaring a slot with the path of an existing serial
+    device file.
+
+    Moreover, given that the security profiles depend on the device path, they are
+    created upon ìnstallation of the plug declaring snap. The test takes care of
+    checking for its creation.
+
+    The basic serial port functionality is also checked, in addition to the usual
+    plug connect/disconnect tests.
+
+environment:
+    DEVICE_PATH: /dev/ttyZZZ999
+
+prepare: |
+    echo "Given a serial device exists"
+    touch $DEVICE_PATH
+
+    echo "And a snap declaring a serial-port slot on it is installed"
+    snapbuild $TESTSLIB/snaps/serial-port-provider .
+    snap install serial-port-provider_1.0_all.snap
+
+    echo "And a snap declaring a serial-port plug is installed"
+    snapbuild $TESTSLIB/snaps/serial-port-consumer .
+    snap install serial-port-consumer_1.0_all.snap
+
+restore: |
+    rm -f serial-port-provider_1.0_all.snap serial-port-consumer_1.0_all.snap $DEVICE_PATH serial-*.error
+
+execute: |
+    CONNECTED_PATTERN="serial-port-provider:serial-port +serial-port-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\nserial-port-provider:serial-port +-.*?- +serial-port-consumer:serial-port"
+
+    echo "Then the security profile with the device path in them has been created"
+    test -f /var/lib/snapd/apparmor/profiles/snap.serial-port-provider.cmd
+    grep -q $DEVICE_PATH /var/lib/snapd/apparmor/profiles/snap.serial-port-provider.cmd
+
+    echo "And the plug is not connected by default"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect serial-port-consumer:serial-port serial-port-provider:serial-port
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to write to the serial port"
+    serial-port-consumer.write "Hello write"
+    grep -q "Hello write" $DEVICE_PATH
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect serial-port-consumer:serial-port serial-port-provider:serial-port
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to write to the serial port"
+    if serial-port-consumer.write Hello 2>serial-write.error; then
+        echo "Expected permission error writing to serial port with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" serial-write.error
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect serial-port-consumer:serial-port serial-port-provider:serial-port
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "And data is written to the pseudo terminal"
+    echo "Hello read" > $DEVICE_PATH
+
+    echo "Then the snap is able to read from the serial port"
+    serial-port-consumer.read | grep -q "Hello read"
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect serial-port-consumer:serial-port serial-port-provider:serial-port
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to read to the serial port"
+    if serial-port-consumer.read 2>serial-read.error; then
+        echo "Expected permission error reading to serial port with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" serial-read.error
