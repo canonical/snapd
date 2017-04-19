@@ -122,7 +122,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel":
+	case "fedora", "centos", "rhel", "arch":
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	default:
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
