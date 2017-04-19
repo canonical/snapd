@@ -100,18 +100,21 @@ func ValidateXauthority(path string) error {
 		return err
 	}
 	defer f.Close()
+	return ValidateXauthorityFromFile(f)
+}
 
+// ValidateXauthority validates a given Xauthority file. The file is valid
+// if it can be parsed and contains at least one cookie.
+func ValidateXauthorityFromFile(f *os.File) error {
 	cookies := 0
 	for {
 		xa := &xauth{}
-		err = xa.readFromFile(f)
+		err := xa.readFromFile(f)
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return err
 		}
-		// FIXME we can do further validation of the cookies like
-		// checking for valid families etc.
 		cookies++
 	}
 
