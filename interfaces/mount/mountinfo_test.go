@@ -29,6 +29,17 @@ type mountinfoSuite struct{}
 
 var _ = Suite(&mountinfoSuite{})
 
+// mockMountInfo returns parsed list of mountinfo entries, one for each line.
+func mockMountInfo(c *C, lines ...string) []*mount.InfoEntry {
+	entries := make([]*mount.InfoEntry, 0, len(lines))
+	for _, line := range lines {
+		entry, err := mount.ParseInfoEntry(line)
+		c.Assert(err, IsNil)
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
 // Check that parsing the example from kernel documentation works correctly.
 func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
 	entry, err := mount.ParseInfoEntry(

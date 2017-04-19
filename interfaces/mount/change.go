@@ -50,11 +50,43 @@ func (c Change) String() string {
 
 // Needed returns true if the change needs to be performed in the context of mount table.
 func (c Change) Needed(mounted []*InfoEntry) bool {
-	// Look through what is mounted and see if we shold perform the change. If
-	// the entry is already mounted then we don't need to mount it, if the
-	// entry is already unmounted then we don't need to unmount it.
+	// Use the following rules to compare mountinfo and fstab entries:
+	// - the mount directory must be the same
+	// - the filesystem type must be the same
+	// - the mounted entity (device) must be the same
+	// - the mounted root must be / itself
+	//
+	// NOTE: This disregards mount options and and any optional fields that
+	// indicate sharing. Snapd doesn't use those properties yet, except for
+	// read-only bind mounts but those are special anyway.
 
-	// TODO: implement this
+	fe := c.Entry // fstab entry
+
+	// TODO: The logic below is insufficinet to correctly work with bind
+	// mounts. This will need the bind-mount detector that I'm preparing in a
+	// separate PR that I will fold here next.
+	for _, opt := range fe.Options {
+		if opt == "bind" {
+			panic("support for detecting bind mounts is not implemented yet")
+		}
+	}
+
+	switch c.Action {
+	case Mount:
+		for _, mie := range mounted {
+			if fe.Dir == mie.MountDir && fe.Type == mie.FsType && fe.Name == mie.MountSource && mie.Root == "/" {
+				return false
+			}
+		}
+		return true
+	case Unmount:
+		for _, mie := range mounted {
+			if fe.Dir == mie.MountDir && fe.Type == mie.FsType && fe.Name == mie.MountSource && mie.Root == "/" {
+				return true
+			}
+		}
+		return false
+	}
 	return true
 }
 

@@ -168,3 +168,72 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: mount.Mount},
 	})
 }
+
+// Verify response from Needed for a Mount change when the filesystem is mounted.
+func (s *changeSuite) TestNeededMount1(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/srv", Name: "/dev/sdb2", Type: "ext4"},
+		Action: mount.Mount,
+	}
+	mountinfo := []*mount.InfoEntry{
+		{MountDir: "/srv", MountSource: "/dev/sdb2", FsType: "ext4", Root: "/"},
+	}
+	c.Assert(change.Needed(mountinfo), Equals, false)
+}
+
+// Verify response from Needed for a Mount change when the filesystem isn't mounted.
+func (s *changeSuite) TestNeededMount2(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/srv", Name: "/dev/sdb2", Type: "ext4"},
+		Action: mount.Mount,
+	}
+	mountinfo := []*mount.InfoEntry{}
+	c.Assert(change.Needed(mountinfo), Equals, true)
+}
+
+// Verify that Needed won't let us do silly things before we implement bind mount detector.
+func (s *changeSuite) TestNeededMount3(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/dst", Name: "/src", Options: []string{"bind"}},
+		Action: mount.Mount,
+	}
+	// Real data from an Ubuntu 16.04 system; mkdir /src /dst;
+	mountinfo := mockMountInfo(c,
+		"25 0 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw,errors=remount-ro,data=ordered")
+	c.Assert(func() { change.Needed(mountinfo) }, PanicMatches, "*. not implemented yet")
+}
+
+// Verify response from Needed for an Unmount change when the filesystem isn't mounted.
+func (s *changeSuite) TestNeededUnmount1(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/srv", Name: "/dev/sdb2", Type: "ext4"},
+		Action: mount.Unmount,
+	}
+	mountinfo := []*mount.InfoEntry{}
+	c.Assert(change.Needed(mountinfo), Equals, false)
+}
+
+// Verify response from Needed for or an Unmount change when the filesystem is mounted.
+func (s *changeSuite) TestNeededUnmount2(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/srv", Name: "/dev/sdb2", Type: "ext4"},
+		Action: mount.Unmount,
+	}
+	mountinfo := []*mount.InfoEntry{
+		{MountDir: "/srv", MountSource: "/dev/sdb2", FsType: "ext4", Root: "/"},
+	}
+	c.Assert(change.Needed(mountinfo), Equals, true)
+}
+
+// Verify that Needed won't let us do silly things before we implement bind mount detector.
+func (s *changeSuite) TestNeededUnmount3(c *C) {
+	change := mount.Change{
+		Entry:  mount.Entry{Dir: "/dst", Name: "/src", Options: []string{"bind"}},
+		Action: mount.Unmount,
+	}
+	// Real data from an Ubuntu 16.04 system; mkdir /src /dst; mount --bind /src /dsr;
+	mountinfo := mockMountInfo(c,
+		"25 0 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw,errors=remount-ro,data=ordered",
+		"501 25 8:2 /src /dst rw,relatime shared:1 - ext4 /dev/sda2 rw,errors=remount-ro,data=ordered")
+	c.Assert(func() { change.Needed(mountinfo) }, PanicMatches, "*. not implemented yet")
+}
