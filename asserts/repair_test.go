@@ -80,3 +80,27 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.Since().Equal(em.since), Equals, true)
 	c.Check(repair.Until().Equal(em.until), Equals, true)
 }
+
+const (
+	repairErrPrefix = "assertion repair: "
+)
+
+func (em *repairSuite) TestDecodeInvalid(c *C) {
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series:\n  - 16\n", "series: \n", `"series" header must be a list of strings`},
+		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
+		{"models:\n  - frobinator\n", "models: \n", `"models" header must be a list of strings`},
+		{"models:\n  - frobinator\n", "models: something\n", `"models" header must be a list of strings`},
+		{em.sinceLine, "since: \n", `"since" header should not be empty`},
+		{em.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{em.untilLine, "until: \n", `"until" header should not be empty`},
+		{em.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
+		{em.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(em.repairStr, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
+	}
+}
