@@ -24,9 +24,9 @@ import (
 	"time"
 )
 
-// Emergency holds an emergency assertion which allows running emergency
+// Repair holds an repair assertion which allows running repair
 // code to fixup broken systems. It can be limited by series and models.
-type Emergency struct {
+type Repair struct {
 	assertionBase
 
 	series []string
@@ -36,40 +36,40 @@ type Emergency struct {
 	until  time.Time
 }
 
-// EmergencyID returns the "id" of the emergency. It should be a string
-// that points to a public description of the emergency in the snapcraft
+// RepairID returns the "id" of the repair. It should be a string
+// that points to a public description of the repair in the snapcraft
 // forum (or a similar place).
-func (em *Emergency) EmergencyID() string {
-	return em.HeaderString("emergency-id")
+func (em *Repair) RepairID() string {
+	return em.HeaderString("repair-id")
 }
 
 // Series returns the series that this assertion is valid for.
-func (em *Emergency) Series() []string {
+func (em *Repair) Series() []string {
 	return em.series
 }
 
 // Models returns the models that this assertion is valid for.
-func (em *Emergency) Models() []string {
+func (em *Repair) Models() []string {
 	return em.models
 }
 
 // Cmd returns the full command that is to be run.
-func (em *Emergency) Cmd() string {
+func (em *Repair) Cmd() string {
 	return em.cmd
 }
 
 // Since returns the time since the assertion is valid.
-func (em *Emergency) Since() time.Time {
+func (em *Repair) Since() time.Time {
 	return em.since
 }
 
 // Until returns the time until the assertion is valid.
-func (em *Emergency) Until() time.Time {
+func (em *Repair) Until() time.Time {
 	return em.until
 }
 
-// ValidAt returns whether the emergency is valid at 'when' time.
-func (em *Emergency) ValidAt(when time.Time) bool {
+// ValidAt returns whether the repair is valid at 'when' time.
+func (em *Repair) ValidAt(when time.Time) bool {
 	valid := when.After(em.since) || when.Equal(em.since)
 	if valid {
 		valid = when.Before(em.until)
@@ -78,18 +78,18 @@ func (em *Emergency) ValidAt(when time.Time) bool {
 }
 
 // Implement further consistency checks.
-func (em *Emergency) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(em.AuthorityID()) {
-		return fmt.Errorf("emergency assertion for %q is not signed by a directly trusted authority: %s", em.EmergencyID(), em.AuthorityID())
+		return fmt.Errorf("repair assertion for %q is not signed by a directly trusted authority: %s", em.RepairID(), em.AuthorityID())
 	}
 
 	return nil
 }
 
 // sanity
-var _ consistencyChecker = (*Emergency)(nil)
+var _ consistencyChecker = (*Repair)(nil)
 
-func assembleEmergency(assert assertionBase) (Assertion, error) {
+func assembleRepair(assert assertionBase) (Assertion, error) {
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func assembleEmergency(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("'until' time cannot be more than month in the future")
 	}
 
-	return &Emergency{
+	return &Repair{
 		assertionBase: assert,
 		series:        series,
 		models:        models,

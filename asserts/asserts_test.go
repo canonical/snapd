@@ -776,7 +776,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"system-user",
 		"validation",
-		"emergency",
+		"repair",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
 	for _, name := range withAuthority {
