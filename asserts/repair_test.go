@@ -21,6 +21,9 @@ package asserts_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,6 +46,28 @@ type repairSuite struct {
 	repairStr string
 }
 
+const script = `#!/bin/sh
+    set -e
+    echo "Unpack embedded payload"
+    match=$(grep --text --line-number '^PAYLOAD:$' $0 | cut -d ':' -f 1)
+    payload_start=$((match + 1))
+    tail -n +$payload_start $0 | uudecode | tar -xzf -
+    # run embedded content
+    ./hello
+    exit 0
+    # payload generated with, may contain binary data
+    #   printf '#!/bin/sh\necho hello from the inside\n' > hello
+    #   chmod +x hello
+    #   tar czvf - hello | uuencode --base64 -
+    PAYLOAD:
+    begin-base64 644 -
+    H4sIAJl991gAA+3SSwrCMBSF4Yy7iisuoAkxyXp8RBOoDTR1/6Y6EQQdFRH+
+    b3IG9wzO4KY4DEWtSzfBuSVNcPo1n3ZOGdsqPjhrW89o570SvfKuh1ud95OI
+    ipcyfup9u/+p7aY/5LGvqYvHVCQt7yDnqVxlTlHyWPMpdr8eCQAAAAAAAAAA
+    AAAAAAB4cwdxEVGzACgAAA==
+    ====
+`
+
 const repairExample = "type: repair\n" +
 	"authority-id: canonical\n" +
 	"repair-id: REPAIR-42\n" +
@@ -50,8 +75,7 @@ const repairExample = "type: repair\n" +
 	"  - 16\n" +
 	"MODELSLINE\n" +
 	"script:\n" +
-	"    #!/bin/sh\n" +
-	"    sed 's/broked/fixed/s' /etc/systemd/system/snapd.service\n" +
+	"    SCRIPT\n" +
 	"SINCELINE\n" +
 	"UNTILLINE\n" +
 	"body-length: 0\n" +
@@ -68,6 +92,7 @@ func (em *repairSuite) SetUpTest(c *C) {
 	em.repairStr = strings.Replace(repairExample, "UNTILLINE\n", em.untilLine, 1)
 	em.repairStr = strings.Replace(em.repairStr, "SINCELINE\n", em.sinceLine, 1)
 	em.repairStr = strings.Replace(em.repairStr, "MODELSLINE\n", em.modelsLine, 1)
+	em.repairStr = strings.Replace(em.repairStr, "SCRIPT\n", script, 1)
 }
 
 func (em *repairSuite) TestDecodeOK(c *C) {
@@ -78,8 +103,7 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.RepairID(), Equals, "REPAIR-42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"frobinator"})
-	c.Check(repair.Script(), Equals, `#!/bin/sh
-sed 's/broked/fixed/s' /etc/systemd/system/snapd.service`)
+	c.Check(repair.Script(), Equals, strings.TrimSpace(strings.Replace(script, "    ", "", -1)))
 	c.Check(repair.Since().Equal(em.since), Equals, true)
 	c.Check(repair.Until().Equal(em.until), Equals, true)
 }
@@ -106,4 +130,24 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, repairErrPrefix+test.expectedErr)
 	}
+}
+
+// FIXME: move to a different layer later
+func (em *repairSuite) TestRepairCanEmbeddScripts(c *C) {
+	a, err := asserts.Decode([]byte(em.repairStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.RepairType)
+	repair := a.(*asserts.Repair)
+
+	tmpdir := c.MkDir()
+	repairScript := filepath.Join(tmpdir, "repair")
+	err = ioutil.WriteFile(repairScript, []byte(repair.Script()), 0755)
+	c.Assert(err, IsNil)
+	cmd := exec.Command(repairScript)
+	cmd.Dir = tmpdir
+	output, err := cmd.CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Check(string(output), Equals, `Unpack embedded payload
+hello from the inside
+`)
 }
