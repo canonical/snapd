@@ -31,7 +31,6 @@ type Repair struct {
 
 	series []string
 	models []string
-	cmd    string
 	since  time.Time
 	until  time.Time
 }
@@ -54,9 +53,9 @@ func (em *Repair) Models() []string {
 	return em.models
 }
 
-// Cmd returns the full command that is to be run.
-func (em *Repair) Cmd() string {
-	return em.cmd
+// Script returns the full script that should run.
+func (em *Repair) Script() string {
+	return em.HeaderString("script")
 }
 
 // Since returns the time since the assertion is valid.
@@ -99,8 +98,7 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd, err := checkExistsString(assert.headers, "cmd")
-	if err != nil {
+	if _, err := checkExistsString(assert.headers, "script"); err != nil {
 		return nil, err
 	}
 	since, err := checkRFC3339Date(assert.headers, "since")
@@ -124,7 +122,6 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		assertionBase: assert,
 		series:        series,
 		models:        models,
-		cmd:           cmd,
 		since:         since,
 		until:         until,
 	}, nil

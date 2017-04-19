@@ -49,7 +49,9 @@ const repairExample = "type: repair\n" +
 	"series:\n" +
 	"  - 16\n" +
 	"MODELSLINE\n" +
-	"cmd: sed 's/broked/fixed/s' /etc/systemd/system/snapd.service\n" +
+	"script:\n" +
+	"    #!/bin/sh\n" +
+	"    sed 's/broked/fixed/s' /etc/systemd/system/snapd.service\n" +
 	"SINCELINE\n" +
 	"UNTILLINE\n" +
 	"body-length: 0\n" +
@@ -76,7 +78,8 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.RepairID(), Equals, "REPAIR-42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"frobinator"})
-	c.Check(repair.Cmd(), Equals, "sed 's/broked/fixed/s' /etc/systemd/system/snapd.service")
+	c.Check(repair.Script(), Equals, `#!/bin/sh
+sed 's/broked/fixed/s' /etc/systemd/system/snapd.service`)
 	c.Check(repair.Since().Equal(em.since), Equals, true)
 	c.Check(repair.Until().Equal(em.until), Equals, true)
 }
