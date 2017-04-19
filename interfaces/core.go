@@ -186,3 +186,31 @@ func ValidateDBusBusName(busName string) error {
 	}
 	return nil
 }
+
+// SanitizePlug sanitizes the given plug with the given interface recovering panics.
+func SanitizePlug(iface Interface, plug *Plug) error {
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("cannot sanitize plug %q with interface %q, panicked: %s", plug.Name, iface.Name(), r)
+			}
+		}()
+		err = iface.SanitizePlug(plug)
+	}()
+	return err
+}
+
+// SanitizeSlot sanitizes the given slot with the given interface recovering panics.
+func SanitizeSlot(iface Interface, slot *Slot) error {
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("cannot sanitize slot %q with interface %q, panicked: %s", slot.Name, iface.Name(), r)
+			}
+		}()
+		err = iface.SanitizeSlot(slot)
+	}()
+	return err
+}

@@ -20,11 +20,13 @@
 package interfaces_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -176,4 +178,44 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 	_, err = ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+}
+
+func (s *CoreSuite) TestSanitizePlugReturnsErrors(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("regular error") },
+	}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{Name: "plug", Interface: "iface"}}
+	err := SanitizePlug(iface, plug)
+	c.Assert(err, ErrorMatches, "regular error")
+}
+
+func (s *CoreSuite) TestSanitizePlugRecoversPanics(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizePlugCallback: func(plug *Plug) error { panic("buggy code can panic") },
+	}
+	plug := &Plug{PlugInfo: &snap.PlugInfo{Name: "plug", Interface: "iface"}}
+	err := SanitizePlug(iface, plug)
+	c.Assert(err, ErrorMatches, `cannot sanitize plug \"plug\" with interface \"iface\", panicked: buggy code can panic`)
+}
+
+func (s *CoreSuite) TestSanitizeSlotReturnsErrors(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("regular error") },
+	}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{Name: "slot", Interface: "iface"}}
+	err := SanitizeSlot(iface, slot)
+	c.Assert(err, ErrorMatches, "regular error")
+}
+
+func (s *CoreSuite) TestSanitizeSlotRecoversPanics(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName:        "iface",
+		SanitizeSlotCallback: func(slot *Slot) error { panic("buggy code can panic") },
+	}
+	slot := &Slot{SlotInfo: &snap.SlotInfo{Name: "slot", Interface: "iface"}}
+	err := SanitizeSlot(iface, slot)
+	c.Assert(err, ErrorMatches, `cannot sanitize slot \"slot\" with interface \"iface\", panicked: buggy code can panic`)
 }
