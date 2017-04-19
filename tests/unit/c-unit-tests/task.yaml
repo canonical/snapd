@@ -19,7 +19,7 @@ execute: |
     cd $SPREAD_PATH/cmd/autogarbage
     EXTRA_CONF=
     if [ ! -d /sys/kernel/security/apparmor ]; then
-        EXTRA_CONF=--disable-apparmor --disable-seccomp
+        EXTRA_CONF="--disable-apparmor --disable-seccomp"
     fi
     $SPREAD_PATH/cmd/configure \
         --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu $EXTRA_CONF
