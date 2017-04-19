@@ -407,6 +407,8 @@ version: 1
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
+	restorer = release.MockForcedDevmode(false)
+	defer restorer()
 
 	canaryName := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/2718/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
 	canary := filepath.Join(dirs.SystemApparmorDir, canaryName)
@@ -426,6 +428,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
 	restorer := release.MockOnClassic(true)
+	defer restorer()
+	restorer = release.MockForcedDevmode(false)
 	defer restorer()
 
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")

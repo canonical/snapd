@@ -30,7 +30,11 @@ update_core_snap_for_classic_reexec() {
     # also inject new version of snap-confine and snap-scard-ns
     cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
     cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
-    cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine* squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    else
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    fi
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
@@ -53,6 +57,16 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+upgrade_snapd_from_proposed(){
+    apt install -y snapd
+    cp /etc/apt/sources.list sources.list.back
+    echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+    apt update
+    apt install -y --only-upgrade snapd
+    mv sources.list.back /etc/apt/sources.list
+    apt update
+}
+
 prepare_each_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
@@ -70,7 +84,11 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
