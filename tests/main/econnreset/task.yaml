@@ -1,0 +1,24 @@
+summary: Ensure that ECONNRESET is handled
+restore: |
+    echo "Remove the firewall rule again"
+    iptables -D OUTPUT -m owner --uid-owner $(id -u test) -j REJECT  -p tcp --reject-with tcp-reset
+execute: |
+    echo "Downloading a large snap in the background"
+    su -c "/usr/bin/env SNAPD_DEBUG=1 snap download core 2>snap-download.log" test &
+    echo "Wait until it actually got some data for the snap"
+    while ! grep -q "Retrying.*\.snap, attempt 1" snap-download.log; do
+        sleep 0.2
+    done
+    echo "Force sending a RST packages"
+    iptables -I OUTPUT -m owner --uid-owner $(id -u test) -j REJECT -p tcp --reject-with tcp-reset
+    echo "Check that we retried"
+    for i in $(seq 10); do
+        if grep -q "Retrying.*\.snap, attempt 2" snap-download.log; then
+            break
+        fi
+        sleep 1
+    done
+    cat snap-download.log | MATCH "Retrying.*\.snap, attempt 2"
+    # Note that the download will not be successful because of the nature of
+    # the netfilter testbed. When snap download retries the next attempt will
+    # end up with a "connection refused" error, something we do not retry
