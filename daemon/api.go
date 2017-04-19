@@ -32,6 +32,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1538,6 +1539,20 @@ type interfaceAction struct {
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
+func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+	m := make(map[string]bool)
+	for _, conn := range conns {
+		m[conn.PlugRef.Snap] = true
+		m[conn.SlotRef.Snap] = true
+	}
+	l := make([]string, 0, len(m))
+	for name := range m {
+		l = append(l, name)
+	}
+	sort.Strings(l)
+	return l
+}
+
 // changeInterfaces controls the interfaces system.
 // Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
@@ -1565,12 +1580,14 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	var summary string
-	var taskset *state.TaskSet
 	var err error
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	var tasksets []*state.TaskSet
+	var affected []string
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	switch a.Action {
 	case "connect":
@@ -1578,22 +1595,39 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			var ts *state.TaskSet
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			taskset, err = ifacestate.Connect(state, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			tasksets = append(tasksets, ts)
+			affected = snapNamesFromConns([]interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
+		var conns []interfaces.ConnRef
+		repo := c.d.overlord.InterfaceManager().Repository()
+		// note: disconnect can affect multiple connections, so unlike with 'connect' above we cannot give a good summary -
+		// just include the snaps/plug/slot names given to the API, before they are resolved.
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			for _, connRef := range conns {
+				var ts *state.TaskSet
+				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+				if err != nil {
+					break
+				}
+				ts.JoinLane(st.NewLane())
+				tasksets = append(tasksets, ts)
+			}
+			affected = snapNamesFromConns(conns)
+		}
 	}
 	if err != nil {
 		return BadRequest("%v", err)
 	}
 
-	change := state.NewChange(a.Action+"-snap", summary)
-	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
-	change.AddAll(taskset)
+	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
 
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }

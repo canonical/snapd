@@ -429,20 +429,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
-	m := make(map[string]bool)
-	for _, conn := range conns {
-		m[conn.PlugRef.Snap] = true
-		m[conn.SlotRef.Snap] = true
-	}
-	l := make([]string, 0, len(m))
-	for name := range m {
-		l = append(l, name)
-	}
-	sort.Strings(l)
-	return l
-}
-
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -458,13 +444,9 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	affectedConns, err := m.repo.ResolveDisconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
-	}
+	affectedConns := []interfaces.ConnRef{{PlugRef: plugRef, SlotRef: slotRef}}
 	m.repo.DisconnectAll(affectedConns)
-	affectedSnaps := snapNamesFromConns(affectedConns)
-	for _, snapName := range affectedSnaps {
+	for _, snapName := range []string{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
 			task.Errorf("skipping security profiles setup for snap %q when disconnecting %s from %s: %v", snapName, plugRef, slotRef, err)
