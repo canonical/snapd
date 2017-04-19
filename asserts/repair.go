@@ -36,9 +36,10 @@ type Repair struct {
 	until  time.Time
 }
 
-// RepairID returns the "id" of the repair. It should be a string
-// that points to a public description of the repair in the snapcraft
-// forum (or a similar place).
+// RepairID returns the "id" of the repair. It should be a short string
+// that follows a convention like "REPAIR-123". Similar to a CVE there
+// should be a public place to look up details about the repair-id
+// (e.g. the snapcraft forum).
 func (em *Repair) RepairID() string {
 	return em.HeaderString("repair-id")
 }
