@@ -1,5 +1,7 @@
 summary: The /run/netns directory propagates events outwards
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 details: |
     The /run/netns directory is special in that mount events propagate outward
     from the mount namespace used by snap applications into the main mount

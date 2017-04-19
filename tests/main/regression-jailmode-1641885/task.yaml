@@ -1,5 +1,7 @@
 summary: snaps installed with --jailmode are not in devmode
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 details: |
     Users found that a snap that uses "confinement: devmode", even when
     installed with "snap install --jailmode" is effectively in devmode (the

@@ -1,6 +1,8 @@
 summary: Ensure that the network-bind interface works
 
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The network-bind interface allows a daemon to access the network as a server.

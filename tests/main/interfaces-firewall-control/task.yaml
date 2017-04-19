@@ -1,6 +1,8 @@
 summary: Ensure that the firewall-control interface works.
 
-systems: [-debian-*]
+systems:
+    # No confinement (AppArmor, Seccomp) available on these systems
+    - -debian-*
 
 details: |
     The firewall-control interface allows a snap to configure the firewall.
