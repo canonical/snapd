@@ -127,11 +127,10 @@ const udisks2ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-dbus (receive)
+dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive, send)
