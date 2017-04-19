@@ -384,6 +384,13 @@ slots:
         - app
     deny-connection: true
     deny-auto-connection: true
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
   mir:
     allow-installation:
       slot-snap-type:
