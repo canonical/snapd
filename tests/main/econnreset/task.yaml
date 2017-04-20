@@ -6,7 +6,7 @@ execute: |
     echo "Downloading a large snap in the background"
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download core 2>snap-download.log" test &
     echo "Wait until it actually got some data for the snap"
-    while ! grep -q "Retrying.*\.snap, attempt 1" snap-download.log; do
+    while ! grep -q "Retrying.*download-snap/.*\.snap, attempt 1" snap-download.log; do
         sleep 0.2
     done
     echo "Force sending a RST packages"
