@@ -24,6 +24,7 @@ execute: |
     exit
     EOF
         test "$(cat /var/snap/hello-world/common/xauth-content)" = "$2" || exit 1
+        unset XAUTHORITY
     }
 
     mock_xauthority() {
@@ -43,6 +44,11 @@ execute: |
             echo -n -e \\x00\\x01\\xff >> $1
         done
     }
+
+    if [ ! -d /run/user/0 ]; then
+        mkdir -p /run/user/0
+        chmod 700 /run/user/0
+    fi
 
     # An invalid Xauthority file should cause the XAUTHORITY
     # environment variable to stay untouched.
