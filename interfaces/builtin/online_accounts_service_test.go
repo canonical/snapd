@@ -111,9 +111,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedPlugSnippetAppArmor(c
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
-	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
-	// verify classic didn't connect
-	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
+	c.Check(snippet, testutil.Contains, "peer=(label=\"snap.service.oa\")")
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
