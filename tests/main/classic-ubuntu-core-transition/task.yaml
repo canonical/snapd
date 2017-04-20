@@ -29,12 +29,8 @@ execute: |
 
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
-    dpkg --purge snapd
-    if [ "$SRU_VALIDATION" = "1" ]; then
-        upgrade_snapd_from_proposed
-    else
-        apt_install_local ${GOPATH}/snapd_*.deb
-    fi
+    dpkg --purge --force-depends snapd
+    install_build_snapd
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is
