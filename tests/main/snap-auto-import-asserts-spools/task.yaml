@@ -2,6 +2,9 @@ summary: Check that `snap auto-import` works as expected
 
 systems: [ubuntu-core-16-64]
 
+environment:
+    IMG: /tmp/vfat.img
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -13,9 +16,10 @@ prepare: |
             echo " testrootorg-store.account-key is already added"
             exit 1
     fi
-    echo "Create a ramdisk with the testrootorg-store.account-key assertion"
-    mkfs.vfat /dev/ram0
-    mount /dev/ram0 /mnt
+    echo "Create a loop with the testrootorg-store.account-key assertion"
+    dd if=/dev/zero of=$IMG bs=1M count=16
+    mkfs.vfat $IMG
+    mount $IMG /mnt
     cp $TESTSLIB/assertions/testrootorg-store.account-key /mnt/auto-import.assert
 
 restore: |
@@ -24,6 +28,7 @@ restore: |
         exit
     fi
     rm -rf /var/lib/snapd/auto-import/*
+    umount /mnt
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

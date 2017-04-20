@@ -80,8 +80,8 @@ func autoImportCandidates() ([]string, error) {
 		if !strings.HasPrefix(mountSrc, "/dev/") {
 			continue
 		}
-		// skip all loop devices (snaps)
-		if strings.HasPrefix(mountSrc, "/dev/loop") {
+		// skip all loop devices (snaps) and ramdisks
+		if strings.HasPrefix(mountSrc, "/dev/loop") || strings.HasPrefix(mountSrc, "/dev/ram") {
 			continue
 		}
 		// skip all ram disks (unless in tests)
