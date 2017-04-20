@@ -47,11 +47,11 @@ execute: |
     snap disconnect locale-control-consumer:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
-    if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
+    if su -l -c "locale-control-consumer.get LANG 2>locale-read.error" test; then
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" locale-read.error
+    grep -q "Permission denied" /home/test/locale-read.error
 
     echo "==================================="
 
