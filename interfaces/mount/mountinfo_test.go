@@ -143,8 +143,7 @@ func (s *profileSuite) TestReadMountInfo2(c *C) {
 
 // Test that loading mountinfo from a file works as expected.
 func (s *profileSuite) TestLoadMountInfo1(c *C) {
-	dir := c.MkDir()
-	fname := filepath.Join(dir, "mountinfo")
+	fname := filepath.Join(c.MkDir(), "mountinfo")
 	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
 	c.Assert(err, IsNil)
 	entries, err := mount.LoadMountInfo(fname)
@@ -154,8 +153,7 @@ func (s *profileSuite) TestLoadMountInfo1(c *C) {
 
 // Test that loading mountinfo from a missing file reports an error.
 func (s *profileSuite) TestLoadMountInfo2(c *C) {
-	dir := c.MkDir()
-	fname := filepath.Join(dir, "mountinfo")
+	fname := filepath.Join(c.MkDir(), "mountinfo")
 	_, err := mount.LoadMountInfo(fname)
 	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }
