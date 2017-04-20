@@ -22,9 +22,12 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	. "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -167,6 +170,95 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, ErrorMatches, `please provide the plug or slot name to disconnect from snap "consumer"`)
 	c.Assert(rest, DeepEquals, []string{"consumer"})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDisconnectCompletion(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Assert(r.Method, Equals, "GET")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type": "sync",
+				"result": client.Interfaces{
+					Slots: []client.Slot{
+						{
+							Snap:      "wake-up-alarm",
+							Name:      "toggle",
+							Interface: "bool-file",
+							Label:     "Alarm toggle",
+						},
+						{
+							Snap:      "canonical-pi2",
+							Name:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
+							Connections: []client.PlugRef{
+								{
+									Snap: "keyboard-lights",
+									Name: "capslock-led",
+								},
+							},
+						},
+					},
+					Plugs: []client.Plug{
+						{
+							Snap:      "paste-daemon",
+							Name:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
+						},
+						{
+							Snap:      "potato",
+							Name:      "frying",
+							Interface: "frying",
+							Label:     "Ability to fry a network service",
+						},
+						{
+							Snap:      "keyboard-lights",
+							Name:      "capslock-led",
+							Interface: "bool-file",
+							Label:     "Capslock indicator LED",
+							Connections: []client.SlotRef{
+								{
+									Snap: "canonical-pi2",
+									Name: "pin-13",
+								},
+							},
+						},
+					},
+				},
+			})
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+	os.Setenv("GO_FLAGS_COMPLETION", "verbose")
+	defer os.Unsetenv("GO_FLAGS_COMPLETION")
+
+	expected := []flags.Completion{}
+	parser := Parser()
+	parser.CompletionHandler = func(obtained []flags.Completion) {
+		c.Assert(obtained, DeepEquals, expected)
+	}
+
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "keyboard-lights:"}}
+	_, err := parser.ParseArgs([]string{"disconnect", ""})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"disconnect", "c"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "keyboard-lights:capslock-led", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"disconnect", "k"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "canonical-pi2:pin-13", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"disconnect", "keyboard-lights:capslock-led", ""})
+	c.Assert(err, IsNil)
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

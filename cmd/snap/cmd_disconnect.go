@@ -29,8 +29,8 @@ import (
 
 type cmdDisconnect struct {
 	Positionals struct {
-		Offer SnapAndName `required:"true"`
-		Use   SnapAndName
+		Offer disconnectSlotOrPlugSpec `required:"true"`
+		Use   disconnectSlotSpec
 	} `positional-args:"true"`
 }
 
@@ -63,18 +63,21 @@ func (x *cmdDisconnect) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	offer := x.Positionals.Offer.SnapAndName
+	use := x.Positionals.Use.SnapAndName
+
 	// snap disconnect <snap>:<slot>
 	// snap disconnect <snap>
-	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
+	if use.Snap == "" && use.Name == "" {
 		// Swap Offer and Use around
-		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
+		offer, use = use, offer
 	}
-	if x.Positionals.Use.Name == "" {
-		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", x.Positionals.Use.Snap)
+	if use.Name == "" {
+		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", use.Snap)
 	}
 
 	cli := Client()
-	id, err := cli.Disconnect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	id, err := cli.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name)
 	if err != nil {
 		return err
 	}

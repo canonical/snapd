@@ -22,7 +22,9 @@ package main_test
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
 
+	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -522,6 +524,91 @@ func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
 	// XXX: not sure why this is returned, I guess that's what happens when a
 	// command Execute returns an error.
 	c.Assert(rest, DeepEquals, []string{"interfaces"})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfacesCompletion(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Assert(r.Method, Equals, "GET")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type": "sync",
+				"result": client.Interfaces{
+					Slots: []client.Slot{
+						{
+							Snap:      "wake-up-alarm",
+							Name:      "toggle",
+							Interface: "bool-file",
+							Label:     "Alarm toggle",
+						},
+						{
+							Snap:      "canonical-pi2",
+							Name:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
+							Connections: []client.PlugRef{
+								{
+									Snap: "keyboard-lights",
+									Name: "capslock-led",
+								},
+							},
+						},
+					},
+					Plugs: []client.Plug{
+						{
+							Snap:      "paste-daemon",
+							Name:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
+						},
+						{
+							Snap:      "potato",
+							Name:      "frying",
+							Interface: "frying",
+							Label:     "Ability to fry a network service",
+						},
+						{
+							Snap:      "keyboard-lights",
+							Name:      "capslock-led",
+							Interface: "bool-file",
+							Label:     "Capslock indicator LED",
+							Connections: []client.SlotRef{
+								{
+									Snap: "canonical-pi2",
+									Name: "pin-13",
+								},
+							},
+						},
+					},
+				},
+			})
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+	os.Setenv("GO_FLAGS_COMPLETION", "verbose")
+	defer os.Unsetenv("GO_FLAGS_COMPLETION")
+
+	expected := []flags.Completion{}
+	parser := Parser()
+	parser.CompletionHandler = func(obtained []flags.Completion) {
+		c.Assert(obtained, DeepEquals, expected)
+	}
+
+	expected = []flags.Completion{{Item: "canonical-pi2:"}, {Item: "keyboard-lights:"}, {Item: "paste-daemon:"}, {Item: "potato:"}, {Item: "wake-up-alarm:"}}
+	_, err := parser.ParseArgs([]string{"interfaces", ""})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "paste-daemon:network-listening", Description: "plug"}}
+	_, err = parser.ParseArgs([]string{"interfaces", "pa"})
+	c.Assert(err, IsNil)
+
+	expected = []flags.Completion{{Item: "wake-up-alarm:toggle", Description: "slot"}}
+	_, err = parser.ParseArgs([]string{"interfaces", "wa"})
+	c.Assert(err, IsNil)
+
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

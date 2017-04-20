@@ -33,7 +33,10 @@ _complete() {
         try)
             _filedir -d
             ;;
-        connect)
+        connect|disconnect|interfaces)
+            # interface completions will only end in ':' when they all
+            # end in ':' (i.e. you either get offered snap names up to
+            # and including the ':', or you get offered the whole thing)
             if [[ "$COMPREPLY" == *: ]]; then
                 compopt -o nospace
             fi

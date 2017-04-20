@@ -100,11 +100,103 @@ func (s keyName) Complete(match string) []flags.Completion {
 	return res
 }
 
+type disconnectSlotOrPlugSpec struct {
+	SnapAndName
+}
+
+func (dps disconnectSlotOrPlugSpec) Complete(match string) []flags.Completion {
+	spec := &interfaceSpec{
+		SnapAndName:  dps.SnapAndName,
+		slots:        true,
+		plugs:        true,
+		connected:    true,
+		disconnected: false,
+	}
+	return spec.Complete(match)
+}
+
+type disconnectSlotSpec struct {
+	SnapAndName
+}
+
+// TODO: look at what the previous arg is, and filter accordingly
+func (dss disconnectSlotSpec) Complete(match string) []flags.Completion {
+	spec := &interfaceSpec{
+		SnapAndName:  dss.SnapAndName,
+		slots:        true,
+		plugs:        false,
+		connected:    true,
+		disconnected: false,
+	}
+	return spec.Complete(match)
+}
+
 type connectPlugSpec struct {
 	SnapAndName
 }
 
 func (cps connectPlugSpec) Complete(match string) []flags.Completion {
+	spec := &interfaceSpec{
+		SnapAndName:  cps.SnapAndName,
+		slots:        false,
+		plugs:        true,
+		connected:    false,
+		disconnected: true,
+	}
+	return spec.Complete(match)
+}
+
+type connectSlotSpec struct {
+	SnapAndName
+}
+
+// TODO: look at what the previous arg is, and filter accordingly
+func (css connectSlotSpec) Complete(match string) []flags.Completion {
+	spec := &interfaceSpec{
+		SnapAndName:  css.SnapAndName,
+		slots:        true,
+		plugs:        false,
+		connected:    false,
+		disconnected: true,
+	}
+	return spec.Complete(match)
+}
+
+type interfacesSlotOrPlugSpec struct {
+	SnapAndName
+}
+
+func (is interfacesSlotOrPlugSpec) Complete(match string) []flags.Completion {
+	spec := &interfaceSpec{
+		SnapAndName:  is.SnapAndName,
+		slots:        true,
+		plugs:        true,
+		connected:    true,
+		disconnected: true,
+	}
+	return spec.Complete(match)
+}
+
+type interfaceSpec struct {
+	SnapAndName
+	slots        bool
+	plugs        bool
+	connected    bool
+	disconnected bool
+}
+
+func (spec *interfaceSpec) connFilter(numConns int) bool {
+	if spec.connected && numConns > 0 {
+		return true
+	}
+	if spec.disconnected && numConns == 0 {
+		return true
+	}
+
+	return false
+}
+
+func (spec *interfaceSpec) Complete(match string) []flags.Completion {
 	// Parse what the user typed so far, it can be either
 	// nothing (""), a "snap", a "snap:" or a "snap:name".
 	parts := strings.SplitN(match, ":", 2)
@@ -120,46 +212,73 @@ func (cps connectPlugSpec) Complete(match string) []flags.Completion {
 
 	var ret []flags.Completion
 
-	var snapPrefix, plugPrefix string
+	var prefix string
 	if len(parts) == 2 {
 		// The user typed the colon, means they know the snap they want;
 		// go with that.
-		plugPrefix = parts[1]
+		prefix = parts[1]
 		snaps[parts[0]] = true
 	} else {
 		// The user is about to or has started typing a snap name but didn't
 		// reach the colon yet. Offer plugs for snaps with names that start
 		// like that.
-		snapPrefix = parts[0]
-		for _, plug := range ifaces.Plugs {
-			if strings.HasPrefix(plug.Snap, snapPrefix) {
-				snaps[plug.Snap] = true
+		snapPrefix := parts[0]
+		if spec.plugs {
+			for _, plug := range ifaces.Plugs {
+				if strings.HasPrefix(plug.Snap, snapPrefix) && spec.connFilter(len(plug.Connections)) {
+					snaps[plug.Snap] = true
+				}
+			}
+		}
+		if spec.slots {
+			for _, slot := range ifaces.Slots {
+				if strings.HasPrefix(slot.Snap, snapPrefix) && spec.connFilter(len(slot.Connections)) {
+					snaps[slot.Snap] = true
+				}
 			}
 		}
 	}
 
 	if len(snaps) == 1 {
 		for snapName := range snaps {
-			for _, plug := range ifaces.Plugs {
-				if plug.Snap == snapName && strings.HasPrefix(plug.Name, plugPrefix) {
-					// TODO: in the future annotate plugs that can take
-					// multiple connection sensibly and don't skip those even
-					// if they have connections already.
-					if len(plug.Connections) == 0 {
-						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", plug.Snap, plug.Name)})
+			if spec.plugs {
+				for _, plug := range ifaces.Plugs {
+					if plug.Snap == snapName && strings.HasPrefix(plug.Name, prefix) && spec.connFilter(len(plug.Connections)) {
+						// TODO: in the future annotate plugs that can take
+						// multiple connection sensibly and don't skip those even
+						// if they have connections already.
+						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", plug.Snap, plug.Name), Description: "plug"})
+					}
+				}
+			}
+			if spec.slots {
+				for _, slot := range ifaces.Slots {
+					if slot.Snap == snapName && strings.HasPrefix(slot.Name, prefix) && spec.connFilter(len(slot.Connections)) {
+						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:%s", slot.Snap, slot.Name), Description: "slot"})
 					}
 				}
 			}
 		}
 	} else {
+	snaps:
 		for snapName := range snaps {
-			for _, plug := range ifaces.Plugs {
-				if plug.Snap == snapName {
-					if len(plug.Connections) == 0 {
-						// TODO: in the future annotate plugs that can take
-						// multiple connection sensibly and don't skip those
-						// even if they have connections already.
-						ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+			if spec.plugs {
+				for _, plug := range ifaces.Plugs {
+					if plug.Snap == snapName {
+						if (spec.disconnected && len(plug.Connections) == 0) || (spec.connected && len(plug.Connections) > 0) {
+							ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+							continue snaps
+						}
+					}
+				}
+			}
+			if spec.slots {
+				for _, slot := range ifaces.Slots {
+					if slot.Snap == snapName {
+						if (spec.disconnected && len(slot.Connections) == 0) || (spec.connected && len(slot.Connections) > 0) {
+							ret = append(ret, flags.Completion{Item: fmt.Sprintf("%s:", snapName)})
+							continue snaps
+						}
 					}
 				}
 			}
