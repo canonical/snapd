@@ -853,7 +853,7 @@ type cmdRevert struct {
 	Revision   string `long:"revision"`
 	Positional struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
-	} `positional-args:"yes"`
+	} `positional-args:"yes" required:"yes"`
 }
 
 var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
