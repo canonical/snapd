@@ -88,7 +88,7 @@ func (em *repairSuite) SetUpTest(c *C) {
 	em.sinceLine = fmt.Sprintf("since: %s\n", em.since.Format(time.RFC3339))
 	em.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
 	em.untilLine = fmt.Sprintf("until: %s\n", em.until.Format(time.RFC3339))
-	em.modelsLine = "models:\n  - frobinator\n"
+	em.modelsLine = "models:\n  - acme/frobinator\n"
 	em.repairStr = strings.Replace(repairExample, "UNTILLINE\n", em.untilLine, 1)
 	em.repairStr = strings.Replace(em.repairStr, "SINCELINE\n", em.sinceLine, 1)
 	em.repairStr = strings.Replace(em.repairStr, "MODELSLINE\n", em.modelsLine, 1)
@@ -102,7 +102,7 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	repair := a.(*asserts.Repair)
 	c.Check(repair.RepairID(), Equals, "REPAIR-42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
-	c.Check(repair.Models(), DeepEquals, []string{"frobinator"})
+	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(repair.Script(), Equals, strings.TrimSpace(strings.Replace(script, "    ", "", -1)))
 	c.Check(repair.Since().Equal(em.since), Equals, true)
 	c.Check(repair.Until().Equal(em.until), Equals, true)
@@ -116,8 +116,8 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series:\n  - 16\n", "series: \n", `"series" header must be a list of strings`},
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
-		{"models:\n  - frobinator\n", "models: \n", `"models" header must be a list of strings`},
-		{"models:\n  - frobinator\n", "models: something\n", `"models" header must be a list of strings`},
+		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
+		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
 		{em.sinceLine, "since: \n", `"since" header should not be empty`},
 		{em.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{em.untilLine, "until: \n", `"until" header should not be empty`},
