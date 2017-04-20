@@ -510,7 +510,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine()()
 
 	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, "1000")
+	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, "1000"), 0700)
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
