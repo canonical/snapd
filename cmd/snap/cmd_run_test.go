@@ -509,13 +509,16 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer func() { dirs.SetRootDir("/") }()
 	defer mockSnapConfine()()
 
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
+
 	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, "1000"), 0700)
+	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
-	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	err = os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 
 	// redirect exec
@@ -530,11 +533,8 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	})
 	defer restorer()
 
-	defer snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{Uid: "1000"}, nil
-	})()
-
-	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, "1000"), 0700)
+	// Ensure we have XDG_RUNTIME_DIR for the current user
+	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
 
 	xauthPath, err := x11.MockXauthority(2)
 	c.Assert(err, check.IsNil)
@@ -558,7 +558,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app"})
 
-	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, "1000", ".Xauthority")
+	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("XAUTHORITY=%s", expectedXauthPath))
 
 	info, err := os.Stat(expectedXauthPath)
