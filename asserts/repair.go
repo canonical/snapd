@@ -49,6 +49,7 @@ func (em *Repair) Series() []string {
 }
 
 // Models returns the models that this assertion is valid for.
+// It is a list of "brand-id/model-name" strings.
 func (em *Repair) Models() []string {
 	return em.models
 }
