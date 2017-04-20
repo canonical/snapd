@@ -1,5 +1,8 @@
 # -*- bash -*-
 
+# _complete_from_snap serialises the tab completion request and sends it off to
+# the appropriate 'snap run --command=complete', and de-serialises the response
+# into the usual tab completion result.
 _complete_from_snap() {
     {
         read -a opts
@@ -33,6 +36,9 @@ _complete_from_snap() {
 
 }
 
+# _complete_from_snap_maybe calls _complete_from_snap if the command is in
+# bin/snap, and otherwise does bash-completion's _completion_loader (which is
+# what -D would've done before).
 _complete_from_snap_maybe() {
     # catch /snap/bin and /var/lib/snapd/snap/bin
     if [[ "$(which "$1")" =~ /snap/bin/ ]]; then

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# etelpmoc is the backwards half of complete: it de-serialises the tab
+# completion request into the appropriate environs expected by the tab
+# completion tools, performs whatever action is wanted, and serialises the
+# result. It accomplishes this by a mixture of aliases and functions overriding
+# the builtin completion commands.
+
 _die() {
     echo "$*" >&2
     exit 1
@@ -44,8 +50,10 @@ fi
 
 . $_compscript
 
+# _compopts is an associative array, which keys are options.
 declare -A _compopts
 
+# wrap compgen, setting _compopts for any options given.
 xcompgen() {
     local opt
 
@@ -56,10 +64,14 @@ xcompgen() {
                 ;;
         esac
     done
+    # aliases are not checked if the command is quoted, and a backslash counts.
     \compgen "$@"
 }
 alias compgen=xcompgen
+shopt -s expand_aliases
 
+# compopt replaces the original compopt with one that just sets/unsets entries
+# in _compopts
 compopt() (
     local i
 
@@ -79,6 +91,9 @@ compopt() (
 
 _compfunc="_minimal"
 _compact=""
+# this is a lot more complicated than it should be, but it's how you
+# get the result of 'complete -p "$1"' into an array, splitting it as
+# the shell would.
 readarray -t _comp < <(xargs -n1 < <(complete -p "$1") )
 if [[ "${_comp[*]}" ]]; then
     while getopts :abcdefgjksuvA:C:W:o:F: opt "${_comp[@]:1}"; do
@@ -153,8 +168,8 @@ if [ ! "$_bounce" ]; then
     if [ "$_compact" ]; then
         readarray -t COMPREPLY < <( \compgen -A "$_compact" -- "${COMP_WORDS[$COMP_CWORD]}" )
     elif [ "$_compfunc" ]; then
-        # execute completion function
-        "$_compfunc"
+        # execute completion function (or the command if -C)
+        $_compfunc
     fi
 fi
 
