@@ -51,11 +51,6 @@ func (em *Repair) Models() []string {
 	return em.models
 }
 
-// Script returns the full script that should run.
-func (em *Repair) Script() string {
-	return em.HeaderString("script")
-}
-
 // Implement further consistency checks.
 func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(em.AuthorityID()) {
@@ -75,9 +70,6 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	}
 	models, err := checkStringList(assert.headers, "models")
 	if err != nil {
-		return nil, err
-	}
-	if _, err := checkExistsString(assert.headers, "script"); err != nil {
 		return nil, err
 	}
 
