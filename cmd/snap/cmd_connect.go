@@ -28,7 +28,7 @@ import (
 type cmdConnect struct {
 	Positionals struct {
 		PlugSpec connectPlugSpec `required:"yes"`
-		SlotSpec SnapAndName
+		SlotSpec connectSlotSpec
 	} `positional-args:"true"`
 }
 
