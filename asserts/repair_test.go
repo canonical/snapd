@@ -20,12 +20,10 @@
 package asserts_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
@@ -36,11 +34,6 @@ var (
 )
 
 type repairSuite struct {
-	until     time.Time
-	untilLine string
-	since     time.Time
-	sinceLine string
-
 	modelsLine string
 
 	repairStr string
@@ -75,22 +68,14 @@ const repairExample = "type: repair\n" +
 	"MODELSLINE\n" +
 	"script:\n" +
 	"    SCRIPT\n" +
-	"SINCELINE\n" +
-	"UNTILLINE\n" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
 	"AXNpZw=="
 
 func (em *repairSuite) SetUpTest(c *C) {
-	em.since = time.Now().Truncate(time.Second)
-	em.sinceLine = fmt.Sprintf("since: %s\n", em.since.Format(time.RFC3339))
-	em.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
-	em.untilLine = fmt.Sprintf("until: %s\n", em.until.Format(time.RFC3339))
 	em.modelsLine = "models:\n  - acme/frobinator\n"
-	em.repairStr = strings.Replace(repairExample, "UNTILLINE\n", em.untilLine, 1)
-	em.repairStr = strings.Replace(em.repairStr, "SINCELINE\n", em.sinceLine, 1)
-	em.repairStr = strings.Replace(em.repairStr, "MODELSLINE\n", em.modelsLine, 1)
+	em.repairStr = strings.Replace(repairExample, "MODELSLINE\n", em.modelsLine, 1)
 	em.repairStr = strings.Replace(em.repairStr, "SCRIPT\n", script, 1)
 }
 
@@ -103,8 +88,6 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(repair.Script(), Equals, strings.TrimSpace(strings.Replace(script, "    ", "", -1)))
-	c.Check(repair.Since().Equal(em.since), Equals, true)
-	c.Check(repair.Until().Equal(em.until), Equals, true)
 }
 
 const (
@@ -117,11 +100,6 @@ func (em *repairSuite) TestDecodeInvalid(c *C) {
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
-		{em.sinceLine, "since: \n", `"since" header should not be empty`},
-		{em.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
-		{em.untilLine, "until: \n", `"until" header should not be empty`},
-		{em.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
-		{em.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidTests {

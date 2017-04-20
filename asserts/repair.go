@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"fmt"
-	"time"
 )
 
 // Repair holds an repair assertion which allows running repair
@@ -31,8 +30,6 @@ type Repair struct {
 
 	series []string
 	models []string
-	since  time.Time
-	until  time.Time
 }
 
 // RepairID returns the "id" of the repair. It should be a short string
@@ -59,25 +56,6 @@ func (em *Repair) Script() string {
 	return em.HeaderString("script")
 }
 
-// Since returns the time since the assertion is valid.
-func (em *Repair) Since() time.Time {
-	return em.since
-}
-
-// Until returns the time until the assertion is valid.
-func (em *Repair) Until() time.Time {
-	return em.until
-}
-
-// ValidAt returns whether the repair is valid at 'when' time.
-func (em *Repair) ValidAt(when time.Time) bool {
-	valid := when.After(em.since) || when.Equal(em.since)
-	if valid {
-		valid = when.Before(em.until)
-	}
-	return valid
-}
-
 // Implement further consistency checks.
 func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(em.AuthorityID()) {
@@ -102,28 +80,10 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	if _, err := checkExistsString(assert.headers, "script"); err != nil {
 		return nil, err
 	}
-	since, err := checkRFC3339Date(assert.headers, "since")
-	if err != nil {
-		return nil, err
-	}
-	until, err := checkRFC3339Date(assert.headers, "until")
-	if err != nil {
-		return nil, err
-	}
-	if until.Before(since) {
-		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
-	}
-
-	// emegency assertion can only be valid for 1 month
-	if until.After(since.AddDate(0, 1, 0)) {
-		return nil, fmt.Errorf("'until' time cannot be more than month in the future")
-	}
 
 	return &Repair{
 		assertionBase: assert,
 		series:        series,
 		models:        models,
-		since:         since,
-		until:         until,
 	}, nil
 }
