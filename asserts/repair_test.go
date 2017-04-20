@@ -146,7 +146,7 @@ func (em *repairSuite) TestRepairCanEmbeddScripts(c *C) {
 	cmd := exec.Command(repairScript)
 	cmd.Dir = tmpdir
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	c.Check(string(output), Equals, `Unpack embedded payload
 hello from the inside
 `)
