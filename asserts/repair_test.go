@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
@@ -40,38 +41,37 @@ type repairSuite struct {
 }
 
 const script = `#!/bin/sh
-    set -e
-    echo "Unpack embedded payload"
-    match=$(grep --text --line-number '^PAYLOAD:$' $0 | cut -d ':' -f 1)
-    payload_start=$((match + 1))
-    # Using "base64" as its part of coreutils which should be available
-    # everywhere
-    tail -n +$payload_start $0 | base64 --decode - | tar -xzf -
-    # run embedded content
-    ./hello
-    exit 0
-    # payload generated with, may contain binary data
-    #   printf '#!/bin/sh\necho hello from the inside\n' > hello
-    #   chmod +x hello
-    #   tar czf - hello | base64 -
-    PAYLOAD:
-    H4sIAJJt+FgAA+3STQrCMBDF8ax7ihEP0CkxyXn8iCZQE2jr/W11Iwi6KiL8f5u3mLd4i0mx76tZ
-    l86Cc0t2welrPu2c6awGr95bG4x26rw1oivveriN034QMfFSy6fet/uf2m7aQy7tmJp4TFXS8g5y
-    HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
+set -e
+echo "Unpack embedded payload"
+match=$(grep --text --line-number '^PAYLOAD:$' $0 | cut -d ':' -f 1)
+payload_start=$((match + 1))
+# Using "base64" as its part of coreutils which should be available
+# everywhere
+tail -n +$payload_start $0 | base64 --decode - | tar -xzf -
+# run embedded content
+./hello
+exit 0
+# payload generated with, may contain binary data
+#   printf '#!/bin/sh\necho hello from the inside\n' > hello
+#   chmod +x hello
+#   tar czf - hello | base64 -
+PAYLOAD:
+H4sIAJJt+FgAA+3STQrCMBDF8ax7ihEP0CkxyXn8iCZQE2jr/W11Iwi6KiL8f5u3mLd4i0mx76tZ
+l86Cc0t2welrPu2c6awGr95bG4x26rw1oivveriN034QMfFSy6fet/uf2m7aQy7tmJp4TFXS8g5y
+HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 `
 
-const repairExample = "type: repair\n" +
-	"authority-id: canonical\n" +
-	"repair-id: REPAIR-42\n" +
-	"series:\n" +
-	"  - 16\n" +
-	"MODELSLINE\n" +
-	"script:\n" +
-	"    SCRIPT\n" +
-	"body-length: 0\n" +
-	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
-	"\n\n" +
-	"AXNpZw=="
+var repairExample = fmt.Sprintf("type: repair\n"+
+	"authority-id: canonical\n"+
+	"repair-id: REPAIR-42\n"+
+	"series:\n"+
+	"  - 16\n"+
+	"MODELSLINE\n"+
+	"body-length: %v\n"+
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"+
+	"\n\n"+
+	script+"\n\n"+
+	"AXNpZw==", len(script))
 
 func (em *repairSuite) SetUpTest(c *C) {
 	em.modelsLine = "models:\n  - acme/frobinator\n"
@@ -87,7 +87,7 @@ func (em *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.RepairID(), Equals, "REPAIR-42")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
-	c.Check(repair.Script(), Equals, strings.TrimSpace(strings.Replace(script, "    ", "", -1)))
+	c.Check(string(repair.Body()), Equals, script)
 }
 
 const (
@@ -118,7 +118,7 @@ func (em *repairSuite) TestRepairCanEmbeddScripts(c *C) {
 
 	tmpdir := c.MkDir()
 	repairScript := filepath.Join(tmpdir, "repair")
-	err = ioutil.WriteFile(repairScript, []byte(repair.Script()), 0755)
+	err = ioutil.WriteFile(repairScript, []byte(repair.Body()), 0755)
 	c.Assert(err, IsNil)
 	cmd := exec.Command(repairScript)
 	cmd.Dir = tmpdir
