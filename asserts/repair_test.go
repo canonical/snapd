@@ -51,21 +51,20 @@ const script = `#!/bin/sh
     echo "Unpack embedded payload"
     match=$(grep --text --line-number '^PAYLOAD:$' $0 | cut -d ':' -f 1)
     payload_start=$((match + 1))
-    tail -n +$payload_start $0 | uudecode | tar -xzf -
+    # Using "base64" as its part of coreutils which should be available
+    # everywhere
+    tail -n +$payload_start $0 | base64 --decode - | tar -xzf -
     # run embedded content
     ./hello
     exit 0
     # payload generated with, may contain binary data
     #   printf '#!/bin/sh\necho hello from the inside\n' > hello
     #   chmod +x hello
-    #   tar czvf - hello | uuencode --base64 -
+    #   tar czf - hello | base64 -
     PAYLOAD:
-    begin-base64 644 -
-    H4sIAJl991gAA+3SSwrCMBSF4Yy7iisuoAkxyXp8RBOoDTR1/6Y6EQQdFRH+
-    b3IG9wzO4KY4DEWtSzfBuSVNcPo1n3ZOGdsqPjhrW89o570SvfKuh1ud95OI
-    ipcyfup9u/+p7aY/5LGvqYvHVCQt7yDnqVxlTlHyWPMpdr8eCQAAAAAAAAAA
-    AAAAAAB4cwdxEVGzACgAAA==
-    ====
+    H4sIAJJt+FgAA+3STQrCMBDF8ax7ihEP0CkxyXn8iCZQE2jr/W11Iwi6KiL8f5u3mLd4i0mx76tZ
+    l86Cc0t2welrPu2c6awGr95bG4x26rw1oivveriN034QMfFSy6fet/uf2m7aQy7tmJp4TFXS8g5y
+    HupVphQllzGfYvPrkQAAAAAAAAAAAAAAAACAN3dTp9TNACgAAA==
 `
 
 const repairExample = "type: repair\n" +
