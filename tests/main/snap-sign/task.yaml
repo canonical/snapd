@@ -7,6 +7,12 @@ prepare: |
     . "$TESTSLIB/mkpinentry.sh"
 
 execute: |
+    # expect does not work on some hardware in autopkgtest like ppc64el
+    echo "Check if expect is working at all"
+    if ! expect -f works.exp; then
+        echo "SKIP: expect broken in this environment"
+    fi
+
     echo "Creating a new key without a password"
     expect -f create-key.exp
 
