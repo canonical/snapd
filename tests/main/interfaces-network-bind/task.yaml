@@ -35,7 +35,7 @@ restore: |
 execute: |
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
-    :network-bind +$SNAP_NAME"
+    :network-bind +.*$SNAP_NAME"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     - +$SNAP_NAME:network-bind"
