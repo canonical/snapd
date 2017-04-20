@@ -90,6 +90,12 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
+func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
+	prev := errtrackerReport
+	errtrackerReport = mock
+	return func() { errtrackerReport = prev }
+}
+
 func MockRefreshInterval(newMinRefreshInterval, newRefreshRandomness time.Duration) (restore func()) {
 	prevMinRefreshInterval := minRefreshInterval
 	prevDefaultRefreshRandomness := defaultRefreshRandomness
@@ -107,8 +113,19 @@ var (
 	CanDisable           = canDisable
 	CachedStore          = cachedStore
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+
+	ResetAliases = resetAliases
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// aliases v2
+var (
+	ApplyAliasesChange    = applyAliasesChange
+	AutoAliasesDeltaV2    = autoAliasesDeltaV2
+	RefreshAliases        = refreshAliases
+	CheckAliasesConflicts = checkAliasesConflicts
+	DisableAliases        = disableAliases
+)

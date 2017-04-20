@@ -73,72 +73,9 @@ func setAliases(st *state.State, snapName string, aliases map[string]string) {
 	st.Set("aliases", allAliases)
 }
 
-// Alias enables the provided aliases for the snap with the given name.
-func Alias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !snapst.Active {
-		return nil, fmt.Errorf("enabling aliases for disabled snap %q not supported", snapName)
-	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
-		return nil, err
-	}
+// TODO: reintroduce Alias, Unalias following the new meanings
 
-	snapsup := &SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: snapName},
-	}
-
-	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Enable aliases for snap %q"), snapsup.Name()))
-	alias.Set("snap-setup", &snapsup)
-	toEnable := map[string]string{}
-	for _, alias := range aliases {
-		toEnable[alias] = "enabled"
-	}
-	alias.Set("aliases", toEnable)
-
-	return state.NewTaskSet(alias), nil
-}
-
-// Unalias explicitly disables the provided aliases for the snap with the given name.
-func Unalias(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !snapst.Active {
-		return nil, fmt.Errorf("disabling aliases for disabled snap %q not supported", snapName)
-	}
-	if err := CheckChangeConflict(st, snapName, nil); err != nil {
-		return nil, err
-	}
-
-	snapsup := &SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: snapName},
-	}
-
-	alias := st.NewTask("alias", fmt.Sprintf(i18n.G("Disable aliases for snap %q"), snapsup.Name()))
-	alias.Set("snap-setup", &snapsup)
-	toDisable := map[string]string{}
-	for _, alias := range aliases {
-		toDisable[alias] = "disabled"
-	}
-	alias.Set("aliases", toDisable)
-
-	return state.NewTaskSet(alias), nil
-}
-
-// ResetAliases resets the provided aliases for the snap with the given name to their default state, enabled for auto-aliases, disabled otherwise.
-func ResetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
+func resetAliases(st *state.State, snapName string, aliases []string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err == state.ErrNoState {
@@ -195,7 +132,7 @@ func (m *SnapManager) doAlias(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	autoSet := make(map[string]bool, len(autoAliases))
-	for _, alias := range autoAliases {
+	for alias := range autoAliases {
 		autoSet[alias] = true
 	}
 
@@ -470,48 +407,6 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.UpdateAliases(aliases, nil)
 }
 
-func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapName := snapsup.Name()
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
-	aliasStatuses, err := getAliases(st, snapName)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	var aliases []*backend.Alias
-	for alias, aliasStatus := range aliasStatuses {
-		if enabledAlias(aliasStatus) {
-			aliasApp := curInfo.Aliases[alias]
-			if aliasApp == nil {
-				// not a known alias, skip
-				continue
-			}
-			aliases = append(aliases, &backend.Alias{
-				Name:   alias,
-				Target: filepath.Base(aliasApp.WrapperPath()),
-			})
-		}
-	}
-	st.Unlock()
-	rmAliases, err := m.backend.MatchingAliases(aliases)
-	st.Lock()
-	if err != nil {
-		return fmt.Errorf("cannot list aliases for snap %q: %v", snapName, err)
-	}
-	st.Unlock()
-	defer st.Lock()
-	return m.backend.UpdateAliases(nil, rmAliases)
-}
-
 func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -598,7 +493,7 @@ func checkAliasConflict(st *state.State, snapName, alias string) error {
 }
 
 // AutoAliases allows to hook support for retrieving auto-aliases of a snap.
-var AutoAliases func(st *state.State, info *snap.Info) ([]string, error)
+var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error)
 
 // AutoAliasesDelta compares the alias statuses with the current snap
 // declaration for the installed snaps with the given names (or all if
@@ -650,7 +545,7 @@ func AutoAliasesDelta(st *state.State, names []string) (new map[string][]string,
 			continue
 		}
 		autoSet := make(map[string]bool, len(autoAliases))
-		for _, alias := range autoAliases {
+		for alias := range autoAliases {
 			autoSet[alias] = true
 			if aliasStatuses[alias] == "" { // not auto, or disabled, or enabled
 				new[snapName] = append(new[snapName], alias)

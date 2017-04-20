@@ -3,6 +3,7 @@
 set -eux
 
 . $TESTSLIB/apt.sh
+. $TESTSLIB/snaps.sh
 
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
@@ -24,24 +25,24 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
     # also inject new version of snap-confine and snap-scard-ns
-    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    else
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    fi
     # also add snap/snapd because we re-exec by default and want to test
     # this version
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        # trusty does not support  -Xcompression-level 1
-        mksquashfs squashfs-root "$snap" -comp gzip
-    else
-        mksquashfs squashfs-root "$snap" -comp gzip -Xcompression-level 1
-    fi
+    mksnap_fast "squashfs-root" "$snap"
     rm -rf squashfs-root
 
     # Now mount the new core snap
@@ -56,6 +57,16 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+upgrade_snapd_from_proposed(){
+    apt install -y snapd
+    cp /etc/apt/sources.list sources.list.back
+    echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
+    apt update
+    apt install -y --only-upgrade snapd
+    mv sources.list.back /etc/apt/sources.list
+    apt update
+}
+
 prepare_each_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
@@ -66,11 +77,18 @@ prepare_each_classic() {
 Environment=SNAP_REEXEC=$SNAP_REEXEC
 EOF
     fi
-
+    if [ ! -f /etc/systemd/system/snapd.service.d/local.conf ]; then
+        echo "/etc/systemd/system/snapd.service.d/local.conf vanished!"
+        exit 1
+    fi
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
@@ -89,7 +107,7 @@ prepare_classic() {
 [Unit]
 StartLimitInterval=0
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
@@ -112,7 +130,9 @@ EOF
         snap list | grep core
 
         # ensure no auto-refresh happens during the tests
-        snap set core refresh.disabled=true
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            snap set core refresh.disabled=true
+        fi
 
         echo "Ensure that the grub-editenv list output is empty on classic"
         output=$(grub-editenv list)
@@ -127,8 +147,8 @@ EOF
         update_core_snap_for_classic_reexec
 
         systemctl daemon-reload
-        mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        mounts="$(systemctl list-unit-files --full | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files --full | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
         for unit in $services $mounts; do
             systemctl stop $unit
         done
@@ -324,7 +344,7 @@ prepare_all_snap() {
 
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
-    for name in $gadget_name $kernel_name $core_name; do
+    for name in $gadget_name $kernel_name core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -334,7 +354,9 @@ prepare_all_snap() {
     done
 
     # ensure no auto-refresh happens during the tests
-    snap set core refresh.disabled=true
+    if [ -e /snap/core/current/meta/hooks/configure ]; then
+        snap set core refresh.disabled=true
+    fi
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then

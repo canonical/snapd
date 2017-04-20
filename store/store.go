@@ -442,6 +442,23 @@ func hasStoreAuth(user *auth.UserState) bool {
 	return user != nil && user.StoreMacaroon != ""
 }
 
+// authAvailable returns true if there is a user and/or device session setup
+func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
+	if hasStoreAuth(user) {
+		return true, nil
+	} else {
+		var device *auth.DeviceState
+		var err error
+		if s.authContext != nil {
+			device, err = s.authContext.Device()
+			if err != nil {
+				return false, err
+			}
+		}
+		return device != nil && device.SessionMacaroon != "", nil
+	}
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -1249,7 +1266,7 @@ type HashError struct {
 }
 
 func (e HashError) Error() string {
-	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1290,16 +1307,20 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 	}()
 
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return err
+	}
+
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || authAvail {
 		url = downloadInfo.DownloadURL
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-	// Note that we will retry this way only once.
-	if _, ok := err.(HashError); ok && resume > 0 {
-		logger.Debugf("Error on resumed download: %v", err.Error())
+	// If hashsum is incorrect retry once
+	if _, ok := err.(HashError); ok {
+		logger.Debugf("Hashsum error on download: %v", err.Error())
 		err = w.Truncate(0)
 		if err != nil {
 			return err
@@ -1383,7 +1404,8 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusUnauthorized:
-			return fmt.Errorf("cannot download non-free snap without purchase")
+
+			return fmt.Errorf("Please buy %s before installing it.", name)
 		default:
 			return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
@@ -1434,8 +1456,13 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return err
+	}
+
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || hasStoreAuth(user) {
+	if url == "" || authAvail {
 		url = deltaInfo.DownloadURL
 	}
 

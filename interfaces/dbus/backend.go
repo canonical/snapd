@@ -50,28 +50,27 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityDBus)
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
-
-	if err := b.setupBusConf(snapInfo, snippets); err != nil {
+	if err := b.setupBusConf(snapInfo, spec); err != nil {
 		return err
 	}
-	if err := b.setupBusServ(snapInfo, snippets); err != nil {
+	if err := b.setupBusServ(snapInfo, spec); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// Create the DBus busconfig policy for the snap
-func (b *Backend) setupBusConf(snapInfo *snap.Info, snippets map[string][][]byte) error {
+func (b *Backend) setupBusConf(snapInfo *snap.Info, spec interfaces.Specification) error {
 	snapName := snapInfo.Name()
 
 	// Get the files that this snap should have
-	content, err := b.combineSnippetsBusConf(snapInfo, snippets)
+	content, err := b.deriveContentBusConf(spec.(*Specification), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -87,78 +86,7 @@ func (b *Backend) setupBusConf(snapInfo *snap.Info, snippets map[string][][]byte
 	return nil
 }
 
-// Remove removes dbus configuration files of a given snap.
-//
-// This method should be called after removing a snap.
-func (b *Backend) Remove(snapName string) error {
-	if err := b.removeBusConf(snapName); err != nil {
-		return err
-	}
-	if err := b.removeBusServ(snapName); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (b *Backend) removeBusConf(snapName string) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
-	}
-	return nil
-}
-
-// combineSnippetsBusConf combines security snippets for busconfig
-// policy collected from all the interfaces affecting a given snap into a
-// content map applicable to EnsureDirState.
-func (b *Backend) combineSnippetsBusConf(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
-	for _, appInfo := range snapInfo.Apps {
-		securityTag := appInfo.SecurityTag()
-		appSnippets := snippets[securityTag]
-		if len(appSnippets) == 0 {
-			continue
-		}
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-
-		addContentBusConf(securityTag, appSnippets, content)
-	}
-
-	for _, hookInfo := range snapInfo.Hooks {
-		securityTag := hookInfo.SecurityTag()
-		hookSnippets := snippets[securityTag]
-		if len(hookSnippets) == 0 {
-			continue
-		}
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
-
-		addContentBusConf(securityTag, hookSnippets, content)
-	}
-
-	return content, nil
-}
-
-// addContentBusConf creates/updates the xml busconfig policy for the snap
-func addContentBusConf(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
-	var buffer bytes.Buffer
-	buffer.Write(xmlHeader)
-	for _, snippet := range executableSnippets {
-		buffer.Write(snippet)
-		buffer.WriteRune('\n')
-	}
-	buffer.Write(xmlFooter)
-
-	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.FileState{
-		Content: buffer.Bytes(),
-		Mode:    0644,
-	}
-}
-
-func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte) error {
+func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specification) error {
 	snapName := snapInfo.Name()
 
 	content := map[string]*osutil.FileState{}
@@ -201,11 +129,14 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, snippets map[string][][]byte
 				continue
 			}
 
-			// We set only 'Name' and 'Exec' for now. We may add 'User' for 'system'
-			// services when we support per-snap users. Don't specify 'SystemdService'
-			// and just let dbus-daemon launch the service since 'SystemdService' is only
-			// used by dbus-daemon to tell systemd to launch the service and systemd
-			// user sessions aren't available everywhere yet.
+			// We set only 'Name' and 'Exec' for now. We
+			// may add 'User' for 'system' services when
+			// we support per-snap users. Don't specify
+			// 'SystemdService' and just let dbus-daemon
+			// launch the service since 'SystemdService'
+			// is only used by dbus-daemon to tell systemd
+			// to launch the service and systemd user
+			// sessions aren't available everywhere yet.
 			var buffer bytes.Buffer
 			buffer.Write([]byte(fmt.Sprintf(`[D-BUS Service]
 Name=%s
@@ -230,16 +161,83 @@ Exec=%s
 	return nil
 }
 
-// Remove the DBus service file for the snap
+// Remove removes dbus configuration files of a given snap.
+//
+// This method should be called after removing a snap.
+func (b *Backend) Remove(snapName string) error {
+	if err := b.removeBusConf(snapName); err != nil {
+		return err
+	}
+	if err := b.removeBusServ(snapName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Remove the DBus busconfig policy for the snap
+func (b *Backend) removeBusConf(snapName string) error {
+	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
+	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
+	if err != nil {
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
+	}
+	return nil
+}
+
 func (b *Backend) removeBusServ(snapName string) error {
 	glob := fmt.Sprintf("%s.service", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSessionServicesFilesDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus service files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
+// deriveContent combines security snippets collected from all the interfaces
+// affecting a given snap into a content map applicable to EnsureDirState.
+func (b *Backend) deriveContentBusConf(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+	for _, appInfo := range snapInfo.Apps {
+		securityTag := appInfo.SecurityTag()
+		appSnippets := spec.SnippetForTag(securityTag)
+		if appSnippets == "" {
+			continue
+		}
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+
+		addContent(securityTag, appSnippets, content)
+	}
+
+	for _, hookInfo := range snapInfo.Hooks {
+		securityTag := hookInfo.SecurityTag()
+		hookSnippets := spec.SnippetForTag(securityTag)
+		if hookSnippets == "" {
+			continue
+		}
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+
+		addContent(securityTag, hookSnippets, content)
+	}
+
+	return content, nil
+}
+
+func addContent(securityTag string, snippet string, content map[string]*osutil.FileState) {
+	var buffer bytes.Buffer
+	buffer.Write(xmlHeader)
+	buffer.WriteString(snippet)
+	buffer.Write(xmlFooter)
+
+	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.FileState{
+		Content: buffer.Bytes(),
+		Mode:    0644,
+	}
+}
+
 func (b *Backend) NewSpecification() interfaces.Specification {
-	panic(fmt.Errorf("%s is not using specifications yet", b.Name()))
+	return &Specification{}
 }

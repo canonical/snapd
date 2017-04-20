@@ -139,6 +139,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"browser-support":         true,
 		"gsettings":               true,
+		"media-hub":               true,
 		"mir":                     true,
 		"network":                 true,
 		"network-bind":            true,
@@ -147,6 +148,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"pulseaudio":              true,
 		"screen-inhibit-control":  true,
 		"unity7":                  true,
+		"unity8":                  true,
 		"ubuntu-download-manager": true,
 		"upower-observe":          true,
 		"x11":                     true,
@@ -362,6 +364,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionKubernetesSupportOverride(c *C) {
+	cand := s.connectCand(c, "kubernetes-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"kubernetes-support\"")
+
+	plugsSlots := `
+plugs:
+  kubernetes-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -413,6 +433,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"autopilot-introspection": {"core"},
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
@@ -425,9 +446,12 @@ var (
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
 		"iio":                     {"core", "gadget"},
+		"kubernetes-support":      {"core"},
 		"location-control":        {"app"},
 		"location-observe":        {"app"},
 		"lxd-support":             {"core"},
+		"maliit":                  {"app"},
+		"media-hub":               {"app", "core"},
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
@@ -436,8 +460,10 @@ var (
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
 		"serial-port":             {"core", "gadget"},
+		"thumbnailer-service":     {"app"},
 		"udisks2":                 {"app"},
 		"uhid":                    {"core"},
+		"unity8":                  {"app"},
 		"unity8-calendar":         {"app"},
 		"unity8-contacts":         {"app"},
 		"ubuntu-download-manager": {"app"},
@@ -526,8 +552,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"classic-support":       true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {
@@ -566,14 +594,16 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                   true,
-		"content":                 true,
-		"docker":                  true,
-		"fwupd":                   true,
-		"location-control":        true,
-		"location-observe":        true,
-		"lxd":                     true,
-		"mir":                     true,
+		"bluez":            true,
+		"content":          true,
+		"docker":           true,
+		"fwupd":            true,
+		"location-control": true,
+		"location-observe": true,
+		"lxd":              true,
+		"maliit":           true,
+		"mir":              true,
+		"thumbnailer-service":     true,
 		"udisks2":                 true,
 		"unity8-calendar":         true,
 		"unity8-contacts":         true,
@@ -645,8 +675,10 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"core-support":          true,
 		"docker-support":        true,
 		"kernel-module-control": true,
+		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"snapd-control":         true,
+		"unity8":                true,
 	}
 
 	for _, iface := range all {

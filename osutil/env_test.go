@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -85,6 +86,27 @@ func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
 	}
 }
 
+func (s *envSuite) TestGetenvInt64(c *check.C) {
+	key := "__XYZZY__"
+	os.Unsetenv(key)
+
+	c.Check(osutil.GetenvInt64(key), check.Equals, int64(0))
+	c.Check(osutil.GetenvInt64(key, -1), check.Equals, int64(-1))
+	c.Check(osutil.GetenvInt64(key, math.MaxInt64), check.Equals, int64(math.MaxInt64))
+	c.Check(osutil.GetenvInt64(key, math.MinInt64), check.Equals, int64(math.MinInt64))
+
+	for _, n := range []int64{
+		0, -1, math.MinInt64, math.MaxInt64,
+	} {
+		for _, tpl := range []string{"%d", "  %d  ", "%#x", "%#X", "%#o"} {
+			v := fmt.Sprintf(tpl, n)
+			os.Setenv(key, v)
+			c.Assert(os.Getenv(key), check.Equals, v)
+			c.Check(osutil.GetenvInt64(key), check.Equals, n, check.Commentf(v))
+		}
+	}
+}
+
 func (s *envSuite) TestSubstitueEnv(c *check.C) {
 	for _, t := range []struct {
 		env string
@@ -97,6 +119,8 @@ func (s *envSuite) TestSubstitueEnv(c *check.C) {
 		{"K=V,K2=$K", "K=V,K2=V"},
 		// simple from environment
 		{"K=$PATH", fmt.Sprintf("K=%s", os.Getenv("PATH"))},
+		// append to substitution from environment
+		{"K=${PATH}:/foo", fmt.Sprintf("K=%s", os.Getenv("PATH")+":/foo")},
 		// multi-level
 		{"A=1,B=$A/2,C=$B/3,D=$C/4", "A=1,B=1/2,C=1/2/3,D=1/2/3/4"},
 		// parsing is top down

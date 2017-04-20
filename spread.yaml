@@ -30,7 +30,12 @@ environment:
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
     DELTA_REF: 2.17
     DELTA_PREFIX: snapd-$DELTA_REF/
-    SNAPD_PPA_VERSION: "$(HOST: echo $SPREAD_SNAPD_PPA_VERSION)"
+    SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
+    HTTP_PROXY: "$(HOST: echo $HTTP_PROXY)"
+    HTTPS_PROXY: "$(HOST: echo $HTTPS_PROXY)"
+    NO_PROXY: "127.0.0.1"
+    NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
+    SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
 
 backends:
     linode:
@@ -39,6 +44,7 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -48,11 +54,7 @@ backends:
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-            # FIXME restore of ubuntu-core does not properly reset
-            # boot variables and key snaps to their pristine state.
-            - ubuntu-core-16-64-fixme:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
+                workers: 2
     qemu:
         environment:
             APT_PROXY: "$(HOST: echo $APT_PROXY)"
@@ -147,6 +149,11 @@ backends:
                     TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
+            - ubuntu-core-16-32:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
             - ubuntu-core-16-arm-64:
                 username: test
                 password: ubuntu
@@ -178,8 +185,14 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
+    echo '# journal messages for snapd'
     journalctl -u snapd
+    echo '# apparmor denials '
     dmesg | grep DENIED || true
+    echo '# seccomp denials (kills) '
+    dmesg | grep 1326 || true
+    echo '# snap interfaces'
+    snap interfaces || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -228,7 +241,10 @@ prepare: |
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
-        snap set core refresh.disabled=false
+        if [ -e /snap/core/current/meta/hooks/configure ]; then
+            systemctl enable --now snapd.refresh.timer
+            snap set core refresh.disabled=false
+        fi
     fi
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
@@ -236,7 +252,6 @@ restore: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -258,7 +273,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-ubuntu-core-16-64-fixme]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -277,7 +291,7 @@ suites:
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
-        systems: [-ubuntu-core-16-64-fixme, -ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+        systems: [-ubuntu-core-16-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -292,8 +306,22 @@ suites:
             $TESTSLIB/reset.sh
 
     tests/unit/:
-        summary: Suite to run non-go unit tests and go unit tests for other runtimes
-        systems: [-ubuntu-core-16-64-fixme]
+        summary: Suite to run unit tests (non-go and different go runtimes)
+        systems: [-ubuntu-core-16-*]
+        prepare: |
+            . $TESTSLIB/prepare.sh
+            prepare_classic
+        prepare-each: |
+            $TESTSLIB/reset.sh --reuse-core
+            . $TESTSLIB/prepare.sh
+            prepare_each_classic
+        restore: |
+            $TESTSLIB/reset.sh --store
+            apt-get purge -y snapd snap-confine ubuntu-core-launcher
+
+    tests/nightly/:
+        summary: Suite for nightly, expensive, tests
+        manual: true
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -303,14 +331,11 @@ suites:
             fi
         prepare-each: |
             $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
+
         restore: |
-            $TESTSLIB/reset.sh --store
+            $TESTSLIB/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                apt-get purge -y snapd snap-confine ubuntu-core-launcher
+                apt-get purge -y snapd
             fi
 
     tests/nested/:

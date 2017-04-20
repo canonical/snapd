@@ -1,8 +1,9 @@
 summary: Run the test suite for C code
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
 environment:
     EXTRA_PKGS: autoconf automake autotools-dev indent libapparmor-dev libglib2.0-dev libseccomp-dev libudev-dev pkg-config python3-docutils udev
 prepare: |
+    # Sanity check, the core snap is installed
+    snap info core | MATCH "installed:"
     # Install build dependencies for the test
     dpkg --get-selections > pkg-list
     apt-get install --yes $EXTRA_PKGS

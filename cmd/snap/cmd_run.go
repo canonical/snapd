@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -215,14 +216,32 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
+var osReadlink = os.Readlink
+
+func isReexeced() bool {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		return false
+	}
+	return strings.HasPrefix(exe, dirs.SnapMountDir)
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	if !osutil.FileExists(snapConfine) {
+		if hook != "" {
+			logger.Noticef("WARNING: skipping running hook %q of snap %q: missing snap-confine", hook, info.Name())
+			return nil
+		}
+		return fmt.Errorf(i18n.G("missing snap-confine: try updating your snapd package"))
+	}
+
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
-	cmd := []string{
-		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-	}
+	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
@@ -240,6 +259,15 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	// snap-exec is POSIXly-- options must come before positionals.
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
+
+	// if we re-exec, we must run the snap-confine from the core snap
+	// as well, if they get out of sync, havoc will happen
+	if isReexeced() {
+		// run snap-confine from the core snap. that will work because
+		// snap-confine on the core snap is mostly statically linked
+		// (except libudev and libc)
+		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
+	}
 
 	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }

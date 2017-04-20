@@ -1,0 +1,91 @@
+summary: check that the core and kernel snaps roll back correctly after a failed upgrade
+
+systems: [ubuntu-core-16-*]
+
+details: |
+    This test ensures that the system can survive to a failed upgrade of a fundamental
+    snap, rolling back to the last good known version.
+
+    The logic common to all the scenarios unpacks the target snap, injects the failure,
+    repacks and installs it. Then it checks that all is set for installed the snap with
+    the failure and executes a reboot. The test checks that after the reboot (in fact two
+    reboots, one for trying the upgrade and another for rolling back) the installed
+    fundamental snap is the good one and the boot environment variables are correctly set.
+
+environment:
+    INJECT_FAILURE/rclocalcrash: inject_rclocalcrash_failure
+    INJECT_FAILURE/emptysystemd: inject_emptysystemd_failure
+
+restore: |
+    rm -f failing.snap failBoot currentBoot prevBoot
+    rm -rf /tmp/unpack
+
+    # FIXME: remove the unset when we reset properly snap_try_{core,kernel} on rollback
+    . $TESTSLIB/boot.sh
+    bootenv_unset snap_try_core
+
+debug: |
+    . $TESTSLIB/boot.sh
+    bootenv
+    snap list
+    snap changes
+
+execute: |
+    inject_rclocalcrash_failure(){
+        chmod a+x /tmp/unpack/etc/rc.local
+        cat <<EOF > /tmp/unpack/etc/rc.local
+    #!bin/sh
+    printf c > /proc/sysrq-trigger
+    EOF
+    }
+
+    inject_emptysystemd_failure(){
+        truncate -s 0 /tmp/unpack/lib/systemd/systemd
+    }
+
+    . $TESTSLIB/boot.sh
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # first pass, save current target snap revision
+        snap list | awk "/^core / {print(\$3)}" > prevBoot
+
+        # unpack current target snap
+        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/core_$(cat prevBoot).snap
+
+        # set failure condition
+        eval ${INJECT_FAILURE}
+
+        # repack new target snap
+        snapbuild /tmp/unpack . && mv core_*.snap failing.snap
+
+        # install new target snap
+        chg_id=$(snap install --dangerous failing.snap --no-wait)
+
+        while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+
+        # check boot env vars
+        snap list | awk "/^core / {print(\$3)}" > failBoot
+        test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_core)" = "core_$(cat failBoot).snap"
+
+        REBOOT
+    fi
+
+    # after rollback, we have the original target snap for a while
+    # wait until the kernel and core snap revisions are in place
+    while true ; do
+        current=$(snap list | awk "/^core / {print(\$3)}")
+        if [ "$current" = "$(cat prevBoot)" ] ; then
+            break
+        fi
+        sleep 1
+    done
+
+    # and the boot env vars are correctly set
+    echo "Waiting for snapd to clean snap_mode"
+    while [ "$(bootenv snap_mode)" != "" ]; do
+        sleep 1
+    done
+
+    test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
+    # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
+    # test "$(bootenv snap_try_${TARGET_SNAP})" = ""

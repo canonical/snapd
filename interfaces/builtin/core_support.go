@@ -53,8 +53,11 @@ const coreSupportConnectedPlugAppArmor = `
 
 # Allow modifying logind configuration. For now, allow reading all logind
 # configuration but only allow modifying NN-snap*.conf and snap*.conf files
-# in /etc/systemd/logind.conf.d.
+# in /etc/systemd/logind.conf.d. Also allow creating the logind.conf.d 
+# directory as it may not be there for existing installs (wirtable-path 
+# magic oddness).
 /etc/systemd/logind.conf                            r,
+/etc/systemd/logind.conf.d/                         rw,
 /etc/systemd/logind.conf.d/{,*}                     r,
 /etc/systemd/logind.conf.d/{,[0-9][0-9]-}snap*.conf w,
 
@@ -62,16 +65,26 @@ const coreSupportConnectedPlugAppArmor = `
 /etc/hostname                         rw,
 /{,usr/}{,s}bin/hostnamectl           ixr,
 
+# Allow sync to be used
+/bin/sync ixr,
+
 # Allow modifying swapfile configuration for swapfile.service shipped in
 # the core snap, general mgmt of the service is handled via systemctl
 /etc/default/swapfile rw,
+
+# Allow read/write access to the pi2 boot config.txt. WARNING: improperly
+# editing this file may render the system unbootable.
+owner /boot/uboot/config.txt rwk,
+owner /boot/uboot/config.txt.tmp rwk,
 `
 
 // NewShutdownInterface returns a new "shutdown" interface.
 func NewCoreSupportInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "core-support",
-		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor,
+		// NOTE: cure-support implicitly contains the rules from network-bind.
+		connectedPlugAppArmor: coreSupportConnectedPlugAppArmor + networkBindConnectedPlugAppArmor,
+		connectedPlugSecComp:  "" + networkBindConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

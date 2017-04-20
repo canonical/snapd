@@ -5,14 +5,13 @@ prepare: |
     install_local test-snapd-tools
 
 execute: |
-    . "$TESTSLIB/names.sh"
 
     echo "List prints core snap version"
     if [ "$SPREAD_BACKEND" = "linode" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         echo "With customized images the ubuntu-core snap is sideloaded"
-        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + x\d+ +- *"
+        expected="^core +.*? +(\d{2}\-\d+) + x\d+ +- *"
     else
-        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + \d+ +canonical +- *"
+        expected="^core +.*? +(\d{2}\-\d+) + \d+ +canonical +- *"
     fi
     snap list | grep -Pq "$expected"
 

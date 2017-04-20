@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,11 +23,12 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const browserSupportConnectedPlugAppArmor = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
@@ -42,14 +43,28 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
-owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
+owner /{dev,run}/shm/{,.}org.chromium.Chromium.* mrw,
+owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+
+# Allow reading platform files
+/run/udev/data/+platform:* r,
+
+# Chromium content api in gnome-shell reads this
+/etc/opt/chrome/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
 deny dbus (send)
     bus=session
     interface="org.gnome.GConf.Server",
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{dev,run,var/run}/shm/lttng-ust-* rw,
+
+# webbrowser-app/webapp-container tries to read this file to determine if it is
+# confined or not, so explicitly deny to avoid noise in the logs.
+deny @{PROC}/@{pid}/attr/current r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -103,7 +118,6 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
-/run/udev/data/+platform:* r,
 /sys/devices/**/bConfigurationValue r,
 /sys/devices/**/descriptors r,
 /sys/devices/**/manufacturer r,
@@ -178,11 +192,14 @@ owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
 
 # Webkit uses a particular SHM names # LP: 1578217
-owner /{dev,run}/shm/WK2SharedMemory.* rw,
+owner /{dev,run}/shm/WK2SharedMemory.* mrw,
+
+# Chromium content api on (at least) later versions of Ubuntu just use this
+owner /{dev,run}/shm/shmfd-* mrw,
 `
 
 const browserSupportConnectedPlugSecComp = `
-# Description: Can access various APIs needed by modern browers (eg, Google
+# Description: Can access various APIs needed by modern browsers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
 # and snappy is updated to properly mediate the APIs.
@@ -239,38 +256,25 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
-}
-
-func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
-
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		snippet := []byte(browserSupportConnectedPlugAppArmor)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithSandbox...)
-		} else {
-			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithoutSandbox...)
-		}
-		return snippet, nil
-	case interfaces.SecuritySecComp:
-		snippet := []byte(browserSupportConnectedPlugSecComp)
-		if allowSandbox {
-			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
-		}
-		return snippet, nil
+	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
+	if allowSandbox {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+	} else {
+		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithoutSandbox)
 	}
-	return nil, nil
+	return nil
 }
 
-func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+func (iface *BrowserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error {
+	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+	snippet := browserSupportConnectedPlugSecComp
+	if allowSandbox {
+		snippet += browserSupportConnectedPlugSecCompWithSandbox
+	}
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *BrowserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

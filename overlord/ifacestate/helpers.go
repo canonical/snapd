@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -47,10 +48,13 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
+	if err := m.renameCorePlugConnection(); err != nil {
+		return err
+	}
 	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.unbreakTheWorld(); err != nil {
+	if err := m.regenerateAllSecurityProfiles(); err != nil {
 		return err
 	}
 	return nil
@@ -98,13 +102,15 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-func (m *InterfaceManager) unbreakTheWorld() error {
-	// XXX: As a special measure to unbreak the world refresh seccomp security
-	// of all the snaps on the system. Later on this should be improved to
-	// either refresh all security backends or to know how to apply stashed
-	// (versioned) security that was preserved by snapd on upgrade to a new
-	// version of itself.
-
+// regenerateAllSecurityProfiles will regenerate the security profiles
+// for apparmor and seccomp. This is needed because:
+// - for seccomp we may have "terms" on disk that the current snap-confine
+//   does not understand (e.g. in a rollback scenario). a refresh ensures
+//   we have a profile that matches what snap-confine understand
+// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
+//   change that breaks existing profiles for installed snaps. With a
+//   refresh those get fixed.
+func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -117,10 +123,6 @@ func (m *InterfaceManager) unbreakTheWorld() error {
 	for _, snapInfo := range snaps {
 		snap.AddImplicitSlots(snapInfo)
 	}
-
-	// From now on we don't fail if a particular operation fails, this is a
-	// best-effort service. It's not much of an unbreak-the-world idea if we
-	// bail out and don't start.
 
 	// For each snap:
 	for _, snapInfo := range snaps {
@@ -136,9 +138,10 @@ func (m *InterfaceManager) unbreakTheWorld() error {
 
 		// For each backend:
 		for _, backend := range securityBackends {
-			// The issue this is attempting to fix is only affecting seccomp so
-			// limit the work just to this backend.
-			shouldRefresh := backend.Name() == interfaces.SecuritySecComp
+			// The issue this is attempting to fix is only
+			// affecting seccomp/apparmor so limit the work just to
+			// this backend.
+			shouldRefresh := (backend.Name() == interfaces.SecuritySecComp || backend.Name() == interfaces.SecurityAppArmor)
 			if !shouldRefresh {
 				continue
 			}
@@ -151,6 +154,35 @@ func (m *InterfaceManager) unbreakTheWorld() error {
 		}
 	}
 
+	return nil
+}
+
+// renameCorePlugConnection renames one connection from "core-support" plug to
+// slot so that the plug name is "core-support-plug" while the slot is
+// unchanged. This matches a change introduced in 2.24, where the core snap no
+// longer has the "core-support" plug as that was clashing with the slot with
+// the same name.
+func (m *InterfaceManager) renameCorePlugConnection() error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	const oldPlugName = "core-support"
+	const newPlugName = "core-support-plug"
+	// old connection, note that slotRef is the same in both
+	slotRef := interfaces.SlotRef{Snap: "core", Name: oldPlugName}
+	oldPlugRef := interfaces.PlugRef{Snap: "core", Name: oldPlugName}
+	oldConnRef := interfaces.ConnRef{PlugRef: oldPlugRef, SlotRef: slotRef}
+	oldID := oldConnRef.ID()
+	// if the old connection is saved, replace it with the new connection
+	if cState, ok := conns[oldID]; ok {
+		newPlugRef := interfaces.PlugRef{Snap: "core", Name: newPlugName}
+		newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
+		newID := newConnRef.ID()
+		delete(conns, oldID)
+		conns[newID] = cState
+		setConns(m.state, conns)
+	}
 	return nil
 }
 
@@ -301,7 +333,27 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
+		// If we are in a core transition we may have both the old ubuntu-core
+		// snap and the new core snap providing the same interface. In that
+		// situation we want to ignore any candidates in ubuntu-core and simply
+		// go with those from the new core snap.
+		if len(candidates) == 2 {
+			switch {
+			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
+				candidates = candidates[1:2]
+			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
+				candidates = candidates[0:1]
+			}
+		}
 		if len(candidates) != 1 {
+			crefs := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				crefs = append(crefs, candidate.Ref().String())
+			}
+			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug.Ref(), strings.Join(crefs, ", "))
 			continue
 		}
 		slot := candidates[0]
@@ -309,6 +361,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
+			task.Logf("cannot auto connect %s to %s: (plug auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
@@ -325,7 +378,15 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
 		if len(candidates) != 1 {
+			crefs := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				crefs = append(crefs, candidate.Ref().String())
+			}
+			task.Logf("cannot auto connect %s (slot auto-connection), candidates found: %q", slot.Ref(), strings.Join(crefs, ", "))
 			continue
 		}
 		plug := candidates[0]
@@ -333,6 +394,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
 			// Suggested connection already exist so don't clobber it.
+			task.Logf("cannot auto connect %s to %s: (slot auto-connection), existing connection state %q in the way", connRef.PlugRef, connRef.SlotRef, key)
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
@@ -375,40 +437,4 @@ func getConns(st *state.State) (map[string]connState, error) {
 
 func setConns(st *state.State, conns map[string]connState) {
 	st.Set("conns", conns)
-}
-
-// CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
-func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
-	// XXX: AddImplicitSlots is really a brittle interface
-	snap.AddImplicitSlots(snapInfo)
-
-	if snapInfo.SnapID == "" {
-		// no SnapID means --dangerous was given, so skip interface checks
-		return nil
-	}
-
-	baseDecl, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
-
-	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
-	if err != nil {
-		return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
-	}
-
-	ic := policy.InstallCandidate{
-		Snap:            snapInfo,
-		SnapDeclaration: snapDecl,
-		BaseDeclaration: baseDecl,
-	}
-
-	return ic.Check()
-}
-
-func init() {
-	// hook interface checks into snapstate installation logic
-	snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
-		return CheckInterfaces(st, snapInfo)
-	})
 }

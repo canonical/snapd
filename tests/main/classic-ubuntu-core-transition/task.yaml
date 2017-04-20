@@ -6,6 +6,10 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 warn-timeout: 1m
 kill-timeout: 5m
+
+restore: |
+    rm -f state.json.new
+
 execute: |
     wait_for_service() {
         local service_name="$1"
@@ -26,18 +30,38 @@ execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge snapd
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
+
+    # modify daemon state to set ubuntu-core-transition-last-retry-time to the
+    # current time to prevent the ubuntu-core transition before the test snap is
+    # installed
+    systemctl stop snapd.{service,socket}
+    now=$(date --utc -Ins)
+    cat /var/lib/snapd/state.json | jq -c '. + {data: (.data + {"ubuntu-core-transition-last-retry-time": "'"$now"'"})}' > state.json.new
+    mv state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.{service,socket}
+
     snap install --${CORE_CHANNEL} ubuntu-core
     snap install test-snapd-python-webserver
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
 
     echo "Ensure the webserver is working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
 
-    echo "Start/stop snapd so that the transition is triggered"
-    systemctl stop snapd.service snapd.socket
-    systemctl start snapd.service snapd.socket
+    # restore ubuntu-core-transition-last-retry-time to its previous value and restart the daemon
+    systemctl stop snapd.{service,socket}
+    cat /var/lib/snapd/state.json | jq -c 'del(.["data"]["ubuntu-core-transition-last-retry-time"])' > state.json.new
+    mv state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.{service,socket}
+
+    echo "Ensure transition is triggered"
+    snap debug ensure-state-soon
 
     . $TESTSLIB/changes.sh
     while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
@@ -50,7 +74,8 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
     echo "Ensure the webserver is still working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
@@ -59,3 +84,14 @@ execute: |
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     echo "Ensure the webserver is working after a snap restart"
     curl http://localhost | MATCH "XKCD rocks"
+
+    echo "Ensure interfaces are connected"
+    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+
+    echo "Ensure snap set core works"
+    snap set core system.power-key-action=ignore
+    if [ "$(snap get core system.power-key-action)" != "ignore" ]; then
+        echo "snap get did not return the expected result: "
+        snap get core system.power-key-action
+        exit 1
+    fi

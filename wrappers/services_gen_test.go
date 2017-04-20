@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers"
@@ -35,7 +36,7 @@ type servicesWrapperGenSuite struct{}
 var _ = Suite(&servicesWrapperGenSuite{})
 
 const expectedServiceFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=snap-snap-44.mount
 Wants=network-online.target
@@ -44,7 +45,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/snap run snap.app
-Restart=on-failure
+Restart=%s
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
@@ -57,12 +58,13 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService = fmt.Sprintf(expectedServiceFmt, "simple\n")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, "on-failure", "simple\n\n")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, "no", "oneshot\nRemainAfterExit=yes\n")
 )
 
 var (
 	expectedServiceWrapperFmt = `[Unit]
-# Auto-generated, DO NO EDIT
+# Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=snap-xkcd\x2dwebserver-44.mount
 Wants=network-online.target
@@ -80,7 +82,7 @@ TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking\n", "\n[Install]\nWantedBy=multi-user.target")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -172,4 +174,27 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 
 	_, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, NotNil)
+}
+
+func (s *servicesWrapperGenSuite) TestGenOneshotServiceFile(c *C) {
+
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: oneshot
+`, &snap.SideInfo{Revision: snap.R(44)})
+
+	app := info.Apps["app"]
+
+	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
+	c.Assert(err, IsNil)
+
+	c.Assert(wrapperText, Equals, expectedOneshotService)
 }

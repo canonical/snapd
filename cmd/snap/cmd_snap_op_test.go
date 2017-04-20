@@ -446,6 +446,12 @@ func (s *SnapOpSuite) TestRevertClassic(c *check.C) {
 	s.runRevertTest(c, &client.SnapOptions{Classic: true})
 }
 
+func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"revert"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -886,4 +892,34 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestNoWait(c *check.C) {
+	s.srv.checker = func(r *http.Request) {}
+
+	cmds := [][]string{
+		{"remove", "--no-wait", "foo"},
+		{"remove", "--no-wait", "foo", "bar"},
+		{"install", "--no-wait", "foo"},
+		{"install", "--no-wait", "foo", "bar"},
+		{"revert", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo", "bar"},
+		{"enable", "--no-wait", "foo"},
+		{"disable", "--no-wait", "foo"},
+		{"try", "--no-wait", "."},
+	}
+
+	for _, cmd := range cmds {
+		s.RedirectClientToTestServer(s.srv.handle)
+		rest, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.IsNil, check.Commentf("%v", cmd))
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Matches, "(?sm)42\n")
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.srv.n, check.Equals, 1)
+		// reset
+		s.srv.n = 0
+		s.stdout.Reset()
+	}
 }

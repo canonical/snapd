@@ -151,12 +151,17 @@ plugs:
   kernel-module-control:
     allow-installation: false
     deny-auto-connection: true
+  kubernetes-support:
+    allow-installation: false
+    deny-auto-connection: true
   lxd-support:
     allow-installation: false
     deny-auto-connection: true
   snapd-control:
     allow-installation: false
     deny-auto-connection: true
+  unity8:
+    allow-installation: false
 slots:
   account-control:
     allow-installation:
@@ -169,6 +174,11 @@ slots:
         - core
     deny-auto-connection: true
   avahi-observe:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  autopilot-introspection:
     allow-installation:
       slot-snap-type:
         - core
@@ -257,6 +267,11 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  framebuffer:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   fuse-support:
     allow-installation:
       slot-snap-type:
@@ -312,7 +327,17 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  joystick:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
   kernel-module-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+  kubernetes-support:
     allow-installation:
       slot-snap-type:
         - core
@@ -353,6 +378,19 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  maliit:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
+    deny-auto-connection: true
+  media-hub:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-connection:
+      on-classic: false
   mir:
     allow-installation:
       slot-snap-type:
@@ -508,6 +546,12 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  thumbnailer-service:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-auto-connection: true
+    deny-connection: true
   time-control:
     allow-installation:
       slot-snap-type:
@@ -543,6 +587,11 @@ slots:
     allow-installation:
       slot-snap-type:
         - core
+  unity8:
+    allow-installation:
+      slot-snap-type:
+        - app
+    deny-connection: true
   unity8-calendar:
     allow-installation:
       slot-snap-type:

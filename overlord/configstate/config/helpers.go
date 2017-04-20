@@ -24,6 +24,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
@@ -115,4 +118,111 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 		}
 	}
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
+}
+
+// SaveRevisionConfig makes a copy of config -> snapSnape configuration into the versioned config.
+// It doesn't do anything if there is no configuration for given snap in the state.
+// The caller is responsible for locking the state.
+func SaveRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
+	var config map[string]*json.RawMessage                    // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
+
+	// Get current configuration of the snap from state
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+	snapcfg, ok := config[snapName]
+	if !ok {
+		return nil
+	}
+
+	err = st.Get("revision-config", &revisionConfig)
+	if err == state.ErrNoState {
+		revisionConfig = make(map[string]map[string]*json.RawMessage)
+	} else if err != nil {
+		return err
+	}
+	cfgs := revisionConfig[snapName]
+	if cfgs == nil {
+		cfgs = make(map[string]*json.RawMessage)
+	}
+	cfgs[rev.String()] = snapcfg
+	revisionConfig[snapName] = cfgs
+	st.Set("revision-config", revisionConfig)
+	return nil
+}
+
+// RestoreRevisionConfig restores a given revision of snap configuration into config -> snapName.
+// If no configuration exists for given revision it does nothing (no error).
+// The caller is responsible for locking the state.
+func RestoreRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
+	var config map[string]*json.RawMessage                    // snap => configuration
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
+
+	err := st.Get("revision-config", &revisionConfig)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
+	}
+
+	err = st.Get("config", &config)
+	if err == state.ErrNoState {
+		config = make(map[string]*json.RawMessage)
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+
+	if cfg, ok := revisionConfig[snapName]; ok {
+		if revCfg, ok := cfg[rev.String()]; ok {
+			config[snapName] = revCfg
+			st.Set("config", config)
+		}
+	}
+
+	return nil
+}
+
+// DiscardRevisionConfig removes configuration snapshot of given snap/revision.
+// If no configuration exists for given revision it does nothing (no error).
+// The caller is responsible for locking the state.
+func DiscardRevisionConfig(st *state.State, snapName string, rev snap.Revision) error {
+	var revisionConfig map[string]map[string]*json.RawMessage // snap => revision => configuration
+	err := st.Get("revision-config", &revisionConfig)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal revision-config: %v", err)
+	}
+
+	if revCfgs, ok := revisionConfig[snapName]; ok {
+		delete(revCfgs, rev.String())
+		if len(revCfgs) == 0 {
+			delete(revisionConfig, snapName)
+		} else {
+			revisionConfig[snapName] = revCfgs
+		}
+		st.Set("revision-config", revisionConfig)
+	}
+	return nil
+}
+
+// DeleteSnapConfig removed configuration of given snap from the state.
+func DeleteSnapConfig(st *state.State, snapName string) error {
+	var config map[string]map[string]*json.RawMessage // snap => key => value
+
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("internal error: cannot unmarshal configuration: %v", err)
+	}
+	if _, ok := config[snapName]; ok {
+		delete(config, snapName)
+		st.Set("config", config)
+	}
+	return nil
 }
