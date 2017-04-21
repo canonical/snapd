@@ -63,6 +63,9 @@ func setupHostDBusSessionConf() error {
 	// using a different filename to ensure we not get into dpkg conffile
 	// prompt hell
 	reexecDbusSessionConf := strings.Replace(dbusSessionConf, ".conf", "-reexec.conf", -1)
+	if osutil.FileExists(reexecDbusSessionConf) {
+		return nil
+	}
 	sessionBusConfig := []byte(`<busconfig>
  <servicedir>/var/lib/snapd/dbus/services/</servicedir>
 </busconfig>
@@ -122,8 +125,7 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specificatio
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
 
-		// FIXME: layer violation, we really should do that in the
-		//        dbus interface but without PR #2613 its really tricky
+		// FIXME: move most of this into the dbus buildin backend
 		for _, slot := range appInfo.Slots {
 			if slot.Interface != "dbus" {
 				continue
@@ -171,7 +173,9 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specificatio
 Name=%s
 Exec=%s
 `, name, appInfo.LauncherCommand())))
-			content[fmt.Sprintf("%s.service", securityTag)] = &osutil.FileState{
+
+			fname := fmt.Sprintf("%s.service", securityTag)
+			content[fname] = &osutil.FileState{
 				Content: buffer.Bytes(),
 				Mode:    0644,
 			}
