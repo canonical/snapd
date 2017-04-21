@@ -268,14 +268,15 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", nil
 	}
 
-	// Verify XAUTHORITY matches the cleaned path
+	// Ensure the XAUTHORITY env is not abused by checking that
+	// it point to exactly the file we just opened (no symlinks,
+	// no funny "../.." etc)
 	if fin.Name() != xauthPathCan {
 		logger.Noticef("WARNING: %s != %s\n", fin.Name(), xauthPathCan)
 		return "", nil
 	}
 
-	// Only do the migration from /tmp since /tmp is what is in a different
-	// mount namespace.
+	// Only do the migration from /tmp since the real /tmp is not visible for snaps
 	if !strings.HasPrefix(fin.Name(), "/tmp/") {
 		return "", nil
 	}
@@ -336,10 +337,11 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", nil
 	}
 
-	os.Remove(targetPath)
-	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		return "", err
+	if osutil.FileExists(targetPath) {
+		err := os.Remove(targetPath)
+		if err != nil {
+			logger.Noticef("WARNING: failed to remove existing file %s", targetPath)
+		}
 	}
 
 	// Read data from the beginning of the file
@@ -347,23 +349,18 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", err
 	}
 
+	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return "", err
+	}
+	defer fout.Close()
+
 	// Read and write validated Xauthority file to its right location
-	buf := make([]byte, 1024)
-	for {
-		r, err := io.ReadAtLeast(fin, buf, len(buf))
-		if err == io.EOF {
-			break
+	if _, err = io.Copy(fout, fin); err != nil {
+		if err := os.Remove(targetPath); err != nil {
+			logger.Noticef("WARNING: failed to remove file at %s", targetPath)
 		}
-		left := r
-		for left > 0 {
-			n, err := fout.Write(buf[r-left : left])
-			if err != nil {
-				fout.Close()
-				os.Remove(targetPath)
-				return "", fmt.Errorf(i18n.G("Failed to write new Xauthority file at %s"), targetPath)
-			}
-			left -= n
-		}
+		return "", fmt.Errorf(i18n.G("Failed to write new Xauthority file at %s"), targetPath)
 	}
 
 	return targetPath, nil

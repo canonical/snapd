@@ -513,7 +513,8 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
+	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
+	c.Assert(err, check.IsNil)
 
 	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -532,9 +533,6 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		return nil
 	})
 	defer restorer()
-
-	// Ensure we have XDG_RUNTIME_DIR for the current user
-	os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
 
 	xauthPath, err := x11.MockXauthority(2)
 	c.Assert(err, check.IsNil)

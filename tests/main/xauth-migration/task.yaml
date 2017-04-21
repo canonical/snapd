@@ -16,7 +16,7 @@ execute: |
     snap install hello-world
 
     ensure_xauth_path() {
-        export XAUTHORITY=$1
+        export XAUTHORITY="$1"
         # Get rid of things to ensure a clean test bed
         rm -f /var/snap/hello-world/common/xauth-content /run/user/0/.Xauthority
         snap run --shell hello-world <<'EOF'
