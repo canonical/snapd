@@ -75,6 +75,9 @@ if [ "$1" = "purge" ]; then
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 
+    echo "Remove extra dbus configuration"
+    rm -f /etc/dbus-1/session.d/snapd-reexec.conf
+    
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi

@@ -30,10 +30,14 @@ package dbus
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -46,6 +50,26 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
+// setupHostDBusSessionConf will ensure that we have a dbus configuration
+// that points to /var/lib/snapd/dbus/services. This is needed for systems
+// that re-exec snapd and do not have this configuration as part of the
+// packaged snapd.
+func setupHostDBusSessionConf() error {
+	dbusSessionConf := filepath.Join(dirs.SnapSessionBusPolicyDir, "snapd.conf")
+	if osutil.FileExists(dbusSessionConf) {
+		return nil
+	}
+
+	// using a different filename to ensure we not get into dpkg conffile
+	// prompt hell
+	reexecDbusSessionConf := strings.Replace(dbusSessionConf, ".conf", "-reexec.conf", -1)
+	sessionBusConfig := []byte(`<busconfig>
+ <servicedir>/var/lib/snapd/dbus/services/</servicedir>
+</busconfig>
+`)
+	return ioutil.WriteFile(reexecDbusSessionConf, sessionBusConfig, 0644)
+}
+
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
@@ -55,6 +79,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
+	}
+
+	// ensure we have a *host* /etc/dbus/snapd.conf configuration
+	if err := setupHostDBusSessionConf(); err != nil {
+		logger.Noticef("cannot create host dbus session config: %s", err)
 	}
 	if err := b.setupBusConf(snapInfo, spec); err != nil {
 		return err

@@ -1,17 +1,25 @@
 summary: Test dbus activated snaps
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm32, -ubuntu-core-16-arm64]
+systems: [-ubuntu-core-*]
 
 prepare: |
     apt install -y dbus-x11
+    mv /etc/dbus-1/session.d/snapd.conf /etc/dbus-1/session.d/snapd.conf.xxx
 
 restore: |
     killall dbus-daemon
     apt-get autoremove -y dbus-x11
+    rm /etc/dbus-1/session.d/snapd-reexec.conf
+    mv /etc/dbus-1/session.d/snapd.conf.xxx /etc/dbus-1/session.d/snapd.conf
 
 execute: |
     echo "Ensure we have a snap that is dbus service activated"
     snap install --edge test-snapd-dbus-service
+
+    if [ ! -e /etc/dbus-1/session.d/snapd-reexec.conf ]; then
+        echo "re-exec dbus snapd-reexec.conf not created, broken test"
+        exit 1
+    fi
 
     eval $(dbus-launch --auto-syntax)
 

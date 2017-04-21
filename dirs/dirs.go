@@ -64,6 +64,7 @@ var (
 	SnapDesktopFilesDir             string
 	SnapDBusSessionServicesFilesDir string
 	SnapBusPolicyDir                string
+	SnapSessionBusPolicyDir         string
 
 	SystemApparmorDir      string
 	SystemApparmorCacheDir string
@@ -159,6 +160,7 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapSessionBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
