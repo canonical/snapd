@@ -98,13 +98,16 @@ type ResultInfo struct {
 // FindOptions supports exactly one of the following options:
 // - Refresh: only return snaps that are refreshable
 // - Private: return snaps that are private
-// - Query: only return snaps that match the query string
+// - Query: only return snaps that match the query string.
+// The SearchNameOnly predicate can be used to specify that
+// a search action is restricted to the snaps' name fields only. By default
+// the search is performed on all of the snaps' description fields.
 type FindOptions struct {
-	Refresh bool
-	Private bool
-	Prefix  bool
-	Query   string
-	Section string
+	Refresh        bool
+	Private        bool
+	SearchNameOnly bool
+	Query          string
+	Section        string
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
@@ -158,11 +161,12 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 
 	q := url.Values{}
-	if opts.Prefix {
+	if opts.SearchNameOnly {
 		q.Set("name", opts.Query+"*")
 	} else {
 		q.Set("q", opts.Query)
 	}
+
 	switch {
 	case opts.Refresh && opts.Private:
 		return nil, nil, fmt.Errorf("cannot specify refresh and private together")
@@ -171,6 +175,7 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	case opts.Private:
 		q.Set("select", "private")
 	}
+
 	if opts.Section != "" {
 		q.Set("section", opts.Section)
 	}
