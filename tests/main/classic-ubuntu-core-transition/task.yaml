@@ -30,7 +30,11 @@ execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge snapd
-    apt_install_local ${GOPATH}/snapd_*.deb
+    if [ "$SRU_VALIDATION" = "1" ]; then
+        upgrade_snapd_from_proposed
+    else
+        apt_install_local ${GOPATH}/snapd_*.deb
+    fi
 
     # modify daemon state to set ubuntu-core-transition-last-retry-time to the
     # current time to prevent the ubuntu-core transition before the test snap is
@@ -43,7 +47,8 @@ execute: |
 
     snap install --${CORE_CHANNEL} ubuntu-core
     snap install test-snapd-python-webserver
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
 
     echo "Ensure the webserver is working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
@@ -69,7 +74,8 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
     echo "Ensure the webserver is still working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
@@ -78,3 +84,14 @@ execute: |
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     echo "Ensure the webserver is working after a snap restart"
     curl http://localhost | MATCH "XKCD rocks"
+
+    echo "Ensure interfaces are connected"
+    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+
+    echo "Ensure snap set core works"
+    snap set core system.power-key-action=ignore
+    if [ "$(snap get core system.power-key-action)" != "ignore" ]; then
+        echo "snap get did not return the expected result: "
+        snap get core system.power-key-action
+        exit 1
+    fi

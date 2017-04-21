@@ -216,6 +216,17 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
+var osReadlink = os.Readlink
+
+func isReexeced() bool {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		logger.Noticef("cannot read /proc/self/exe: %v", err)
+		return false
+	}
+	return strings.HasPrefix(exe, dirs.SnapMountDir)
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	if !osutil.FileExists(snapConfine) {
@@ -248,6 +259,15 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	// snap-exec is POSIXly-- options must come before positionals.
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
+
+	// if we re-exec, we must run the snap-confine from the core snap
+	// as well, if they get out of sync, havoc will happen
+	if isReexeced() {
+		// run snap-confine from the core snap. that will work because
+		// snap-confine on the core snap is mostly statically linked
+		// (except libudev and libc)
+		cmd[0] = filepath.Join(dirs.SnapMountDir, "core/current", cmd[0])
+	}
 
 	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }
