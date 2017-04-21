@@ -148,6 +148,7 @@ func (c *cmdTasks) Execute([]string) error {
 		if len(changes) == 0 {
 			return fmt.Errorf(i18n.G("no changes found"))
 		}
+		// sort by date, descending so that we will pick the most recent change of given kind.
 		sort.Sort(sort.Reverse(changesByTime(changes)))
 		chg := findChangeByKind(changes, kind)
 		if chg == nil {
