@@ -146,6 +146,14 @@ EOF
         done
         systemctl start snapd.socket
     fi
+
+    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+        # Improve entropy for the whole system quite a lot to get fast
+        # key generation during our test cycles
+        apt-get install rng-tools
+        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
+        /etc/init.d/rng-tools restart
+    fi
 }
 
 setup_reflash_magic() {
