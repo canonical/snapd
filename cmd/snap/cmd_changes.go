@@ -135,7 +135,7 @@ func (c *cmdTasks) Execute([]string) error {
 	if c.LastChangeType != "" {
 		kind := c.LastChangeType
 		// our internal change types use "-snap" postfix but let user skip it and use short form.
-		if kind == "refresh" || kind == "install" || kind == "remove" {
+		if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" {
 			kind += "-snap"
 		}
 		opts := client.ChangesOptions{
