@@ -446,6 +446,12 @@ func (s *SnapOpSuite) TestRevertClassic(c *check.C) {
 	s.runRevertTest(c, &client.SnapOptions{Classic: true})
 }
 
+func (s *SnapOpSuite) TestRevertMissingName(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"revert"})
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "the required argument `<snap>` was not provided")
+}
+
 func (s *SnapSuite) TestRefreshList(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
