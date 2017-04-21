@@ -126,6 +126,8 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specificatio
 		securityTag := appInfo.SecurityTag()
 
 		// FIXME: move most of this into the dbus buildin backend
+		// FIXME2: ensure that "name" is not already used elsewhere
+		//         in the system?
 		for _, slot := range appInfo.Slots {
 			if slot.Interface != "dbus" {
 				continue
