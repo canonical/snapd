@@ -10,7 +10,7 @@ execute: |
     . "$TESTSLIB/apt.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     dpkg --purge --force-depends snapd
-    apt-get install -f
+    apt-get install -f -y
     install_build_snapd
     snap install --${CORE_CHANNEL} ubuntu-core
 
