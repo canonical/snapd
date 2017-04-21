@@ -22,6 +22,7 @@ package osutil
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 )
@@ -32,6 +33,8 @@ var _ = Suite(&ChdirTestSuite{})
 
 func (ts *ChdirTestSuite) TestChdir(c *C) {
 	tmpdir := c.MkDir()
+	actualTmpdir, err := filepath.EvalSymlinks(tmpdir)
+	c.Assert(err, IsNil)
 
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
@@ -39,7 +42,7 @@ func (ts *ChdirTestSuite) TestChdir(c *C) {
 	ChDir(tmpdir, func() error {
 		cwd, err := os.Getwd()
 		c.Assert(err, IsNil)
-		c.Assert(cwd, Equals, tmpdir)
+		c.Assert(cwd, Equals, actualTmpdir)
 		return err
 	})
 }

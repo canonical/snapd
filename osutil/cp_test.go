@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -218,35 +217,7 @@ func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
 
 func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
 	err := CopySpecialFile("no-such-file", "no-such-target")
-	c.Assert(err, ErrorMatches, "failed to copy device node:.*cp:.*stat.*no-such-file.*")
-}
-
-func (s *cpSuite) TestCopyPreserveAll(c *C) {
-	src := filepath.Join(c.MkDir(), "meep")
-	dst := filepath.Join(c.MkDir(), "copied-meep")
-
-	err := ioutil.WriteFile(src, []byte(nil), 0644)
-	c.Assert(err, IsNil)
-
-	// Give the file a different mtime to ensure CopyFlagPreserveAll
-	// really works.
-	//
-	// You wonder why "touch" is used? And want to me about
-	// syscall.Utime()? Well, syscall not implemented on armhf
-	// Aha, syscall.Utimes() then? No, not implemented on arm64
-	// Really, this is a just a test, touch is good enough!
-	err = exec.Command("touch", src, "-d", "2007-08-23 08:21:42").Run()
-	c.Assert(err, IsNil)
-
-	err = CopyFile(src, dst, CopyFlagPreserveAll)
-	c.Assert(err, IsNil)
-
-	// ensure that the mtime got preserved
-	st1, err := os.Stat(src)
-	c.Assert(err, IsNil)
-	st2, err := os.Stat(dst)
-	c.Assert(err, IsNil)
-	c.Assert(st1.ModTime(), Equals, st2.ModTime())
+	c.Assert(err, ErrorMatches, "failed to copy device node:.*")
 }
 
 func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
