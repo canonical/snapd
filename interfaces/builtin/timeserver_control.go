@@ -51,6 +51,13 @@ dbus (send)
     member="SetNTP"
     peer=(label=unconfined),
 
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.timedate1
+    member="SetTimezone"
+    peer=(label=unconfined),
+
 # Read all properties from timedate1
 dbus (send)
     bus=system
