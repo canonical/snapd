@@ -437,6 +437,7 @@ var (
 		"bluez":                   {"app"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
+		"camera":                  {"core"},
 		"content":                 {"app", "gadget"},
 		"core-support":            {"core"},
 		"dbus":                    {"app"},
