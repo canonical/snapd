@@ -1114,7 +1114,15 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ensureStateSoon(state)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	chgURL, err := route.URL("id", chg.ID())
+	if err != nil {
+		return InternalError("cannot build URL for change %q: %s", chg.ID(), err)
+	}
+	result := map[string]interface{}{
+		"resource": chgURL.String(),
+	}
+
+	return AsyncResponse(result, &Meta{Change: chg.ID()})
 }
 
 func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {

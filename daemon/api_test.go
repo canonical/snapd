@@ -2488,6 +2488,11 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 
 	c.Check(chg.Tasks(), check.HasLen, 1)
 
+	expectedResponse := map[string]interface{}{
+		"resource": fmt.Sprintf("/v2/changes/%s", chg.ID()),
+	}
+	c.Assert(rsp.Result, check.DeepEquals, expectedResponse)
+
 	st.Unlock()
 	<-chg.Ready()
 	st.Lock()
@@ -4378,6 +4383,25 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
 		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
+}
+
+func (s *apiSuite) TestSnapOpSetsLocation(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "hello", "foo", "v1", snap.R(10), true, "")
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	s.vars = map[string]string{"name": "hello"}
+	buf := bytes.NewBufferString(`{"action": "remove"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	snapCmd.POST(snapCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 202, check.Commentf("body %q", rec.Body))
+	c.Check(rec.Header().Get("Location"), check.Equals, "/v2/changes/1")
 }
 
 var _ = check.Suite(&postCreateUserSuite{})
