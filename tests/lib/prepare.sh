@@ -185,6 +185,9 @@ setup_reflash_magic() {
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
 
+        # ensure ipv6 is disabled, linode is quite unhappy there
+        echo "net.ipv6.conf.all.disable_ipv6 = 1" >> $UNPACKD/sysctl.conf 
+
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
         echo "$want_pw" > /tmp/new-shadow
