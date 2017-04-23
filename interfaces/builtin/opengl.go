@@ -56,6 +56,12 @@ const openglConnectedPlugAppArmor = `
   # For now, allow 'c'haracter devices and 'b'lock devices based on
   # https://www.kernel.org/doc/Documentation/devices.txt
   /run/udev/data/c226:[0-9]* r,  # 226 drm
+
+  # This is a fix for access denied when opengl interface is used with
+  # framebuffer interface in the same snap.
+  # Fix for https://bugs.launchpad.net/snapd/+bug/1675738
+  /dev/fb[0-9]* rw,
+  /run/udev/data/c29:[0-9]* r,  # 29 fb
 `
 
 // NewOpenglInterface returns a new "opengl" interface.
