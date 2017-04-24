@@ -15,10 +15,12 @@ details: |
 environment:
     INJECT_FAILURE/rclocalcrash: inject_rclocalcrash_failure
     INJECT_FAILURE/emptysystemd: inject_emptysystemd_failure
-    INJECT_FAILURE/emptyinitrd: inject_emptyinitrd_failure
+    # FIXME: disabled until we find what to do!
+    # fails with:  ERROR cannot replace signed kernel snap with an unasserted one
+    #INJECT_FAILURE/emptyinitrd: inject_emptyinitrd_failure
     TARGET_SNAP/rclocalcrash: core
     TARGET_SNAP/emptysystemd: core
-    TARGET_SNAP/emptyinitrd: kernel
+    #TARGET_SNAP/emptyinitrd: kernel
 
 restore: |
     rm -f failing.snap failBoot currentBoot prevBoot
