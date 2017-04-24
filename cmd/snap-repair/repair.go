@@ -68,6 +68,7 @@ func (r *repair) run() error {
 		return err
 	}
 
+	logger.Noticef("starting repair %s", r.ra.RepairID())
 	if err := ioutil.WriteFile(r.script(), r.ra.Body(), 0755); err != nil {
 		return err
 	}
@@ -78,6 +79,7 @@ func (r *repair) run() error {
 	if err := ioutil.WriteFile(r.ranStamp(), nil, 0644); err != nil {
 		logger.Noticef("cannot write stamp: %s", err)
 	}
+	logger.Noticef("finished repair %s, logs in ", r.ra.RepairID(), r.log())
 
 	return err
 }
