@@ -5651,6 +5651,7 @@ defaults:
   other:
     foo:
       bar: baz
+      num: 1.305
 
 volumes:
     volume-id:
