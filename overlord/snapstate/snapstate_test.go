@@ -232,6 +232,10 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallClassicConfinementFiltering(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -355,6 +359,9 @@ func (s *snapmgrTestSuite) TestRevertTasksJailMode(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertTasksClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
 	s.testRevertTasks(snapstate.Flags{Classic: true}, c)
 }
 
@@ -449,6 +456,10 @@ func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -467,6 +478,10 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -917,6 +932,10 @@ func (s *snapmgrTestSuite) TestUpdateTasksCoreSetsIgnoreOnConfigure(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -939,6 +958,10 @@ func (s *snapmgrTestSuite) TestUpdateDevModeConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -975,6 +998,10 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1043,6 +1070,10 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateStrictFromClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1201,7 +1232,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/42",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/42"),
 			old:  "<no-old>",
 		},
 		{
@@ -1220,14 +1251,14 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/42",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/42"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/42",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/42"),
 		},
 		{
 			op:    "cleanup-trash",
@@ -1339,7 +1370,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "open-snap-file",
@@ -1358,7 +1389,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1366,12 +1397,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1389,14 +1420,14 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:    "cleanup-trash",
@@ -1484,7 +1515,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/11"
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.BaseSnapMountDir, "/some-snap/11")
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -1513,7 +1544,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "open-snap-file",
@@ -1532,7 +1563,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1540,12 +1571,12 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1563,11 +1594,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -1576,23 +1607,23 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "undo-copy-snap-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
 	}
@@ -1681,7 +1712,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "open-snap-file",
@@ -1700,7 +1731,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1708,12 +1739,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1731,7 +1762,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op: "update-aliases",
@@ -1739,12 +1770,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		// undoing everything from here down...
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -1752,7 +1783,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -1761,23 +1792,23 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "undo-copy-snap-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
 	}
@@ -2490,10 +2521,10 @@ version: 1.0`)
 		Revision: snap.R(-1),
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[5].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x1"))
 	c.Check(s.fakeBackend.ops[6].op, Equals, "setup-profiles:Doing") // core phase 2
 	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[8].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x1"))
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2554,7 +2585,7 @@ version: 1.0`)
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
-	c.Check(ops[0].old, Equals, "/snap/mock/x2")
+	c.Check(ops[0].old, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x2"))
 	// and setup-snap
 	c.Check(ops[1].op, Equals, "setup-snap")
 	c.Check(ops[1].name, Matches, `.*/mock_1.0_all.snap`)
@@ -2567,14 +2598,14 @@ version: 1.0`)
 	})
 
 	c.Check(ops[2].op, Equals, "stop-snap-services")
-	c.Check(ops[2].name, Equals, "/snap/mock/x2")
+	c.Check(ops[2].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x2"))
 
 	c.Check(ops[4].op, Equals, "unlink-snap")
-	c.Check(ops[4].name, Equals, "/snap/mock/x2")
+	c.Check(ops[4].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x2"))
 
 	c.Check(ops[5].op, Equals, "copy-data")
-	c.Check(ops[5].name, Equals, "/snap/mock/x3")
-	c.Check(ops[5].old, Equals, "/snap/mock/x2")
+	c.Check(ops[5].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x3"))
+	c.Check(ops[5].old, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x2"))
 
 	c.Check(ops[6].op, Equals, "setup-profiles:Doing")
 	c.Check(ops[6].name, Equals, "mock")
@@ -2586,10 +2617,10 @@ version: 1.0`)
 		Revision: snap.R(-3),
 	})
 	c.Check(ops[8].op, Equals, "link-snap")
-	c.Check(ops[8].name, Equals, "/snap/mock/x3")
+	c.Check(ops[8].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x3"))
 	c.Check(ops[9].op, Equals, "setup-profiles:Doing") // core phase 2
 	c.Check(ops[11].op, Equals, "start-snap-services")
-	c.Check(ops[11].name, Equals, "/snap/mock/x3")
+	c.Check(ops[11].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/x3"))
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2651,7 +2682,7 @@ version: 1.0`)
 	ops := s.fakeBackend.ops
 	c.Assert(ops, HasLen, 13)
 	c.Check(ops[0].op, Equals, "current")
-	c.Check(ops[0].old, Equals, "/snap/mock/100001")
+	c.Check(ops[0].old, Equals, filepath.Join(dirs.BaseSnapMountDir, "mock/100001"))
 	// and setup-snap
 	c.Check(ops[1].op, Equals, "setup-snap")
 	c.Check(ops[1].name, Matches, `.*/mock_1.0_all.snap`)
@@ -2714,9 +2745,9 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
+	c.Check(s.fakeBackend.ops[5].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "some-snap/42"))
 	c.Check(s.fakeBackend.ops[8].op, Equals, "start-snap-services")
-	c.Check(s.fakeBackend.ops[8].name, Equals, "/snap/some-snap/42")
+	c.Check(s.fakeBackend.ops[8].name, Equals, filepath.Join(dirs.BaseSnapMountDir, "some-snap/42"))
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2774,7 +2805,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -2782,7 +2813,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -2791,15 +2822,15 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/7",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 			stype: "app",
 		},
 		{
@@ -2884,7 +2915,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -2892,7 +2923,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -2901,33 +2932,33 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/7",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/3",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/3"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/3",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/3"),
 			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/5",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/5"),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/some-snap/5",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/5"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/5",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/5"),
 			stype: "app",
 		},
 		{
@@ -3020,11 +3051,11 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/3",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/3"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/3",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/3"),
 			stype: "app",
 		},
 	}
@@ -3085,15 +3116,15 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/2",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 			stype: "app",
 		},
 		{
@@ -3471,28 +3502,28 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	ops := s.fakeBackend.ops
 	c.Assert(ops[len(ops)-8], DeepEquals, fakeOp{
 		op:   "link-snap",
-		name: "/snap/some-snap/11",
+		name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 	})
 	c.Assert(ops[len(ops)-6], DeepEquals, fakeOp{
 		op:   "start-snap-services",
-		name: "/snap/some-snap/11",
+		name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 	})
 	c.Assert(ops[len(ops)-5], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/1",
+		name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 	})
 	c.Assert(ops[len(ops)-4], DeepEquals, fakeOp{
 		op:    "remove-snap-files",
-		name:  "/snap/some-snap/1",
+		name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		stype: "app",
 	})
 	c.Assert(ops[len(ops)-3], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/2",
+		name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 	})
 	c.Assert(ops[len(ops)-2], DeepEquals, fakeOp{
 		op:    "remove-snap-files",
-		name:  "/snap/some-snap/2",
+		name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		stype: "app",
 	})
 	c.Assert(ops[len(ops)-1], DeepEquals, fakeOp{
@@ -3629,7 +3660,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3637,7 +3668,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3653,14 +3684,14 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3765,7 +3796,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3773,7 +3804,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3786,14 +3817,14 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3854,7 +3885,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3862,7 +3893,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3878,19 +3909,19 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		// undoing everything from here down...
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3898,7 +3929,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -3907,14 +3938,14 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -3956,7 +3987,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/1"
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.BaseSnapMountDir, "some-snap/1")
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -3966,7 +3997,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -3974,7 +4005,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3990,12 +4021,12 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		// undo stuff here
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/1"),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -4004,14 +4035,14 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/2",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/2"),
 		},
 	}
 
@@ -4098,14 +4129,14 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -4152,7 +4183,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -4160,7 +4191,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -4208,7 +4239,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.copySnapDataFailTrigger = "/snap/some-snap/11"
+	s.fakeBackend.copySnapDataFailTrigger = filepath.Join(dirs.BaseSnapMountDir, "some-snap/11")
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -4251,12 +4282,12 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:   "copy-data.failed",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 			old:  "<no-old>",
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 			stype: "app",
 		},
 	}
@@ -4301,7 +4332,7 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/11"
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.BaseSnapMountDir, "some-snap/11")
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -4925,6 +4956,9 @@ func (s *snapmgrTestSuite) TestTrySetsTryModeJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTrySetsTryModeClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 
@@ -4974,6 +5008,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 }
 
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
 	s.testTrySetsTryMode(snapstate.Flags{}, c)
 }
 
@@ -4984,6 +5021,9 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesJailMode(c *C) {
 	s.testTrySetsTryMode(snapstate.Flags{JailMode: true}, c)
 }
 func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
+	if !dirs.SupportsClassicConfinement() {
+		return
+	}
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c)
 }
 
@@ -5245,8 +5285,8 @@ func (s *snapmgrTestSuite) testUpdateSequence(c *C, opts *opSeqOpts) *state.Task
 	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 1)
 	c.Check(s.fakeBackend.ops.First("copy-data"), DeepEquals, &fakeOp{
 		op:   "copy-data",
-		name: fmt.Sprintf("/snap/some-snap/%d", opts.via),
-		old:  fmt.Sprintf("/snap/some-snap/%d", opts.current),
+		name: fmt.Sprintf(filepath.Join(dirs.BaseSnapMountDir, "some-snap/%d"), opts.via),
+		old:  fmt.Sprintf(filepath.Join(dirs.BaseSnapMountDir, "some-snap/%d"), opts.current),
 	})
 
 	return ts
@@ -5255,7 +5295,7 @@ func (s *snapmgrTestSuite) testUpdateSequence(c *C, opts *opSeqOpts) *state.Task
 func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = false
 	opts.after = opts.before
-	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", opts.via)
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf(filepath.Join(dirs.BaseSnapMountDir, "some-snap/%d"), opts.via)
 	snapst, ts := s.testOpSequence(c, opts)
 	// a failed update will always end with current unchanged
 	c.Check(snapst.Current.N, Equals, opts.current)
@@ -5309,7 +5349,7 @@ func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.Task
 func (s *snapmgrTestSuite) testRevertFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = true
 	opts.after = opts.before
-	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", opts.via)
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf(filepath.Join(dirs.BaseSnapMountDir, "some-snap/%d"), opts.via)
 	snapst, ts := s.testOpSequence(c, opts)
 	// a failed revert will always end with current unchanged
 	c.Check(snapst.Current.N, Equals, opts.current)
@@ -5533,7 +5573,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -5541,12 +5581,12 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/7",
-			old:  "/snap/some-snap/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
+			old:  filepath.Join(dirs.BaseSnapMountDir, "some-snap/11"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -5564,14 +5604,14 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/some-snap/7",
+			name: filepath.Join(dirs.BaseSnapMountDir, "some-snap/7"),
 		},
 		{
 			op:    "cleanup-trash",
@@ -5953,7 +5993,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/core/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "core/11"),
 			old:  "<no-old>",
 		},
 		{
@@ -5971,7 +6011,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/core/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "core/11"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -5983,7 +6023,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "start-snap-services",
-			name: "/snap/core/11",
+			name: filepath.Join(dirs.BaseSnapMountDir, "core/11"),
 		},
 		{
 			op:   "transition-ubuntu-core:Doing",
@@ -5991,7 +6031,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "stop-snap-services",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -5999,7 +6039,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -6008,15 +6048,15 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/ubuntu-core/1",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 			stype: "os",
 		},
 		{
@@ -6082,7 +6122,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "stop-snap-services",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:   "remove-snap-aliases",
@@ -6090,7 +6130,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -6099,15 +6139,15 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/ubuntu-core/1",
+			name: filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/ubuntu-core/1",
+			name:  filepath.Join(dirs.BaseSnapMountDir, "ubuntu-core/1"),
 			stype: "os",
 		},
 		{
