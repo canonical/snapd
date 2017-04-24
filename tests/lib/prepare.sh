@@ -227,17 +227,13 @@ EOF
         IMAGE_CHANNEL=edge
         if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
             IMAGE_CHANNEL=$KERNEL_CHANNEL
-        # we assume that only one of KERNEL_CHANNEL and GADGET_CHANNEL will be different from edge
-        elif [ "$KERNEL_CHANNEL" != edge ]; then
-            # download pc-kernel snap for the specified channel
+        else
+            # download pc-kernel snap for the specified channel and set ubuntu-image channel
+            # to gadget, so that we don't need to download it
             snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
             EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
-        elif [ "$GADGET_CHANNEL" != edge ]; then
-            # download pc snap for the specified channel
-            snap download --channel="$GADGET_CHANNEL" pc
-
-            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc_*.snap"
+            IMAGE_CHANNEL="$GADGET_CHANNEL"
         fi
 
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
