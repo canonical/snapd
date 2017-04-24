@@ -64,6 +64,8 @@ func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*Repair)(nil)
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
+	// FIXME: ensure format of repair-id "STRING-INT" is followed?
+	//
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
 		return nil, err
