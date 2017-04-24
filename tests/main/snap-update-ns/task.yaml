@@ -8,21 +8,89 @@ details: |
     correctly (and it doesn't fail) enough that we reach the "not implemented"
     message that is currently in snap-updates-ns
 environment:
-    # This is needed to enable the C part of snap-update-ns to work.
-    SNAPD_INTERNAL: x-switch-namespace=1,
+    # I made far too many typos when those were literals in the code below.
+    PLUG_SNAP: test-snapd-content-plug
+    SLOT_SNAP: test-snapd-content-slot
 prepare: |
     . $TESTSLIB/snaps.sh
-    install_local test-snapd-tools
+    # NOTE: those are installed locally so that they are not connected because
+    # of missing assertions. We are installing the slot before the plug snap so
+    # that there's no attempt to load the default provider. Just in case
+    # something changes we're disconnecting them so that tests are predictable.
+    install_local $SLOT_SNAP
+    install_local $PLUG_SNAP
+    snap disconnect $PLUG_SNAP:shared-content-plug || :
+    # Ensure there is no preserved mount namespace of the -plug snap.
+    # (This one gets created because by connect hooks).
+    /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
+    rm -f /run/snapd/ns/$PLUG_SNAP.mnt
+restore: |
+    rm -f snap-update-ns.log
+debug: |
+    cat snap-update-ns.log || true
 execute: |
-    # Ensure there is no (stale) mount namespace
-    rm -f /run/snapd/ns/test-snapd-tools.mnt
-    # Run snap-update-ns to see that we try to open the namespace file but fail (because it is not there yet).
-    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: cannot open mount namespace file: no such file or directory"
+    # NOTE: All the commands here will focus on the -plug snap as this is where
+    # the mount namespace is going to be altered. The -slot snap is just there
+    # inert, as a way to provide content, but it does not execute and does not
+    # need a namespace namespace.
+    #
+    # Run snap-update-ns to see that we try to open the namespace file but fail
+    # (because it is not there yet).
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "cannot update snap namespace: cannot open mount namespace file: no such file or directory"
+
     # Run a trivial command to build and preserve a mount namespace.
-    test-snapd-tools.cmd true
-    # Run snap-update-ns to see that setns part worked and we got to the 'not implemented' code.
-    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: not implemented"
-    # Run snap-discard-ns to discard the namespace we were working with.
-    /usr/lib/snapd/snap-discard-ns test-snapd-tools
-    # Run snap-update-ns to see that setns part fails because what we open is no longer a namespace.
-    /usr/lib/snapd/snap-update-ns test-snapd-tools | MATCH "cannot update snap namespace: cannot switch mount namespace: invalid argument"
+    snap run --shell $PLUG_SNAP.content-plug -c 'true'
+
+    # Run snap-update-ns to see that setns part worked and we got did nothing at all.
+    # We did nothing at all because the namespace is exactly as it needs to be already
+    # because snap-confine just constructed it according to the desired description.
+    echo "Check that snap-update-ns does nothing, on 1st call, after installing two snaps."
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH '^$'
+
+    # Connect the plug to the slot.
+    #
+    # NOTE: when the feature is complete the need to use update-ns manually
+    # will go away and we can instead observe the side-effects.
+    snap connect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
+
+    # Run the update tool manually.
+    #
+    # NOTE: Currently the tool doesn't make any changes but prints what should
+    # be done. Once this is possible observe the results instead.
+    echo "Check that snap-update-ns does mount, on 1st call, after connecting the content interface"
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "mount \(/snap/$SLOT_SNAP/x1 /snap/$PLUG_SNAP/x1/import none bind,ro 0 0\)"
+
+    # Check that desired and current profile are the same.
+    diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Run the update tool again to see that it is idempotent.
+    echo "Check that snap-update-ns does nothing, on 2nd call, after connecting the content interface" 
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH '^$'
+
+    # Check that desired and current profile are (still) the same.
+    diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Disconnect the plug from the slot so that we can test the other way.
+    snap disconnect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
+
+    # NOTE: Currently the tool doesn't make any changes but prints what should
+    # be done. Once this is possible observe the results instead.
+    echo "Check that snap-update-ns does unmount, on 1st call, after disconnecting the content interface" 
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "unmount \(/snap/$SLOT_SNAP/x1 /snap/$PLUG_SNAP/x1/import none bind,ro 0 0\)"
+
+    # Check that desired and current profile are (still) the same.
+    diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Run the update tool again to see that it is idempotent.
+    echo "Check that snap-update-ns does nothing, on 2nd call, after disconnecting the content interface" 
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH '^$'
+
+    # Check that desired and current profile are (still) the same.
+    diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Discard the namespace so that update has nothing useful to do. Let's just
+    # ensure that it really does use the namespace and doesn't meddle with the
+    # current mount namespace.
+    /usr/lib/snapd/snap-discard-ns $PLUG_SNAP
+    echo "Check that snap-update-ns fails after discarding the mount namespace"
+    /usr/lib/snapd/snap-update-ns $PLUG_SNAP 2>snap-update-ns.log | MATCH "cannot update snap namespace: cannot switch mount namespace: invalid argument"
