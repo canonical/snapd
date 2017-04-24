@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"golang.org/x/net/context"
 
@@ -527,7 +528,23 @@ func (f *fakeSnappyBackend) MissingAliases(aliases []*backend.Alias) ([]*backend
 	return aliases, nil
 }
 
+type byAlias []*backend.Alias
+
+func (ba byAlias) Len() int      { return len(ba) }
+func (ba byAlias) Swap(i, j int) { ba[i], ba[j] = ba[j], ba[i] }
+func (ba byAlias) Less(i, j int) bool {
+	return ba[i].Name < ba[j].Name
+}
+
 func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error {
+	if len(add) != 0 {
+		add = append([]*backend.Alias(nil), add...)
+		sort.Sort(byAlias(add))
+	}
+	if len(remove) != 0 {
+		remove = append([]*backend.Alias(nil), remove...)
+		sort.Sort(byAlias(remove))
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:        "update-aliases",
 		aliases:   add,
