@@ -68,11 +68,24 @@ unix (bind) type=stream addr="@xtables",
 @{PROC}/sys/net/netfilter/** r,
 @{PROC}/sys/net/nf_conntrack_max r,
 
+# check the state of the Kmod modules
+/sys/module/arp_tables/               r,
+/sys/module/arp_tables/initstate      r,
+/sys/module/br_netfilter/             r,
+/sys/module/br_netfilter/initstate    r,
+/sys/module/iptable_filter/           r,
+/sys/module/iptable_filter/initstate  r,
+/sys/module/ip6table_filter/          r,
+/sys/module/ip6table_filter/initstate r,
+
 # read netfilter module parameters
-/sys/module/nf_*/                r,
-/sys/module/nf_*/parameters/{,*} r,
+/sys/module/nf_*/                     r,
+/sys/module/nf_*/parameters/{,*}      r,
 
 # various firewall related sysctl files
+@{PROC}/sys/net/bridge/bridge-nf-call-arptables rw,
+@{PROC}/sys/net/bridge/bridge-nf-call-iptables rw,
+@{PROC}/sys/net/bridge/bridge-nf-call-ip6tables rw,
 @{PROC}/sys/net/ipv4/conf/*/rp_filter w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_source_route w,
 @{PROC}/sys/net/ipv{4,6}/conf/*/accept_redirects w,
@@ -98,7 +111,11 @@ capset
 setuid
 `
 
-var firewallControlConnectedPlugKmod = []string{"ip6table_filter", "iptable_filter"}
+var firewallControlConnectedPlugKmod = []string{
+	"arp_tables",
+	"br_netfilter",
+	"ip6table_filter",
+	"iptable_filter"}
 
 // NewFirewallControlInterface returns a new "firewall-control" interface.
 func NewFirewallControlInterface() interfaces.Interface {
