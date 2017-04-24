@@ -34,8 +34,18 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <termios.h>
-#include <xfs/xqm.h>
 #include <unistd.h>
+
+// The XFS interface requires a 64 bit file system interface
+// but we don't want to leak this anywhere else if not globally
+// defined.
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#include <xfs/xqm.h>
+#undef _FILE_OFFSET_BITS
+#else
+#include <xfs/xqm.h>
+#endif
 
 #include <seccomp.h>
 

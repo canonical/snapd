@@ -44,6 +44,21 @@ type Change struct {
 	Action Action
 }
 
+// String formats mount change to a human-readable line.
+func (c Change) String() string {
+	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
+}
+
+// Needed returns true if the change needs to be performed in the context of mount table.
+func (c Change) Needed(mounted []*InfoEntry) bool {
+	// Look through what is mounted and see if we shold perform the change. If
+	// the entry is already mounted then we don't need to mount it, if the
+	// entry is already unmounted then we don't need to unmount it.
+
+	// TODO: implement this
+	return true
+}
+
 // Perform executes the desired mount or unmount change.
 //
 // Mount and unmount are handled by using the system call directly. Note that
@@ -73,12 +88,12 @@ func (c *Change) Perform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile []Entry) []Change {
-	// Copy both as we will want to mutate them.
-	current := make([]Entry, len(currentProfile))
-	copy(current, currentProfile)
-	desired := make([]Entry, len(desiredProfile))
-	copy(desired, desiredProfile)
+func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
+	// Copy both profiles as we will want to mutate them.
+	current := make([]Entry, len(currentProfile.Entries))
+	copy(current, currentProfile.Entries)
+	desired := make([]Entry, len(desiredProfile.Entries))
+	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
 	// easily test if a given directory is a subdirectory with

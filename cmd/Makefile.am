@@ -72,6 +72,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/error.h \
 	libsnap-confine-private/fault-injection.c \
 	libsnap-confine-private/fault-injection.h \
+	libsnap-confine-private/locking.c \
+	libsnap-confine-private/locking.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
@@ -94,6 +96,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
+	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
 	libsnap-confine-private/privs-test.c \
