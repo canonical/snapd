@@ -438,11 +438,14 @@ func MountUnitPath(baseDir string) string {
 
 func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
+	if fstype == "squashfs" {
+		options = append(options, "ro")
+	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		fstype = "none"
 	} else if fstype == "squashfs" && useFuse() {
-		options = append(options, []string{"ro", "allow_other"}...)
+		options = append(options, "allow_other")
 		fstype = "fuse.squashfuse"
 	}
 

@@ -1,0 +1,64 @@
+summary: Check that snap configuration is maintained on per-revision basis.
+
+systems: [-ubuntu-core-16-*]
+
+details: |
+    This test ensures that snap configuration is mainted per snap revision
+    and is restored on revert.
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/config-versions .
+    snapbuild $TESTSLIB/snaps/config-versions-v2 .
+
+restore: |
+    rm config-versions_1.0_all.snap
+    rm config-versions_2.0_all.snap
+
+execute: |
+    verify_config_value() {
+      expected="$1"
+      output=$(snap get config-versions value)
+      if [ "$output" != "$expected" ]; then
+        echo "Expected config value to be $expected but got $output"
+        exit 1
+      fi
+    }
+
+    echo "Install test snap"
+    snap install --dangerous config-versions_1.0_all.snap
+
+    echo "Setting config value affecting rev 1"
+    snap set config-versions value=100
+
+    echo "Install a new version of the test snap"
+    snap install --dangerous config-versions_2.0_all.snap
+
+    echo "Expecting config value to be carried over to the new version 2"
+    verify_config_value 100
+
+    echo "Changing the config value affecting rev 2"
+    snap set config-versions value=200
+    verify_config_value 200
+
+    echo "Refreshing to rev 1 should not restore config"
+    snap refresh --revision=x1 config-versions
+    verify_config_value 200
+
+    echo "Changing the config value affecting rev 1"
+    snap set config-versions value=300
+
+    echo "Refreshing back to the rev 2 should not restore config"
+    snap refresh --revision=x2 config-versions
+    verify_config_value 300
+
+    echo "Changing the config value affecting rev 2"
+    snap set config-versions value=400
+    verify_config_value 400
+
+    echo "Reverting to the rev 1"
+    snap revert config-versions
+    verify_config_value 300
+
+    echo "Revert back to the rev 2"
+    snap revert --revision=x2 config-versions
+    verify_config_value 400
