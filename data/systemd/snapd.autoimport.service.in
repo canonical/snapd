@@ -4,7 +4,7 @@ After=snapd.service snapd.socket
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snap auto-import
+ExecStart=@bindir@/snap auto-import
 
 [Install]
 WantedBy=multi-user.target

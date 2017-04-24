@@ -25,16 +25,21 @@ update_core_snap_for_classic_reexec() {
 
     # Now unpack the core, inject the new snap-exec/snapctl into it
     unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    cp -a /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snapctl squashfs-root/usr/bin/
     # also inject new version of snap-confine and snap-scard-ns
-    cp /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    else
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine
+    fi
     # also add snap/snapd because we re-exec by default and want to test
     # this version
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
-    cp /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snap squashfs-root/usr/bin/snap
+    cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
+    cp -a /usr/lib/snapd/info squashfs-root/usr/lib/snapd/
+    cp -a /usr/bin/snap squashfs-root/usr/bin/snap
     # repack, cheating to speed things up (4sec vs 1.5min)
     mv "$snap" "${snap}.orig"
     mksnap_fast "squashfs-root" "$snap"
@@ -69,7 +74,7 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version

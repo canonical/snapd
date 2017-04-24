@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"gopkg.in/retry.v1"
@@ -70,8 +71,19 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
-	if netErr, ok := err.(net.Error); ok {
-		return netErr.Timeout()
+	if urlErr, ok := err.(*url.Error); ok {
+		err = urlErr.Err
 	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
+	if netErr, ok := err.(net.Error); ok {
+		if netErr.Timeout() {
+			logger.Debugf("Retrying because of: %s", netErr)
+			return true
+		}
+	}
+	if err == io.ErrUnexpectedEOF || err == io.EOF {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
+	return false
 }

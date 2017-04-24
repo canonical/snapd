@@ -135,8 +135,9 @@ type SnapState struct {
 	Channel string        `json:"channel,omitempty"`
 	Flags
 	// aliases, see aliasesv2.go
-	Aliases       map[string]*AliasTarget `json:"aliases,omitempty"`
-	AliasesStatus AliasesStatus           `json:"aliases-status,omitempty"`
+	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
+	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
+	AliasesPending      bool                    `json:"aliases-pending,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -338,8 +339,15 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("alias", m.doAlias, m.undoAlias)
 	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
 	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
 	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+
+	// XXX: WIP: aliases v2: temporary task names to be able to write tess until switching
+	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("setup-aliases-v2", m.doSetupAliasesV2, m.doRemoveAliasesV2)
+	runner.AddHandler("refresh-aliases-v2", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("prune-auto-aliases-v2", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("remove-aliases-v2", m.doRemoveAliasesV2, m.doSetupAliasesV2)
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
@@ -356,6 +364,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 }
 
 func diskAliasTask(t *state.Task) bool {
+	// TODO: aliases v2!
 	kind := t.Kind()
 	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
 }

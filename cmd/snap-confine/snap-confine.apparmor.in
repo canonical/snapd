@@ -30,6 +30,7 @@
     /dev/random r,
     /dev/urandom r,
     /dev/pts/[0-9]* rw,
+    /dev/tty rw,
 
     # cgroups
     capability sys_admin,
@@ -277,6 +278,10 @@
     mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
     /var/lib/lxd/ w,
     /var/lib/snapd/hostfs/var/lib/lxd r,
+
+    # support for locking
+    /run/snapd/lock/ rw,
+    /run/snapd/lock/*.lock rwk,
 
     # support for the mount namespace sharing
     capability sys_ptrace,

@@ -77,6 +77,9 @@ if [ "$1" = "purge" ]; then
     done
     umount -l /run/snapd/ns/ || true
 
+    echo "Removing extra snap-confine apparmor rules"
+    rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
+
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi
