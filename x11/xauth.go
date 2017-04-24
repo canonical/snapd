@@ -38,22 +38,33 @@ type xauth struct {
 	Data    []byte
 }
 
-func readChunk(f *os.File) ([]byte, error) {
-	b := [2]byte{}
-	n, err := f.Read(b[:])
+func readBytes(f *os.File, data []byte) error {
+	n, err := f.Read(data)
 	if err != nil {
+		return err
+	}
+
+	if n != len(data) {
+		return fmt.Errorf("Could not read enough bytes")
+	}
+
+	return nil
+}
+
+func readChunk(f *os.File) ([]byte, error) {
+	// A chunk consists of a length encoded by two bytes and
+	// additional data which is the real value of the item
+	// we reading here from the file.
+
+	b := [2]byte{}
+	if err := readBytes(f, b[:]); err != nil {
 		return nil, err
-	} else if n != 2 {
-		return nil, fmt.Errorf("Could not read enough bytes")
 	}
 
 	size := int(binary.BigEndian.Uint16(b[:]))
 	chunk := make([]byte, size)
-	n, err = f.Read(chunk)
-	if err != nil {
+	if err := readBytes(f, chunk); err != nil {
 		return nil, err
-	} else if n != size {
-		return nil, fmt.Errorf("Could not read enough bytes")
 	}
 
 	return chunk, nil
@@ -61,31 +72,26 @@ func readChunk(f *os.File) ([]byte, error) {
 
 func (xa *xauth) readFromFile(f *os.File) error {
 	b := [2]byte{}
-	n, err := f.Read(b[:])
-	if err != nil {
+	if err := readBytes(f, b[:]); err != nil {
 		return err
-	} else if n != 2 {
-		return fmt.Errorf("Could not read enough bytes")
 	}
 	xa.Family = binary.BigEndian.Uint16(b[:])
 
-	xa.Address, err = readChunk(f)
-	if err != nil {
+	var err error
+
+	if xa.Address, err = readChunk(f); err != nil {
 		return err
 	}
 
-	xa.Number, err = readChunk(f)
-	if err != nil {
+	if xa.Number, err = readChunk(f); err != nil {
 		return err
 	}
 
-	xa.Name, err = readChunk(f)
-	if err != nil {
+	if xa.Name, err = readChunk(f); err != nil {
 		return err
 	}
 
-	xa.Data, err = readChunk(f)
-	if err != nil {
+	if xa.Data, err = readChunk(f); err != nil {
 		return err
 	}
 

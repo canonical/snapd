@@ -313,20 +313,23 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// This is ok to do here because we aren't trying to protect against
 	// the user changing the Xauthority file in XDG_RUNTIME_DIR outside
 	// of snapd.
-	var fout *os.File
 	if osutil.FileExists(targetPath) {
+		var fout *os.File
 		if fout, err = os.Open(targetPath); err != nil {
 			return "", err
 		}
-		defer fout.Close()
 		if osutil.FileStreamsEqual(fin, fout) {
+			fout.Close()
 			return targetPath, nil
 		}
-	}
 
-	// Ensure we're validating the Xauthority file from the beginning
-	if _, err := fin.Seek(int64(os.SEEK_SET), 0); err != nil {
-		return "", err
+		fout.Close()
+		os.Remove(targetPath)
+
+		// Ensure we're validating the Xauthority file from the beginning
+		if _, err := fin.Seek(int64(os.SEEK_SET), 0); err != nil {
+			return "", err
+		}
 	}
 
 	// To guard against setting XAUTHORITY to non-xauth files, check
@@ -337,6 +340,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", nil
 	}
 
+	// Replace the file securely by removing and creating with O_CREATE|O_EXCL
 	if osutil.FileExists(targetPath) {
 		err := os.Remove(targetPath)
 		if err != nil {
@@ -349,7 +353,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", err
 	}
 
-	fout, err = os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	fout, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return "", err
 	}

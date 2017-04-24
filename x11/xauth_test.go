@@ -65,8 +65,10 @@ func (s *xauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
 }
 
 func (s *xauthTestSuite) TestValidXauthFile(c *C) {
-	path, err := x11.MockXauthority(1)
-	c.Assert(err, IsNil)
-	err = x11.ValidateXauthority(path)
-	c.Assert(err, IsNil)
+	for _, n := range []int{1, 2, 4} {
+		path, err := x11.MockXauthority(n)
+		c.Assert(err, IsNil)
+		err = x11.ValidateXauthority(path)
+		c.Assert(err, IsNil)
+	}
 }
