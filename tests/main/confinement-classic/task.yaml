@@ -4,17 +4,20 @@ details: |
     classic confinement can be executed correctly. There are two variants of
     this test (classic and jailmode) and the snap (this particular one) should
     function correctly in both cases.
-systems:
-    - -ubuntu-core-16
-    # No confinement (AppArmor, Seccomp) available on these systems
-    - -debian-*
-environment:
-    INSTALL_FLAGS/classic: --classic
-    INSTALL_FLAGS/classic_and_jailmode: --classic --jailmode
+systems: [-ubuntu-core-16-*]
 prepare: |
-    make -C test-snapd-hello-classic clean
-    make -C test-snapd-hello-classic
-    snap install $INSTALL_FLAGS --dangerous ./test-snapd-hello-classic/test-snapd-hello-classic_0.1_*.snap
+    run_install() {
+        make -C test-snapd-hello-classic clean
+        make -C test-snapd-hello-classic
+        snap install $1 --dangerous ./test-snapd-hello-classic/test-snapd-hello-classic_0.1_*.snap
+    }
+    run_install --classic
+    # FIXME jailmode doesn't work on debian type systems due to missing
+    # confinement yet. This check will be replaced with proper detection
+    # if confinement is supported on the platform we're running.
+    if [ "$SPREAD_SYSTEM" != "debian-*" ]; then
+        run_install --classic --jailmode
+    fi
 execute: |
     /snap/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 restore: |
