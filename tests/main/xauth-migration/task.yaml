@@ -23,7 +23,9 @@ execute: |
     echo $XAUTHORITY > /var/snap/hello-world/common/xauth-content
     exit
     EOF
-        test "$(cat /var/snap/hello-world/common/xauth-content)" = "$2" || exit 1
+        env_path="$(cat /var/snap/hello-world/common/xauth-content)"
+        test "$env_path" = "$2" || exit 1
+        test "$(sh256sum $env_path)" = "$(sh256sum $1)"
         unset XAUTHORITY
     }
 
