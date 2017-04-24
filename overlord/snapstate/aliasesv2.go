@@ -415,7 +415,9 @@ func (m *SnapManager) ensureAliasesV2() error {
 		return err
 	}
 	if len(aliasesV1) == 0 {
-		m.state.Set("aliases", nil)
+		if err == nil { // something empty was there, delete it
+			m.state.Set("aliases", nil)
+		}
 		// nothing to do
 		return nil
 	}
