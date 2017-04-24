@@ -34,7 +34,7 @@ func main() {
 
 	// FIXME: use proper cmdline parser
 	if len(os.Args) < 2 {
-		fmt.Fprintf(Stderr, "snap-repair is used to repair")
+		fmt.Fprintf(Stderr, "snap-repair is used to repair\n")
 		os.Exit(10)
 	}
 
