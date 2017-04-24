@@ -85,7 +85,7 @@ func (r *repair) run() error {
 }
 
 // FIXME: bypass the assertion DB entirely and collect all repair
-//        bits in /var/lib/snapd/repair/ ?
+//        bits in /var/lib/snapd/repair/
 // FIXME: create a copy of the critical assertion code to protect
 //        against catastrophic bugs in the assertions implementation?
 var findRepairAssertions = func() ([]asserts.Assertion, error) {
