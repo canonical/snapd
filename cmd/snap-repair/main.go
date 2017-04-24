@@ -32,6 +32,7 @@ var (
 func main() {
 	var err error
 
+	// FIXME: use proper cmdline parser
 	if len(os.Args) < 2 {
 		fmt.Fprintf(Stderr, "snap-repair is used to repair")
 		os.Exit(10)

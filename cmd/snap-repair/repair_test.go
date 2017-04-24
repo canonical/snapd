@@ -30,15 +30,19 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type repairSuite struct {
+	testutil.BaseTest
 	root string
 
 	origFindRepairAssertions func() ([]asserts.Assertion, error)
+	origOnClassic            bool
 
 	cmds [][]string
 
@@ -64,8 +68,12 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`, len(script), script)
 
 func (s *repairSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.root = c.MkDir()
 	s.origFindRepairAssertions = findRepairAssertions
+	s.AddCleanup(release.MockOnClassic(false))
+
 	findRepairAssertions = func() ([]asserts.Assertion, error) {
 		return s.repairs, nil
 	}
@@ -79,6 +87,8 @@ func (s *repairSuite) SetUpTest(c *C) {
 }
 
 func (s *repairSuite) TearDown(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	dirs.SetRootDir("/")
 	execCommand = exec.Command
 	findRepairAssertions = s.origFindRepairAssertions

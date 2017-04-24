@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -99,6 +100,10 @@ var findRepairAssertions = func() ([]asserts.Assertion, error) {
 }
 
 func runRepair() error {
+	if release.OnClassic {
+		return fmt.Errorf("cannot run repairs on a classic system")
+	}
+
 	assertions, err := findRepairAssertions()
 	if err == asserts.ErrNotFound {
 		return nil
