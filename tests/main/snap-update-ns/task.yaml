@@ -36,6 +36,9 @@ execute: |
     # Run a trivial command to build and preserve a mount namespace.
     snap run --shell $PLUG_SNAP.content-plug -c 'true'
 
+    # Check that the shared content is not mounted.
+    snap run --shell $PLUG_SNAP.content-plug -c 'test ! -e $SNAP/import/shared-content'
+
     # Run snap-update-ns to see that setns part worked and we got did nothing at all.
     # We did nothing at all because the namespace is exactly as it needs to be already
     # because snap-confine just constructed it according to the desired description.
@@ -48,40 +51,38 @@ execute: |
     # will go away and we can instead observe the side-effects.
     snap connect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
 
-    # Run the update tool manually.
-    #
-    # NOTE: Currently the tool doesn't make any changes but prints what should
-    # be done. Once this is possible observe the results instead.
+    # Run the update tool manually to update the namespace after the connect.
     echo "Check that snap-update-ns does mount, on 1st call, after connecting the content interface"
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH "mount \(/snap/$SLOT_SNAP/x1 /snap/$PLUG_SNAP/x1/import none bind,ro 0 0\)"
-
     # Check that desired and current profile are the same.
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Run the update tool again to see that it is idempotent.
     echo "Check that snap-update-ns does nothing, on 2nd call, after connecting the content interface" 
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
-
     # Check that desired and current profile are (still) the same.
     diff -Nu /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Check that the shared content is mounted.
+    snap run --shell $PLUG_SNAP.content-plug -c 'test -e $SNAP/import/shared-content'
 
     # Disconnect the plug from the slot so that we can test the other way.
     snap disconnect $PLUG_SNAP:shared-content-plug $SLOT_SNAP:shared-content-slot
 
-    # NOTE: Currently the tool doesn't make any changes but prints what should
-    # be done. Once this is possible observe the results instead.
+    # Run the update tool manually to update the namespace after the disconnect.
     echo "Check that snap-update-ns does unmount, on 1st call, after disconnecting the content interface" 
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH "unmount \(/snap/$SLOT_SNAP/x1 /snap/$PLUG_SNAP/x1/import none bind,ro 0 0\)"
-
     # Check that desired and current profile are (still) the same.
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
 
     # Run the update tool again to see that it is idempotent.
     echo "Check that snap-update-ns does nothing, on 2nd call, after disconnecting the content interface" 
     /usr/lib/snapd/snap-update-ns $PLUG_SNAP | MATCH '^$'
-
     # Check that desired and current profile are (still) the same.
     diff -uN /var/lib/snapd/mount/snap.$PLUG_SNAP.fstab /run/snapd/ns/snap.$PLUG_SNAP.fstab
+
+    # Check that the shared content is not mounted.
+    snap run --shell $PLUG_SNAP.content-plug -c 'test ! -e $SNAP/import/shared-content'
 
     # Discard the namespace so that update has nothing useful to do.
     /usr/lib/snapd/snap-discard-ns $PLUG_SNAP | MATCH '^$'
