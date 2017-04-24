@@ -232,12 +232,12 @@ EOF
             # download pc-kernel snap for the specified channel
             snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
-            EXTRA_FUNDAMENTAL='--extra-snaps '"$PWD"'/pc-kernel_*.snap'
+            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         elif [ "$GADGET_CHANNEL" != edge ]; then
             # download pc snap for the specified channel
             snap download --channel="$GADGET_CHANNEL" pc
 
-            EXTRA_FUNDAMENTAL='--extra-snaps '"$PWD"'/pc_*.snap'
+            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc_*.snap"
         fi
 
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
