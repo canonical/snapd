@@ -33,6 +33,7 @@ var (
 	GlobalRootDir string
 
 	SnapMountDir              string
+	BaseSnapMountDir          string
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -127,9 +128,11 @@ func SetRootDir(rootdir string) {
 
 	switch release.ReleaseInfo.ID {
 	case "fedora", "centos", "rhel", "arch":
-		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
+		BaseSnapMountDir = "/var/lib/snapd/snap"
+		SnapMountDir = filepath.Join(rootdir, BaseSnapMountDir)
 	default:
-		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
+		BaseSnapMountDir = defaultSnapMountDir
+		SnapMountDir = filepath.Join(rootdir, BaseSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
