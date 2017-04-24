@@ -451,7 +451,7 @@ func (s *SnapSuite) TestSnapRunIsReexeced(c *check.C) {
 		readlink string
 		expected bool
 	}{
-		{filepath.Join(dirs.SnapMountDir, dirs.DistroLibExecDir, "snapd"), true},
+		{filepath.Join(dirs.SnapMountDir, dirs.CoreLibExecDir, "snapd"), true},
 		{fmt.Sprintf("%s/snapd", dirs.DistroLibExecDir), false},
 	} {
 		osReadlinkResult = t.readlink
