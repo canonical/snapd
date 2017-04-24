@@ -82,16 +82,16 @@ func (r *repair) run() error {
 	return err
 }
 
+// FIXME: bypass the assertion DB entirely and collect all repair
+//        bits in /var/lib/snapd/repair/ ?
+// FIXME: create a copy of the critical assertion code to protect
+//        against catastrophic bugs in the assertions implementation?
 var findRepairAssertions = func() ([]asserts.Assertion, error) {
 	db, err := sysdb.Open()
 	if err != nil {
 		fmt.Errorf("cannot open system assertion database: %s", err)
 	}
 
-	// FIXME: bypass the assertion DB entirely and collect all repair
-	//        bits in /var/lib/snapd/repair/
-	// FIXME: create a copy of the critical assertion code to protect
-	//        against catastrophic bugs in the assertions implementation?
 	// FIXME: add appropriate headers for filtering etc
 	var headers map[string]string
 	assertType := asserts.Type("repair")
