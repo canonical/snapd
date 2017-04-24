@@ -770,7 +770,7 @@ func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
 	})
 
 	_, err := snapstate.Install(s.state, "foo", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "foo" command namespace conflicts with alias "foo\.bar" for "otherfoosnap"`)
+	c.Assert(err, ErrorMatches, `snap "foo" command namespace conflicts with alias "foo\.bar" for "otherfoosnap" snap`)
 }
 
 // A sneakyStore changes the state when called
@@ -3341,6 +3341,99 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	tr = config.NewTransaction(s.state)
 	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
 	c.Assert(res, Equals, "bar")
+}
+
+func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "bar")
+	tr.Commit()
+
+	var cfgs map[string]interface{}
+	// we don't have config snapshots yet
+	c.Assert(s.state.Get("revision-config", &cfgs), Equals, state.ErrNoState)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+
+	s.state.Lock()
+	cfgs = nil
+	// config copy of rev. 1 has been made
+	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
+	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
+		"1": map[string]interface{}{
+			"foo": "bar",
+		},
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	// set configuration for current snap
+	tr := config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "100")
+	tr.Commit()
+
+	// make config snapshot for rev.1
+	config.SaveRevisionConfig(s.state, "some-snap", snap.R(1))
+
+	// modify for rev. 2
+	tr = config.NewTransaction(s.state)
+	tr.Set("some-snap", "foo", "200")
+	tr.Commit()
+
+	chg := s.state.NewChange("revert", "revert snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+
+	s.state.Lock()
+	// config snapshot of rev. 2 has been made by 'revert'
+	var cfgs map[string]interface{}
+	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
+	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
+		"1": map[string]interface{}{"foo": "100"},
+		"2": map[string]interface{}{"foo": "200"},
+	})
+
+	// current snap configuration has been restored from rev. 1 config snapshot
+	tr = config.NewTransaction(s.state)
+	var res string
+	c.Assert(tr.Get("some-snap", "foo", &res), IsNil)
+	c.Assert(res, Equals, "100")
 }
 
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
