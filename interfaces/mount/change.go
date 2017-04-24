@@ -33,7 +33,7 @@ const (
 	// Mount represents an action that results in mounting something somewhere.
 	Mount Action = "mount"
 	// Unmount represents an action that results in unmounting something from somewhere.
-	Unmount Action = "umount"
+	Unmount Action = "unmount"
 	// Remount when needed
 )
 
