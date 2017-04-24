@@ -770,7 +770,7 @@ func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
 	})
 
 	_, err := snapstate.Install(s.state, "foo", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "foo" command namespace conflicts with alias "foo\.bar" for "otherfoosnap"`)
+	c.Assert(err, ErrorMatches, `snap "foo" command namespace conflicts with alias "foo\.bar" for "otherfoosnap" snap`)
 }
 
 // A sneakyStore changes the state when called

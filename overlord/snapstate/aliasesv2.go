@@ -360,7 +360,7 @@ func checkSnapAliasConflict(st *state.State, snapName string) error {
 		for alias, target := range snapst.Aliases {
 			if alias == snapName || strings.HasPrefix(alias, prefix) {
 				if target.Effective(autoDisabled) != "" {
-					return fmt.Errorf("snap %q command namespace conflicts with alias %q for %q", snapName, alias, otherSnap)
+					return fmt.Errorf("snap %q command namespace conflicts with alias %q for %q snap", snapName, alias, otherSnap)
 				}
 			}
 		}
