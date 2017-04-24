@@ -30,6 +30,8 @@ import (
 type Action string
 
 const (
+	// Keep indicates that a given mount entry should be kept as-is.
+	Keep Action = "keep"
 	// Mount represents an action that results in mounting something somewhere.
 	Mount Action = "mount"
 	// Unmount represents an action that results in unmounting something from somewhere.
@@ -121,7 +123,9 @@ func NeededChanges(currentProfile, desiredProfile *Profile) []Change {
 
 	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
-		if !reuse[current[i].Dir] {
+		if reuse[current[i].Dir] {
+			changes = append(changes, Change{Action: Keep, Entry: current[i]})
+		} else {
 			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
 		}
 	}
