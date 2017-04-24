@@ -37,6 +37,9 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
 
+BUILT_USING_PACKAGES= libcap-dev libapparmor-dev libseccomp-dev
+BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
+
 # export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 # DPKG_EXPORT_BUILDFLAGS = 1
 # include /usr/share/dpkg/buildflags.mk
@@ -200,3 +203,6 @@ snap.8:
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang
 	rm -vf snap.8
+
+override_dh_gencontrol:
+	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"
