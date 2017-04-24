@@ -1225,14 +1225,13 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	var allAliases map[string]map[string]string
-	err = st.Get("aliases", &allAliases)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"foo": {
-			"app1": "auto",
-			"app2": "auto",
-		},
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+		"app2": {Auto: "app2"},
 	})
 
 	// check disk
@@ -1291,14 +1290,14 @@ apps:
 	c.Check(info.Revision, Equals, snap.R(10))
 	c.Check(info.Version, Equals, "1.0")
 
-	var allAliases map[string]map[string]string
-	err = st.Get("aliases", &allAliases)
-	c.Check(err, IsNil)
-	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"foo": {
-			"app1": "auto",
-		},
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
 	})
+
 	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
 	dest, err := os.Readlink(app1Alias)
 	c.Assert(err, IsNil)
@@ -1334,13 +1333,12 @@ apps:
 	c.Check(info.Revision, Equals, snap.R(15))
 	c.Check(info.Version, Equals, "1.5")
 
-	allAliases = nil
-	err = st.Get("aliases", &allAliases)
-	c.Check(err, IsNil)
-	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"foo": {
-			"app2": "auto",
-		},
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst2)
+	c.Assert(err, IsNil)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app2": {Auto: "app2"},
 	})
 
 	c.Check(osutil.IsSymlink(app1Alias), Equals, false)
@@ -1430,13 +1428,12 @@ apps:
 	c.Check(info.Revision, Equals, snap.R(20))
 	c.Check(info.Version, Equals, "2.0")
 
-	var allAliases map[string]map[string]string
-	err = st.Get("aliases", &allAliases)
-	c.Check(err, IsNil)
-	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"foo": {
-			"app1": "auto",
-		},
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
 	})
 
 	// foo gets a new version/revision and a change of auto-aliases
@@ -1483,17 +1480,20 @@ apps:
 	c.Check(info.Revision, Equals, snap.R(15))
 	c.Check(info.Version, Equals, "1.5")
 
-	allAliases = nil
-	err = st.Get("aliases", &allAliases)
-	c.Check(err, IsNil)
-	c.Check(allAliases, DeepEquals, map[string]map[string]string{
-		"foo": {
-			"app2": "auto",
-		},
-		"bar": {
-			"app1": "auto",
-			"app3": "auto",
-		},
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst2)
+	c.Assert(err, IsNil)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app2": {Auto: "app2"},
+	})
+	var snapst3 snapstate.SnapState
+	err = snapstate.Get(st, "bar", &snapst3)
+	c.Assert(err, IsNil)
+	c.Check(snapst3.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst3.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+		"app3": {Auto: "app3"},
 	})
 
 	app2Alias := filepath.Join(dirs.SnapBinariesDir, "app2")

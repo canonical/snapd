@@ -57,7 +57,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("set-auto-aliases-v2", "test")
+	t := s.state.NewTask("set-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -105,7 +105,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2FirstInstall(c *C) {
 		Active:  true,
 	})
 
-	t := s.state.NewTask("set-auto-aliases-v2", "test")
+	t := s.state.NewTask("set-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -161,7 +161,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("set-auto-aliases-v2", "test")
+	t := s.state.NewTask("set-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -233,7 +233,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesV2Conflict(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("set-auto-aliases-v2", "test")
+	t := s.state.NewTask("set-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -306,7 +306,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesV2Conflict(c *C) {
 	}
 	s.snapmgr.AddAdhocTaskHandler("grab-alias3", grabAlias3, nil)
 
-	t := s.state.NewTask("set-auto-aliases-v2", "test")
+	t := s.state.NewTask("set-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -365,7 +365,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -415,7 +415,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -477,7 +477,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Auto(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -527,7 +527,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Auto(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -582,7 +582,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesV2Nothing(c *C) {
 		Active:  true,
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -628,7 +628,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesV2Nothing(c *C) {
 		Active:  true,
 	})
 
-	t := s.state.NewTask("setup-aliases-v2", "test")
+	t := s.state.NewTask("setup-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -688,7 +688,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2Auto(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("prune-auto-aliases-v2", "test")
+	t := s.state.NewTask("prune-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -745,7 +745,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2AutoPending(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("prune-auto-aliases-v2", "test")
+	t := s.state.NewTask("prune-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -794,7 +794,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesV2ManualAndDisabled(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("prune-auto-aliases-v2", "test")
+	t := s.state.NewTask("prune-auto-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -858,7 +858,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -931,7 +931,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -1016,7 +1016,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2FromEmpty(c *C) {
 		AliasesPending: false,
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -1096,7 +1096,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Pending(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -1155,7 +1155,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Pending(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -1229,7 +1229,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesV2Conflict(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
@@ -1296,7 +1296,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 
 	s.snapmgr.AddAdhocTaskHandler("grab-alias3", grabAlias3, nil)
 
-	t := s.state.NewTask("refresh-aliases-v2", "test")
+	t := s.state.NewTask("refresh-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
