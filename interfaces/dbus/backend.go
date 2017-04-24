@@ -122,65 +122,11 @@ func (b *Backend) setupBusServ(snapInfo *snap.Info, spec interfaces.Specificatio
 	snapName := snapInfo.Name()
 
 	content := map[string]*osutil.FileState{}
-	for _, appInfo := range snapInfo.Apps {
-		securityTag := appInfo.SecurityTag()
-
-		// FIXME: move most of this into the dbus buildin backend
-		// FIXME2: ensure that "name" is not already used elsewhere
-		//         in the system?
-		for _, slot := range appInfo.Slots {
-			if slot.Interface != "dbus" {
-				continue
-			}
-			bus, ok := slot.Attrs["bus"].(string)
-			if !ok {
-				continue
-			}
-			// TODO: we can eventually support 'system'
-			// by:
-			// 1. creating the
-			// SnapDBusSystemServicesFilesDir directory
-			// 2. writing the service file to
-			// SnapDBusSystemServicesFilesDir when
-			// 'daemon' is set to 'dbus' (see validate.go)
-			// 3. add 'Type=dbus' and
-			// 'BusName=slot.Attrs["name"].(string)' to
-			// the systemd unit when
-			// 'slot.Attrs["service"].(bool) == True' and
-			// 'daemon' is set to 'dbus'
-			if bus != "session" {
-				continue
-			}
-			name, ok := slot.Attrs["name"].(string)
-			if !ok {
-				continue
-			}
-			// we check if its a service here so that we know
-			// if a dbus service file needs to be generated.
-			isService, ok := slot.Attrs["service"].(bool)
-			if !ok || !isService {
-				continue
-			}
-
-			// We set only 'Name' and 'Exec' for now. We
-			// may add 'User' for 'system' services when
-			// we support per-snap users. Don't specify
-			// 'SystemdService' and just let dbus-daemon
-			// launch the service since 'SystemdService'
-			// is only used by dbus-daemon to tell systemd
-			// to launch the service and systemd user
-			// sessions aren't available everywhere yet.
-			var buffer bytes.Buffer
-			buffer.Write([]byte(fmt.Sprintf(`[D-BUS Service]
-Name=%s
-Exec=%s
-`, name, appInfo.LauncherCommand())))
-
-			fname := fmt.Sprintf("%s.service", securityTag)
-			content[fname] = &osutil.FileState{
-				Content: buffer.Bytes(),
-				Mode:    0644,
-			}
+	for securityTag, serviceContent := range spec.(*Specification).SessionServices() {
+		fname := fmt.Sprintf("%s.service", securityTag)
+		content[fname] = &osutil.FileState{
+			Content: []byte(serviceContent),
+			Mode:    0644,
 		}
 	}
 

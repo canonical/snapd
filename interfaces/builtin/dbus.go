@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dbusPermanentSlotAppArmor = `
@@ -325,13 +326,30 @@ func (iface *DbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 	}
 
 	// only system services need bus policy
-	if bus != "system" {
-		return nil
+	if bus == "system" {
+		old := "###DBUS_NAME###"
+		new := name
+		spec.AddSnippet(strings.Replace(dbusPermanentSlotDBus, old, new, -1))
 	}
 
-	old := "###DBUS_NAME###"
-	new := name
-	spec.AddSnippet(strings.Replace(dbusPermanentSlotDBus, old, new, -1))
+	// dbus activation currently only supported by the session bus
+	//
+	// TODO: we can eventually support 'system' by:
+	// 1. creating the SnapDBusSystemServicesFilesDir directory
+	// 2. writing the service file to SnapDBusSystemServicesFilesDir when
+	//    'daemon' is set to 'dbus' (see validate.go)
+	// 3. add 'Type=dbus' and 'BusName=slot.Attrs["name"].(string)' to
+	//    the systemd unit when 'slot.Attrs["service"].(bool) == True' and
+	//    'daemon' is set to 'dbus'
+	if bus == "session" && isDbusService(slot.Attrs) && len(slot.Apps) == 1 {
+		var serviceApp *snap.AppInfo
+		for _, app := range slot.Apps {
+			serviceApp = app
+			break
+		}
+		spec.AddService(bus, name, serviceApp)
+	}
+
 	return nil
 }
 
@@ -411,6 +429,8 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		return err
 	}
 
+	// FIXME: also check that the dbus name is not already taken
+	//        by an existing snap
 	if isDbusService(slot.Attrs) && len(slot.Apps) > 1 {
 		return fmt.Errorf("cannot add dbus service slot to multiple apps")
 	}
