@@ -945,8 +945,11 @@ func (s *Store) fakeChannels(snapID string, user *auth.UserState) (map[string]*s
 
 // A SnapSpec describes a single snap wanted from SnapInfo
 type SnapSpec struct {
-	Name     string
-	Channel  string
+	Name    string
+	Channel string
+	// AnyChannel can be set to query for any revision independent of channel
+	AnyChannel bool
+	// Revision can be set to query for an exact revision
 	Revision snap.Revision
 }
 
@@ -959,11 +962,23 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		return nil, err
 	}
 
-	query.Set("channel", snapSpec.Channel)
+	channel := snapSpec.Channel
+	var sel string
+	if channel == "" {
+		channel = "stable" // default
+	}
+	if snapSpec.AnyChannel {
+		channel = ""
+	}
 	if !snapSpec.Revision.Unset() {
 		query.Set("revision", snapSpec.Revision.String())
-		query.Set("channel", "")
+		channel = ""
+		sel = fmt.Sprintf(" at revision %s", snapSpec.Revision)
 	}
+	if channel != "" {
+		sel = fmt.Sprintf(" in channel %q", channel)
+	}
+	query.Set("channel", channel)
 
 	u.RawQuery = query.Encode()
 
@@ -986,14 +1001,14 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
 	default:
-		msg := fmt.Sprintf("get details for snap %q in channel %q", snapSpec.Name, snapSpec.Channel)
+		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
 		return nil, respToError(resp, msg)
 	}
 
 	info := infoFromRemote(remote)
 
 	// only get the channels when it makes sense as part of the reply
-	if info.SnapID != "" && snapSpec.Channel == "" && snapSpec.Revision.Unset() {
+	if info.SnapID != "" && channel == "" && snapSpec.Revision.Unset() {
 		channels, err := s.fakeChannels(info.SnapID, user)
 		if err != nil {
 			logger.Noticef("cannot get channels: %v", err)
@@ -1183,9 +1198,14 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 			continue
 		}
 
+		channel := cs.Channel
+		if channel == "" {
+			channel = "stable"
+		}
+
 		currentSnaps = append(currentSnaps, currentSnapJson{
 			SnapID:   cs.SnapID,
-			Channel:  cs.Channel,
+			Channel:  channel,
 			Epoch:    cs.Epoch,
 			Revision: revision,
 			// confinement purposely left empty

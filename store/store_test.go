@@ -1705,6 +1705,42 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
+
+		c.Check(r.URL.Query().Get("channel"), Equals, "stable")
+		w.WriteHeader(http.StatusOK)
+
+		io.WriteString(w, strings.Replace(MockDetailsJSON, "edge", "stable", -1))
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		DetailsURI:   detailsURI,
+		DetailFields: []string{"abc", "def"},
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name: "hello-world",
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+	c.Check(result.SnapID, Equals, helloWorldSnapID)
+	c.Check(result.Channel, Equals, "stable")
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1820,9 +1856,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 
 	// the actual test
 	spec := SnapSpec{
-		Name:     "hello-world",
-		Channel:  "",
-		Revision: snap.R(0),
+		Name:       "hello-world",
+		AnyChannel: true,
 	}
 	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
@@ -2588,6 +2623,63 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 		{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].PublisherID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsStable(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(1),
+			"epoch":       "0",
+			"confinement": "",
+		})
+		c.Assert(resp.Fields, DeepEquals, detailFields)
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
 			Revision: snap.R(1),
 			Epoch:    "0",
 		},
