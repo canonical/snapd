@@ -226,6 +226,15 @@ func (iface *DbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 	return bus, name, nil
 }
 
+// isDbusService returns true if the yaml declares it is a service
+func isDbusService(attribs map[string]interface{}) bool {
+	if isService, ok := attribs["service"].(bool); ok {
+		return isService
+	}
+
+	return false
+}
+
 // Determine AppArmor dbus abstraction to use based on bus
 func getAppArmorAbstraction(bus string) (string, error) {
 	var abstraction string
@@ -398,7 +407,15 @@ func (iface *DbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	_, _, err := iface.getAttribs(slot.Attrs)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if isDbusService(slot.Attrs) && len(slot.Apps) > 1 {
+		return fmt.Errorf("cannot add dbus service slot to multiple apps")
+	}
+
+	return nil
 }
 
 func (iface *DbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {

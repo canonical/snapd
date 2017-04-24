@@ -688,3 +688,52 @@ slots:
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 }
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotIsServiceOk(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+slots:
+ dbus-service-slot:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session
+  service: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-service-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotIsServiceDuplicated(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-snap
+version: 1.0
+slots:
+ dbus-service-slot:
+  interface: dbus
+  bus: session
+  name: org.dbus-snap.session
+  service: true
+apps:
+  app-dbus-slot:
+    slots:
+    - dbus-service-slot
+  app-dbus-slot-duplicated:
+    slots:
+    - dbus-service-slot
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-service-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, `cannot add dbus service slot to multiple apps`)
+}
