@@ -822,7 +822,7 @@ type order struct {
 }
 
 // decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
-func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
+func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
@@ -1002,7 +1002,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 		}
 	}
 
-	err = s.decorateOrders([]*snap.Info{info}, snapSpec.Channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}
@@ -1095,7 +1095,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decorateOrders(snaps, "", user)
+	err = s.decorateOrders(snaps, user)
 	if err != nil {
 		logger.Noticef("cannot get user orders: %v", err)
 	}

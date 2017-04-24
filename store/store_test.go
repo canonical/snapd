@@ -3442,7 +3442,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
@@ -3488,7 +3488,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -3519,7 +3519,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := repo.decorateOrders(snaps, "edge", nil)
+	err := repo.decorateOrders(snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -3560,7 +3560,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	snaps := []*snap.Info{helloWorld, funkyApp}
 
 	// There should be no request to the purchase server.
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, IsNil)
 	c.Check(requestRecieved, Equals, false)
 }
@@ -3596,7 +3596,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -3611,7 +3611,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) 
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := repo.decorateOrders(snaps, "edge", t.user)
+	err := repo.decorateOrders(snaps, t.user)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -3645,7 +3645,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -3679,7 +3679,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decorateOrders(snaps, "edge", t.user)
+	err = repo.decorateOrders(snaps, t.user)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
