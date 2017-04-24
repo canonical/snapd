@@ -25,6 +25,7 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/utils.h"
@@ -150,21 +151,28 @@ int main(int argc, char **argv)
 			// https://github.com/snapcore/snapd/pull/2624#issuecomment-288732682
 			sc_reassociate_with_pid1_mount_ns();
 #endif
-			const char *group_name = snap_name;
-			if (group_name == NULL) {
-				die("SNAP_NAME is not set");
-			}
+
+			// Do global initialization:
+			int global_lock_fd = sc_lock_global();
+			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
+			// TODO: implement this.
+			debug("share snap directory here...");
+			sc_unlock_global(global_lock_fd);
+
+			// Do per-snap initialization.
+			int snap_lock_fd = sc_lock(snap_name);
+			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
-			group = sc_open_ns_group(group_name, 0);
-			sc_lock_ns_mutex(group);
+			group = sc_open_ns_group(snap_name, 0);
 			sc_create_or_join_ns_group(group, &apparmor);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
-			sc_unlock_ns_mutex(group);
 			sc_close_ns_group(group);
+			sc_unlock(snap_name, snap_lock_fd);
+
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
 			// sense but we cannot assume it makes sense for the core snap
@@ -179,6 +187,17 @@ int main(int argc, char **argv)
 			       "/usr/bin:"
 			       "/sbin:"
 			       "/bin:" "/usr/games:" "/usr/local/games", 1);
+			// Ensure we set the various TMPDIRs to /tmp.
+			// One of the parts of setting up the mount namespace is to create a private /tmp
+			// directory (this is done in sc_populate_mount_ns() above). The host environment
+			// may point to a directory not accessible by snaps so we need to reset it here.
+			const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
+			int i;
+			for (i = 0; tmpd[i] != NULL; i++) {
+				if (setenv(tmpd[i], "/tmp", 1) != 0) {
+					die("cannot set environment variable '%s'", tmpd[i]);
+				}
+			}
 			struct snappy_udev udev_s;
 			if (snappy_udev_init(security_tag, &udev_s) == 0)
 				setup_devices_cgroup(security_tag, &udev_s);

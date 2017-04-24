@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2016-2017 Canonical Ltd
  *
@@ -21,8 +20,6 @@ package devicestate
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,7 +82,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	keyPair, err := rsa.GenerateKey(rand.Reader, keyLength)
+	st.Unlock()
+	keyPair, err := generateRSAKey(keyLength)
+	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}

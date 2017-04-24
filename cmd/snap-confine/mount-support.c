@@ -128,15 +128,6 @@ static void setup_private_mount(const char *snap_name)
 	if (chdir(pwd) != 0)
 		die("cannot change current working directory to the original directory");
 	free(pwd);
-
-	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
-	int i;
-	for (i = 0; tmpd[i] != NULL; i++) {
-		if (setenv(tmpd[i], "/tmp", 1) != 0) {
-			die("cannot set environment variable '%s'", tmpd[i]);
-		}
-	}
 }
 
 // TODO: fold this into bootstrap
@@ -241,7 +232,7 @@ struct sc_mount_config {
 	const char *rootfs_dir;
 	// The struct is terminated with an entry with NULL path.
 	const struct sc_mount *mounts;
-	bool on_classic;
+	bool on_classic_distro;
 };
 
 /**
@@ -398,7 +389,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// uniform way after pivot_root but this is good enough and requires less
 	// code changes the nvidia code assumes it has access to the existing
 	// pre-pivot filesystem.
-	if (config->on_classic) {
+	if (config->on_classic_distro) {
 		sc_mount_nvidia_driver(scratch_dir);
 	}
 	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -528,8 +519,8 @@ void sc_populate_mount_ns(const char *snap_name)
 		die("cannot get the current working directory");
 	}
 	// Remember if we are on classic, some things behave differently there.
-	bool on_classic = is_running_on_classic_distribution();
-	if (on_classic) {
+	bool on_classic_distro = is_running_on_classic_distribution();
+	if (on_classic_distro) {
 		const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
@@ -556,7 +547,7 @@ void sc_populate_mount_ns(const char *snap_name)
 		struct sc_mount_config classic_config = {
 			.rootfs_dir = sc_get_outer_core_mount_point(),
 			.mounts = mounts,
-			.on_classic = true,
+			.on_classic_distro = true,
 		};
 		sc_bootstrap_mount_namespace(&classic_config);
 	} else {
@@ -586,7 +577,7 @@ void sc_populate_mount_ns(const char *snap_name)
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	if (on_classic) {
+	if (on_classic_distro) {
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts

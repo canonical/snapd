@@ -1266,7 +1266,7 @@ type HashError struct {
 }
 
 func (e HashError) Error() string {
-	return fmt.Sprintf("sha3-384 mismatch after patching %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
+	return fmt.Sprintf("sha3-384 mismatch for %q: got %s but expected %s", e.name, e.sha3_384, e.targetSha3_384)
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1318,10 +1318,9 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar)
-	// If sha3 checksum is incorrect and it was a resumed download, retry from scratch.
-	// Note that we will retry this way only once.
-	if _, ok := err.(HashError); ok && resume > 0 {
-		logger.Debugf("Error on resumed download: %v", err.Error())
+	// If hashsum is incorrect retry once
+	if _, ok := err.(HashError); ok {
+		logger.Debugf("Hashsum error on download: %v", err.Error())
 		err = w.Truncate(0)
 		if err != nil {
 			return err

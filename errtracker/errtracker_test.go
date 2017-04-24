@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -49,6 +50,9 @@ type ErrtrackerTestSuite struct {
 
 var _ = Suite(&ErrtrackerTestSuite{})
 
+var truePath = osutil.LookPathDefault("true", "/bin/true")
+var falsePath = osutil.LookPathDefault("false", "/bin/false")
+
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -56,16 +60,16 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPath(p))
-	s.AddCleanup(errtracker.MockHostSnapd("/bin/true"))
-	s.AddCleanup(errtracker.MockCoreSnapd("/bin/false"))
+	s.AddCleanup(errtracker.MockHostSnapd(truePath))
+	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
-	hostBuildID, err := osutil.ReadBuildID("/bin/true")
+	hostBuildID, err := osutil.ReadBuildID(truePath)
 	c.Assert(err, IsNil)
-	coreBuildID, err := osutil.ReadBuildID("/bin/false")
+	coreBuildID, err := osutil.ReadBuildID(falsePath)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -135,4 +139,32 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 2)
+}
+
+func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
+	os.Setenv("SNAPPY_TESTING", "1")
+	defer os.Unsetenv("SNAPPY_TESTING")
+
+	n := 0
+	prev := errtracker.SnapdVersion
+	defer func() { errtracker.SnapdVersion = prev }()
+	errtracker.SnapdVersion = "some-snapd-version"
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		n++
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
+	defer restorer()
+
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", map[string]string{
+		"Channel": "beta",
+	})
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "oops-not-sent")
+	c.Check(n, Equals, 0)
 }
