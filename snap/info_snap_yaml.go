@@ -425,6 +425,10 @@ func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error)
 		return int64(x), nil
 	case int64:
 		return x, nil
+	case float64:
+		return x, nil
+	case float32:
+		return float64(x), nil
 	case []interface{}:
 		l := make([]interface{}, len(x))
 		for i, el := range x {
