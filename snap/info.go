@@ -167,7 +167,12 @@ type Info struct {
 	Publisher   string
 
 	Screenshots []ScreenshotInfo
-	Channels    map[string]*ChannelSnapInfo
+
+	// The flattended channel map with $track/$risk
+	Channels map[string]*ChannelSnapInfo
+
+	// The ordered list of tracks that contain channels
+	Tracks []string
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly

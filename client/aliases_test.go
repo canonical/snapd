@@ -28,7 +28,7 @@ import (
 )
 
 func (cs *clientSuite) TestClientAliasCallsEndpoint(c *check.C) {
-	cs.cli.Alias("alias-snap", []string{"alias1", "alias2"})
+	cs.cli.Alias("alias-snap", "cmd1", "alias1")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
 }
@@ -40,7 +40,7 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 		"result": { },
                 "change": "chgid"
 	}`
-	id, err := cs.cli.Alias("alias-snap", []string{"alias1", "alias2"})
+	id, err := cs.cli.Alias("alias-snap", "cmd1", "alias1")
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "chgid")
 	var body map[string]interface{}
@@ -48,9 +48,10 @@ func (cs *clientSuite) TestClientAlias(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action":  "alias",
-		"snap":    "alias-snap",
-		"aliases": []interface{}{"alias1", "alias2"},
+		"action": "alias",
+		"snap":   "alias-snap",
+		"app":    "cmd1",
+		"alias":  "alias1",
 	})
 }
 
@@ -76,33 +77,6 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action":  "unalias",
-		"snap":    "alias-snap",
-		"aliases": []interface{}{"alias1", "alias2"},
-	})
-}
-
-func (cs *clientSuite) TestClientRestAliasesCallsEndpoint(c *check.C) {
-	cs.cli.ResetAliases("alias-snap", []string{"alias1", "alias2"})
-	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/aliases")
-}
-
-func (cs *clientSuite) TestClientResetAliases(c *check.C) {
-	cs.rsp = `{
-		"type": "async",
-                "status-code": 202,
-		"result": { },
-                "change": "chgid"
-	}`
-	id, err := cs.cli.ResetAliases("alias-snap", []string{"alias1", "alias2"})
-	c.Assert(err, check.IsNil)
-	c.Check(id, check.Equals, "chgid")
-	var body map[string]interface{}
-	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action":  "reset",
 		"snap":    "alias-snap",
 		"aliases": []interface{}{"alias1", "alias2"},
 	})
