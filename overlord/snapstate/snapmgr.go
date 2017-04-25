@@ -72,8 +72,8 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	nextRefresh            *time.Timer
 	currentRefreshSchedule string
+	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
@@ -408,15 +408,12 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// already have a refresh timer
-	if m.nextRefresh != nil {
-		if m.currentRefreshSchedule == refreshScheduleStr {
-			return nil
+	if !m.nextRefresh.IsZero() {
+		if m.currentRefreshSchedule != refreshScheduleStr {
+			// the refresh schedule has changed
+			logger.Debugf("Option refresh-schedule changed, reloading.")
+			m.nextRefresh = time.Time{}
 		}
-		// the refresh schedule has changed
-		logger.Debugf("Option refresh-schedule changed, reloading.")
-		m.nextRefresh.Stop()
-		m.nextRefresh = nil
-		m.lastRefreshAttempt = time.Time{}
 	}
 	m.currentRefreshSchedule = refreshScheduleStr
 
@@ -437,49 +434,47 @@ func (m *SnapManager) ensureRefreshes() error {
 
 	// store attempts in memory so that we can backoff
 	delta := timeutil.Next(refreshSchedule, lastRefresh)
-	m.nextRefresh = time.AfterFunc(delta, func() {
-		m.state.Lock()
-		defer m.state.Unlock()
+	m.nextRefresh = time.Now().Add(delta)
+	logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+	if !m.nextRefresh.Before(time.Now()) {
+		return nil
+	}
 
-		m.lastRefreshAttempt = time.Now()
-		updated, tasksets, err := AutoRefresh(m.state)
-		if err != nil {
-			logger.Noticef("AutoRefresh failed with: %s", err)
-			return
-		}
+	m.lastRefreshAttempt = time.Now()
+	updated, tasksets, err := AutoRefresh(m.state)
+	if err != nil {
+		logger.Noticef("AutoRefresh failed with: %s", err)
+		return err
+	}
 
-		// Do setLastRefresh() only if the store (in AutoRefresh) gave
-		// us no error.
-		m.state.Set("last-refresh", time.Now())
+	// Do setLastRefresh() only if the store (in AutoRefresh) gave
+	// us no error.
+	m.state.Set("last-refresh", time.Now())
 
-		var msg string
-		switch len(updated) {
-		case 0:
-			logger.Noticef(i18n.G("No snaps to auto-refresh found"))
-			return
-		case 1:
-			msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-		case 2:
-		case 3:
-			quoted := strutil.Quoted(updated)
-			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-			msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-		default:
-			msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
-		}
+	var msg string
+	switch len(updated) {
+	case 0:
+		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+		return nil
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+	case 2:
+	case 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+	}
 
-		chg := m.state.NewChange("auto-refresh", msg)
-		for _, ts := range tasksets {
-			chg.AddAll(ts)
-		}
-		chg.Set("snap-names", updated)
-		chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg := m.state.NewChange("auto-refresh", msg)
+	for _, ts := range tasksets {
+		chg.AddAll(ts)
+	}
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
-		m.state.EnsureBefore(0)
-		m.nextRefresh = nil
-		return
-	})
-	logger.Debugf("Next refresh scheduled for %s.", time.Now().Add(delta))
+	m.state.EnsureBefore(0)
 
 	return nil
 }
