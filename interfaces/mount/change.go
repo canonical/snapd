@@ -71,8 +71,8 @@ func (c *Change) Perform() error {
 		}
 		return syscall.Mount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
 	case Unmount:
-		const UmountNoFollow = 8 // This is UMOUNT_NOFOLLOW
-		return syscall.Unmount(c.Entry.Dir, UmountNoFollow)
+		const UMOUNT_NOFOLLOW = 8
+		return syscall.Unmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
 	}
 	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
