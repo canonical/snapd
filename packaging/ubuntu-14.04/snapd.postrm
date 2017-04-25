@@ -82,6 +82,8 @@ if [ "$1" = "purge" ]; then
         umount -l "$mnt" || true
     done
     umount -l /run/snapd/ns/ || true
+    # remove all the current mount profiles that may exist.
+    rm -f /run/snapd/ns/snap.*.fstab
 
     # prepare removal of /snap
     umount -l /snap || true

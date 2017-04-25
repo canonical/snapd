@@ -71,6 +71,8 @@ if [ "$1" = "purge" ]; then
         umount -l "$mnt" || true
     done
     umount -l /run/snapd/ns/ || true
+    # remove all the current mount profiles that may exist.
+    rm -f /run/snapd/ns/snap.*.fstab
 
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
