@@ -1371,7 +1371,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesV2Conflict(c *C) {
 	c.Check(t.Log()[0], Matches, `.* ERROR cannot reinstate alias state because of conflicts, disabling: cannot enable alias "alias3" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestDoUndoUnaliasSnapRun(c *C) {
+func (s *snapmgrTestSuite) TestDoUndoDisableAliases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1388,8 +1388,7 @@ func (s *snapmgrTestSuite) TestDoUndoUnaliasSnapRun(c *C) {
 		},
 	})
 
-	t := s.state.NewTask("unalias", "test")
-	t.Set("alias", "")
+	t := s.state.NewTask("disable-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})

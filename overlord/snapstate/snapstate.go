@@ -272,7 +272,7 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases" || k == "alias" || k == "unalias") && (chg == nil || !chg.Status().Ready()) {
+		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases" || k == "alias" || k == "unalias" || k == "disable-aliases") && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -619,7 +619,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
-	msg := i18n.G("Update aliases for snap %q")
+	msg := i18n.G("Refresh aliases for snap %q")
 	if op == "prune" {
 		kind = "prune-auto-aliases"
 		msg = i18n.G("Prune automatic aliases for snap %q")

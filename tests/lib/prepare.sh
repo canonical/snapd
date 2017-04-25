@@ -30,6 +30,11 @@ update_core_snap_for_classic_reexec() {
     # also inject new version of snap-confine and snap-scard-ns
     cp -a /usr/lib/snapd/snap-discard-ns squashfs-root/usr/lib/snapd/
     cp -a /usr/lib/snapd/snap-confine squashfs-root/usr/lib/snapd/
+    if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    else
+        cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+    fi
     # also add snap/snapd because we re-exec by default and want to test
     # this version
     cp -a /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/
@@ -69,7 +74,7 @@ EOF
 }
 
 prepare_classic() {
-    apt_install_local ${GOPATH}/snapd_*.deb
+    install_build_snapd
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"
         snap --version
@@ -223,15 +228,25 @@ EOF
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
 
-        # download pc-kernel snap for the specified channel
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        EXTRA_FUNDAMENTAL=
+        IMAGE_CHANNEL=edge
+        if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
+            IMAGE_CHANNEL=$KERNEL_CHANNEL
+        else
+            # download pc-kernel snap for the specified channel and set ubuntu-image channel
+            # to gadget, so that we don't need to download it
+            snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+            IMAGE_CHANNEL="$GADGET_CHANNEL"
+        fi
 
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model \
-                               --channel edge \
+                               --channel $IMAGE_CHANNEL \
+                               $EXTRA_FUNDAMENTAL \
                                --extra-snaps $IMAGE_HOME/core_*.snap \
-                               --extra-snaps $PWD/pc-kernel_*.snap \
                                --output $IMAGE_HOME/$IMAGE
-        rm ./pc-kernel*
+        rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE

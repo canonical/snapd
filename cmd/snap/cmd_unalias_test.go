@@ -52,8 +52,8 @@ func (s *SnapSuite) TestUnalias(c *C) {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
 			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-				"action": "unalias",
-				"alias":  "alias1",
+				"action":        "unalias",
+				"alias-or-snap": "alias1",
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":

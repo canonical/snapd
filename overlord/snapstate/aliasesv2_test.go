@@ -699,7 +699,7 @@ func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "alias-snap", already enabled for "other-snap".*`)
 }
 
-func (s *snapmgrTestSuite) TestUnaliasSnapTasks(c *C) {
+func (s *snapmgrTestSuite) TestDisableAllAliasesTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -711,22 +711,16 @@ func (s *snapmgrTestSuite) TestUnaliasSnapTasks(c *C) {
 		Active:  true,
 	})
 
-	ts, snapName, err := snapstate.Unalias(s.state, "some-snap")
+	ts, err := snapstate.DisableAllAliases(s.state, "some-snap")
 	c.Assert(err, IsNil)
-	c.Check(snapName, Equals, "some-snap")
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"unalias",
+		"disable-aliases",
 	})
-	task := ts.Tasks()[0]
-	var alias string
-	err = task.Get("alias", &alias)
-	c.Assert(err, IsNil)
-	c.Check(alias, Equals, "")
 }
 
-func (s *snapmgrTestSuite) TestUnaliasSnapRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -744,7 +738,7 @@ func (s *snapmgrTestSuite) TestUnaliasSnapRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("unalias", "unalias")
-	ts, _, err := snapstate.Unalias(s.state, "alias-snap")
+	ts, err := snapstate.DisableAllAliases(s.state, "alias-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -780,7 +774,7 @@ func (s *snapmgrTestSuite) TestUnaliasSnapRunThrough(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUnaliasManualTasks(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManualAliasTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -795,7 +789,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualTasks(c *C) {
 		},
 	})
 
-	ts, snapName, err := snapstate.Unalias(s.state, "alias1")
+	ts, snapName, err := snapstate.RemoveManualAlias(s.state, "alias1")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "alias-snap")
 
@@ -810,7 +804,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualTasks(c *C) {
 	c.Check(alias, Equals, "alias1")
 }
 
-func (s *snapmgrTestSuite) TestUnaliasManualRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -826,7 +820,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("alias", "manual alias")
-	ts, _, err := snapstate.Unalias(s.state, "alias1")
+	ts, _, err := snapstate.RemoveManualAlias(s.state, "alias1")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -855,7 +849,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualRunThrough(c *C) {
 	c.Check(snapst.Aliases, HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestUnaliasManualOverAutoRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -871,7 +865,7 @@ func (s *snapmgrTestSuite) TestUnaliasManualOverAutoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("alias", "manual alias")
-	ts, _, err := snapstate.Unalias(s.state, "alias1")
+	ts, _, err := snapstate.RemoveManualAlias(s.state, "alias1")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -903,15 +897,15 @@ func (s *snapmgrTestSuite) TestUnaliasManualOverAutoRunThrough(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUnaliasManualNoAlias(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManualAliasNoAlias(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err := snapstate.Unalias(s.state, "alias1")
+	_, _, err := snapstate.RemoveManualAlias(s.state, "alias1")
 	c.Assert(err, ErrorMatches, `cannot find manual alias "alias1" in any snap`)
 }
 
-func (s *snapmgrTestSuite) TestUpdateUnaliasChangeConflict(c *C) {
+func (s *snapmgrTestSuite) TestUpdateDisableAllAliasesChangeConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -930,16 +924,34 @@ func (s *snapmgrTestSuite) TestUpdateUnaliasChangeConflict(c *C) {
 	// need a change to make the tasks visible
 	s.state.NewChange("update", "...").AddAll(ts)
 
-	// by snap
-	_, _, err = snapstate.Unalias(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
-
-	// by alias
-	_, _, err = snapstate.Unalias(s.state, "alias1")
+	_, err = snapstate.DisableAllAliases(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestUnaliasUpdateChangeConflict(c *C) {
+func (s *snapmgrTestSuite) TestUpdateRemoveManualAliasChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Manual: "cmd5"},
+		},
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("update", "...").AddAll(ts)
+
+	_, _, err = snapstate.RemoveManualAlias(s.state, "alias1")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestDisableAllAliasesUpdateChangeConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -950,10 +962,33 @@ func (s *snapmgrTestSuite) TestUnaliasUpdateChangeConflict(c *C) {
 		SnapType: "app",
 	})
 
-	ts, _, err := snapstate.Unalias(s.state, "some-snap")
+	ts, err := snapstate.DisableAllAliases(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("alias", "...").AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManualAliasUpdateChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Manual: "cmd5"},
+		},
+	})
+
+	ts, _, err := snapstate.RemoveManualAlias(s.state, "alias1")
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("unalias", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
