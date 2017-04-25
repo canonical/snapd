@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 )
 
 // Repair holds an repair assertion which allows running repair
@@ -30,6 +31,11 @@ type Repair struct {
 
 	series []string
 	models []string
+}
+
+// BrandID returns the brand identifier that signed this assertion.
+func (em *Repair) BrandID() string {
+	return em.HeaderString("brand-id")
 }
 
 // RepairID returns the "id" of the repair. It should be a short string
@@ -63,6 +69,8 @@ func (em *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Repair)(nil)
 
+var validRepairID = regexp.MustCompile("^[a-z]+-[0-9]+")
+
 func assembleRepair(assert assertionBase) (Assertion, error) {
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
@@ -70,6 +78,9 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	}
 	models, err := checkStringList(assert.headers, "models")
 	if err != nil {
+		return nil, err
+	}
+	if _, err = checkStringMatchesWhat(assert.headers, "repair-id", "header", validRepairID); err != nil {
 		return nil, err
 	}
 
