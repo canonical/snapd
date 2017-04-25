@@ -365,33 +365,13 @@ func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
 	return nil
 }
 
-// ensureRefreshes ensures that we refresh all installed snaps periodically
-func (m *SnapManager) ensureRefreshes() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil {
-		return nil
-	}
-	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
-		return err
-	}
+func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
+	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
-
-	// get last refresh time
-	var lastRefresh time.Time
-	err := m.state.Get("last-refresh", &lastRefresh)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-
-	// get our schedule
-	refreshScheduleStr := defaultRefreshSchedule
-	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
-		return err
+		return nil, err
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err == nil {
@@ -407,7 +387,7 @@ func (m *SnapManager) ensureRefreshes() error {
 		tr.Commit()
 	}
 
-	// already have a refresh timer
+	// we already have a refresh time, check if we got a new config
 	if !m.nextRefresh.IsZero() {
 		if m.currentRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
@@ -417,29 +397,10 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 	m.currentRefreshSchedule = refreshScheduleStr
 
-	// check that there is no change in flight already
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
-		}
-	}
+	return refreshSchedule, nil
+}
 
-	// Check that we have reasonable delays between unsuccessful attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
-		return nil
-	}
-
-	// store attempts in memory so that we can backoff
-	delta := timeutil.Next(refreshSchedule, lastRefresh)
-	m.nextRefresh = time.Now().Add(delta)
-	logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
-	if !m.nextRefresh.Before(time.Now()) {
-		return nil
-	}
-
+func (m *SnapManager) doAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(m.state)
 	if err != nil {
@@ -475,8 +436,70 @@ func (m *SnapManager) ensureRefreshes() error {
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
 	m.state.EnsureBefore(0)
-
 	return nil
+}
+
+func autoRefreshInFlight(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			return true
+		}
+	}
+	return false
+}
+
+func lastRefresh(st *state.State) (time.Time, error) {
+	var lastRefresh time.Time
+	err := st.Get("last-refresh", &lastRefresh)
+	if err != nil && err != state.ErrNoState {
+		return time.Time{}, err
+	}
+	return lastRefresh, nil
+}
+
+// ensureRefreshes ensures that we refresh all installed snaps periodically
+func (m *SnapManager) ensureRefreshes() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// see if it even makes sense to try to refresh
+	if CanAutoRefresh == nil {
+		return nil
+	}
+	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
+		return err
+	}
+
+	// get lastRefresh and schedule
+	lastRefresh, err := lastRefresh(m.state)
+	if err != nil {
+		return err
+	}
+	refreshSchedule, err := m.getRefreshSchedule()
+	if err != nil {
+		return err
+	}
+
+	// ensure nothing is in flight already
+	if autoRefreshInFlight(m.state) {
+		return nil
+	}
+
+	// Check that we have reasonable delays between unsuccessful attempts.
+	// If the store is under stress we need to make sure we do not
+	// hammer it too often
+	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
+		return nil
+	}
+
+	// store attempts in memory so that we can backoff
+	delta := timeutil.Next(refreshSchedule, lastRefresh)
+	m.nextRefresh = time.Now().Add(delta)
+	logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+	if !m.nextRefresh.Before(time.Now()) {
+		return nil
+	}
+	return m.doAutoRefresh()
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
