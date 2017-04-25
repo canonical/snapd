@@ -88,14 +88,6 @@ func (at *AliasTarget) Effective(autoDisabled bool) string {
 
 */
 
-// TODO: helper from snap
-func composeTarget(snapName, targetApp string) string {
-	if targetApp == snapName {
-		return targetApp
-	}
-	return fmt.Sprintf("%s.%s", snapName, targetApp)
-}
-
 // applyAliasesChange applies the necessary changes to aliases on disk
 // to go from prevAliases consindering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
@@ -109,7 +101,7 @@ func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[
 		if effTgt := prevTargets.Effective(prevAutoDisabled); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, effTgt),
+				Target: snap.JoinSnapApp(snapName, effTgt),
 			})
 		}
 	}
@@ -123,13 +115,13 @@ func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[
 		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, prevTgt),
+				Target: snap.JoinSnapApp(snapName, prevTgt),
 			})
 		}
 		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: composeTarget(snapName, newTgt),
+				Target: snap.JoinSnapApp(snapName, newTgt),
 			})
 		}
 	}
