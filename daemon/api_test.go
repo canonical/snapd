@@ -86,6 +86,9 @@ type apiBaseSuite struct {
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
+	if !spec.AnyChannel {
+		return nil, fmt.Errorf("api is expected to set AnyChannel")
+	}
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -4902,11 +4905,11 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	// TODO: the details of this will change
 	action := &aliasAction{
-		Action:  "alias",
-		Snap:    "alias-snap",
-		Aliases: []string{"alias1"},
+		Action: "alias",
+		Snap:   "alias-snap",
+		App:    "app",
+		Alias:  "alias1",
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -4915,15 +4918,10 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	aliasesCmd.POST(aliasesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var rsp resp
-	err = json.Unmarshal(rec.Body.Bytes(), &rsp)
+	c.Assert(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
-		"message": "cannot interpret request, snaps can no longer be expected to declare their aliases",
-	})
-
-	/* TODO: test the happy case again
 	id := body["change"].(string)
 
 	st := d.overlord.State()
@@ -4941,7 +4939,6 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 
 	// sanity check
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, true)
-	*/
 }
 
 func (s *apiSuite) TestAliasErrors(c *check.C) {
@@ -4951,14 +4948,19 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 		mangle func(*aliasAction)
 		err    string
 	}{
-		{func(a *aliasAction) { a.Aliases = nil }, `cannot yet interpret request`},
+		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
+		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+		{func(a *aliasAction) { a.Alias = ".foo" }, `invalid alias name: ".foo"`},
+		{func(a *aliasAction) { a.Aliases = []string{"baz"} }, `cannot interpret request, snaps can no longer be expected to declare their aliases`},
 	}
 
 	for _, scen := range errScenarios {
 		action := &aliasAction{
-			Action:  "alias",
-			Snap:    "alias-snap",
-			Aliases: []string{"alias1"},
+			Action: "alias",
+			Snap:   "alias-snap",
+			App:    "app",
+			Alias:  "alias1",
 		}
 		scen.mangle(action)
 

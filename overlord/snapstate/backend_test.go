@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -510,22 +510,6 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 		name:  snapsup.Name(),
 		revno: snapsup.Revision(),
 	})
-}
-
-func (f *fakeSnappyBackend) MatchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "matching-aliases",
-		aliases: aliases,
-	})
-	return aliases, nil
-}
-
-func (f *fakeSnappyBackend) MissingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "missing-aliases",
-		aliases: aliases,
-	})
-	return aliases, nil
 }
 
 type byAlias []*backend.Alias

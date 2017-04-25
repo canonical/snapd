@@ -94,6 +94,10 @@
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
 
+    # LP: #1668659
+    mount options=(rw rbind) /snap/ -> /snap/,
+    mount options=(rw rshared) -> /snap/,
+
     # boostrapping the mount namespace
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
@@ -274,6 +278,10 @@
     mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
     /var/lib/lxd/ w,
     /var/lib/snapd/hostfs/var/lib/lxd r,
+
+    # support for locking
+    /run/snapd/lock/ rw,
+    /run/snapd/lock/*.lock rwk,
 
     # support for the mount namespace sharing
     capability sys_ptrace,

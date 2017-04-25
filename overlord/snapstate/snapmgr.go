@@ -336,18 +336,14 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// alias related
-	runner.AddHandler("alias", m.doAlias, m.undoAlias)
-	runner.AddHandler("clear-aliases", m.doClearAliases, m.undoClearAliases)
-	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoClearAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
-	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
-
-	// XXX: WIP: aliases v2: temporary task names to be able to write tess until switching
-	runner.AddHandler("set-auto-aliases-v2", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("setup-aliases-v2", m.doSetupAliasesV2, m.doRemoveAliasesV2)
-	runner.AddHandler("refresh-aliases-v2", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("prune-auto-aliases-v2", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
-	runner.AddHandler("remove-aliases-v2", m.doRemoveAliasesV2, m.doSetupAliasesV2)
+	// FIXME: drop the task entirely after a while
+	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	runner.AddHandler("set-auto-aliases", m.doSetAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("setup-aliases", m.doSetupAliasesV2, m.doRemoveAliasesV2)
+	runner.AddHandler("refresh-aliases", m.doRefreshAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliasesV2, m.undoRefreshAliasesV2)
+	runner.AddHandler("remove-aliases", m.doRemoveAliasesV2, m.doSetupAliasesV2)
+	runner.AddHandler("alias", m.doAliasV2, m.undoRefreshAliasesV2)
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
@@ -363,21 +359,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func diskAliasTask(t *state.Task) bool {
-	// TODO: aliases v2!
-	kind := t.Kind()
-	return kind == "setup-aliases" || kind == "remove-aliases" || kind == "alias"
-}
-
 func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
-	// aliases are global, serialize tasks operating on them
-	if diskAliasTask(cand) {
-		for _, t := range running {
-			if diskAliasTask(t) {
-				return true
-			}
-		}
-	}
 	return false
 }
 
@@ -579,6 +561,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
 	errs := []error{
+		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.ensureRefreshes(),
