@@ -171,7 +171,7 @@ type Info struct {
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
 
-	// The ordered list of tracks that contains channels
+	// The ordered list of tracks that contain channels
 	Tracks []string
 }
 
