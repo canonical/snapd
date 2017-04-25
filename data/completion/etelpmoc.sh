@@ -48,7 +48,7 @@ fi
 
 . /usr/share/bash-completion/bash_completion
 
-. $_compscript
+. "$_compscript"
 
 # _compopts is an associative array, which keys are options.
 declare -A _compopts

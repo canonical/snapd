@@ -6,7 +6,32 @@
 _complete_from_snap() {
     {
         read -a opts
+        # opts is expected to be a series of compopt options
+        if [[ ${#opts[@]} -gt 0 ]]; then
+            if [[ "${opts[0]}" == "cannot" ]]; then
+                # older snap-execs sent errors over stdout :-(
+                return 1
+            fi
+
+            for i in "${opts[@]}"; do
+                if ! [[ "$i" =~ ^[a-z]+$ ]]; then
+                    # non-alphanumeric option; something awry
+                    return 2
+                fi
+            done
+        fi
+
         read bounced
+        case "$bounced" in
+            ""|"alias"|"export"|"job"|"variable")
+                # OK
+                ;;
+            *)
+                # unrecognised bounce
+                return 2
+                ;;
+        esac
+
         read sep
         if [ "$sep" ]; then
             # non-blank separator? madness!
@@ -21,10 +46,6 @@ _complete_from_snap() {
         fi
 
         if [[ ${#opts[@]} -gt 0 ]]; then
-            if [[ "${opts[0]}" == "cannot" ]]; then
-                # older snap-execs sent errors over stdout :-(
-                return 1
-            fi
             compopt $(printf " -o %s" "${opts[@]}")
         fi
         if [ "$bounced" ]; then
