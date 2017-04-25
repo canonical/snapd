@@ -89,28 +89,16 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile: %s", err)
 	}
-	fmt.Fprintf(os.Stderr, "DESIRED:\n")
-	for _, entry := range desired.Entries {
-		fmt.Fprintf(os.Stderr, " - %s\n", entry)
-	}
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 	current, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile: %s", err)
 	}
-	fmt.Fprintf(os.Stderr, "CURRENT (before):\n")
-	for _, entry := range current.Entries {
-		fmt.Fprintf(os.Stderr, " - %s\n", entry)
-	}
 
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
 	changesNeeded := mount.NeededChanges(current, desired)
-	fmt.Fprintf(os.Stderr, "CHANGES NEEDED:\n")
-	for _, change := range changesNeeded {
-		fmt.Fprintf(os.Stderr, " - %s\n", change)
-	}
 	var changesMade []mount.Change
 	for _, change := range changesNeeded {
 		if change.Action == mount.Keep {
@@ -135,10 +123,6 @@ func run() error {
 		}
 		changesMade = append(changesMade, change)
 	}
-	fmt.Fprintf(os.Stderr, "CHANGES MADE:\n")
-	for _, change := range changesMade {
-		fmt.Fprintf(os.Stderr, " - %s\n", change)
-	}
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
@@ -147,10 +131,6 @@ func run() error {
 		if change.Action == mount.Mount || change.Action == mount.Keep {
 			current.Entries = append(current.Entries, change.Entry)
 		}
-	}
-	fmt.Fprintf(os.Stderr, "CURRENT (after):\n")
-	for _, entry := range current.Entries {
-		fmt.Fprintf(os.Stderr, " - %s\n", entry)
 	}
 	if err := current.Save(currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile: %s", err)
