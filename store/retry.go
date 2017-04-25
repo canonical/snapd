@@ -93,7 +93,7 @@ func shouldRetryError(attempt *retry.Attempt, err error) bool {
 			}
 		}
 	}
-	return err == io.ErrUnexpectedEOF || err == io.EOF
+
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
 		logger.Debugf("Retrying because of: %s", err)
 		return true
