@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/doc"
 	"os"
@@ -77,8 +78,9 @@ func fill(para string) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func clientErrorToCmdMessage(snapName string, err *client.Error) (msg string, isError bool) {
-	isError = true
+func clientErrorToCmdMessage(snapName string, err *client.Error) (string, error) {
+	isError := true
+	var msg string
 	switch err.Kind {
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
@@ -109,13 +111,17 @@ If you understand and want to proceed repeat the command including --classic.
 		} else {
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
-		return fill(msg), true
+		return "", errors.New(fill(msg))
 	case client.ErrorKindSnapNotInstalled, client.ErrorKindNoUpdateAvailable:
-		isError = false
-		fallthrough
+		return fill(err.Message), nil
 	default:
-		return fill(err.Message), isError
+		return "", errors.New(fill(err.Message))
 	}
 
-	return fill(fmt.Sprintf(msg, snapName)), isError
+	msg = fill(fmt.Sprintf(msg, snapName))
+	if isError {
+		return "", errors.New(msg)
+	}
+
+	return msg, nil
 }

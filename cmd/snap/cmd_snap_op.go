@@ -446,11 +446,11 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		changeID, err = cli.Install(name, opts)
 	}
 	if e, ok := err.(*client.Error); ok {
-		msg, isError := clientErrorToCmdMessage(name, e)
-		if isError {
-			return errors.New(msg)
+		msg, err := clientErrorToCmdMessage(name, e)
+		if err != nil {
+			return err
 		}
-		fmt.Fprintf(Stderr, msg)
+		fmt.Fprintln(Stderr, msg)
 		return nil
 	}
 
