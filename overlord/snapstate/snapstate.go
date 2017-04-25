@@ -272,8 +272,8 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		// TODO: consider alias/unalias tasks
-		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases") && (chg == nil || !chg.Status().Ready()) {
+		// TODO: consider unalias tasks
+		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
