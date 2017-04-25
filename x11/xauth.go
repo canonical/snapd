@@ -75,6 +75,7 @@ func (xa *xauth) readFromFile(f *os.File) error {
 	if err := readBytes(f, b[:]); err != nil {
 		return err
 	}
+	// The family field consists of two bytes
 	xa.Family = binary.BigEndian.Uint16(b[:])
 
 	var err error
