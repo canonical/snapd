@@ -57,7 +57,11 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # libudev and udevd so we need to link with it dynamically.
     VENDOR_ARGS=--enable-nvidia-ubuntu --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
 else
+ifeq ($(shell dpkg-vendor --query Vendor),Debian)
     VENDOR_ARGS=--disable-apparmor --disable-seccomp
+else
+    VENDOR_ARGS=--disable-apparmor
+endif
 endif
 
 %:
