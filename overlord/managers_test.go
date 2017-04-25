@@ -1118,7 +1118,7 @@ apps:
 
 	c.Check(dest, Equals, "foo")
 
-	ts, snapName, err := snapstate.Unalias(st, "foo_")
+	ts, snapName, err := snapstate.RemoveManualAlias(st, "foo_")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
 	chg = st.NewChange("unalias", "...")
