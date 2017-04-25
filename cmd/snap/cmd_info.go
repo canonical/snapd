@@ -190,6 +190,31 @@ func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+// displayChannels displays channels and tracks in the right order
+func displayChannels(w io.Writer, remote *client.Snap) {
+	// \t\t\t so we get "installed" lined up with "channels"
+	fmt.Fprintf(w, "channels:\t\t\t\n")
+
+	// order by tracks
+	for i, tr := range remote.Tracks {
+		trackHasOpenChannel := false
+		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+			chName := fmt.Sprintf("%s/%s", tr, risk)
+			ch, ok := remote.Channels[chName]
+			if !ok {
+				continue
+			}
+			trackHasOpenChannel = true
+			fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", chName, ch.Version, ch.Revision, strutil.SizeToStr(ch.Size), NotesFromChannelSnapInfo(ch))
+		}
+		// add separator between tracks
+		if trackHasOpenChannel && i < len(remote.Tracks)-1 {
+			fmt.Fprintf(w, "  \t\t\t\t\n")
+		}
+		// FIXME: clarify if we need to show custom branches
+	}
+}
+
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
@@ -260,17 +285,10 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
-		if remote != nil && remote.Channels != nil {
-			// \t\t\t so we get "installed" lined up with "channels"
-			fmt.Fprintf(w, "channels:\t\t\t\n")
-			for _, ch := range []string{"stable", "candidate", "beta", "edge"} {
-				m := remote.Channels[ch]
-				if m == nil {
-					continue
-				}
-				fmt.Fprintf(w, "  %s:\t%s\t(%s)\t%s\t%s\n", ch, m.Version, m.Revision, strutil.SizeToStr(m.Size), NotesFromChannelSnapInfo(m))
-			}
+		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+			displayChannels(w, remote)
 		}
+
 	}
 	w.Flush()
 
