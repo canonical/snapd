@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -138,6 +139,9 @@ func applyAliasesChange(st *state.State, snapName string, prevAutoDisabled bool,
 	}
 	return nil
 }
+
+// AutoAliases allows to hook support for retrieving the automatic aliases of a snap.
+var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error)
 
 // autoAliasesDeltaV2 compares the automatic aliases with the current snap
 // declaration for the installed snaps with the given names (or all if
@@ -343,6 +347,27 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 	return nil, nil
 }
 
+// checkSnapAliasConflict checks whether snapName and its command
+// namepsace conflicts against installed snap aliases.
+func checkSnapAliasConflict(st *state.State, snapName string) error {
+	prefix := fmt.Sprintf("%s.", snapName)
+	snapStates, err := All(st)
+	if err != nil {
+		return err
+	}
+	for otherSnap, snapst := range snapStates {
+		autoDisabled := snapst.AutoAliasesDisabled
+		for alias, target := range snapst.Aliases {
+			if alias == snapName || strings.HasPrefix(alias, prefix) {
+				if target.Effective(autoDisabled) != "" {
+					return fmt.Errorf("snap %q command namespace conflicts with alias %q for %q snap", snapName, alias, otherSnap)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // disableAliases returns newAliases corresponding to the disabling of
 // curAliases, for manual aliases that means removed.
 func disableAliases(curAliases map[string]*AliasTarget) (newAliases map[string]*AliasTarget) {
@@ -377,4 +402,83 @@ func pruneAutoAliases(st *state.State, curAliases map[string]*AliasTarget, autoA
 		}
 	}
 	return newAliases
+}
+
+// transition to aliases v2
+func (m *SnapManager) ensureAliasesV2() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var aliasesV1 map[string]interface{}
+	err := m.state.Get("aliases", &aliasesV1)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if len(aliasesV1) == 0 {
+		if err == nil { // something empty was there, delete it
+			m.state.Set("aliases", nil)
+		}
+		// nothing to do
+		return nil
+	}
+
+	snapStates, err := All(m.state)
+	if err != nil {
+		return err
+	}
+
+	// mark pending "alias" tasks as errored
+	// they were never parts of lanes but either standalone or at the
+	// the start of wait chains
+	for _, t := range m.state.Tasks() {
+		if t.Kind() == "alias" && !t.Status().Ready() {
+			t.Errorf("internal representation for aliases has changed, please retry")
+			t.SetStatus(state.ErrorStatus)
+		}
+	}
+
+	withAliases := make(map[string]*SnapState, len(snapStates))
+	for snapName, snapst := range snapStates {
+		err := m.backend.RemoveSnapAliases(snapName)
+		if err != nil {
+			logger.Noticef("cannot cleanup aliases for %q: %v", snapName, err)
+			continue
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot get info for %q: %v", snapName, err)
+			continue
+		}
+		newAliases, err := refreshAliases(m.state, info, nil)
+		if err != nil {
+			logger.Noticef("cannot get automatic aliases for %q: %v", snapName, err)
+			continue
+		}
+		// TODO: check for conflicts
+		if len(newAliases) != 0 {
+			snapst.Aliases = newAliases
+			withAliases[snapName] = snapst
+		}
+		snapst.AutoAliasesDisabled = false
+		if !snapst.Active {
+			snapst.AliasesPending = true
+		}
+	}
+
+	for snapName, snapst := range withAliases {
+		if !snapst.AliasesPending {
+			err := applyAliasesChange(m.state, snapName, true, nil, false, snapst.Aliases, m.backend)
+			if err != nil {
+				// try to clean up and disable
+				logger.Noticef("cannot create automatic aliases for %q: %v", snapName, err)
+				m.backend.RemoveSnapAliases(snapName)
+				snapst.AutoAliasesDisabled = true
+			}
+		}
+		Set(m.state, snapName, snapst)
+	}
+
+	m.state.Set("aliases", nil)
+	return nil
 }
