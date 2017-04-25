@@ -62,7 +62,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-added": [{"name": "alias1", "target": "alias-snap.cmd1"}]}}}`)
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-added": [{"alias": "alias1", "snap": "alias-snap", "app": "cmd1"}]}}}`)
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}

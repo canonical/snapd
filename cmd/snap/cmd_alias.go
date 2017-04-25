@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"text/tabwriter"
 
 	"github.com/jessevdk/go-flags"
@@ -80,8 +81,9 @@ func (x *cmdAlias) Execute(args []string) error {
 }
 
 type changedAlias struct {
-	Name   string `json:"name"`
-	Target string `json:"target"`
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json"alias"`
 }
 
 func showAliasChanges(chg *client.Change) error {
@@ -94,17 +96,18 @@ func showAliasChanges(chg *client.Change) error {
 	}
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 	if len(added) != 0 {
-		fmt.Fprintf(w, i18n.G("Added:\n"))
-		for _, ta := range added {
-			fmt.Fprintf(w, "\t- %s => %s\n", ta.Name, ta.Target)
-		}
+		printChangedAliases(w, i18n.G("Added"), added)
 	}
 	if len(removed) != 0 {
-		fmt.Fprintf(w, i18n.G("Removed:\n"))
-		for _, ta := range removed {
-			fmt.Fprintf(w, "\t- %s => %s\n", ta.Name, ta.Target)
-		}
+		printChangedAliases(w, i18n.G("Removed"), removed)
 	}
 	w.Flush()
 	return nil
+}
+
+func printChangedAliases(w io.Writer, label string, changed []*changedAlias) {
+	fmt.Fprintf(w, "%s:\n", label)
+	for _, a := range changed {
+		fmt.Fprintf(w, "\t- %s => %s\n", a.Alias, snap.JoinSnapApp(a.Snap, a.App))
+	}
 }
