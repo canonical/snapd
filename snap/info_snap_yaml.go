@@ -400,7 +400,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
-				value, err := normalizeYamlValue(valueData, "attribute")
+				value, err := normalizeYamlValue(valueData)
 				if err != nil {
 					return "", "", nil, fmt.Errorf("attribute %q of %s %q: %v", key, plugOrSlot, name, err)
 				}
@@ -415,7 +415,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 }
 
 // normalizeYamlValue validates values and returns a normalized version of it (map[interface{}]interface{} is turned into map[string]interface{})
-func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error) {
+func normalizeYamlValue(v interface{}) (interface{}, error) {
 	switch x := v.(type) {
 	case string:
 		return x, nil
@@ -432,7 +432,7 @@ func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error)
 	case []interface{}:
 		l := make([]interface{}, len(x))
 		for i, el := range x {
-			el, err := normalizeYamlValue(el, errorContext)
+			el, err := normalizeYamlValue(el)
 			if err != nil {
 				return nil, err
 			}
@@ -444,9 +444,9 @@ func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error)
 		for k, item := range x {
 			kStr, ok := k.(string)
 			if !ok {
-				return nil, fmt.Errorf("non-string key in %s map: %v", errorContext, k)
+				return nil, fmt.Errorf("non-string key: %v", k)
 			}
-			item, err := normalizeYamlValue(item, errorContext)
+			item, err := normalizeYamlValue(item)
 			if err != nil {
 				return nil, err
 			}
@@ -456,7 +456,7 @@ func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error)
 	case map[string]interface{}:
 		m := make(map[string]interface{}, len(x))
 		for k, item := range x {
-			item, err := normalizeYamlValue(item, errorContext)
+			item, err := normalizeYamlValue(item)
 			if err != nil {
 				return nil, err
 			}
@@ -464,6 +464,6 @@ func normalizeYamlValue(v interface{}, errorContext string) (interface{}, error)
 		}
 		return m, nil
 	default:
-		return nil, fmt.Errorf("invalid %s scalar: %v", errorContext, v)
+		return nil, fmt.Errorf("invalid scalar: %v", v)
 	}
 }
