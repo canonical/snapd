@@ -37,9 +37,14 @@ __attribute__((constructor)) static void init(void) {
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 	"unsafe"
+)
+
+var (
+	ErrNoNS = errors.New("no namespace")
 )
 
 // Error returns error (if any) encountered in pre-main C code.
@@ -48,6 +53,10 @@ func BootstrapError() error {
 		return nil
 	}
 	errno := syscall.Errno(C.bootstrap_errno)
+	// Translate EINVAL from setns into a dedicated error.
+	if errno == syscall.EINVAL {
+		return ErrNoNS
+	}
 	if errno != 0 {
 		return fmt.Errorf("%s: %s", C.GoString(C.bootstrap_msg), errno)
 	}
