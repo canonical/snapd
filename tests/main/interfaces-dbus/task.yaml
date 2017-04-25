@@ -68,6 +68,13 @@ execute: |
     echo "And plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
+    # FIXME This is a pretty bad check for unsupported confinement
+    # but this will be replaced with a better check soon which allows
+    # us to query via for confinement support via the snap command.
+    if [ "$SPREAD_SYSTEM" != "debian-*" ]; then
+        exit 0
+    fi
+
     echo "And the consumer is not able to access the provided method"
     if test-snapd-dbus-consumer.dbus-consumer 2>${PWD}/call.error; then
         echo "Expected permission error calling dbus method with disconnected plug"
