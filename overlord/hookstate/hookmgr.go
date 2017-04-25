@@ -92,8 +92,7 @@ func Manager(s *state.State) (*HookManager, error) {
 			return false
 		}
 		var hooksup HookSetup
-		err := thisTask.Get("hook-setup", &hooksup)
-		if err != nil {
+		if thisTask.Get("hook-setup", &hooksup) != nil {
 			return false
 		}
 		thisSnapName := hooksup.Snap
