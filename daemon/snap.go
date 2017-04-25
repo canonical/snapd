@@ -159,10 +159,9 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
-	Name        string   `json:"name"`
-	Daemon      string   `json:"daemon"`
-	DesktopFile string   `json:"desktop-file,omitempty"`
-	Aliases     []string `json:"aliases,omitempty"`
+	Name        string `json:"name"`
+	Daemon      string `json:"daemon"`
+	DesktopFile string `json:"desktop-file,omitempty"`
 }
 
 // screenshotJSON contains the json for snap.ScreenshotInfo
@@ -196,7 +195,6 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 			Name:        app.Name,
 			Daemon:      app.Daemon,
 			DesktopFile: installedDesktopFile,
-			Aliases:     app.Aliases,
 		})
 	}
 
