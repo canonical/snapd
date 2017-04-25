@@ -65,12 +65,13 @@ func (s *SnapSuite) TestAliases(c *C) {
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
-					"foo0":      {App: "foo", Status: "auto"},
-					"foo_reset": {App: "foo.reset", Status: ""},
+					"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
+					"foo_reset": {App: "foo.reset", Manual: "reset", Status: "manual"},
 				},
 				"bar": {
-					"bar_dump":   {App: "bar.dump", Status: "enabled"},
-					"bar_dump.1": {App: "", Status: "disabled"},
+					"bar_dump":    {App: "bar.dump", Status: "manual", Manual: "dump"},
+					"bar_dump.1":  {App: "bar.dump", Status: "unaliased", Auto: "dump"},
+					"bar_restore": {App: "bar.safe-restore", Status: "manual", Auto: "restore", Manual: "safe-restore"},
 				},
 			},
 		})
@@ -79,11 +80,12 @@ func (s *SnapSuite) TestAliases(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"App        Alias       Notes\n" +
-		"bar.dump   bar_dump    enabled\n" +
-		"bar.???    bar_dump.1  undefined,disabled\n" +
-		"foo        foo0        auto\n" +
-		"foo.reset  foo_reset   -\n"
+		"App               Alias        Notes\n" +
+		"bar.dump          bar_dump     manual\n" +
+		"bar.dump          bar_dump.1   unaliased\n" +
+		"bar.safe-restore  bar_restore  manual,auto:restore\n" +
+		"foo               foo0         auto\n" +
+		"foo.reset         foo_reset    manual\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -99,12 +101,12 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 			"type": "sync",
 			"result": map[string]map[string]client.AliasStatus{
 				"foo": {
-					"foo0":      {App: "foo", Status: "auto"},
-					"foo_reset": {App: "foo.reset", Status: ""},
+					"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
+					"foo_reset": {App: "foo.reset", Manual: "reset", Status: "manual"},
 				},
 				"bar": {
-					"bar_dump":   {App: "bar.dump", Status: "enabled"},
-					"bar_dump.1": {App: "", Status: "disabled"},
+					"bar_dump":   {App: "bar.dump", Status: "manual", Manual: "dump"},
+					"bar_dump.1": {App: "bar.dump", Status: "unaliased", Auto: "dump"},
 				},
 			},
 		})
@@ -115,7 +117,7 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 	expectedStdout := "" +
 		"App        Alias      Notes\n" +
 		"foo        foo0       auto\n" +
-		"foo.reset  foo_reset  -\n"
+		"foo.reset  foo_reset  manual\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }

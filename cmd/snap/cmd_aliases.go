@@ -60,6 +60,7 @@ type aliasInfo struct {
 	App    string
 	Alias  string
 	Status string
+	Auto   string
 }
 
 type aliasInfos []*aliasInfo
@@ -112,6 +113,7 @@ func (x *cmdAliases) Execute(args []string) error {
 					App:    aliasStatus.App,
 					Alias:  alias,
 					Status: aliasStatus.Status,
+					Auto:   aliasStatus.Auto,
 				})
 			}
 		}
@@ -120,12 +122,11 @@ func (x *cmdAliases) Execute(args []string) error {
 		for _, info := range infos {
 			var notes []string
 			app := info.App
-			if app == "" {
-				app = fmt.Sprintf("%s.???", info.Snap)
-				notes = append(notes, "undefined")
-			}
 			if info.Status != "" {
 				notes = append(notes, info.Status)
+				if info.Status == "manual" && info.Auto != "" {
+					notes = append(notes, fmt.Sprintf("auto:%s", info.Auto))
+				}
 			}
 			notesStr := strings.Join(notes, ",")
 			if notesStr == "" {
