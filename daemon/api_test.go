@@ -5043,8 +5043,9 @@ func (s *apiSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	defer d.overlord.Stop()
 
 	action := &aliasAction{
-		Action:      "unalias",
-		AliasOrSnap: "alias-snap",
+		Action: "unalias",
+		Snap:   "alias-snap",
+		Alias:  "alias-snap",
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -5212,8 +5213,9 @@ func (s *apiSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 
 	// DWIM unalias an alias
 	action = &aliasAction{
-		Action:      "unalias",
-		AliasOrSnap: "alias1",
+		Action: "unalias",
+		Snap:   "alias1",
+		Alias:  "alias1",
 	}
 	text, err = json.Marshal(action)
 	c.Assert(err, check.IsNil)
