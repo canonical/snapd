@@ -276,5 +276,9 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		result["channels"] = remoteSnap.Channels
 	}
 
+	if len(remoteSnap.Tracks) > 0 {
+		result["tracks"] = remoteSnap.Tracks
+	}
+
 	return result
 }

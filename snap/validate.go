@@ -58,6 +58,15 @@ func ValidateHook(hook *HookInfo) error {
 
 var validAlias = regexp.MustCompile("^[a-zA-Z0-9][-_.a-zA-Z0-9]*$")
 
+// ValidateAlias checks if a string can be used as an alias name.
+func ValidateAlias(alias string) error {
+	valid := validAlias.MatchString(alias)
+	if !valid {
+		return fmt.Errorf("invalid alias name: %q", alias)
+	}
+	return nil
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.Name()
