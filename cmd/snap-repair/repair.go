@@ -88,7 +88,7 @@ func (r *repair) run() error {
 //        bits in /var/lib/snapd/repair/
 // FIXME: create a copy of the critical assertion code to protect
 //        against catastrophic bugs in the assertions implementation?
-var findRepairAssertions = func() ([]asserts.Assertion, error) {
+var findRepairAssertions = func() ([]*asserts.Repair, error) {
 	db, err := sysdb.Open()
 	if err != nil {
 		fmt.Errorf("cannot open system assertion database: %s", err)
@@ -98,7 +98,17 @@ var findRepairAssertions = func() ([]asserts.Assertion, error) {
 	var headers map[string]string
 	assertType := asserts.Type("repair")
 
-	return db.FindMany(assertType, headers)
+	assertions, err := db.FindMany(assertType, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	repairAssertions := make([]*asserts.Repair, len(assertions))
+	for i, a := range assertions {
+		repairAssertions[i] = a.(*asserts.Repair)
+	}
+
+	return repairAssertions, nil
 }
 
 func runRepair() error {
@@ -117,7 +127,7 @@ func runRepair() error {
 	// run repair assertions that not already ran
 	for _, a := range assertions {
 		// the asserts package guarantees that this cast will work
-		r := repair{ra: a.(*asserts.Repair)}
+		r := repair{ra: a}
 		if r.wasRun() {
 			continue
 		}

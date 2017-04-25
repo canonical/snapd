@@ -41,12 +41,12 @@ type repairSuite struct {
 	testutil.BaseTest
 	root string
 
-	origFindRepairAssertions func() ([]asserts.Assertion, error)
+	origFindRepairAssertions func() ([]*asserts.Repair, error)
 	origOnClassic            bool
 
 	cmds [][]string
 
-	repairs []asserts.Assertion
+	repairs []*asserts.Repair
 }
 
 var _ = Suite(&repairSuite{})
@@ -57,7 +57,8 @@ echo "hello world"
 
 var mockRepair = fmt.Sprintf(`type: repair
 authority-id: canonical
-repair-id: REPAIR-42
+brand-id: acme
+repair-id: repair-42
 series:
   - 16
 body-length: %v
@@ -74,7 +75,7 @@ func (s *repairSuite) SetUpTest(c *C) {
 	s.origFindRepairAssertions = findRepairAssertions
 	s.AddCleanup(release.MockOnClassic(false))
 
-	findRepairAssertions = func() ([]asserts.Assertion, error) {
+	findRepairAssertions = func() ([]*asserts.Repair, error) {
 		return s.repairs, nil
 	}
 	execCommand = func(name string, arg ...string) *exec.Cmd {
@@ -104,14 +105,14 @@ func (s *repairSuite) TestRunSingleRepair(c *C) {
 	repair, err := asserts.Decode([]byte(mockRepair))
 	c.Assert(err, IsNil)
 
-	s.repairs = []asserts.Assertion{repair}
+	s.repairs = []*asserts.Repair{repair.(*asserts.Repair)}
 	err = runRepair()
 	c.Check(err, IsNil)
 	c.Check(s.cmds, HasLen, 1)
 	c.Check(s.cmds, DeepEquals, [][]string{
-		{filepath.Join(dirs.SnapRepairDir, "REPAIR-42", "script")},
+		{filepath.Join(dirs.SnapRepairDir, "repair-42", "script")},
 	})
-	output, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairDir, "REPAIR-42/REPAIR-42.output"))
+	output, err := ioutil.ReadFile(filepath.Join(dirs.SnapRepairDir, "repair-42/repair-42.output"))
 	c.Assert(err, IsNil)
 	c.Check(string(output), Equals, "hello world\n")
 
