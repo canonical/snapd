@@ -58,7 +58,7 @@ func (s *SnapSuite) TestUnalias(c *C) {
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
-			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done", "data": {"aliases-removed": [{"name": "alias1", "target": "alias-snap.cmd1"}]}}}`)
 		default:
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
@@ -66,4 +66,9 @@ func (s *SnapSuite) TestUnalias(c *C) {
 	rest, err := Parser().ParseArgs([]string{"unalias", "alias1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, ""+
+		"Removed:\n"+
+		"  - alias1 => alias-snap.cmd1\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
 }
