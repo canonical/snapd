@@ -15,7 +15,7 @@ prepare: |
     # FIXME jailmode doesn't work on debian type systems due to missing
     # confinement yet. This check will be replaced with proper detection
     # if confinement is supported on the platform we're running.
-    if [ "$SPREAD_SYSTEM" != "debian-*" ]; then
+    if [[ "$SPREAD_SYSTEM" != "debian-*" ]]; then
         run_install --classic --jailmode
     fi
 execute: |

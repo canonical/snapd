@@ -71,7 +71,7 @@ execute: |
     # FIXME This is a pretty bad check for unsupported confinement
     # but this will be replaced with a better check soon which allows
     # us to query via for confinement support via the snap command.
-    if [ "$SPREAD_SYSTEM" != "debian-*" ]; then
+    if [[ "$SPREAD_SYSTEM" != "debian-*" ]]; then
         exit 0
     fi
 
