@@ -53,8 +53,8 @@ func BootstrapError() error {
 		return nil
 	}
 	errno := syscall.Errno(C.bootstrap_errno)
-	// Translate EINVAL from setns into a dedicated error.
-	if errno == syscall.EINVAL {
+	// Translate EINVAL from setns or ENOENT from open into a dedicated error.
+	if errno == syscall.EINVAL || errno == syscall.ENOENT {
 		return ErrNoNS
 	}
 	if errno != 0 {
