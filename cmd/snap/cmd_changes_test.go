@@ -130,7 +130,7 @@ Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
 
-	rest, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+	_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
 }
