@@ -96,9 +96,9 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	for k, v := range gi.Defaults {
-		dflt, err := normalizeYamlValue(v, "config defaults")
+		dflt, err := normalizeYamlValue(v)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
 		}
 		gi.Defaults[k] = dflt.(map[string]interface{})
 	}
