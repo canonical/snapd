@@ -473,3 +473,228 @@ func (s *snapmgrTestSuite) TestDisableAliases(c *C) {
 		"alias3": {Auto: "cmd3"},
 	})
 }
+
+func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	ts, err := snapstate.Alias(s.state, "some-snap", "cmd1", "alias1")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+		"alias",
+	})
+}
+
+func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	chg := s.state.NewChange("alias", "manual alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", "cmd1", "alias1")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+	expected := fakeOps{
+		{
+			op:      "update-aliases",
+			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Manual: "cmd1"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestAliasNoTarget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	chg := s.state.NewChange("alias", "manual alias")
+	ts, err := snapstate.Alias(s.state, "some-snap", "cmdno", "alias1")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "some-snap", target application "cmdno" does not exist.*`)
+}
+
+func (s *snapmgrTestSuite) TestAliasInvalidAlias(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Alias(s.state, "some-snap", "cmd", ".alias")
+	c.Assert(err, ErrorMatches, `invalid alias name: ".alias"`)
+}
+
+func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Auto: "cmd1"},
+			"alias2": {Auto: "cmd2"},
+		},
+	})
+
+	chg := s.state.NewChange("alias", "manual alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", "cmd5", "alias1")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
+	expected := fakeOps{
+		{
+			op:        "update-aliases",
+			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
+			aliases:   []*backend.Alias{{"alias1", "alias-snap.cmd5"}},
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "alias-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.AliasesPending, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"alias1": {Manual: "cmd5", Auto: "cmd1"},
+		"alias2": {Auto: "cmd2"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Alias(s.state, "some-snap", "cmd1", "alias1")
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("alias", "...").AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("update", "...").AddAll(ts)
+
+	_, err = snapstate.Alias(s.state, "some-snap", "cmd1", "alias1")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(2)},
+		},
+		Current: snap.R(2),
+		Active:  true,
+		Aliases: map[string]*snapstate.AliasTarget{
+			"alias1": {Auto: "cmd1"},
+		},
+	})
+
+	chg := s.state.NewChange("alias", "alias")
+	ts, err := snapstate.Alias(s.state, "alias-snap", "cmd5", "alias1")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot enable alias "alias1" for "alias-snap", already enabled for "other-snap".*`)
+}
