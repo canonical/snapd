@@ -88,23 +88,23 @@ func Manager(s *state.State) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
 	runner.SetBlocked(func(thisTask *state.Task, running []*state.Task) bool {
 		// check if we're a hook task, probably not needed but let's take extra care
-		if thisTask.Kind() == "run-hook" {
-			var hooksup HookSetup
-			err := thisTask.Get("hook-setup", &hooksup)
-			if err != nil {
-				return false
+		if thisTask.Kind() != "run-hook" {
+			return false
+		}
+		var hooksup HookSetup
+		err := thisTask.Get("hook-setup", &hooksup)
+		if err != nil {
+			return false
+		}
+		thisSnapName := hooksup.Snap
+		// examine all hook tasks, block thisTask if we find any other hook task affecting same snap
+		for _, t := range running {
+			if t.Kind() != "run-hook" || t.Get("hook-setup", &hooksup) != nil {
+				continue // ignore errors and continue checking remaining tasks
 			}
-			thisSnapName := hooksup.Snap
-			for _, t := range running {
-				if t.Kind() == "run-hook" {
-					err := t.Get("hook-setup", &hooksup)
-					if err == nil {
-						if hooksup.Snap == thisSnapName {
-							// found hook task affecting same snap, block thisTask.
-							return true
-						}
-					} // else - ignore error and continue checking remaining tasks
-				}
+			if hooksup.Snap == thisSnapName {
+				// found hook task affecting same snap, block thisTask.
+				return true
 			}
 		}
 		return false
