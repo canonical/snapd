@@ -366,7 +366,7 @@ func refreshScheduleUsesWeekdays(rs []*timeutil.Schedule) error {
 	return nil
 }
 
-func (m *SnapManager) getRefreshSchedule() ([]*timeutil.Schedule, error) {
+func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
@@ -449,13 +449,21 @@ func autoRefreshInFlight(st *state.State) bool {
 	return false
 }
 
-func lastRefresh(st *state.State) (time.Time, error) {
+func (m *SnapManager) LastRefresh() (time.Time, error) {
 	var lastRefresh time.Time
-	err := st.Get("last-refresh", &lastRefresh)
+	err := m.state.Get("last-refresh", &lastRefresh)
 	if err != nil && err != state.ErrNoState {
 		return time.Time{}, err
 	}
 	return lastRefresh, nil
+}
+
+func (m *SnapManager) NextRefresh() time.Time {
+	return m.nextRefresh
+}
+
+func (m *SnapManager) RefreshSchedule() string {
+	return m.currentRefreshSchedule
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
@@ -472,11 +480,11 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// get lastRefresh and schedule
-	lastRefresh, err := lastRefresh(m.state)
+	lastRefresh, err := m.LastRefresh()
 	if err != nil {
 		return err
 	}
-	refreshSchedule, err := m.getRefreshSchedule()
+	refreshSchedule, err := m.checkRefreshSchedule()
 	if err != nil {
 		return err
 	}
@@ -548,10 +556,6 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	m.state.Set("fix-forced-devmode", 1)
 
 	return nil
-}
-
-func (m *SnapManager) NextRefresh() time.Time {
-	return m.nextRefresh
 }
 
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"

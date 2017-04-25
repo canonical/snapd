@@ -231,7 +231,11 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
+	snapMgr := c.d.overlord.SnapManager()
 	st.Lock()
+	nextRefresh := snapMgr.NextRefresh()
+	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshScheduleStr := snapMgr.RefreshSchedule()
 	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
@@ -248,6 +252,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			"schedule": refreshScheduleStr,
+			"last":     fmt.Sprintf("%s", lastRefresh.Truncate(time.Minute)),
+			"next":     fmt.Sprintf("%s", nextRefresh.Truncate(time.Minute)),
 		},
 	}
 

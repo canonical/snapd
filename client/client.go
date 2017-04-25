@@ -357,6 +357,12 @@ type OSRelease struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+type RefreshInfo struct {
+	Schedule string `json:"schedule"`
+	Last     string `json:"last"`
+	Next     string `json:"next"`
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
@@ -366,6 +372,8 @@ type SysInfo struct {
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
+
+	Refresh RefreshInfo `json:"refresh,omitempty"`
 }
 
 func (rsp *response) err() error {
