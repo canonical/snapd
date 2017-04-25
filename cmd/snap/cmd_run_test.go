@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/x11"
 )
 
 var mockYaml = []byte(`name: snapname
@@ -498,4 +500,69 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+}
+
+func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
+	// mock installed snap; happily this also gives us a directory
+	// below /tmp which the Xauthority migration expects.
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+	defer mockSnapConfine()()
+
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
+	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
+	c.Assert(err, check.IsNil)
+
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err = os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	xauthPath, err := x11.MockXauthority(2)
+	c.Assert(err, check.IsNil)
+	defer os.Remove(xauthPath)
+
+	defer snaprun.MockGetEnv(func(name string) string {
+		if name == "XAUTHORITY" {
+			return xauthPath
+		}
+		return ""
+	})()
+
+	// and run it!
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
+		"snapname.app"})
+
+	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("XAUTHORITY=%s", expectedXauthPath))
+
+	info, err := os.Stat(expectedXauthPath)
+	c.Assert(err, check.IsNil)
+	c.Assert(info.Mode().Perm(), check.Equals, os.FileMode(0600))
+
+	err = x11.ValidateXauthority(expectedXauthPath)
+	c.Assert(err, check.IsNil)
 }
