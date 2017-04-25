@@ -4424,6 +4424,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
 	// nothing needs to be done, but last-refresh got updated
 	c.Check(s.state.Changes(), HasLen, 0)
 	s.verifyRefreshLast(c)
+
+	// ensure the next-refresh time is reset and re-calculated
+	c.Check(s.snapmgr.NextRefresh().IsZero(), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
@@ -4434,6 +4437,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
 		return true, nil
 	}
+	nextRefresh := s.snapmgr.NextRefresh()
+	c.Check(nextRefresh.IsZero(), Equals, true)
 
 	now := time.Now()
 	fakeLastRefresh := now.Add(-1 * time.Hour)
@@ -4461,6 +4466,25 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	var refreshLast time.Time
 	s.state.Get("last-refresh", &refreshLast)
 	c.Check(refreshLast.Equal(fakeLastRefresh), Equals, true)
+
+	// but a nextRefresh time got calculated
+	nextRefresh = s.snapmgr.NextRefresh()
+	c.Check(nextRefresh.IsZero(), Equals, false)
+
+	// run ensure again to test that nextRefresh again to ensure that
+	// nextRefresh is not calculated again if nothing changes
+	canAutoRefreshCalled = false
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	// give the timer a bit of time
+	for i := 0; i < 100; i++ {
+		if canAutoRefreshCalled {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	s.state.Lock()
+	c.Check(s.snapmgr.NextRefresh(), Equals, nextRefresh)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
