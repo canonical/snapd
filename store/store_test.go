@@ -1583,12 +1583,39 @@ const MockDetailsJSON = `{
         "map": [
           {
              "info": "released",
-             "version": "6.5",
+             "version": "v1",
              "binary_filesize": 12345,
              "epoch": "0",
              "confinement": "strict",
              "channel": "stable",
-             "revision": 42
+             "revision": 1
+          },
+          {
+             "info": "released",
+             "version": "v2",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "strict",
+             "channel": "candidate",
+             "revision": 2
+          },
+          {
+             "info": "released",
+             "version": "v8",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "devmode",
+             "channel": "beta",
+             "revision": 8
+          },
+          {
+             "info": "released",
+             "version": "v9",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "devmode",
+             "channel": "edge",
+             "revision": 9
           }
         ]
       }
@@ -1880,10 +1907,34 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Channels, DeepEquals, map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {
-			Revision:    snap.R(42),
-			Version:     "6.5",
+			Revision:    snap.R(1),
+			Version:     "v1",
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
+			Size:        12345,
+			Epoch:       "0",
+		},
+		"latest/candidate": {
+			Revision:    snap.R(2),
+			Version:     "v2",
+			Confinement: snap.StrictConfinement,
+			Channel:     "candidate",
+			Size:        12345,
+			Epoch:       "0",
+		},
+		"latest/beta": {
+			Revision:    snap.R(8),
+			Version:     "v8",
+			Confinement: snap.DevModeConfinement,
+			Channel:     "beta",
+			Size:        12345,
+			Epoch:       "0",
+		},
+		"latest/edge": {
+			Revision:    snap.R(9),
+			Version:     "v9",
+			Confinement: snap.DevModeConfinement,
+			Channel:     "edge",
 			Size:        12345,
 			Epoch:       "0",
 		},
