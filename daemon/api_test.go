@@ -4903,7 +4903,7 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	action := &aliasAction{
 		Action: "alias",
 		Snap:   "alias-snap",
-		Target: "app",
+		App:    "app",
 		Alias:  "alias1",
 	}
 	text, err := json.Marshal(action)
@@ -4954,7 +4954,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 		action := &aliasAction{
 			Action: "alias",
 			Snap:   "alias-snap",
-			Target: "app",
+			App:    "app",
 			Alias:  "alias1",
 		}
 		scen.mangle(action)
