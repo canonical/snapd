@@ -272,7 +272,8 @@ func CheckChangeConflict(st *state.State, snapName string, snapst *SnapState) er
 	for _, task := range st.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
-		if (k == "link-snap" || k == "unlink-snap" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
+		// TODO: consider unalias tasks
+		if (k == "link-snap" || k == "unlink-snap" || k == "refresh-aliases" || k == "prune-auto-aliases" || k == "alias") && (chg == nil || !chg.Status().Ready()) {
 			snapsup, err := TaskSnapSetup(task)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -537,17 +538,17 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 	}
 
-	newAutoAliases, mustRetireAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
+	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	reportUpdated := make(map[string]bool, len(updates))
-	var retiredAutoAliasesTs *state.TaskSet
+	var pruningAutoAliasesTs *state.TaskSet
 
-	if len(mustRetireAutoAliases) != 0 {
+	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		retiredAutoAliasesTs, err = applyAutoAliasesDelta(st, mustRetireAutoAliases, "retire", refreshAll, func(snapName string, _ *state.TaskSet) {
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, func(snapName string, _ *state.TaskSet) {
 			if nameSet[snapName] {
 				reportUpdated[snapName] = true
 			}
@@ -555,13 +556,13 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		if err != nil {
 			return nil, nil, err
 		}
-		tasksets = append(tasksets, retiredAutoAliasesTs)
+		tasksets = append(tasksets, pruningAutoAliasesTs)
 	}
 
-	// wait for the auto-alias retire tasks as needed
+	// wait for the auto-alias prune tasks as needed
 	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
-		if retiredAutoAliasesTs != nil && (mustRetireAutoAliases[snapName] != nil || transferTargets[snapName]) {
-			ts.WaitAll(retiredAutoAliasesTs)
+		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[snapName] != nil || transferTargets[snapName]) {
+			ts.WaitAll(pruningAutoAliasesTs)
 		}
 		reportUpdated[snapName] = true
 	}
@@ -601,7 +602,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "enable", refreshAll, scheduleUpdate)
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, scheduleUpdate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -618,9 +619,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
+	kind := "refresh-aliases"
+	msg := i18n.G("Refresh aliases for snap %q")
+	if op == "prune" {
+		kind = "prune-auto-aliases"
+		msg = i18n.G("Prune automatic aliases for snap %q")
+	}
 	for snapName, aliases := range delta {
-		ts, err := resetAliases(st, snapName, aliases)
-		if err != nil {
+		if err := CheckChangeConflict(st, snapName, nil); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, snapName, err)
@@ -628,14 +634,24 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 			}
 			return nil, err
 		}
+
+		snapsup := &SnapSetup{
+			SideInfo: &snap.SideInfo{RealName: snapName},
+		}
+		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.Name()))
+		alias.Set("snap-setup", &snapsup)
+		if op == "prune" {
+			alias.Set("aliases", aliases)
+		}
+		ts := state.NewTaskSet(alias)
 		linkTs(snapName, ts)
 		applyTs.AddAll(ts)
 	}
 	return applyTs, nil
 }
 
-func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (new map[string][]string, mustRetire map[string][]string, transferTargets map[string]bool, err error) {
-	new, retired, err := AutoAliasesDelta(st, nil)
+func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
+	changed, dropped, err := autoAliasesDeltaV2(st, nil)
 	if err != nil {
 		if len(names) != 0 {
 			// not "refresh all", error
@@ -647,34 +663,36 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (n
 
 	refreshAll := len(names) == 0
 
-	// retired alias -> snapName
-	retiringAliases := make(map[string]string, len(retired))
-	for snapName, aliases := range retired {
+	// dropped alias -> snapName
+	droppedAliases := make(map[string][]string, len(dropped))
+	for snapName, aliases := range dropped {
 		for _, alias := range aliases {
-			retiringAliases[alias] = snapName
+			droppedAliases[alias] = append(droppedAliases[alias], snapName)
 		}
 	}
 
-	// filter new considering only names if set:
+	// filter changed considering only names if set:
 	// we add auto-aliases only for mentioned snaps
-	if !refreshAll && len(new) != 0 {
-		filteredNew := make(map[string][]string, len(new))
+	if !refreshAll && len(changed) != 0 {
+		filteredChanged := make(map[string][]string, len(changed))
 		for _, name := range names {
-			if new[name] != nil {
-				filteredNew[name] = new[name]
+			if changed[name] != nil {
+				filteredChanged[name] = changed[name]
 			}
 		}
-		new = filteredNew
+		changed = filteredChanged
 	}
 
 	// mark snaps that are sources or target of transfers
-	transferSources := make(map[string]bool, len(retired))
-	transferTargets = make(map[string]bool, len(new))
-	for snapName, aliases := range new {
+	transferSources := make(map[string]bool, len(dropped))
+	transferTargets = make(map[string]bool, len(changed))
+	for snapName, aliases := range changed {
 		for _, alias := range aliases {
-			if source := retiringAliases[alias]; source != "" {
+			if sources := droppedAliases[alias]; len(sources) != 0 {
 				transferTargets[snapName] = true
-				transferSources[source] = true
+				for _, source := range sources {
+					transferSources[source] = true
+				}
 			}
 		}
 	}
@@ -686,33 +704,33 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (n
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
-	for snapName := range new {
+	for snapName := range changed {
 		if updating[snapName] {
-			delete(new, snapName)
+			delete(changed, snapName)
 		}
 	}
 
-	// retire explicitly auto-aliases only for snaps that are mentioned
+	// prune explicitly auto-aliases only for snaps that are mentioned
 	// and not updated OR the source of transfers
-	mustRetire = make(map[string][]string, len(retired))
+	mustPrune = make(map[string][]string, len(dropped))
 	for snapName := range transferSources {
-		mustRetire[snapName] = retired[snapName]
+		mustPrune[snapName] = dropped[snapName]
 	}
 	if refreshAll {
-		for snapName, aliases := range retired {
+		for snapName, aliases := range dropped {
 			if !updating[snapName] {
-				mustRetire[snapName] = aliases
+				mustPrune[snapName] = aliases
 			}
 		}
 	} else {
 		for _, name := range names {
-			if !updating[name] && retired[name] != nil {
-				mustRetire[name] = retired[name]
+			if !updating[name] && dropped[name] != nil {
+				mustPrune[name] = dropped[name]
 			}
 		}
 	}
 
-	return new, mustRetire, transferTargets, nil
+	return changed, mustPrune, transferTargets, nil
 }
 
 // Update initiates a change updating a snap.
@@ -1103,21 +1121,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 			addNext(removeInactiveRevision(st, name, si.Revision))
 		}
 
-		clearAliases := st.NewTask("clear-aliases", fmt.Sprintf(i18n.G("Clear alias state for snap %q"), name))
-		clearAliases.Set("snap-setup", &SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: name,
-			},
-		})
 		discardConns := st.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
-		discardConns.WaitFor(clearAliases)
 		discardConns.Set("snap-setup", &SnapSetup{
 			SideInfo: &snap.SideInfo{
 				RealName: name,
 			},
 		})
-		addNext(state.NewTaskSet(clearAliases, discardConns))
-
+		addNext(state.NewTaskSet(discardConns))
 	} else {
 		addNext(removeInactiveRevision(st, name, revision))
 	}
