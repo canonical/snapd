@@ -58,7 +58,7 @@ func (at *AssertionType) MaxSupportedFormat() int {
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"repair-id"}, assembleRepair, 0}
+	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, 0}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
 	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
