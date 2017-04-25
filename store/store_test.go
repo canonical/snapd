@@ -1576,6 +1576,92 @@ const MockDetailsJSON = `{
     "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
     "title": "hello-world",
+    "version": "6.3",
+    "channel_maps_list": [
+      {
+        "track": "latest",
+        "map": [
+          {
+             "info": "released",
+             "version": "v1",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "strict",
+             "channel": "stable",
+             "revision": 1
+          },
+          {
+             "info": "released",
+             "version": "v2",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "strict",
+             "channel": "candidate",
+             "revision": 2
+          },
+          {
+             "info": "released",
+             "version": "v8",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "devmode",
+             "channel": "beta",
+             "revision": 8
+          },
+          {
+             "info": "released",
+             "version": "v9",
+             "binary_filesize": 12345,
+             "epoch": "0",
+             "confinement": "devmode",
+             "channel": "edge",
+             "revision": 9
+          }
+        ]
+      }
+    ]
+}
+`
+
+// FIXME: this can go once the store always provides a channel_map_list
+const MockDetailsJSONnoChannelMapList = `{
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
+        }
+    },
+    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
+    "architecture": [
+        "all"
+    ],
+    "binary_filesize": 20480,
+    "channel": "edge",
+    "confinement": "strict",
+    "content": "application",
+    "description": "This is a simple hello world example.",
+    "developer_id": "canonical",
+    "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
+    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+    "last_updated": "2016-07-12T16:37:23.960632Z",
+    "origin": "canonical",
+    "package_name": "hello-world",
+    "prices": {"EUR": 0.99, "USD": 1.23},
+    "publisher": "Canonical",
+    "ratings_average": 0.0,
+    "revision": 27,
+    "screenshot_urls": ["https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/screenshot.png"],
+    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "summary": "The 'hello-world' of snaps",
+    "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+    "title": "hello-world",
     "version": "6.3"
 }
 `
@@ -1824,15 +1910,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 			w.WriteHeader(http.StatusOK)
 
 			io.WriteString(w, MockDetailsJSON)
-		case 1:
-			c.Check(r.URL.Path, Equals, "/metadata")
-			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, `{"_embedded":{"clickindex:package": [
-{"channel": "stable",    "confinement": "strict",  "revision": 1, "version": "v1"},
-{"channel": "candidate", "confinement": "strict",  "revision": 2, "version": "v2"},
-{"channel": "beta",      "confinement": "devmode", "revision": 8, "version": "v8"},
-{"channel": "edge",      "confinement": "devmode", "revision": 9, "version": "v9"}
-]}}`)
 		default:
 			c.Fatalf("unexpected request to %q", r.URL.Path)
 		}
@@ -1861,34 +1938,43 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	}
 	result, err := repo.SnapInfo(spec, nil)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 2)
+	c.Assert(n, Equals, 1)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Channels, DeepEquals, map[string]*snap.ChannelSnapInfo{
-		"stable": {
+		"latest/stable": {
 			Revision:    snap.R(1),
 			Version:     "v1",
 			Confinement: snap.StrictConfinement,
 			Channel:     "stable",
+			Size:        12345,
+			Epoch:       "0",
 		},
-		"candidate": {
+		"latest/candidate": {
 			Revision:    snap.R(2),
 			Version:     "v2",
 			Confinement: snap.StrictConfinement,
 			Channel:     "candidate",
+			Size:        12345,
+			Epoch:       "0",
 		},
-		"beta": {
+		"latest/beta": {
 			Revision:    snap.R(8),
 			Version:     "v8",
 			Confinement: snap.DevModeConfinement,
 			Channel:     "beta",
+			Size:        12345,
+			Epoch:       "0",
 		},
-		"edge": {
+		"latest/edge": {
 			Revision:    snap.R(9),
 			Version:     "v9",
 			Confinement: snap.DevModeConfinement,
 			Channel:     "edge",
+			Size:        12345,
+			Epoch:       "0",
 		},
 	})
+
 	c.Check(snap.Validate(result), IsNil)
 }
 
