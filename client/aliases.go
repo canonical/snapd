@@ -81,6 +81,8 @@ func (client *Client) Unalias(aliasOrSnap string) (changeID string, err error) {
 type AliasStatus struct {
 	App    string `json:"app,omitempty"`
 	Status string `json:"status,omitempty"`
+	Manual string `json:"manual,omitempty"`
+	Auto   string `json:"auto,omitempty"`
 }
 
 // Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.

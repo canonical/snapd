@@ -144,26 +144,25 @@ func (cs *clientSuite) TestClientAliases(c *check.C) {
 		"type": "sync",
 		"result": {
                     "foo": {
-                        "foo0": {"app": "foo", "status": "auto"},
-                        "foo_reset": {"app": "foo.reset"}
+                        "foo0": {"app": "foo", "status": "auto", "auto": "foo"},
+                        "foo_reset": {"app": "foo.reset", "manual": "reset", "status": "manual"}
                     },
                     "bar": {
-                        "bar_dump": {"app": "bar.dump", "status": "enabled"},
-                        "bar_dump.1": {"status": "disabled"}
+                        "bar_dump": {"app": "bar.dump", "status": "manual", "manual": "dump"},
+                        "bar_dump.1": {"app": "bar.dump", "status": "unaliased", "auto": "dump"}
                     }
-
 		}
 	}`
 	allStatuses, err := cs.cli.Aliases()
 	c.Assert(err, check.IsNil)
 	c.Check(allStatuses, check.DeepEquals, map[string]map[string]client.AliasStatus{
 		"foo": {
-			"foo0":      {App: "foo", Status: "auto"},
-			"foo_reset": {App: "foo.reset", Status: ""},
+			"foo0":      {App: "foo", Status: "auto", Auto: "foo"},
+			"foo_reset": {App: "foo.reset", Status: "manual", Manual: "reset"},
 		},
 		"bar": {
-			"bar_dump":   {App: "bar.dump", Status: "enabled"},
-			"bar_dump.1": {App: "", Status: "disabled"},
+			"bar_dump":   {App: "bar.dump", Status: "manual", Manual: "dump"},
+			"bar_dump.1": {App: "bar.dump", Status: "unaliased", Auto: "dump"},
 		},
 	})
 }
