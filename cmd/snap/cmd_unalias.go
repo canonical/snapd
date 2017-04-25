@@ -55,6 +55,12 @@ func (x *cmdUnalias) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, id)
+	chg, err := wait(cli, id)
+	if err == nil {
+		if err := showAliasChanges(chg); err != nil {
+			return err
+		}
+	}
+
 	return err
 }

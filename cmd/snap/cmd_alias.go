@@ -20,8 +20,12 @@
 package main
 
 import (
+	"fmt"
+	"text/tabwriter"
+
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
@@ -65,6 +69,42 @@ func (x *cmdAlias) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, id)
+	chg, err := wait(cli, id)
+	if err == nil {
+		if err := showAliasChanges(chg); err != nil {
+			return err
+		}
+	}
+
 	return err
+}
+
+type changedAlias struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+}
+
+func showAliasChanges(chg *client.Change) error {
+	var added, removed []*changedAlias
+	if err := chg.Get("aliases-added", &added); err != nil && err != client.ErrNoData {
+		return err
+	}
+	if err := chg.Get("aliases-removed", &removed); err != nil && err != client.ErrNoData {
+		return err
+	}
+	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+	if len(added) != 0 {
+		fmt.Fprintf(w, i18n.G("Added:\n"))
+		for _, ta := range added {
+			fmt.Fprintf(w, "\t- %s => %s\n", ta.Name, ta.Target)
+		}
+	}
+	if len(removed) != 0 {
+		fmt.Fprintf(w, i18n.G("Removed:\n"))
+		for _, ta := range removed {
+			fmt.Fprintf(w, "\t- %s => %s\n", ta.Name, ta.Target)
+		}
+	}
+	w.Flush()
+	return nil
 }
