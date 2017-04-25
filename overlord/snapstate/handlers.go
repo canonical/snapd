@@ -1032,6 +1032,12 @@ func (m *SnapManager) doPruneAutoAliasesV2(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json"alias"`
+}
+
 func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 	chg := t.Change()
 	var data map[string]interface{}
@@ -1045,13 +1051,23 @@ func aliasesTrace(t *state.Task, added, removed []*backend.Alias) error {
 
 	curAdded, _ := data["aliases-added"].([]interface{})
 	for _, a := range added {
-		curAdded = append(curAdded, a)
+		snap, app := snap.SplitSnapApp(a.Target)
+		curAdded = append(curAdded, &changedAlias{
+			Snap:  snap,
+			App:   app,
+			Alias: a.Name,
+		})
 	}
 	data["aliases-added"] = curAdded
 
 	curRemoved, _ := data["aliases-removed"].([]interface{})
 	for _, a := range removed {
-		curRemoved = append(curRemoved, a)
+		snap, app := snap.SplitSnapApp(a.Target)
+		curRemoved = append(curRemoved, &changedAlias{
+			Snap:  snap,
+			App:   app,
+			Alias: a.Name,
+		})
 	}
 	data["aliases-removed"] = curRemoved
 

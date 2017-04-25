@@ -492,9 +492,15 @@ func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
 	})
 }
 
+type changedAlias struct {
+	Snap  string `json:"snap"`
+	App   string `json:"app"`
+	Alias string `json"alias"`
+}
+
 type traceData struct {
-	Added   []*backend.Alias `json:"aliases-added,omitempty"`
-	Removed []*backend.Alias `json:"aliases-removed,omitempty"`
+	Added   []*changedAlias `json:"aliases-added,omitempty"`
+	Removed []*changedAlias `json:"aliases-removed,omitempty"`
 }
 
 func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
@@ -520,11 +526,10 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
-	added := []*backend.Alias{{"alias1", "alias-snap.cmd1"}}
 	expected := fakeOps{
 		{
 			op:      "update-aliases",
-			aliases: added,
+			aliases: []*backend.Alias{{"alias1", "alias-snap.cmd1"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -545,7 +550,7 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	err = chg.Get("api-data", &trace)
 	c.Assert(err, IsNil)
 	c.Check(trace, DeepEquals, traceData{
-		Added: added,
+		Added: []*changedAlias{{Snap: "alias-snap", App: "cmd1", Alias: "alias1"}},
 	})
 }
 
@@ -846,11 +851,10 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
-	removed := []*backend.Alias{{"alias1", "alias-snap.cmd5"}}
 	expected := fakeOps{
 		{
 			op:        "update-aliases",
-			rmAliases: removed,
+			rmAliases: []*backend.Alias{{"alias1", "alias-snap.cmd5"}},
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -869,7 +873,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	err = chg.Get("api-data", &trace)
 	c.Assert(err, IsNil)
 	c.Check(trace, DeepEquals, traceData{
-		Removed: removed,
+		Removed: []*changedAlias{{Snap: "alias-snap", App: "cmd5", Alias: "alias1"}},
 	})
 }
 
