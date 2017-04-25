@@ -61,6 +61,11 @@ func run() error {
 	// That code always runs and sets an error condition if it fails.
 	// Here we just check for the error.
 	if err := BootstrapError(); err != nil {
+		// If there is no mount namespace to transition to let's just quit
+		// instantly without any errors as there is nothing to do anymore.
+		if err == ErrNoNS {
+			return nil
+		}
 		return err
 	}
 	snapName := opts.Positionals.SnapName
