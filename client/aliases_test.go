@@ -76,8 +76,9 @@ func (cs *clientSuite) TestClientUnalias(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action":        "unalias",
-		"alias-or-snap": "alias1",
+		"action": "unalias",
+		"snap":   "alias1",
+		"alias":  "alias1",
 	})
 }
 
